@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LEGO Factory v3{% endblock %}</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --lego-red: #E3000B;
+            --lego-yellow: #FFD700;
+            --lego-blue: #006CB7;
+            --lego-green: #4DB848;
+            --sidebar-width: 250px;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: #f8f9fa;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%);
+            padding-top: 1rem;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            padding: 0.75rem 1rem;
+            border-radius: 0.375rem;
+            margin: 0.125rem 0.5rem;
+        }
+
+        .sidebar .nav-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+        .sidebar .nav-link.active {
+            background: var(--lego-red);
+            color: white;
+        }
+
+        .sidebar-brand {
+            color: white;
+            font-size: 1.25rem;
+            font-weight: bold;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sidebar-brand img {
+            width: 40px;
+            height: 40px;
+        }
+
+        .sidebar-section {
+            color: rgba(255,255,255,0.5);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 1rem 1rem 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .main-content {
+            margin-left: var(--sidebar-width);
+            padding: 1.5rem;
+            min-height: 100vh;
+        }
+
+        .card {
+            border: none;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            border-radius: 0.5rem;
+        }
+
+        .card-header {
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+        }
+
+        .stat-card {
+            border-left: 4px solid var(--lego-blue);
+        }
+
+        .stat-card.danger {
+            border-left-color: var(--lego-red);
+        }
+
+        .stat-card.success {
+            border-left-color: var(--lego-green);
+        }
+
+        .stat-card.warning {
+            border-left-color: var(--lego-yellow);
+        }
+
+        .alarm-critical { background-color: #dc3545 !important; color: white; }
+        .alarm-high { background-color: #fd7e14 !important; color: white; }
+        .alarm-medium { background-color: #ffc107 !important; }
+        .alarm-low { background-color: #0dcaf0 !important; }
+
+        .machine-status {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .status-running { background-color: var(--lego-green); }
+        .status-idle { background-color: #6c757d; }
+        .status-alarm { background-color: var(--lego-red); animation: pulse 1s infinite; }
+        .status-maintenance { background-color: var(--lego-yellow); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .topbar {
+            background: white;
+            padding: 0.75rem 1.5rem;
+            margin: -1.5rem -1.5rem 1.5rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .breadcrumb {
+            margin-bottom: 0;
+            background: transparent;
+            padding: 0;
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Sidebar -->
+    <nav class="sidebar">
+        <div class="sidebar-brand">
+            <i class="bi bi-bricks"></i>
+            LEGO Factory v3
+        </div>
+
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'dashboard_web.home' %}active{% endif %}" href="{{ url_for('dashboard_web.home') }}">
+                    <i class="bi bi-house me-2"></i> Home
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'dashboard.home' %}active{% endif %}" href="/dashboard">
+                    <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                </a>
+            </li>
+
+            <div class="sidebar-section">Control / Level 1</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'scada_web.operator_control' %}active{% endif %}" href="{{ url_for('scada_web.operator_control') }}">
+                    <i class="bi bi-joystick me-2"></i> Control
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'scada_web.sensors' %}active{% endif %}" href="{{ url_for('scada_web.sensors') }}">
+                    <i class="bi bi-thermometer-half me-2"></i> Sensors
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'scada_web.gcode_manager' %}active{% endif %}" href="{{ url_for('scada_web.gcode_manager') }}">
+                    <i class="bi bi-code-slash me-2"></i> G-code Manager
+                </a>
+            </li>
+
+            <div class="sidebar-section">SCADA / Level 2</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'scada_web.machines' or request.endpoint == 'scada_web.machine_detail' or request.endpoint == 'scada_web.machine_control' %}active{% endif %}" href="{{ url_for('scada_web.machines') }}">
+                    <i class="bi bi-cpu me-2"></i> Machines
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'scada_web.alarms' or request.endpoint == 'scada_web.alarm_detail' %}active{% endif %}" href="{{ url_for('scada_web.alarms') }}">
+                    <i class="bi bi-bell me-2"></i> Alarms
+                    {% if active_alarm_count|default(0) > 0 %}
+                    <span class="badge bg-danger ms-auto">{{ active_alarm_count }}</span>
+                    {% endif %}
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'scada_web.historian' %}active{% endif %}" href="{{ url_for('scada_web.historian') }}">
+                    <i class="bi bi-graph-up me-2"></i> Historian
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'scada_web.recipes' or request.endpoint == 'scada_web.recipe_detail' %}active{% endif %}" href="{{ url_for('scada_web.recipes') }}">
+                    <i class="bi bi-file-code me-2"></i> Recipes
+                </a>
+            </li>
+
+            <div class="sidebar-section">MES / Level 3</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.work_orders' or request.endpoint == 'mes_web.work_order_detail' %}active{% endif %}" href="{{ url_for('mes_web.work_orders') }}">
+                    <i class="bi bi-clipboard-check me-2"></i> Work Orders
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.scheduling' %}active{% endif %}" href="{{ url_for('mes_web.scheduling') }}">
+                    <i class="bi bi-calendar3 me-2"></i> Scheduling
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.oee' %}active{% endif %}" href="{{ url_for('mes_web.oee') }}">
+                    <i class="bi bi-pie-chart me-2"></i> OEE
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.resources' or request.endpoint == 'mes_web.resource_detail' %}active{% endif %}" href="{{ url_for('mes_web.resources') }}">
+                    <i class="bi bi-hdd-stack me-2"></i> Resources
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.materials' %}active{% endif %}" href="{{ url_for('mes_web.materials') }}">
+                    <i class="bi bi-box-seam me-2"></i> Materials
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.algorithm_compare' %}active{% endif %}" href="{{ url_for('mes_web.algorithm_compare') }}">
+                    <i class="bi bi-graph-up-arrow me-2"></i> Algorithm Compare
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.dispatch' %}active{% endif %}" href="{{ url_for('mes_web.dispatch') }}">
+                    <i class="bi bi-send me-2"></i> Dispatch
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.genealogy' %}active{% endif %}" href="{{ url_for('mes_web.genealogy') }}">
+                    <i class="bi bi-diagram-3 me-2"></i> Genealogy
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.process_monitor' %}active{% endif %}" href="{{ url_for('mes_web.process_monitor') }}">
+                    <i class="bi bi-activity me-2"></i> Process Monitor
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.performance' %}active{% endif %}" href="{{ url_for('mes_web.performance') }}">
+                    <i class="bi bi-speedometer me-2"></i> Performance
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.shift_report' %}active{% endif %}" href="{{ url_for('mes_web.shift_report') }}">
+                    <i class="bi bi-file-text me-2"></i> Shift Report
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'mes_web.operator' %}active{% endif %}" href="{{ url_for('mes_web.operator') }}">
+                    <i class="bi bi-person-workspace me-2"></i> Operator View
+                </a>
+            </li>
+
+            <div class="sidebar-section">LEGO Design</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'lego_web.catalog' %}active{% endif %}" href="{{ url_for('lego_web.catalog') }}">
+                    <i class="bi bi-grid-3x3 me-2"></i> Brick Catalog
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'lego_web.designer' %}active{% endif %}" href="{{ url_for('lego_web.designer') }}">
+                    <i class="bi bi-pencil-square me-2"></i> Brick Designer
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'lego_web.export_jobs' %}active{% endif %}" href="{{ url_for('lego_web.export_jobs') }}">
+                    <i class="bi bi-box-arrow-up me-2"></i> Export Jobs
+                </a>
+            </li>
+
+            <div class="sidebar-section">ERP / Level 4</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'erp_web.sales_orders' %}active{% endif %}" href="{{ url_for('erp_web.sales_orders') }}">
+                    <i class="bi bi-cart me-2"></i> Sales Orders
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'erp_web.inventory' %}active{% endif %}" href="{{ url_for('erp_web.inventory') }}">
+                    <i class="bi bi-boxes me-2"></i> Inventory
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'erp_web.mrp' %}active{% endif %}" href="{{ url_for('erp_web.mrp') }}">
+                    <i class="bi bi-diagram-3 me-2"></i> MRP
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'erp_web.costing' %}active{% endif %}" href="{{ url_for('erp_web.costing') }}">
+                    <i class="bi bi-calculator me-2"></i> Costing
+                </a>
+            </li>
+
+            <div class="sidebar-section">CRM</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'crm_web.dashboard' %}active{% endif %}" href="{{ url_for('crm_web.dashboard') }}">
+                    <i class="bi bi-people me-2"></i> Dashboard
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'crm_web.customers' %}active{% endif %}" href="{{ url_for('crm_web.customers') }}">
+                    <i class="bi bi-building me-2"></i> Customers
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'crm_web.contacts' %}active{% endif %}" href="{{ url_for('crm_web.contacts') }}">
+                    <i class="bi bi-person-lines-fill me-2"></i> Contacts
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'crm_web.activities' %}active{% endif %}" href="{{ url_for('crm_web.activities') }}">
+                    <i class="bi bi-journal-text me-2"></i> Activities
+                </a>
+            </li>
+
+            <div class="sidebar-section">QMS</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'qms_web.documents' %}active{% endif %}" href="{{ url_for('qms_web.documents') }}">
+                    <i class="bi bi-file-earmark-text me-2"></i> Documents
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'qms_web.ncr_list' %}active{% endif %}" href="{{ url_for('qms_web.ncr_list') }}">
+                    <i class="bi bi-exclamation-triangle me-2"></i> NCR/CAPA
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'qms_web.spc' %}active{% endif %}" href="{{ url_for('qms_web.spc') }}">
+                    <i class="bi bi-graph-up me-2"></i> SPC
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'qms_web.inspections' %}active{% endif %}" href="{{ url_for('qms_web.inspections') }}">
+                    <i class="bi bi-clipboard-check me-2"></i> Inspections
+                </a>
+            </li>
+
+            <div class="sidebar-section">Maintenance</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'cmms_web.assets' %}active{% endif %}" href="{{ url_for('cmms_web.assets') }}">
+                    <i class="bi bi-gear me-2"></i> Assets
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'cmms_web.cmms_work_orders' %}active{% endif %}" href="{{ url_for('cmms_web.cmms_work_orders') }}">
+                    <i class="bi bi-wrench me-2"></i> Work Orders
+                </a>
+            </li>
+
+            <div class="sidebar-section">Digital Twin</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'unity_web.viewer' %}active{% endif %}" href="{{ url_for('unity_web.viewer') }}">
+                    <i class="bi bi-badge-3d me-2"></i> 3D View
+                </a>
+            </li>
+
+            <div class="sidebar-section">ML / Analytics</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'ml_web.fingerprint' %}active{% endif %}" href="{{ url_for('ml_web.fingerprint') }}">
+                    <i class="bi bi-fingerprint me-2"></i> Fingerprinting
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'ml_web.anomaly' %}active{% endif %}" href="{{ url_for('ml_web.anomaly') }}">
+                    <i class="bi bi-activity me-2"></i> Anomaly Detection
+                </a>
+            </li>
+
+            <div class="sidebar-section">Simulation</div>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'simulation_views.simulation_dashboard' %}active{% endif %}" href="{{ url_for('simulation_views.simulation_dashboard') }}">
+                    <i class="bi bi-play-circle me-2"></i> Run Simulation
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {% if request.endpoint == 'simulation_views.algorithm_comparison' %}active{% endif %}" href="{{ url_for('simulation_views.algorithm_comparison') }}">
+                    <i class="bi bi-bar-chart-steps me-2"></i> Compare Algorithms
+                </a>
+            </li>
+        </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="topbar">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    {% block breadcrumb %}
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+                    {% endblock %}
+                </ol>
+            </nav>
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-muted" id="current-time"></span>
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" id="userDropdownBtn">
+                        <i class="bi bi-person-circle"></i> <span id="currentUserName">Guest</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{{ url_for('auth_web.profile') }}">Profile</a></li>
+                        <li><a class="dropdown-item" href="{{ url_for('auth_web.settings') }}">Settings</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="logout(); return false;">Logout</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+    <script>
+        // Update current time
+        function updateTime() {
+            document.getElementById('current-time').textContent =
+                new Date().toLocaleString('en-US', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Socket.IO connection for real-time updates
+        const socket = io();
+
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('alarm_update', (data) => {
+            // Update alarm badge in sidebar
+            const badge = document.querySelector('.nav-link .badge');
+            if (badge && data.active_count !== undefined) {
+                badge.textContent = data.active_count;
+                badge.style.display = data.active_count > 0 ? 'inline' : 'none';
+            }
+        });
+
+        // Load user from localStorage
+        function loadCurrentUser() {
+            const userJson = localStorage.getItem('lego_factory_user');
+            const userNameEl = document.getElementById('currentUserName');
+            if (userJson && userNameEl) {
+                try {
+                    const user = JSON.parse(userJson);
+                    userNameEl.textContent = user.name || user.username || 'User';
+                } catch (e) {
+                    userNameEl.textContent = 'Guest';
+                }
+            }
+        }
+
+        // Logout function
+        function logout() {
+            localStorage.removeItem('lego_factory_token');
+            localStorage.removeItem('lego_factory_refresh_token');
+            localStorage.removeItem('lego_factory_user');
+            localStorage.removeItem('lego_factory_token_expire');
+            window.location.href = '/login';
+        }
+
+        // Check if user is authenticated
+        function isAuthenticated() {
+            const token = localStorage.getItem('lego_factory_token');
+            const expireTime = localStorage.getItem('lego_factory_token_expire');
+            if (!token) return false;
+            if (expireTime && Date.now() >= parseInt(expireTime)) {
+                logout();
+                return false;
+            }
+            return true;
+        }
+
+        // Load user on page load
+        loadCurrentUser();
+    </script>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block title %}Dispatch Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Dispatch Dashboard</h2>
+            <p class="text-muted mb-0">Real-time job dispatching and machine assignment</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-secondary" onclick="refreshData()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Machine Status Panel -->
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-cpu"></i> Machines</h5>
+                    <span class="badge bg-primary" id="machine-count">0 machines</span>
+                </div>
+                <div class="card-body p-0" style="max-height: 600px; overflow-y: auto;">
+                    <div class="list-group list-group-flush" id="machine-list">
+                        <!-- Machines loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dispatch Queue Panel -->
+        <div class="col-md-8">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-list-task"></i> Dispatch Queue</h5>
+                    <div>
+                        <span class="text-muted me-2">Machine: <strong id="selected-machine">None</strong></span>
+                        <span class="badge bg-info" id="queue-count">0 jobs</span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 350px;">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="sticky-top bg-white">
+                                <tr>
+                                    <th>Job ID</th>
+                                    <th>Work Order</th>
+                                    <th>Priority</th>
+                                    <th>Processing</th>
+                                    <th>Due Date</th>
+                                    <th>Material</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="queue-body">
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-4">
+                                        Select a machine to view dispatch queue
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button class="btn btn-primary" id="auto-dispatch-btn" disabled>
+                        <i class="bi bi-lightning"></i> Auto-Dispatch Next
+                    </button>
+                    <button class="btn btn-outline-primary" id="dispatch-selected-btn" disabled>
+                        <i class="bi bi-play"></i> Dispatch Selected
+                    </button>
+                </div>
+            </div>
+
+            <!-- Current Job Panel -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-gear-wide-connected"></i> Current Job</h5>
+                </div>
+                <div class="card-body" id="current-job-panel">
+                    <p class="text-muted text-center mb-0">No job running on selected machine</p>
+                </div>
+            </div>
+
+            <!-- Recent Dispatch History -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Dispatches</h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 200px; overflow-y: auto;">
+                    <table class="table table-sm mb-0">
+                        <thead class="sticky-top bg-white">
+                            <tr>
+                                <th>Time</th>
+                                <th>Job</th>
+                                <th>Machine</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preempt Modal -->
+<div class="modal fade" id="preemptModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Preempt Job</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to preempt job <strong id="preempt-job-id"></strong>?</p>
+                <div class="mb-3">
+                    <label class="form-label">Reason</label>
+                    <select id="preempt-reason" class="form-select">
+                        <option value="higher_priority">Higher priority job</option>
+                        <option value="quality_issue">Quality issue</option>
+                        <option value="material_issue">Material issue</option>
+                        <option value="maintenance">Maintenance required</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="confirmPreempt()">Preempt</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedMachine = null;
+let selectedJob = null;
+let dispatchHistory = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadMachines();
+    setupWebSocket();
+
+    document.getElementById('auto-dispatch-btn').addEventListener('click', autoDispatch);
+    document.getElementById('dispatch-selected-btn').addEventListener('click', dispatchSelected);
+});
+
+function setupWebSocket() {
+    const socket = io('/dashboard');
+
+    socket.on('job_dispatched', function(data) {
+        addToHistory(data.timestamp, data.job_id, data.machine_id, 'Dispatched');
+        if (data.machine_id === selectedMachine) {
+            loadDispatchQueue(selectedMachine);
+        }
+        loadMachines();
+    });
+
+    socket.on('job_preempted', function(data) {
+        addToHistory(data.timestamp, data.job_id, data.machine_id, 'Preempted');
+        if (data.machine_id === selectedMachine) {
+            loadDispatchQueue(selectedMachine);
+        }
+        loadMachines();
+    });
+
+    socket.on('resource_update', function(data) {
+        loadMachines();
+    });
+}
+
+async function loadMachines() {
+    try {
+        const response = await fetch('/api/mes/resources');
+        const data = await response.json();
+
+        const machines = data.machines || [];
+        document.getElementById('machine-count').textContent = `${machines.length} machines`;
+
+        const list = document.getElementById('machine-list');
+        list.innerHTML = machines.map(m => `
+            <a href="#" class="list-group-item list-group-item-action ${m.machine_id === selectedMachine ? 'active' : ''}"
+               onclick="selectMachine('${m.machine_id}'); return false;">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                    <div>
+                        <span class="machine-status status-${m.status || 'idle'}"></span>
+                        <strong>${m.machine_id}</strong>
+                    </div>
+                    <span class="badge ${getStatusBadgeClass(m.status)}">${m.status || 'idle'}</span>
+                </div>
+                ${m.current_job_id ? `<small class="text-muted">Job: ${m.current_job_id}</small>` : ''}
+            </a>
+        `).join('');
+
+    } catch (error) {
+        console.error('Failed to load machines:', error);
+    }
+}
+
+function getStatusBadgeClass(status) {
+    switch(status) {
+        case 'running': return 'bg-success';
+        case 'idle': return 'bg-secondary';
+        case 'down': return 'bg-danger';
+        case 'setup': return 'bg-warning';
+        case 'maintenance': return 'bg-info';
+        default: return 'bg-secondary';
+    }
+}
+
+async function selectMachine(machineId) {
+    selectedMachine = machineId;
+    document.getElementById('selected-machine').textContent = machineId;
+
+    // Update machine list selection
+    document.querySelectorAll('#machine-list .list-group-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.textContent.includes(machineId)) {
+            item.classList.add('active');
+        }
+    });
+
+    // Enable buttons
+    document.getElementById('auto-dispatch-btn').disabled = false;
+
+    // Load queue
+    await loadDispatchQueue(machineId);
+    await loadMachineStatus(machineId);
+}
+
+async function loadDispatchQueue(machineId) {
+    try {
+        const response = await fetch(`/api/mes/dispatch/queue/${machineId}`);
+        const data = await response.json();
+
+        const jobs = data.queue || [];
+        document.getElementById('queue-count').textContent = `${jobs.length} jobs`;
+
+        const tbody = document.getElementById('queue-body');
+        if (jobs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No jobs in queue</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = jobs.map((job, idx) => `
+            <tr class="${selectedJob === job.job_id ? 'table-primary' : ''}" onclick="selectJob('${job.job_id}')">
+                <td><strong>${job.job_id}</strong></td>
+                <td>${job.work_order_id || '-'}</td>
+                <td><span class="badge ${getPriorityBadge(job.priority)}">${job.priority}</span></td>
+                <td>${job.processing_time_mins || 30} min</td>
+                <td>${job.due_date ? new Date(job.due_date).toLocaleDateString() : '-'}</td>
+                <td>${job.material_type || '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="dispatchJob('${job.job_id}', '${machineId}'); event.stopPropagation();">
+                        <i class="bi bi-play"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+
+    } catch (error) {
+        console.error('Failed to load queue:', error);
+    }
+}
+
+async function loadMachineStatus(machineId) {
+    try {
+        const response = await fetch(`/api/mes/dispatch/status/${machineId}`);
+        const data = await response.json();
+
+        const panel = document.getElementById('current-job-panel');
+
+        if (data.current_job) {
+            const job = data.current_job;
+            panel.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Job:</strong> ${job.job_id}</p>
+                        <p><strong>Work Order:</strong> ${job.work_order_id || '-'}</p>
+                        <p><strong>Started:</strong> ${job.actual_start ? new Date(job.actual_start).toLocaleString() : '-'}</p>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <button class="btn btn-warning" onclick="preemptJob('${job.job_id}')">
+                            <i class="bi bi-pause"></i> Preempt
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            panel.innerHTML = `<p class="text-muted text-center mb-0">Machine idle - ready for dispatch</p>`;
+        }
+
+    } catch (error) {
+        panel.innerHTML = `<p class="text-muted text-center mb-0">No job running</p>`;
+    }
+}
+
+function getPriorityBadge(priority) {
+    if (priority >= 8) return 'bg-danger';
+    if (priority >= 5) return 'bg-warning text-dark';
+    return 'bg-secondary';
+}
+
+function selectJob(jobId) {
+    selectedJob = jobId;
+    document.getElementById('dispatch-selected-btn').disabled = false;
+
+    // Update row highlighting
+    document.querySelectorAll('#queue-body tr').forEach(row => {
+        row.classList.remove('table-primary');
+        if (row.textContent.includes(jobId)) {
+            row.classList.add('table-primary');
+        }
+    });
+}
+
+async function dispatchJob(jobId, machineId) {
+    try {
+        const response = await fetch(`/api/mes/dispatch/${jobId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ machine_id: machineId })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            showToast('Job dispatched successfully', 'success');
+            loadDispatchQueue(machineId);
+            loadMachineStatus(machineId);
+            loadMachines();
+        } else {
+            showToast(data.message || 'Dispatch failed', 'error');
+        }
+
+    } catch (error) {
+        console.error('Dispatch failed:', error);
+        showToast('Dispatch failed', 'error');
+    }
+}
+
+async function autoDispatch() {
+    if (!selectedMachine) return;
+
+    try {
+        const response = await fetch(`/api/mes/dispatch/auto/${selectedMachine}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            showToast(`Auto-dispatched job ${data.job_id}`, 'success');
+            loadDispatchQueue(selectedMachine);
+            loadMachineStatus(selectedMachine);
+            loadMachines();
+        } else {
+            showToast(data.message || 'No jobs available', 'warning');
+        }
+
+    } catch (error) {
+        console.error('Auto-dispatch failed:', error);
+        showToast('Auto-dispatch failed', 'error');
+    }
+}
+
+function dispatchSelected() {
+    if (selectedJob && selectedMachine) {
+        dispatchJob(selectedJob, selectedMachine);
+    }
+}
+
+function preemptJob(jobId) {
+    document.getElementById('preempt-job-id').textContent = jobId;
+    new bootstrap.Modal(document.getElementById('preemptModal')).show();
+}
+
+async function confirmPreempt() {
+    const jobId = document.getElementById('preempt-job-id').textContent;
+    const reason = document.getElementById('preempt-reason').value;
+
+    try {
+        const response = await fetch(`/api/mes/dispatch/${jobId}/preempt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason })
+        });
+
+        const data = await response.json();
+
+        bootstrap.Modal.getInstance(document.getElementById('preemptModal')).hide();
+
+        if (response.ok && data.success) {
+            showToast('Job preempted', 'success');
+            loadDispatchQueue(selectedMachine);
+            loadMachineStatus(selectedMachine);
+            loadMachines();
+        } else {
+            showToast(data.message || 'Preempt failed', 'error');
+        }
+
+    } catch (error) {
+        console.error('Preempt failed:', error);
+        showToast('Preempt failed', 'error');
+    }
+}
+
+function addToHistory(timestamp, jobId, machineId, action) {
+    dispatchHistory.unshift({ timestamp, jobId, machineId, action });
+    dispatchHistory = dispatchHistory.slice(0, 20);
+
+    const tbody = document.getElementById('history-body');
+    tbody.innerHTML = dispatchHistory.map(h => `
+        <tr>
+            <td>${new Date(h.timestamp).toLocaleTimeString()}</td>
+            <td>${h.jobId}</td>
+            <td>${h.machineId}</td>
+            <td><span class="badge ${h.action === 'Dispatched' ? 'bg-success' : 'bg-warning'}">${h.action}</span></td>
+        </tr>
+    `).join('');
+}
+
+function refreshData() {
+    loadMachines();
+    if (selectedMachine) {
+        loadDispatchQueue(selectedMachine);
+        loadMachineStatus(selectedMachine);
+    }
+}
+
+function showToast(message, type) {
+    // Simple alert fallback
+    console.log(`[${type}] ${message}`);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,759 @@
+{% extends "base.html" %}
+{% block title %}Customer Portal - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #10b981;
+        --accent-red: #ef4444;
+        --accent-yellow: #f59e0b;
+        --accent-purple: #8b5cf6;
+        --accent-cyan: #06b6d4;
+    }
+
+    .portal-container {
+        padding: 1.5rem;
+        background: var(--bg-dark);
+        min-height: calc(100vh - 60px);
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i { color: var(--accent-cyan); }
+
+    .customer-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .customer-avatar {
+        width: 48px;
+        height: 48px;
+        background: var(--accent-blue);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: white;
+        font-weight: 600;
+    }
+
+    .customer-name {
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .customer-id {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: none;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    /* Summary Cards */
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .summary-card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .summary-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.125rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .summary-icon.blue { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .summary-icon.green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+    .summary-icon.yellow { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+    .summary-icon.purple { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+
+    .summary-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .summary-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Main Grid */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 1.5rem;
+    }
+
+    .card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-body { padding: 1.25rem; }
+
+    /* Orders Table */
+    .orders-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .orders-table th,
+    .orders-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .orders-table th {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    .orders-table td {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .orders-table tr:hover { background: var(--bg-dark); }
+
+    .order-link {
+        color: var(--accent-blue);
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .order-link:hover { text-decoration: underline; }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-new { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .status-production { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .status-quality { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; }
+    .status-shipping { background: rgba(6, 182, 212, 0.2); color: #67e8f9; }
+    .status-delivered { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+
+    /* Progress Tracker */
+    .progress-tracker {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        position: relative;
+    }
+
+    .progress-tracker::before {
+        content: '';
+        position: absolute;
+        top: 20px;
+        left: 40px;
+        right: 40px;
+        height: 2px;
+        background: var(--border-color);
+    }
+
+    .progress-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        z-index: 1;
+    }
+
+    .step-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-dark);
+        border: 2px solid var(--border-color);
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .step-icon.completed {
+        background: var(--accent-green);
+        border-color: var(--accent-green);
+        color: white;
+    }
+
+    .step-icon.active {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+        color: white;
+    }
+
+    .step-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-align: center;
+    }
+
+    .step-label.active { color: var(--accent-blue); }
+    .step-label.completed { color: var(--accent-green); }
+
+    /* Order Detail */
+    .detail-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .detail-header {
+        padding: 1rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .detail-row:last-child { margin-bottom: 0; }
+
+    .detail-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .detail-value {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    /* Line Items */
+    .line-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .line-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+    }
+
+    .item-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .item-icon {
+        width: 36px;
+        height: 36px;
+        background: rgba(59, 130, 246, 0.2);
+        border-radius: 0.375rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--accent-blue);
+    }
+
+    .item-name {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .item-part {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+    }
+
+    .item-qty {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .item-progress {
+        width: 80px;
+    }
+
+    .mini-progress {
+        height: 6px;
+        background: var(--bg-card);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .mini-progress-fill {
+        height: 100%;
+        background: var(--accent-green);
+        border-radius: 3px;
+    }
+
+    /* Documents */
+    .doc-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .doc-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .doc-item:hover { background: var(--bg-card-hover); }
+
+    .doc-icon {
+        width: 36px;
+        height: 36px;
+        background: rgba(239, 68, 68, 0.2);
+        border-radius: 0.375rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--accent-red);
+    }
+
+    .doc-info { flex: 1; }
+
+    .doc-name {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .doc-meta {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+    }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+        padding: 0 1.25rem;
+    }
+
+    .tab {
+        padding: 0.75rem 1rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        font-size: 0.875rem;
+    }
+
+    .tab.active {
+        color: var(--accent-blue);
+        border-bottom-color: var(--accent-blue);
+    }
+
+    /* Search */
+    .search-input {
+        width: 100%;
+        padding: 0.5rem 1rem;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    @media (max-width: 1200px) {
+        .main-grid { grid-template-columns: 1fr; }
+        .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="portal-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-user-circle"></i>
+            Customer Portal
+        </h1>
+        <div class="customer-info">
+            <div class="customer-avatar">AC</div>
+            <div>
+                <div class="customer-name">Aerospace Components Inc.</div>
+                <div class="customer-id">Customer ID: CUST-00145</div>
+            </div>
+            <button class="btn btn-secondary" style="margin-left: 1rem;">
+                <i class="fas fa-sign-out-alt"></i>
+                Logout
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-icon blue">
+                <i class="fas fa-clipboard-list"></i>
+            </div>
+            <div class="summary-value">8</div>
+            <div class="summary-label">Active Orders</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon green">
+                <i class="fas fa-truck"></i>
+            </div>
+            <div class="summary-value">3</div>
+            <div class="summary-label">Shipping This Week</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon yellow">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="summary-value">2</div>
+            <div class="summary-label">Pending Approval</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon purple">
+                <i class="fas fa-check-double"></i>
+            </div>
+            <div class="summary-value">156</div>
+            <div class="summary-label">Completed (YTD)</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-grid">
+        <!-- Orders List -->
+        <div class="left-column">
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-list"></i>
+                        My Orders
+                    </span>
+                    <input type="text" class="search-input" placeholder="Search orders..." style="width: 200px;">
+                </div>
+                <div class="tabs">
+                    <span class="tab active">All</span>
+                    <span class="tab">In Production</span>
+                    <span class="tab">Shipping</span>
+                    <span class="tab">Completed</span>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="orders-table">
+                        <thead>
+                            <tr>
+                                <th>Order #</th>
+                                <th>PO Number</th>
+                                <th>Items</th>
+                                <th>Ship Date</th>
+                                <th>Status</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Selected Order Progress -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-tasks"></i>
+                        Order Progress - SO-2024-00892
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="progress-tracker">
+                        <div class="progress-step">
+                            <div class="step-icon completed"><i class="fas fa-check"></i></div>
+                            <span class="step-label completed">Order Received</span>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-icon completed"><i class="fas fa-check"></i></div>
+                            <span class="step-label completed">In Production</span>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-icon active"><i class="fas fa-search"></i></div>
+                            <span class="step-label active">Quality Check</span>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-icon"><i class="fas fa-box"></i></div>
+                            <span class="step-label">Packaging</span>
+                        </div>
+                        <div class="progress-step">
+                            <div class="step-icon"><i class="fas fa-truck"></i></div>
+                            <span class="step-label">Shipped</span>
+                        </div>
+                    </div>
+
+                    <h4 style="color: var(--text-primary); margin-bottom: 1rem; font-size: 0.875rem;">
+                        Line Items
+                    </h4>
+                    <div class="line-items">
+                        <div class="line-item">
+                            <div class="item-info">
+                                <div class="item-icon"><i class="fas fa-cog"></i></div>
+                                <div>
+                                    <div class="item-name">Aerospace Bracket Assembly</div>
+                                    <div class="item-part">PN-12345-A</div>
+                                </div>
+                            </div>
+                            <div class="item-qty">250 pcs</div>
+                            <div class="item-progress">
+                                <div class="mini-progress">
+                                    <div class="mini-progress-fill" style="width: 85%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="line-item">
+                            <div class="item-info">
+                                <div class="item-icon"><i class="fas fa-cog"></i></div>
+                                <div>
+                                    <div class="item-name">Mounting Plate</div>
+                                    <div class="item-part">PN-67890-B</div>
+                                </div>
+                            </div>
+                            <div class="item-qty">100 pcs</div>
+                            <div class="item-progress">
+                                <div class="mini-progress">
+                                    <div class="mini-progress-fill" style="width: 100%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="right-column">
+            <!-- Order Details -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-info-circle"></i>
+                        Order Details
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="detail-header">
+                        <div class="detail-row">
+                            <span class="detail-label">Order Number</span>
+                            <span class="detail-value">SO-2024-00892</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">PO Number</span>
+                            <span class="detail-value">PO-78451</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Order Date</span>
+                            <span class="detail-value">Jan 5, 2024</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Ship Date</span>
+                            <span class="detail-value">Jan 15, 2024</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Ship To</span>
+                            <span class="detail-value">Phoenix, AZ</span>
+                        </div>
+                    </div>
+
+                    <h4 style="color: var(--text-primary); margin-bottom: 0.75rem; font-size: 0.875rem;">
+                        Shipping Address
+                    </h4>
+                    <p style="color: var(--text-secondary); font-size: 0.875rem; line-height: 1.5;">
+                        Aerospace Components Inc.<br>
+                        1234 Industrial Blvd<br>
+                        Phoenix, AZ 85001
+                    </p>
+                </div>
+            </div>
+
+            <!-- Documents -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-folder-open"></i>
+                        Documents
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="doc-list">
+                        <div class="doc-item" onclick="downloadDoc('quote')">
+                            <div class="doc-icon"><i class="fas fa-file-pdf"></i></div>
+                            <div class="doc-info">
+                                <div class="doc-name">Quote QT-2024-00892.pdf</div>
+                                <div class="doc-meta">245 KB • Jan 3, 2024</div>
+                            </div>
+                            <i class="fas fa-download" style="color: var(--text-secondary);"></i>
+                        </div>
+                        <div class="doc-item" onclick="downloadDoc('po')">
+                            <div class="doc-icon"><i class="fas fa-file-pdf"></i></div>
+                            <div class="doc-info">
+                                <div class="doc-name">PO Confirmation.pdf</div>
+                                <div class="doc-meta">128 KB • Jan 5, 2024</div>
+                            </div>
+                            <i class="fas fa-download" style="color: var(--text-secondary);"></i>
+                        </div>
+                        <div class="doc-item" onclick="downloadDoc('drawing')">
+                            <div class="doc-icon" style="background: rgba(59, 130, 246, 0.2); color: var(--accent-blue);">
+                                <i class="fas fa-drafting-compass"></i>
+                            </div>
+                            <div class="doc-info">
+                                <div class="doc-name">Engineering Drawing.pdf</div>
+                                <div class="doc-meta">1.2 MB • Jan 5, 2024</div>
+                            </div>
+                            <i class="fas fa-download" style="color: var(--text-secondary);"></i>
+                        </div>
+                        <div class="doc-item" onclick="downloadDoc('cert')">
+                            <div class="doc-icon" style="background: rgba(16, 185, 129, 0.2); color: var(--accent-green);">
+                                <i class="fas fa-certificate"></i>
+                            </div>
+                            <div class="doc-info">
+                                <div class="doc-name">Material Cert (Pending)</div>
+                                <div class="doc-meta">Available after QC</div>
+                            </div>
+                            <i class="fas fa-clock" style="color: var(--text-secondary);"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const orders = [
+        { id: 'SO-2024-00892', po: 'PO-78451', items: 2, shipDate: 'Jan 15', status: 'quality', progress: 85 },
+        { id: 'SO-2024-00889', po: 'PO-78448', items: 1, shipDate: 'Jan 12', status: 'shipping', progress: 95 },
+        { id: 'SO-2024-00885', po: 'PO-78442', items: 3, shipDate: 'Jan 18', status: 'production', progress: 45 },
+        { id: 'SO-2024-00878', po: 'PO-78435', items: 1, shipDate: 'Jan 10', status: 'delivered', progress: 100 },
+        { id: 'SO-2024-00872', po: 'PO-78428', items: 4, shipDate: 'Jan 22', status: 'new', progress: 10 },
+    ];
+
+    function renderOrders() {
+        const tbody = document.getElementById('orders-body');
+        tbody.innerHTML = orders.map(o => `
+            <tr onclick="selectOrder('${o.id}')" style="cursor: pointer;">
+                <td><a class="order-link">${o.id}</a></td>
+                <td>${o.po}</td>
+                <td>${o.items}</td>
+                <td>${o.shipDate}</td>
+                <td><span class="status-badge status-${o.status}">${o.status}</span></td>
+                <td>
+                    <div class="mini-progress" style="width: 80px;">
+                        <div class="mini-progress-fill" style="width: ${o.progress}%"></div>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function selectOrder(id) {
+        document.querySelectorAll('.orders-table tr').forEach(row => {
+            row.style.background = row.querySelector('.order-link')?.textContent === id ? 'var(--bg-dark)' : '';
+        });
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    function downloadDoc(type) {
+        alert(`Downloading ${type} document...`);
+    }
+
+    renderOrders();
+</script>
+{% endblock %}

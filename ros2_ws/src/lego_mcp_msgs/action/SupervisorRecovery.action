@@ -1,0 +1,69 @@
+# SupervisorRecovery.action - Long-running supervisor recovery operation
+# LEGO MCP Manufacturing System v7.0
+# OTP-style fault recovery with checkpoint restore
+
+# Goal
+string supervisor_id                # Supervisor to recover
+string[] failed_nodes               # Specific nodes to recover (empty = all failed)
+
+# Recovery strategy
+uint8 STRATEGY_RESTART_ONLY = 0     # Just restart failed nodes
+uint8 STRATEGY_RESTORE_CHECKPOINT = 1 # Restore from checkpoint then restart
+uint8 STRATEGY_FULL_RESTART = 2     # Stop all children and restart in order
+uint8 STRATEGY_ESCALATE = 3         # Escalate to parent supervisor
+uint8 recovery_strategy
+
+# Options
+string checkpoint_id                # Specific checkpoint to restore (empty = latest)
+bool wait_for_stable                # Wait until all nodes are stable
+float32 stability_window_sec        # Seconds of stability required (default 10)
+float32 timeout_sec                 # Overall operation timeout (default 120)
+
+---
+# Result
+bool success                        # True if recovery completed successfully
+string message                      # Human-readable result
+
+# Recovery summary
+uint32 nodes_restarted              # Number of nodes restarted
+uint32 nodes_recovered              # Number of nodes successfully recovered
+uint32 nodes_failed                 # Number of nodes that failed to recover
+string[] recovered_nodes            # List of recovered node IDs
+string[] failed_recovery_nodes      # List of nodes that failed recovery
+
+# Checkpoint information (if restored)
+bool checkpoint_restored            # Whether checkpoint was restored
+string restored_checkpoint_id       # ID of restored checkpoint
+builtin_interfaces/Time checkpoint_timestamp  # Checkpoint creation time
+
+# Timing
+float32 total_duration_sec          # Total recovery time
+float32 restart_duration_sec        # Time spent restarting nodes
+float32 stabilization_duration_sec  # Time spent waiting for stability
+
+# Final state
+lego_mcp_msgs/SupervisorStatus final_status
+
+---
+# Feedback
+# Recovery phase
+uint8 PHASE_INITIALIZING = 0
+uint8 PHASE_STOPPING_NODES = 1
+uint8 PHASE_RESTORING_CHECKPOINT = 2
+uint8 PHASE_STARTING_NODES = 3
+uint8 PHASE_WAITING_STABILITY = 4
+uint8 PHASE_VERIFYING = 5
+uint8 PHASE_COMPLETE = 6
+uint8 PHASE_FAILED = 7
+uint8 current_phase
+string phase_description            # Human-readable phase description
+
+# Progress
+float32 progress_percent            # Overall progress (0-100)
+uint32 nodes_processed              # Nodes processed so far
+uint32 total_nodes                  # Total nodes to process
+string current_node                 # Currently processing node
+
+# Status updates
+string status_message               # Current status message
+builtin_interfaces/Time timestamp   # Feedback timestamp

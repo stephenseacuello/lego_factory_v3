@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Export Jobs - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --primary: #3b82f6; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: var(--primary); box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25); }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.1); vertical-align: middle; }
+        .job-card { background: var(--card-bg); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); padding: 1rem; margin-bottom: 1rem; }
+        .job-card.processing { border-left: 4px solid var(--primary); }
+        .job-card.completed { border-left: 4px solid #10b981; }
+        .job-card.queued { border-left: 4px solid #f59e0b; }
+        .job-card.failed { border-left: 4px solid #ef4444; }
+        .progress { height: 8px; background: #1e293b; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+        .modal-content { background: var(--card-bg); color: #e2e8f0; }
+        .modal-header, .modal-footer { border-color: rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Export Jobs</a>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" style="width:150px">
+                    <option>All Status</option>
+                    <option>Processing</option>
+                    <option>Queued</option>
+                    <option>Completed</option>
+                    <option>Failed</option>
+                </select>
+                <button class="btn btn-outline-light btn-sm" onclick="refreshJobs()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newJobModal">
+                    <i class="bi bi-plus-lg me-1"></i>New Export
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-primary bg-opacity-25 text-primary me-3">
+                            <i class="bi bi-hourglass-split"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Processing</div>
+                            <h4 class="mb-0">3</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-warning bg-opacity-25 text-warning me-3">
+                            <i class="bi bi-clock"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Queued</div>
+                            <h4 class="mb-0">12</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-success bg-opacity-25 text-success me-3">
+                            <i class="bi bi-check-circle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Completed Today</div>
+                            <h4 class="mb-0">47</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-danger bg-opacity-25 text-danger me-3">
+                            <i class="bi bi-x-circle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Failed</div>
+                            <h4 class="mb-0">2</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Job Queue -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-list-task me-2"></i>Export Job Queue</span>
+                        <span class="badge bg-secondary">15 jobs</span>
+                    </div>
+                    <div class="card-body">
+                        <!-- Processing Job -->
+                        <div class="job-card processing">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-arrow-repeat text-primary me-2 spin"></i>
+                                        EXP-2024-0147
+                                    </h6>
+                                    <small class="text-muted">Brick 2x4 Collection - 500 units</small>
+                                </div>
+                                <span class="badge bg-primary">Processing</span>
+                            </div>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span>Generating STL files...</span>
+                                    <span>67%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 67%"></div>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center small">
+                                <span class="text-muted">Started: 10:32 AM</span>
+                                <span class="text-muted">Est. remaining: 5 min</span>
+                            </div>
+                        </div>
+
+                        <!-- Processing Job 2 -->
+                        <div class="job-card processing">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-arrow-repeat text-primary me-2 spin"></i>
+                                        EXP-2024-0146
+                                    </h6>
+                                    <small class="text-muted">Technic Beam Set - 250 units</small>
+                                </div>
+                                <span class="badge bg-primary">Processing</span>
+                            </div>
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span>Slicing for Prusa MK4...</span>
+                                    <span>34%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 34%"></div>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center small">
+                                <span class="text-muted">Started: 10:28 AM</span>
+                                <span class="text-muted">Est. remaining: 12 min</span>
+                            </div>
+                        </div>
+
+                        <!-- Queued Jobs -->
+                        <div class="job-card queued">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-clock text-warning me-2"></i>
+                                        EXP-2024-0148
+                                    </h6>
+                                    <small class="text-muted">Custom Minifig Parts - 100 units</small>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-warning text-dark">Queued #1</span>
+                                    <button class="btn btn-sm btn-outline-light"><i class="bi bi-x-lg"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="job-card queued">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-clock text-warning me-2"></i>
+                                        EXP-2024-0149
+                                    </h6>
+                                    <small class="text-muted">Slope Collection - 300 units</small>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-warning text-dark">Queued #2</span>
+                                    <button class="btn btn-sm btn-outline-light"><i class="bi bi-x-lg"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="job-card queued">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-clock text-warning me-2"></i>
+                                        EXP-2024-0150
+                                    </h6>
+                                    <small class="text-muted">Plate 1x6 Batch - 1000 units</small>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-warning text-dark">Queued #3</span>
+                                    <button class="btn btn-sm btn-outline-light"><i class="bi bi-x-lg"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Completed Jobs -->
+                        <div class="job-card completed">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-check-circle text-success me-2"></i>
+                                        EXP-2024-0145
+                                    </h6>
+                                    <small class="text-muted">Brick 1x2 Standard - 800 units</small>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-success">Completed</span>
+                                    <button class="btn btn-sm btn-outline-light"><i class="bi bi-download"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Failed Job -->
+                        <div class="job-card failed">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">
+                                        <i class="bi bi-x-circle text-danger me-2"></i>
+                                        EXP-2024-0144
+                                    </h6>
+                                    <small class="text-muted">Invalid geometry detected</small>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-danger">Failed</span>
+                                    <button class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-clockwise"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Job Details & History -->
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-info-circle me-2"></i>Selected Job Details
+                    </div>
+                    <div class="card-body">
+                        <h6 class="mb-3">EXP-2024-0147</h6>
+                        <table class="table table-sm table-borderless" style="color: #e2e8f0;">
+                            <tr><td class="text-muted">Brick Type</td><td>Brick 2x4</td></tr>
+                            <tr><td class="text-muted">Quantity</td><td>500 units</td></tr>
+                            <tr><td class="text-muted">Format</td><td>STL + G-code</td></tr>
+                            <tr><td class="text-muted">Target Printer</td><td>Prusa MK4</td></tr>
+                            <tr><td class="text-muted">Profile</td><td>LEGO Standard</td></tr>
+                            <tr><td class="text-muted">Created By</td><td>John Smith</td></tr>
+                            <tr><td class="text-muted">Priority</td><td><span class="badge bg-info">Normal</span></td></tr>
+                        </table>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-outline-light btn-sm flex-grow-1">
+                                <i class="bi bi-eye me-1"></i>View Details
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-clock-history me-2"></i>Recent Completions
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" style="background: transparent;">
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>EXP-2024-0145</span>
+                                    <small class="text-success">Completed</small>
+                                </div>
+                                <small class="text-muted">15 min ago - 2.4 MB</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>EXP-2024-0143</span>
+                                    <small class="text-success">Completed</small>
+                                </div>
+                                <small class="text-muted">1 hour ago - 5.1 MB</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>EXP-2024-0142</span>
+                                    <small class="text-success">Completed</small>
+                                </div>
+                                <small class="text-muted">2 hours ago - 1.8 MB</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-speedometer2 me-2"></i>Queue Performance
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Avg. Processing Time</span>
+                            <strong>8.5 min</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Queue Wait Time</span>
+                            <strong>12 min</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Success Rate</span>
+                            <strong class="text-success">96.8%</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Throughput/Hour</span>
+                            <strong>24 jobs</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Export Job Modal -->
+    <div class="modal fade" id="newJobModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>New Export Job</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Brick/Part Selection</label>
+                        <select class="form-select">
+                            <option>Brick 2x4 (3001)</option>
+                            <option>Brick 2x2 (3003)</option>
+                            <option>Brick 1x2 (3004)</option>
+                            <option>Plate 1x6 (3666)</option>
+                            <option>Technic Beam 1x8</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-control" value="100" min="1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Export Format</label>
+                        <select class="form-select">
+                            <option>STL Only</option>
+                            <option>STL + G-code</option>
+                            <option>G-code Only</option>
+                            <option>OBJ + STL</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Target Printer</label>
+                        <select class="form-select">
+                            <option>Prusa MK4</option>
+                            <option>Bambu X1 Carbon</option>
+                            <option>Formlabs Form 3</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select">
+                            <option>Low</option>
+                            <option selected>Normal</option>
+                            <option>High</option>
+                            <option>Urgent</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary">Add to Queue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function refreshJobs() {
+            console.log('Refreshing job queue...');
+        }
+    </script>
+    <style>
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    </style>
+</body>
+</html>

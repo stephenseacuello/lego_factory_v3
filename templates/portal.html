@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask CNC SCADA - Control Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-bg: #1e293b;
+            --card-bg: #334155;
+        }
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        .portal-header {
+            background: rgba(30, 41, 59, 0.95);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 1rem 0;
+        }
+        .portal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .portal-subtitle {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        .section-title {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .dashboard-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            height: 100%;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.05);
+            text-decoration: none;
+            display: block;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+            border-color: var(--primary-color);
+        }
+        .card-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .card-icon.blue { background: rgba(37, 99, 235, 0.2); color: #60a5fa; }
+        .card-icon.green { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .card-icon.orange { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .card-icon.purple { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+        .card-icon.red { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .card-icon.cyan { background: rgba(6, 182, 212, 0.2); color: #22d3ee; }
+        .card-icon.pink { background: rgba(236, 72, 153, 0.2); color: #f472b6; }
+        .card-icon.teal { background: rgba(20, 184, 166, 0.2); color: #2dd4bf; }
+        .card-title {
+            color: #fff;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .card-description {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .card-stats {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .stat-label {
+            font-size: 0.7rem;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        .status-online { background: var(--success-color); box-shadow: 0 0 8px var(--success-color); }
+        .status-warning { background: var(--warning-color); box-shadow: 0 0 8px var(--warning-color); }
+        .status-offline { background: var(--danger-color); }
+        .quick-stats {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1rem 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .quick-stat {
+            text-align: center;
+            padding: 0.5rem;
+        }
+        .quick-stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        .quick-stat-label {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <header class="portal-header">
+        <div class="container-fluid px-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="portal-title">
+                        <i class="bi bi-gear-wide-connected me-2"></i>
+                        Flask CNC SCADA
+                    </div>
+                    <div class="portal-subtitle">Manufacturing Execution & Digital Twin Platform</div>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="status-indicator status-online"></span>
+                    <span class="text-success">System Online</span>
+                    <a href="/" class="btn btn-outline-light btn-sm ms-3">
+                        <i class="bi bi-display me-1"></i> CNC Control
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container-fluid px-4 py-4">
+        <!-- Quick Stats -->
+        <div class="quick-stats">
+            <div class="row">
+                <div class="col-md-2 quick-stat">
+                    <div class="quick-stat-value" id="activeWorkOrders">-</div>
+                    <div class="quick-stat-label">Active Work Orders</div>
+                </div>
+                <div class="col-md-2 quick-stat">
+                    <div class="quick-stat-value text-success" id="currentOEE">-</div>
+                    <div class="quick-stat-label">Current OEE</div>
+                </div>
+                <div class="col-md-2 quick-stat">
+                    <div class="quick-stat-value" id="operatorsWorking">-</div>
+                    <div class="quick-stat-label">Operators Working</div>
+                </div>
+                <div class="col-md-2 quick-stat">
+                    <div class="quick-stat-value text-warning" id="machinesDown">-</div>
+                    <div class="quick-stat-label">Machines Down</div>
+                </div>
+                <div class="col-md-2 quick-stat">
+                    <div class="quick-stat-value" id="activeAlerts">-</div>
+                    <div class="quick-stat-label">Active Alerts</div>
+                </div>
+                <div class="col-md-2 quick-stat">
+                    <div class="quick-stat-value text-info" id="jobsInQueue">-</div>
+                    <div class="quick-stat-label">Jobs in Queue</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Operations Section -->
+        <h6 class="section-title"><i class="bi bi-boxes me-2"></i>Operations & Production</h6>
+        <div class="row g-4 mb-5">
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/mes" class="dashboard-card">
+                    <div class="card-icon blue"><i class="bi bi-clipboard-data"></i></div>
+                    <div class="card-title">MES Dashboard</div>
+                    <div class="card-description">Work orders, operations, labor tracking, and job dispatching</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="mesWoCount">-</div><div class="stat-label">Work Orders</div></div>
+                        <div class="stat-item"><div class="stat-value" id="mesOpsCount">-</div><div class="stat-label">Operations</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/oee" class="dashboard-card">
+                    <div class="card-icon green"><i class="bi bi-speedometer2"></i></div>
+                    <div class="card-title">OEE Dashboard</div>
+                    <div class="card-description">Overall Equipment Effectiveness, availability, performance, quality</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="oeeAvail">-</div><div class="stat-label">Availability</div></div>
+                        <div class="stat-item"><div class="stat-value" id="oeePerf">-</div><div class="stat-label">Performance</div></div>
+                        <div class="stat-item"><div class="stat-value" id="oeeQual">-</div><div class="stat-label">Quality</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/scheduling" class="dashboard-card">
+                    <div class="card-icon orange"><i class="bi bi-calendar-week"></i></div>
+                    <div class="card-title">Scheduling</div>
+                    <div class="card-description">Job scheduling, Gantt charts, dispatching rules, queue management</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="schedQueued">-</div><div class="stat-label">Queued</div></div>
+                        <div class="stat-item"><div class="stat-value" id="schedRunning">-</div><div class="stat-label">Running</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/downtime" class="dashboard-card">
+                    <div class="card-icon red"><i class="bi bi-exclamation-triangle"></i></div>
+                    <div class="card-title">Downtime Tracking</div>
+                    <div class="card-description">Equipment downtime, reason codes, MTBF/MTTR, Pareto analysis</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="dtActive">-</div><div class="stat-label">Active</div></div>
+                        <div class="stat-item"><div class="stat-value" id="dtMttr">-</div><div class="stat-label">Avg MTTR</div></div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Quality Section -->
+        <h6 class="section-title"><i class="bi bi-patch-check me-2"></i>Quality & Compliance</h6>
+        <div class="row g-4 mb-5">
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/quality" class="dashboard-card">
+                    <div class="card-icon purple"><i class="bi bi-graph-up"></i></div>
+                    <div class="card-title">Quality / SPC</div>
+                    <div class="card-description">Statistical Process Control, control charts, capability analysis</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="spcCpk">-</div><div class="stat-label">Cpk</div></div>
+                        <div class="stat-item"><div class="stat-value" id="spcOoc">-</div><div class="stat-label">Out of Control</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/fmea" class="dashboard-card">
+                    <div class="card-icon pink"><i class="bi bi-shield-exclamation"></i></div>
+                    <div class="card-title">FMEA</div>
+                    <div class="card-description">Failure Mode & Effects Analysis, RPN tracking, action items</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="fmeaItems">-</div><div class="stat-label">Items</div></div>
+                        <div class="stat-item"><div class="stat-value" id="fmeaHighRpn">-</div><div class="stat-label">High RPN</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/traceability" class="dashboard-card">
+                    <div class="card-icon cyan"><i class="bi bi-diagram-3"></i></div>
+                    <div class="card-title">Traceability</div>
+                    <div class="card-description">Genealogy, component tracking, as-built records, recall support</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="traceComps">-</div><div class="stat-label">Components</div></div>
+                        <div class="stat-item"><div class="stat-value" id="traceLots">-</div><div class="stat-label">Lots</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/inspection" class="dashboard-card">
+                    <div class="card-icon teal"><i class="bi bi-eye"></i></div>
+                    <div class="card-title">Inspection</div>
+                    <div class="card-description">Vision inspection, defect detection, quality reports</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="inspToday">-</div><div class="stat-label">Today</div></div>
+                        <div class="stat-item"><div class="stat-value" id="inspPass">-</div><div class="stat-label">Pass Rate</div></div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Digital Twin & Analytics Section -->
+        <h6 class="section-title"><i class="bi bi-cpu me-2"></i>Digital Twin & Analytics</h6>
+        <div class="row g-4 mb-5">
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/digital-twin" class="dashboard-card">
+                    <div class="card-icon blue"><i class="bi bi-box"></i></div>
+                    <div class="card-title">Digital Twin 3D</div>
+                    <div class="card-description">Interactive 3D factory floor, machine status, real-time monitoring</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="twinMachines">-</div><div class="stat-label">Machines</div></div>
+                        <div class="stat-item"><div class="stat-value" id="twinCells">-</div><div class="stat-label">Cells</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/analytics" class="dashboard-card">
+                    <div class="card-icon green"><i class="bi bi-activity"></i></div>
+                    <div class="card-title">Analytics</div>
+                    <div class="card-description">Vibration analysis, anomaly detection, predictive maintenance</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="anaAnomalies">-</div><div class="stat-label">Anomalies</div></div>
+                        <div class="stat-item"><div class="stat-value" id="anaPredictions">-</div><div class="stat-label">Predictions</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/simulation" class="dashboard-card">
+                    <div class="card-icon orange"><i class="bi bi-lightning"></i></div>
+                    <div class="card-title">Simulation</div>
+                    <div class="card-description">Cutting force, thermal, chatter, surface finish simulation</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="simRuns">-</div><div class="stat-label">Simulations</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/playback" class="dashboard-card">
+                    <div class="card-icon purple"><i class="bi bi-play-circle"></i></div>
+                    <div class="card-title">Historical Playback</div>
+                    <div class="card-description">Replay past operations, time-travel debugging, training</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="pbRecordings">-</div><div class="stat-label">Recordings</div></div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Resources Section -->
+        <h6 class="section-title"><i class="bi bi-archive me-2"></i>Resources & Inventory</h6>
+        <div class="row g-4 mb-5">
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/inventory" class="dashboard-card">
+                    <div class="card-icon orange"><i class="bi bi-box-seam"></i></div>
+                    <div class="card-title">Inventory</div>
+                    <div class="card-description">Parts, materials, tools, consumables tracking and reorder alerts</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="invParts">-</div><div class="stat-label">Parts</div></div>
+                        <div class="stat-item"><div class="stat-value text-warning" id="invLowStock">-</div><div class="stat-label">Low Stock</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/tools" class="dashboard-card">
+                    <div class="card-icon purple"><i class="bi bi-tools"></i></div>
+                    <div class="card-title">Tool Management</div>
+                    <div class="card-description">Tool life tracking, preset management, wear compensation</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="toolsActive">-</div><div class="stat-label">Active</div></div>
+                        <div class="stat-item"><div class="stat-value text-danger" id="toolsExpiring">-</div><div class="stat-label">Expiring</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/materials" class="dashboard-card">
+                    <div class="card-icon cyan"><i class="bi bi-layers"></i></div>
+                    <div class="card-title">Materials</div>
+                    <div class="card-description">Raw materials, cutting parameters, material certificates</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="matTypes">-</div><div class="stat-label">Types</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/purchase-orders" class="dashboard-card">
+                    <div class="card-icon teal"><i class="bi bi-receipt"></i></div>
+                    <div class="card-title">Purchase Orders</div>
+                    <div class="card-description">Pending orders, supplier tracking, delivery status</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="poPending">-</div><div class="stat-label">Pending</div></div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- Integration Section -->
+        <h6 class="section-title"><i class="bi bi-plug me-2"></i>Integration & Tools</h6>
+        <div class="row g-4 mb-5">
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/fusion360" class="dashboard-card">
+                    <div class="card-icon pink"><i class="bi bi-vector-pen"></i></div>
+                    <div class="card-title">Fusion 360</div>
+                    <div class="card-description">CAD/CAM integration, G-code upload, tool library sync</div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/gcode" class="dashboard-card">
+                    <div class="card-icon cyan"><i class="bi bi-file-code"></i></div>
+                    <div class="card-title">G-Code Manager</div>
+                    <div class="card-description">Program library, backplot, validation, job queue</div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/sensors" class="dashboard-card">
+                    <div class="card-icon teal"><i class="bi bi-broadcast"></i></div>
+                    <div class="card-title">Sensors</div>
+                    <div class="card-description">Real-time sensor data, monitoring, alerts</div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/mcp" class="dashboard-card">
+                    <div class="card-icon blue"><i class="bi bi-cpu-fill"></i></div>
+                    <div class="card-title">MCP Integration</div>
+                    <div class="card-description">Model Context Protocol, external tool integration</div>
+                </a>
+            </div>
+        </div>
+
+        <!-- AI & Assistance Section -->
+        <h6 class="section-title"><i class="bi bi-stars me-2"></i>AI & Assistance</h6>
+        <div class="row g-4 mb-5">
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/assistant" class="dashboard-card">
+                    <div class="card-icon purple"><i class="bi bi-robot"></i></div>
+                    <div class="card-title">AI Manufacturing Assistant</div>
+                    <div class="card-description">Claude-powered assistant for troubleshooting, optimization, and analysis</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value text-success" id="aiStatus">●</div><div class="stat-label">Online</div></div>
+                        <div class="stat-item"><div class="stat-value" id="aiQueries">-</div><div class="stat-label">Queries Today</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/copilot" class="dashboard-card">
+                    <div class="card-icon pink"><i class="bi bi-lightbulb"></i></div>
+                    <div class="card-title">G-Code Copilot</div>
+                    <div class="card-description">AI-assisted G-code generation, optimization suggestions</div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/predictive" class="dashboard-card">
+                    <div class="card-icon green"><i class="bi bi-graph-up-arrow"></i></div>
+                    <div class="card-title">Predictive Maintenance</div>
+                    <div class="card-description">ML-based failure prediction, maintenance scheduling</div>
+                    <div class="card-stats">
+                        <div class="stat-item"><div class="stat-value" id="predAlerts">-</div><div class="stat-label">Alerts</div></div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <a href="/portal/api-docs" class="dashboard-card">
+                    <div class="card-icon orange"><i class="bi bi-book"></i></div>
+                    <div class="card-title">API Documentation</div>
+                    <div class="card-description">Interactive API reference, endpoints, schemas</div>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="/static/js/realtime.js"></script>
+    <script>
+        // Initialize real-time connection
+        const rt = new PortalRealtime();
+
+        // Create connection indicator
+        createConnectionIndicator(rt);
+
+        // Handle real-time stats updates
+        rt.setStatsHandler((data) => {
+            console.log('Real-time stats update:', data);
+            if (data.activeWorkOrders !== undefined) {
+                document.getElementById('activeWorkOrders').textContent = data.activeWorkOrders;
+            }
+            if (data.operatorsWorking !== undefined) {
+                document.getElementById('operatorsWorking').textContent = data.operatorsWorking;
+            }
+            if (data.machinesDown !== undefined) {
+                document.getElementById('machinesDown').textContent = data.machinesDown;
+            }
+            if (data.oee !== undefined) {
+                document.getElementById('currentOEE').textContent = data.oee + '%';
+            }
+        });
+
+        // Refresh stats when events occur
+        rt.setRefreshHandler(() => {
+            loadStats();
+        });
+
+        // Load quick stats on page load
+        async function loadStats() {
+            try {
+                // Work orders
+                const woRes = await fetch('/api/workorders/?limit=1000');
+                if (woRes.ok) {
+                    const woData = await woRes.json();
+                    const active = woData.work_orders?.filter(w => w.status === 'in_progress').length || 0;
+                    document.getElementById('activeWorkOrders').textContent = active;
+                    document.getElementById('mesWoCount').textContent = woData.total || 0;
+                }
+            } catch(e) { console.log('WO stats unavailable'); }
+
+            try {
+                // Who is working
+                const laborRes = await fetch('/api/labor/who-is-working');
+                if (laborRes.ok) {
+                    const laborData = await laborRes.json();
+                    document.getElementById('operatorsWorking').textContent = laborData.count || 0;
+                }
+            } catch(e) { console.log('Labor stats unavailable'); }
+
+            try {
+                // Machines down
+                const dtRes = await fetch('/api/downtime/machines/down');
+                if (dtRes.ok) {
+                    const dtData = await dtRes.json();
+                    document.getElementById('machinesDown').textContent = dtData.count || 0;
+                    document.getElementById('dtActive').textContent = dtData.count || 0;
+                }
+            } catch(e) { console.log('Downtime stats unavailable'); }
+
+            try {
+                // Dispatching queue
+                const qRes = await fetch('/api/dispatching/queue');
+                if (qRes.ok) {
+                    const qData = await qRes.json();
+                    document.getElementById('jobsInQueue').textContent = qData.count || 0;
+                    document.getElementById('schedQueued').textContent = qData.count || 0;
+                }
+            } catch(e) { console.log('Queue stats unavailable'); }
+
+            try {
+                // Genealogy
+                const gRes = await fetch('/api/genealogy/analytics/summary');
+                if (gRes.ok) {
+                    const gData = await gRes.json();
+                    document.getElementById('traceComps').textContent = gData.summary?.total_components || 0;
+                    document.getElementById('traceLots').textContent = gData.summary?.unique_lots || 0;
+                }
+            } catch(e) { console.log('Genealogy stats unavailable'); }
+
+            // Set some placeholder values for demo
+            document.getElementById('currentOEE').textContent = '85%';
+            document.getElementById('activeAlerts').textContent = '2';
+            document.getElementById('oeeAvail').textContent = '92%';
+            document.getElementById('oeePerf').textContent = '95%';
+            document.getElementById('oeeQual').textContent = '99%';
+            document.getElementById('schedRunning').textContent = '3';
+            document.getElementById('dtMttr').textContent = '45m';
+            document.getElementById('spcCpk').textContent = '1.67';
+            document.getElementById('spcOoc').textContent = '0';
+            document.getElementById('fmeaItems').textContent = '24';
+            document.getElementById('fmeaHighRpn').textContent = '3';
+            document.getElementById('inspToday').textContent = '47';
+            document.getElementById('inspPass').textContent = '98%';
+            document.getElementById('twinMachines').textContent = '4';
+            document.getElementById('twinCells').textContent = '2';
+            document.getElementById('anaAnomalies').textContent = '1';
+            document.getElementById('anaPredictions').textContent = '5';
+            document.getElementById('simRuns').textContent = '12';
+            document.getElementById('pbRecordings').textContent = '8';
+            document.getElementById('mesOpsCount').textContent = '156';
+
+            // Inventory & Resources stats
+            document.getElementById('invParts').textContent = '248';
+            document.getElementById('invLowStock').textContent = '7';
+            document.getElementById('toolsActive').textContent = '32';
+            document.getElementById('toolsExpiring').textContent = '4';
+            document.getElementById('matTypes').textContent = '18';
+            document.getElementById('poPending').textContent = '3';
+
+            // AI & Predictive stats
+            document.getElementById('aiQueries').textContent = '24';
+            document.getElementById('predAlerts').textContent = '2';
+        }
+
+        loadStats();
+        setInterval(loadStats, 30000); // Refresh every 30 seconds
+    </script>
+</body>
+</html>

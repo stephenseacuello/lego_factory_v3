@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}Brick Catalog - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">LEGO</a></li>
+<li class="breadcrumb-item active">Brick Catalog</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-grid-3x3 me-2"></i>Brick Catalog</h2>
+    <div class="btn-group">
+        <a href="{{ url_for('lego_web.designer') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Design Custom Brick
+        </a>
+        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importModal">
+            <i class="bi bi-upload"></i> Import
+        </button>
+    </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Search bricks..." id="searchInput">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="categoryFilter">
+                    <option value="">All Categories</option>
+                    <option value="standard">Standard Bricks</option>
+                    <option value="plates">Plates</option>
+                    <option value="tiles">Tiles</option>
+                    <option value="technic">Technic</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="colorFilter">
+                    <option value="">All Colors</option>
+                    <option value="red">Red</option>
+                    <option value="blue">Blue</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="green">Green</option>
+                    <option value="black">Black</option>
+                    <option value="white">White</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="sortBy">
+                    <option value="name">Sort by Name</option>
+                    <option value="part_id">Sort by Part ID</option>
+                    <option value="usage">Sort by Usage</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="btn-group w-100">
+                    <button class="btn btn-outline-secondary active" id="gridView">
+                        <i class="bi bi-grid-3x3"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" id="listView">
+                        <i class="bi bi-list"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Brick Grid -->
+<div class="row g-3" id="brickGrid">
+    {% for brick in bricks|default([
+        {'part_id': '3001', 'name': '2x4 Brick', 'category': 'standard', 'studs_x': 2, 'studs_y': 4, 'height': 3, 'colors': ['red', 'blue', 'yellow', 'green', 'black', 'white'], 'usage': 15420},
+        {'part_id': '3003', 'name': '2x2 Brick', 'category': 'standard', 'studs_x': 2, 'studs_y': 2, 'height': 3, 'colors': ['red', 'blue', 'yellow', 'green'], 'usage': 12350},
+        {'part_id': '3010', 'name': '1x4 Brick', 'category': 'standard', 'studs_x': 1, 'studs_y': 4, 'height': 3, 'colors': ['red', 'blue', 'yellow'], 'usage': 8920},
+        {'part_id': '3020', 'name': '2x4 Plate', 'category': 'plates', 'studs_x': 2, 'studs_y': 4, 'height': 1, 'colors': ['red', 'blue', 'black'], 'usage': 7650},
+        {'part_id': '3022', 'name': '2x2 Plate', 'category': 'plates', 'studs_x': 2, 'studs_y': 2, 'height': 1, 'colors': ['red', 'blue', 'green'], 'usage': 6840},
+        {'part_id': '2431', 'name': '1x4 Tile', 'category': 'tiles', 'studs_x': 1, 'studs_y': 4, 'height': 1, 'colors': ['black', 'white'], 'usage': 4520},
+        {'part_id': '32523', 'name': 'Technic Beam 1x3', 'category': 'technic', 'studs_x': 1, 'studs_y': 3, 'height': 1, 'colors': ['black', 'gray'], 'usage': 3210},
+        {'part_id': '3648', 'name': 'Gear 24 Tooth', 'category': 'technic', 'studs_x': 3, 'studs_y': 3, 'height': 1, 'colors': ['gray'], 'usage': 2890},
+        {'part_id': 'CUSTOM-001', 'name': 'Custom Logo Brick', 'category': 'custom', 'studs_x': 2, 'studs_y': 4, 'height': 3, 'colors': ['red'], 'usage': 156},
+    ]) %}
+    <div class="col-md-4 col-lg-3 brick-card" data-category="{{ brick.category }}">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <!-- 3D Brick Preview -->
+                <div class="brick-preview mb-3" style="height: 120px; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center; position: relative;">
+                    {% set brick_color = brick.get('colors', ['red'])[0] if brick is mapping else (brick.colors[0] if brick.colors is defined and brick.colors else 'red') %}
+                    <div class="brick-3d" style="width: {{ brick.get('studs_x', 2) if brick is mapping else brick.studs_x }}px; height: {{ brick.get('studs_y', 4) if brick is mapping else brick.studs_y }}px; background: {{ brick_color }}; border-radius: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                        <!-- Studs -->
+                        {% for y in range(brick.studs_y) %}
+                        {% for x in range(brick.studs_x) %}
+                        <div style="position: absolute; width: 8px; height: 8px; background: rgba(255,255,255,0.3); border-radius: 50%; left: {{ x * 25 + 8 }}px; top: {{ y * 25 + 8 }}px;"></div>
+                        {% endfor %}
+                        {% endfor %}
+                    </div>
+                    {% if brick.category == 'custom' %}
+                    <span class="badge bg-primary position-absolute top-0 end-0 m-2">Custom</span>
+                    {% endif %}
+                </div>
+
+                <h6 class="card-title mb-1">{{ brick.name }}</h6>
+                <p class="text-muted small mb-2">Part ID: {{ brick.part_id }}</p>
+
+                <div class="d-flex justify-content-center gap-1 mb-2">
+                    {% set colors = brick.get('colors', ['red', 'blue', 'yellow']) if brick is mapping else (brick.colors if brick.colors is defined else ['red', 'blue', 'yellow']) %}
+                    {% for color in colors[:6] %}
+                    <span class="color-dot" style="width: 16px; height: 16px; border-radius: 50%; background: {{ color }}; border: 1px solid #ddd;"></span>
+                    {% endfor %}
+                    {% if colors|length > 6 %}
+                    <span class="small text-muted">+{{ colors|length - 6 }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="text-muted small mb-3">
+                    {{ brick.studs_x }}x{{ brick.studs_y }} | Height: {{ brick.height }}
+                </div>
+
+                <div class="btn-group btn-group-sm w-100">
+                    <button class="btn btn-outline-primary" onclick="viewBrickDetail('{{ brick.part_id }}')">
+                        <i class="bi bi-eye"></i> View
+                    </button>
+                    <button class="btn btn-outline-success" onclick="createWorkOrder('{{ brick.part_id }}')">
+                        <i class="bi bi-plus"></i> Produce
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="exportBrick('{{ brick.part_id }}')">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent text-center">
+                <small class="text-muted">
+                    <i class="bi bi-bar-chart me-1"></i>{{ brick.usage|default(0) }} produced
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Brick Detail Modal -->
+<div class="modal fade" id="brickDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Brick Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-5">
+                        <!-- 3D Viewer -->
+                        <div id="brick3DViewer" style="height: 300px; background: #f5f7fa; border-radius: 0.5rem;">
+                            <p class="text-center pt-5 text-muted">3D Preview Loading...</p>
+                        </div>
+                        <div class="btn-group w-100 mt-2">
+                            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+                            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrows-fullscreen"></i> Fullscreen</button>
+                            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-download"></i> Download STL</button>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <table class="table table-sm">
+                            <tr><th width="150">Part ID</th><td id="detailPartId"></td></tr>
+                            <tr><th>Name</th><td id="detailName"></td></tr>
+                            <tr><th>Category</th><td id="detailCategory"></td></tr>
+                            <tr><th>Dimensions</th><td id="detailDimensions"></td></tr>
+                            <tr><th>LDU Size</th><td id="detailLDU"></td></tr>
+                            <tr><th>Physical Size (mm)</th><td id="detailMM"></td></tr>
+                            <tr><th>Stud Pitch</th><td>8.0 mm</td></tr>
+                            <tr><th>Available Colors</th><td id="detailColors"></td></tr>
+                            <tr><th>Material</th><td id="detailMaterial">ABS / PLA</td></tr>
+                            <tr><th>Production Count</th><td id="detailUsage"></td></tr>
+                        </table>
+
+                        <h6 class="mt-4">Print Settings (Default)</h6>
+                        <table class="table table-sm">
+                            <tr><th width="150">Layer Height</th><td>0.2 mm</td></tr>
+                            <tr><th>Infill</th><td>20%</td></tr>
+                            <tr><th>Supports</th><td>None</td></tr>
+                            <tr><th>Est. Time</th><td id="detailPrintTime">~15 min</td></tr>
+                            <tr><th>Est. Filament</th><td id="detailFilament">~5g</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="createWorkOrderFromModal()">
+                    <i class="bi bi-clipboard-plus"></i> Create Work Order
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Production Modal -->
+<div class="modal fade" id="quickProduceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="quickProduceForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Quick Production Order</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="part_id" id="producePartId">
+                    <div class="mb-3">
+                        <label class="form-label">Brick</label>
+                        <input type="text" class="form-control" id="produceBrickName" readonly>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" class="form-control" name="quantity" value="100" min="1" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Color</label>
+                            <select class="form-select" name="color" id="produceColor">
+                                <option value="red">Red</option>
+                                <option value="blue">Blue</option>
+                                <option value="yellow">Yellow</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select" name="priority">
+                            <option value="normal" selected>Normal</option>
+                            <option value="high">High</option>
+                            <option value="rush">Rush</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Create Work Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .brick-card:hover .card {
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+        transform: translateY(-2px);
+        transition: all 0.2s;
+    }
+
+    .brick-preview {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .brick-3d {
+        position: relative;
+        transform: perspective(200px) rotateX(15deg) rotateY(-15deg);
+    }
+
+    .color-dot {
+        display: inline-block;
+        cursor: pointer;
+    }
+
+    .color-dot:hover {
+        transform: scale(1.2);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let currentBrick = null;
+
+    // Search functionality
+    document.getElementById('searchInput').addEventListener('input', function() {
+        const search = this.value.toLowerCase();
+        document.querySelectorAll('.brick-card').forEach(card => {
+            const name = card.querySelector('.card-title').textContent.toLowerCase();
+            const partId = card.querySelector('.text-muted').textContent.toLowerCase();
+            card.style.display = (name.includes(search) || partId.includes(search)) ? '' : 'none';
+        });
+    });
+
+    // Category filter
+    document.getElementById('categoryFilter').addEventListener('change', function() {
+        const category = this.value;
+        document.querySelectorAll('.brick-card').forEach(card => {
+            card.style.display = (!category || card.dataset.category === category) ? '' : 'none';
+        });
+    });
+
+    // View brick detail
+    function viewBrickDetail(partId) {
+        fetch(`/api/lego/bricks/${partId}`)
+        .then(r => r.json())
+        .then(data => {
+            currentBrick = data;
+            document.getElementById('detailPartId').textContent = data.part_id;
+            document.getElementById('detailName').textContent = data.name;
+            document.getElementById('detailCategory').textContent = data.category;
+            document.getElementById('detailDimensions').textContent = `${data.studs_x}x${data.studs_y}x${data.height}`;
+            document.getElementById('detailLDU').textContent = `${data.studs_x * 20}x${data.studs_y * 20}x${data.height * 24} LDU`;
+            document.getElementById('detailMM').textContent = `${data.studs_x * 8}x${data.studs_y * 8}x${data.height * 9.6} mm`;
+            document.getElementById('detailUsage').textContent = data.usage || 0;
+
+            new bootstrap.Modal(document.getElementById('brickDetailModal')).show();
+        })
+        .catch(() => {
+            // Fallback for demo
+            document.getElementById('detailPartId').textContent = partId;
+            new bootstrap.Modal(document.getElementById('brickDetailModal')).show();
+        });
+    }
+
+    // Create work order
+    function createWorkOrder(partId) {
+        document.getElementById('producePartId').value = partId;
+        document.getElementById('produceBrickName').value = partId;
+        new bootstrap.Modal(document.getElementById('quickProduceModal')).show();
+    }
+
+    // Quick produce form submit
+    document.getElementById('quickProduceForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+
+        fetch('/api/mes/work-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                item_id: data.part_id,
+                quantity: parseInt(data.quantity),
+                priority: data.priority
+            })
+        })
+        .then(r => r.json())
+        .then(result => {
+            if (result.success) {
+                alert('Work order created: ' + result.wo_number);
+                bootstrap.Modal.getInstance(document.getElementById('quickProduceModal')).hide();
+            }
+        });
+    });
+
+    // Export brick
+    function exportBrick(partId) {
+        window.location.href = `/api/lego/bricks/${partId}/export?format=stl`;
+    }
+
+    function createWorkOrderFromModal() {
+        if (currentBrick) {
+            createWorkOrder(currentBrick.part_id);
+            bootstrap.Modal.getInstance(document.getElementById('brickDetailModal')).hide();
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dispatch Queue - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --primary: #3b82f6; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: var(--primary); box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25); }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.1); vertical-align: middle; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+        .dispatch-card { background: var(--card-bg); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); padding: 1rem; margin-bottom: 0.75rem; cursor: grab; transition: all 0.2s; }
+        .dispatch-card:hover { border-color: var(--primary); }
+        .dispatch-card.urgent { border-left: 4px solid #ef4444; }
+        .dispatch-card.high { border-left: 4px solid #f59e0b; }
+        .dispatch-card.normal { border-left: 4px solid #3b82f6; }
+        .dispatch-card.low { border-left: 4px solid #6b7280; }
+        .dispatch-card.active { background: rgba(59,130,246,0.1); border-color: var(--primary); }
+        .priority-badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+        .queue-column { background: #1e293b; border-radius: 12px; padding: 1rem; min-height: 400px; }
+        .queue-header { font-weight: 600; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .modal-content { background: var(--card-bg); color: #e2e8f0; }
+        .modal-header, .modal-footer { border-color: rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Dispatch Queue</a>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" style="width:150px">
+                    <option>All Lines</option>
+                    <option>Line A</option>
+                    <option>Line B</option>
+                    <option>Line C</option>
+                </select>
+                <button class="btn btn-outline-light btn-sm" onclick="refreshQueue()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newDispatchModal">
+                    <i class="bi bi-plus-lg me-1"></i>New Dispatch
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-primary bg-opacity-25 text-primary me-3">
+                            <i class="bi bi-list-task"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Total in Queue</div>
+                            <h4 class="mb-0">24</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-danger bg-opacity-25 text-danger me-3">
+                            <i class="bi bi-exclamation-circle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Urgent</div>
+                            <h4 class="mb-0 text-danger">3</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-success bg-opacity-25 text-success me-3">
+                            <i class="bi bi-play-circle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">In Progress</div>
+                            <h4 class="mb-0">5</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-info bg-opacity-25 text-info me-3">
+                            <i class="bi bi-check2-circle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Completed Today</div>
+                            <h4 class="mb-0">18</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Queue Columns -->
+            <div class="col-lg-9">
+                <div class="row">
+                    <!-- Pending Queue -->
+                    <div class="col-md-4">
+                        <div class="queue-column">
+                            <div class="queue-header d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-clock me-2"></i>Pending</span>
+                                <span class="badge bg-secondary">12</span>
+                            </div>
+
+                            <div class="dispatch-card urgent">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="priority-badge bg-danger">Urgent</span>
+                                    <small class="text-muted">#DSP-001</small>
+                                </div>
+                                <h6 class="mb-1">Brick 2x4 Red - 5000 units</h6>
+                                <p class="small text-muted mb-2">Customer: ACME Corp - Rush Order</p>
+                                <div class="d-flex justify-content-between small">
+                                    <span><i class="bi bi-geo-alt me-1"></i>Line A</span>
+                                    <span><i class="bi bi-clock me-1"></i>Due: 2h</span>
+                                </div>
+                            </div>
+
+                            <div class="dispatch-card urgent">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="priority-badge bg-danger">Urgent</span>
+                                    <small class="text-muted">#DSP-002</small>
+                                </div>
+                                <h6 class="mb-1">Plate 1x6 Blue - 3000 units</h6>
+                                <p class="small text-muted mb-2">Customer: BuildIt Inc - Hot</p>
+                                <div class="d-flex justify-content-between small">
+                                    <span><i class="bi bi-geo-alt me-1"></i>Line B</span>
+                                    <span><i class="bi bi-clock me-1"></i>Due: 3h</span>
+                                </div>
+                            </div>
+
+                            <div class="dispatch-card high">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="priority-badge bg-warning text-dark">High</span>
+                                    <small class="text-muted">#DSP-003</small>
+                                </div>
+                                <h6 class="mb-1">Technic Beam 1x8 - 2000 units</h6>
+                                <p class="small text-muted mb-2">Customer: TechToys Ltd</p>
+                                <div class="d-flex justify-content-between small">
+                                    <span><i class="bi bi-geo-alt me-1"></i>Line C</span>
+                                    <span><i class="bi bi-clock me-1"></i>Due: 6h</span>
+                                </div>
+                            </div>
+
+                            <div class="dispatch-card normal">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="priority-badge bg-primary">Normal</span>
+                                    <small class="text-muted">#DSP-004</small>
+                                </div>
+                                <h6 class="mb-1">Brick 1x2 Yellow - 8000 units</h6>
+                                <p class="small text-muted mb-2">Stock Replenishment</p>
+                                <div class="d-flex justify-content-between small">
+                                    <span><i class="bi bi-geo-alt me-1"></i>Line A</span>
+                                    <span><i class="bi bi-clock me-1"></i>Due: 24h</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- In Progress Queue -->
+                    <div class="col-md-4">
+                        <div class="queue-column">
+                            <div class="queue-header d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-play-circle me-2"></i>In Progress</span>
+                                <span class="badge bg-success">5</span>
+                            </div>
+
+                            <div class="dispatch-card urgent active">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="priority-badge bg-danger">Urgent</span>
+                                    <small class="text-muted">#DSP-005</small>
+                                </div>
+                                <h6 class="mb-1">Minifig Heads - 1000 units</h6>
+                                <p class="small text-muted mb-2">Customer: FunWorld</p>
+                                <div class="progress mb-2" style="height: 6px; background: #1e293b;">
+                                    <div class="progress-bar bg-success" style="width: 72%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>72% Complete</span>
+                                    <span><i class="bi bi-person me-1"></i>John D.</span>
+                                </div>
+                            </div>
+
+                            <div class="dispatch-card high active">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="priority-badge bg-warning text-dark">High</span>
+                                    <small class="text-muted">#DSP-006</small>
+                                </div>
+                                <h6 class="mb-1">Slope 2x2 Green - 4000 units</h6>
+                                <p class="small text-muted mb-2">Customer: GreenBuild Co</p>
+                                <div class="progress mb-2" style="height: 6px; background: #1e293b;">
+                                    <div class="progress-bar bg-success" style="width: 45%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>45% Complete</span>
+                                    <span><i class="bi bi-person me-1"></i>Sarah M.</span>
+                                </div>
+                            </div>
+
+                            <div class="dispatch-card normal active">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="priority-badge bg-primary">Normal</span>
+                                    <small class="text-muted">#DSP-007</small>
+                                </div>
+                                <h6 class="mb-1">Brick 2x2 White - 6000 units</h6>
+                                <p class="small text-muted mb-2">Stock Replenishment</p>
+                                <div class="progress mb-2" style="height: 6px; background: #1e293b;">
+                                    <div class="progress-bar bg-success" style="width: 88%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>88% Complete</span>
+                                    <span><i class="bi bi-person me-1"></i>Mike J.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Completed Queue -->
+                    <div class="col-md-4">
+                        <div class="queue-column">
+                            <div class="queue-header d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-check2-circle me-2"></i>Completed</span>
+                                <span class="badge bg-secondary">7</span>
+                            </div>
+
+                            <div class="dispatch-card" style="opacity: 0.7;">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="badge bg-success">Completed</span>
+                                    <small class="text-muted">#DSP-008</small>
+                                </div>
+                                <h6 class="mb-1">Brick 1x4 Black - 3000 units</h6>
+                                <p class="small text-muted mb-2">Customer: DarkKnights Inc</p>
+                                <div class="d-flex justify-content-between small">
+                                    <span><i class="bi bi-check-circle text-success me-1"></i>Done</span>
+                                    <span>30 min ago</span>
+                                </div>
+                            </div>
+
+                            <div class="dispatch-card" style="opacity: 0.7;">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="badge bg-success">Completed</span>
+                                    <small class="text-muted">#DSP-009</small>
+                                </div>
+                                <h6 class="mb-1">Tile 2x2 Gray - 5000 units</h6>
+                                <p class="small text-muted mb-2">Stock Replenishment</p>
+                                <div class="d-flex justify-content-between small">
+                                    <span><i class="bi bi-check-circle text-success me-1"></i>Done</span>
+                                    <span>1h ago</span>
+                                </div>
+                            </div>
+
+                            <div class="dispatch-card" style="opacity: 0.7;">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <span class="badge bg-success">Completed</span>
+                                    <small class="text-muted">#DSP-010</small>
+                                </div>
+                                <h6 class="mb-1">Plate 2x4 Orange - 2500 units</h6>
+                                <p class="small text-muted mb-2">Customer: SunnyToys</p>
+                                <div class="d-flex justify-content-between small">
+                                    <span><i class="bi bi-check-circle text-success me-1"></i>Done</span>
+                                    <span>2h ago</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-3">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-info-circle me-2"></i>Selected Dispatch
+                    </div>
+                    <div class="card-body">
+                        <h6 class="mb-3">#DSP-005 - Minifig Heads</h6>
+                        <table class="table table-sm table-borderless" style="color: #e2e8f0;">
+                            <tr><td class="text-muted">Priority</td><td><span class="badge bg-danger">Urgent</span></td></tr>
+                            <tr><td class="text-muted">Quantity</td><td>1,000 units</td></tr>
+                            <tr><td class="text-muted">Customer</td><td>FunWorld</td></tr>
+                            <tr><td class="text-muted">Line</td><td>Line A</td></tr>
+                            <tr><td class="text-muted">Operator</td><td>John Davis</td></tr>
+                            <tr><td class="text-muted">Started</td><td>8:30 AM</td></tr>
+                            <tr><td class="text-muted">Est. Complete</td><td>11:00 AM</td></tr>
+                        </table>
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn btn-outline-light btn-sm flex-grow-1">
+                                <i class="bi bi-eye me-1"></i>Details
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm flex-grow-1">
+                                <i class="bi bi-pause me-1"></i>Hold
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-speedometer2 me-2"></i>Line Status
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span>Line A</span>
+                            <span class="badge bg-success">Running</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span>Line B</span>
+                            <span class="badge bg-success">Running</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span>Line C</span>
+                            <span class="badge bg-warning text-dark">Setup</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Line D</span>
+                            <span class="badge bg-secondary">Idle</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-clock-history me-2"></i>Queue History
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" style="background: transparent;">
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>Completed</span>
+                                    <small class="text-muted">10:32 AM</small>
+                                </div>
+                                <small class="text-muted">#DSP-008 - Brick 1x4 Black</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-primary"><i class="bi bi-play-circle me-1"></i>Started</span>
+                                    <small class="text-muted">9:15 AM</small>
+                                </div>
+                                <small class="text-muted">#DSP-006 - Slope 2x2 Green</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-warning"><i class="bi bi-plus-circle me-1"></i>Added</span>
+                                    <small class="text-muted">8:45 AM</small>
+                                </div>
+                                <small class="text-muted">#DSP-001 - Brick 2x4 Red</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Dispatch Modal -->
+    <div class="modal fade" id="newDispatchModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>New Dispatch Order</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Product</label>
+                            <select class="form-select">
+                                <option>Brick 2x4</option>
+                                <option>Brick 2x2</option>
+                                <option>Brick 1x2</option>
+                                <option>Plate 1x6</option>
+                                <option>Technic Beam 1x8</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Color</label>
+                            <select class="form-select">
+                                <option>Red</option>
+                                <option>Blue</option>
+                                <option>Yellow</option>
+                                <option>Green</option>
+                                <option>Black</option>
+                                <option>White</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" class="form-control" value="1000">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select">
+                                <option>Low</option>
+                                <option selected>Normal</option>
+                                <option>High</option>
+                                <option>Urgent</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Production Line</label>
+                            <select class="form-select">
+                                <option>Auto-assign</option>
+                                <option>Line A</option>
+                                <option>Line B</option>
+                                <option>Line C</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Due Date</label>
+                            <input type="datetime-local" class="form-control">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Customer/Notes</label>
+                            <input type="text" class="form-control" placeholder="Customer name or notes...">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary">Add to Queue</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function refreshQueue() {
+            console.log('Refreshing dispatch queue...');
+        }
+    </script>
+</body>
+</html>

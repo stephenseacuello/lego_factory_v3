@@ -1,0 +1,458 @@
+{% extends "base.html" %}
+
+{% block title %}Shift Handover Report{% endblock %}
+
+{% block extra_css %}
+<style>
+@media print {
+    .sidebar, .topbar, .no-print {
+        display: none !important;
+    }
+    .main-content {
+        margin-left: 0 !important;
+        padding: 0 !important;
+    }
+    .card {
+        break-inside: avoid;
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+    }
+    body {
+        font-size: 12px;
+    }
+}
+
+.report-header {
+    border-bottom: 3px solid var(--lego-red);
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.summary-table th {
+    background: #f8f9fa;
+    width: 40%;
+}
+
+.issue-item {
+    border-left: 3px solid #f44336;
+    padding-left: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.issue-item.resolved {
+    border-left-color: #4CAF50;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <h2 class="mb-1">Shift Handover Report</h2>
+            <p class="text-muted mb-0">Printable shift summary for handover</p>
+        </div>
+        <div class="d-flex gap-2">
+            <input type="date" id="report-date" class="form-control form-control-sm" style="width: 150px;">
+            <select id="report-shift" class="form-select form-select-sm" style="width: 120px;">
+                <option value="day">Day Shift</option>
+                <option value="evening">Evening Shift</option>
+                <option value="night">Night Shift</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="generateReport()">
+                <i class="bi bi-arrow-clockwise"></i> Generate
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+    </div>
+
+    <!-- Report Content -->
+    <div id="report-content">
+        <!-- Report Header -->
+        <div class="report-header">
+            <div class="row align-items-center">
+                <div class="col">
+                    <h3 class="mb-0">Shift Handover Report</h3>
+                    <p class="text-muted mb-0" id="report-subtitle">Day Shift - January 28, 2026</p>
+                </div>
+                <div class="col-auto text-end">
+                    <small class="text-muted">Generated: <span id="report-generated"></span></small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shift Summary -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Shift Summary</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm summary-table">
+                            <tr><th>Shift Date</th><td id="sum-date">--</td></tr>
+                            <tr><th>Shift Type</th><td id="sum-shift">--</td></tr>
+                            <tr><th>Shift Hours</th><td id="sum-hours">--</td></tr>
+                            <tr><th>Workers Present</th><td id="sum-workers">--</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Key Metrics</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-sm summary-table">
+                            <tr><th>OEE</th><td id="sum-oee">--</td></tr>
+                            <tr><th>Parts Produced</th><td id="sum-produced">--</td></tr>
+                            <tr><th>Parts Scrapped</th><td id="sum-scrapped">--</td></tr>
+                            <tr><th>Downtime</th><td id="sum-downtime">--</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Production Summary -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Production Summary</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Work Order</th>
+                            <th>Product</th>
+                            <th>Planned Qty</th>
+                            <th>Actual Qty</th>
+                            <th>Variance</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="production-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Downtime Events -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Downtime Events</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Machine</th>
+                                    <th>Reason</th>
+                                    <th>Duration</th>
+                                    <th>Resolved</th>
+                                </tr>
+                            </thead>
+                            <tbody id="downtime-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quality Issues -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Quality Issues</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>NCR #</th>
+                                    <th>Product</th>
+                                    <th>Issue</th>
+                                    <th>Severity</th>
+                                </tr>
+                            </thead>
+                            <tbody id="quality-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maintenance Completed -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Maintenance Activities</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>Asset</th>
+                            <th>Type</th>
+                            <th>Description</th>
+                            <th>Technician</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody id="maintenance-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pending for Next Shift -->
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Pending for Next Shift</h5>
+            </div>
+            <div class="card-body">
+                <div id="pending-list">
+                </div>
+            </div>
+        </div>
+
+        <!-- Notes & Comments -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Shift Notes</h5>
+            </div>
+            <div class="card-body">
+                <div id="notes-content" class="border rounded p-3 bg-light" style="min-height: 100px;">
+                    No notes recorded for this shift.
+                </div>
+            </div>
+        </div>
+
+        <!-- Signatures -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <p><strong>Outgoing Shift Supervisor:</strong></p>
+                        <div class="border-bottom" style="height: 40px;"></div>
+                        <small class="text-muted">Name / Signature / Date</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <p><strong>Incoming Shift Supervisor:</strong></p>
+                        <div class="border-bottom" style="height: 40px;"></div>
+                        <small class="text-muted">Name / Signature / Date</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Set default date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('report-date').value = today;
+
+    generateReport();
+});
+
+async function generateReport() {
+    const date = document.getElementById('report-date').value;
+    const shift = document.getElementById('report-shift').value;
+
+    try {
+        const response = await fetch(`/api/mes/performance/shift-report?date=${date}&shift=${shift}`);
+        const data = await response.json();
+
+        displayReport(data, date, shift);
+    } catch (error) {
+        console.error('Failed to generate report:', error);
+        // Show sample data
+        displaySampleReport(date, shift);
+    }
+}
+
+function displayReport(data, date, shift) {
+    const shiftNames = { day: 'Day Shift (06:00-14:00)', evening: 'Evening Shift (14:00-22:00)', night: 'Night Shift (22:00-06:00)' };
+    const dateObj = new Date(date);
+
+    // Header
+    document.getElementById('report-subtitle').textContent =
+        `${shiftNames[shift]} - ${dateObj.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
+    document.getElementById('report-generated').textContent = new Date().toLocaleString();
+
+    // Summary
+    document.getElementById('sum-date').textContent = dateObj.toLocaleDateString();
+    document.getElementById('sum-shift').textContent = shift.charAt(0).toUpperCase() + shift.slice(1);
+    document.getElementById('sum-hours').textContent = data.shift_hours || '8 hours';
+    document.getElementById('sum-workers').textContent = data.workers_present || '--';
+
+    document.getElementById('sum-oee').textContent = data.oee ? `${(data.oee * 100).toFixed(1)}%` : '--';
+    document.getElementById('sum-produced').textContent = data.parts_produced || '--';
+    document.getElementById('sum-scrapped').textContent = data.parts_scrapped || '--';
+    document.getElementById('sum-downtime').textContent = data.total_downtime ? `${data.total_downtime} min` : '--';
+
+    // Production table
+    displayProductionTable(data.production || []);
+
+    // Downtime table
+    displayDowntimeTable(data.downtime_events || []);
+
+    // Quality table
+    displayQualityTable(data.quality_issues || []);
+
+    // Maintenance table
+    displayMaintenanceTable(data.maintenance || []);
+
+    // Pending items
+    displayPendingItems(data.pending_items || []);
+
+    // Notes
+    if (data.notes) {
+        document.getElementById('notes-content').textContent = data.notes;
+    }
+}
+
+function displayProductionTable(production) {
+    const tbody = document.getElementById('production-body');
+
+    if (production.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-muted text-center">No production data</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = production.map(p => {
+        const variance = p.actual_qty - p.planned_qty;
+        const varianceClass = variance >= 0 ? 'text-success' : 'text-danger';
+
+        return `
+            <tr>
+                <td>${p.wo_number}</td>
+                <td>${p.product_name || p.product_id}</td>
+                <td>${p.planned_qty}</td>
+                <td>${p.actual_qty}</td>
+                <td class="${varianceClass}">${variance >= 0 ? '+' : ''}${variance}</td>
+                <td><span class="badge ${p.status === 'completed' ? 'bg-success' : 'bg-primary'}">${p.status}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function displayDowntimeTable(events) {
+    const tbody = document.getElementById('downtime-body');
+
+    if (events.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-muted text-center">No downtime events</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = events.map(e => `
+        <tr>
+            <td>${e.machine_id}</td>
+            <td>${e.reason}</td>
+            <td>${e.duration_mins} min</td>
+            <td>${e.resolved ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td>
+        </tr>
+    `).join('');
+}
+
+function displayQualityTable(issues) {
+    const tbody = document.getElementById('quality-body');
+
+    if (issues.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-muted text-center">No quality issues</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = issues.map(i => {
+        const severityClass = i.severity === 'critical' ? 'bg-danger' : i.severity === 'major' ? 'bg-warning text-dark' : 'bg-info';
+        return `
+            <tr>
+                <td>${i.ncr_number}</td>
+                <td>${i.product}</td>
+                <td>${i.issue}</td>
+                <td><span class="badge ${severityClass}">${i.severity}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function displayMaintenanceTable(maintenance) {
+    const tbody = document.getElementById('maintenance-body');
+
+    if (maintenance.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-muted text-center">No maintenance activities</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = maintenance.map(m => `
+        <tr>
+            <td>${m.asset}</td>
+            <td><span class="badge ${m.type === 'corrective' ? 'bg-warning' : 'bg-info'}">${m.type}</span></td>
+            <td>${m.description}</td>
+            <td>${m.technician}</td>
+            <td>${m.duration_mins} min</td>
+        </tr>
+    `).join('');
+}
+
+function displayPendingItems(items) {
+    const list = document.getElementById('pending-list');
+
+    if (items.length === 0) {
+        list.innerHTML = '<p class="text-muted mb-0">No pending items for next shift</p>';
+        return;
+    }
+
+    list.innerHTML = items.map(item => `
+        <div class="issue-item ${item.resolved ? 'resolved' : ''}">
+            <strong>${item.type}:</strong> ${item.description}
+            ${item.machine ? `<br><small class="text-muted">Machine: ${item.machine}</small>` : ''}
+        </div>
+    `).join('');
+}
+
+function displaySampleReport(date, shift) {
+    displayReport({
+        shift_hours: '8 hours',
+        workers_present: 5,
+        oee: 0.78,
+        parts_produced: 145,
+        parts_scrapped: 3,
+        total_downtime: 45,
+        production: [
+            { wo_number: 'WO-2024-001', product_id: 'BRICK-4x2', product_name: '4x2 Red Brick', planned_qty: 100, actual_qty: 98, status: 'completed' },
+            { wo_number: 'WO-2024-002', product_id: 'BRICK-2x2', product_name: '2x2 Blue Brick', planned_qty: 50, actual_qty: 47, status: 'in_progress' },
+        ],
+        downtime_events: [
+            { machine_id: 'bambu-ps1', reason: 'Filament jam', duration_mins: 25, resolved: true },
+            { machine_id: 'prusa-mk4-1', reason: 'Calibration', duration_mins: 20, resolved: true },
+        ],
+        quality_issues: [
+            { ncr_number: 'NCR-001', product: '4x2 Red Brick', issue: 'Dimensional variance', severity: 'minor' },
+        ],
+        maintenance: [
+            { asset: 'bambu-ps1', type: 'corrective', description: 'Cleared filament jam', technician: 'J. Smith', duration_mins: 25 },
+        ],
+        pending_items: [
+            { type: 'Work Order', description: 'WO-2024-002 needs completion (3 units remaining)', machine: 'prusa-mk4-1' },
+            { type: 'Maintenance', description: 'Scheduled PM for bantam-explorer at 08:00' },
+        ],
+        notes: 'Smooth shift overall. New batch of PLA filament performing well. Recommend checking prusa-mk4-2 belt tension during next PM.',
+    }, date, shift);
+}
+</script>
+{% endblock %}

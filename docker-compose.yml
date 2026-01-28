@@ -1,0 +1,240 @@
+# LEGO Factory v3 - Docker Compose Configuration
+# ================================================
+# Required environment variables (set in .env file):
+#   - POSTGRES_PASSWORD: PostgreSQL database password
+#   - SECRET_KEY: Flask application secret key
+#   - GF_SECURITY_ADMIN_PASSWORD: Grafana admin password
+#
+# Copy .env.example to .env and fill in required values before running.
+
+services:
+  # =============================================================================
+  # PostgreSQL + TimescaleDB (Level 4 Database)
+  # =============================================================================
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: lego-factory-postgres
+    ports:
+      - "5434:5432"
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-lego}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-lego_factory}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lego} -d ${POSTGRES_DB:-lego_factory}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # =============================================================================
+  # Redis (Cache + Pub/Sub)
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: lego-factory-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # =============================================================================
+  # MQTT Broker (Machine Communication)
+  # =============================================================================
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: lego-factory-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./docker/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    restart: unless-stopped
+
+  # =============================================================================
+  # Flask Application (Main API)
+  # =============================================================================
+  app:
+    build: .
+    container_name: lego-factory-app
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-development}
+      - FLASK_DEBUG=${FLASK_DEBUG:-0}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-lego}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-lego_factory}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - MQTT_BROKER_HOST=${MQTT_BROKER_HOST:-mosquitto}
+      - MQTT_BROKER_PORT=${MQTT_BROKER_PORT:-1883}
+      - SLICER_SERVICE_URL=${SLICER_SERVICE_URL:-http://slicer:8766}
+      - ROS2_BRIDGE_URL=${ROS2_BRIDGE_URL:-ws://ros2-novnc:9090}
+      # Database initialization settings
+      - SEED_DATABASE=${SEED_DATABASE:-false}
+      - SKIP_DB_INIT=${SKIP_DB_INIT:-false}
+      - DEMO_MODE=${DEMO_MODE:-false}
+    volumes:
+      - .:/app
+      - uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+    restart: unless-stopped
+
+  # =============================================================================
+  # Slicer Service (PrusaSlicer API)
+  # =============================================================================
+  slicer:
+    build: ./slicer-service
+    platform: linux/amd64
+    container_name: lego-factory-slicer
+    ports:
+      - "8766:8766"
+    volumes:
+      - slicer_data:/data
+      - uploads:/uploads
+    environment:
+      - PRUSA_SLICER_PATH=/opt/prusa-slicer/prusa-slicer
+    restart: unless-stopped
+
+  # =============================================================================
+  # ROS2 Humble + noVNC (Robotics Visualization)
+  # =============================================================================
+  ros2-novnc:
+    build:
+      context: ./docker/ros2-novnc
+    platform: linux/arm64
+    container_name: lego-factory-ros2
+    ports:
+      - "6080:6080"    # noVNC web interface
+      - "5901:5901"    # VNC (direct)
+      - "9090:9090"    # rosbridge WebSocket
+    environment:
+      - DISPLAY=:1
+      - RESOLUTION=1920x1080
+      - ROS_DOMAIN_ID=${ROS2_DOMAIN_ID:-42}
+    volumes:
+      - ./ros2_ws:/ros2_ws
+    shm_size: '2gb'
+    restart: unless-stopped
+
+  # =============================================================================
+  # Grafana (Metrics Dashboards)
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: lego-factory-grafana
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:?GF_SECURITY_ADMIN_PASSWORD is required}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      # Pass database credentials for provisioned datasources
+      - POSTGRES_USER=${POSTGRES_USER:-lego}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # =============================================================================
+  # Nginx (Reverse Proxy - optional)
+  # =============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: lego-factory-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+    profiles:
+      - production
+    restart: unless-stopped
+
+  # =============================================================================
+  # Celery Worker (Background Tasks)
+  # =============================================================================
+  celery-worker:
+    build: .
+    container_name: lego-factory-celery
+    command: celery -A app.celery worker --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-lego}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-lego_factory}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/1}
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - postgres
+    profiles:
+      - workers
+    restart: unless-stopped
+
+  # =============================================================================
+  # Celery Beat (Scheduled Tasks)
+  # =============================================================================
+  celery-beat:
+    build: .
+    container_name: lego-factory-celery-beat
+    command: celery -A app.celery beat --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-lego}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-lego_factory}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://redis:6379/1}
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - postgres
+    profiles:
+      - workers
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  mosquitto_data:
+  mosquitto_log:
+  grafana_data:
+  slicer_data:
+  uploads:
+
+networks:
+  default:
+    name: lego-factory-network

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MRP Planning - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --card-bg: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+            --cyan: #06b6d4;
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar-dark-custom {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .page-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .page-title i { color: var(--purple); }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+        }
+
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-purple {
+            background: var(--purple);
+            border-color: var(--purple);
+            color: white;
+        }
+
+        .btn-purple:hover {
+            background: #7c3aed;
+            border-color: #7c3aed;
+            color: white;
+        }
+
+        .btn-outline-light:hover {
+            background: var(--card-bg);
+        }
+
+        .form-control, .form-select {
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .form-control:focus, .form-select:focus {
+            background: var(--bg-dark);
+            border-color: var(--primary);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .table {
+            color: var(--text-primary);
+        }
+
+        .table thead th {
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+        }
+
+        .table tbody td {
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+            vertical-align: middle;
+        }
+
+        .table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            font-size: 0.813rem;
+            color: var(--text-secondary);
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-planned { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+        .status-released { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+        .status-firmed { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-shortage { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+        .type-badge {
+            padding: 0.125rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .type-production { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+        .type-purchase { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .type-transfer { background: rgba(6, 182, 212, 0.2); color: var(--cyan); }
+
+        .part-number {
+            font-family: 'SF Mono', Consolas, monospace;
+            font-size: 0.813rem;
+        }
+
+        .qty-value {
+            font-family: 'SF Mono', Consolas, monospace;
+            font-weight: 600;
+        }
+
+        .qty-negative { color: var(--danger); }
+        .qty-positive { color: var(--success); }
+
+        .mrp-run-info {
+            background: var(--bg-dark);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .action-btn {
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: var(--card-bg);
+            border-color: var(--primary);
+        }
+
+        @media (max-width: 1200px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .section-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-dark-custom navbar-expand-lg">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="/portal">
+                <i class="bi bi-arrow-left me-2"></i> Back to Portal
+            </a>
+            <span class="navbar-text">
+                <i class="bi bi-diagram-3 me-2"></i> ERP - MRP Planning
+            </span>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-header">
+            <h1 class="page-title">
+                <i class="bi bi-diagram-3-fill"></i>
+                MRP Planning
+            </h1>
+            <div>
+                <button class="btn btn-outline-light me-2">
+                    <i class="bi bi-clock-history me-1"></i> Run History
+                </button>
+                <button class="btn btn-purple">
+                    <i class="bi bi-play-fill me-1"></i> Run MRP
+                </button>
+            </div>
+        </div>
+
+        <!-- Last MRP Run Info -->
+        <div class="mrp-run-info">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size: 1.5rem;"></i>
+                </div>
+                <div class="col">
+                    <div class="fw-bold">Last MRP Run: January 20, 2024 at 06:00 AM</div>
+                    <div class="text-secondary small">Planning horizon: 12 weeks | Items processed: 1,247 | Duration: 2m 34s</div>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-outline-light btn-sm">
+                        <i class="bi bi-file-text me-1"></i> View Report
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(139, 92, 246, 0.2); color: var(--purple);">
+                    <i class="bi bi-clipboard-data"></i>
+                </div>
+                <div class="stat-value">156</div>
+                <div class="stat-label">Planned Orders</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2); color: var(--primary);">
+                    <i class="bi bi-send"></i>
+                </div>
+                <div class="stat-value">42</div>
+                <div class="stat-label">Released Orders</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--danger);">
+                    <i class="bi bi-exclamation-triangle"></i>
+                </div>
+                <div class="stat-value">8</div>
+                <div class="stat-label">Material Shortages</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.2); color: var(--warning);">
+                    <i class="bi bi-calendar-event"></i>
+                </div>
+                <div class="stat-value">15</div>
+                <div class="stat-label">Due This Week</div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="section-grid">
+            <!-- Planned Orders -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-clipboard-data me-2"></i> Planned Orders</span>
+                    <button class="btn btn-sm btn-outline-light">
+                        <i class="bi bi-check2-all me-1"></i> Release Selected
+                    </button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox"></th>
+                                <th>Order #</th>
+                                <th>Part</th>
+                                <th>Qty</th>
+                                <th>Type</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><input type="checkbox"></td>
+                                <td><code>PLN-001247</code></td>
+                                <td class="part-number">BRK-2x4-RED</td>
+                                <td class="qty-value">5,000</td>
+                                <td><span class="type-badge type-production">Production</span></td>
+                                <td>Jan 25, 2024</td>
+                                <td><span class="status-badge status-planned">Planned</span></td>
+                            </tr>
+                            <tr>
+                                <td><input type="checkbox"></td>
+                                <td><code>PLN-001248</code></td>
+                                <td class="part-number">ABS-GRANULE-R</td>
+                                <td class="qty-value">250 kg</td>
+                                <td><span class="type-badge type-purchase">Purchase</span></td>
+                                <td>Jan 23, 2024</td>
+                                <td><span class="status-badge status-planned">Planned</span></td>
+                            </tr>
+                            <tr>
+                                <td><input type="checkbox"></td>
+                                <td><code>PLN-001249</code></td>
+                                <td class="part-number">BRK-1x1-BLU</td>
+                                <td class="qty-value">10,000</td>
+                                <td><span class="type-badge type-production">Production</span></td>
+                                <td>Jan 26, 2024</td>
+                                <td><span class="status-badge status-firmed">Firmed</span></td>
+                            </tr>
+                            <tr>
+                                <td><input type="checkbox"></td>
+                                <td><code>PLN-001250</code></td>
+                                <td class="part-number">MOLD-2x4-A</td>
+                                <td class="qty-value">2</td>
+                                <td><span class="type-badge type-transfer">Transfer</span></td>
+                                <td>Jan 24, 2024</td>
+                                <td><span class="status-badge status-planned">Planned</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Demand Overview -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-graph-up me-2"></i> Independent Demand
+                </div>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Part</th>
+                                <th>Qty</th>
+                                <th>Due Date</th>
+                                <th>Priority</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>SO-2024-0147</td>
+                                <td class="part-number">SET-CASTLE-001</td>
+                                <td class="qty-value">500</td>
+                                <td>Feb 15, 2024</td>
+                                <td><span class="text-danger">High</span></td>
+                            </tr>
+                            <tr>
+                                <td>SO-2024-0146</td>
+                                <td class="part-number">SET-SPACE-002</td>
+                                <td class="qty-value">300</td>
+                                <td>Feb 10, 2024</td>
+                                <td><span class="text-warning">Medium</span></td>
+                            </tr>
+                            <tr>
+                                <td>Forecast</td>
+                                <td class="part-number">BRK-2x4-RED</td>
+                                <td class="qty-value">25,000</td>
+                                <td>Feb 28, 2024</td>
+                                <td><span class="text-secondary">Low</span></td>
+                            </tr>
+                            <tr>
+                                <td>Safety Stock</td>
+                                <td class="part-number">BRK-1x1-YEL</td>
+                                <td class="qty-value">8,000</td>
+                                <td>Ongoing</td>
+                                <td><span class="text-secondary">Low</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Material Shortages -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-exclamation-triangle text-danger me-2"></i> Material Shortages</span>
+                <span class="text-secondary" style="font-size: 0.875rem;">8 items require attention</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Part Number</th>
+                            <th>Description</th>
+                            <th>On Hand</th>
+                            <th>Required</th>
+                            <th>Shortage</th>
+                            <th>Earliest Need</th>
+                            <th>Suggested Action</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="part-number">ABS-GRANULE-R</td>
+                            <td>ABS Plastic Granules (Red)</td>
+                            <td class="qty-value">150 kg</td>
+                            <td class="qty-value">400 kg</td>
+                            <td class="qty-value qty-negative">-250 kg</td>
+                            <td>Jan 23, 2024</td>
+                            <td><span class="status-badge status-shortage">Create PO</span></td>
+                            <td>
+                                <button class="action-btn" title="Create PO"><i class="bi bi-cart-plus"></i></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="part-number">PIGMENT-BLU-01</td>
+                            <td>Blue Pigment Concentrate</td>
+                            <td class="qty-value">5 L</td>
+                            <td class="qty-value">20 L</td>
+                            <td class="qty-value qty-negative">-15 L</td>
+                            <td>Jan 25, 2024</td>
+                            <td><span class="status-badge status-shortage">Create PO</span></td>
+                            <td>
+                                <button class="action-btn" title="Create PO"><i class="bi bi-cart-plus"></i></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="part-number">MOLD-2x4-A</td>
+                            <td>2x4 Brick Mold (Line A)</td>
+                            <td class="qty-value">0</td>
+                            <td class="qty-value">2</td>
+                            <td class="qty-value qty-negative">-2</td>
+                            <td>Jan 24, 2024</td>
+                            <td><span class="status-badge status-planned">Transfer from WH-B</span></td>
+                            <td>
+                                <button class="action-btn" title="Create Transfer"><i class="bi bi-arrow-left-right"></i></button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictive Maintenance - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); }
+
+        /* Health Score */
+        .health-score {
+            text-align: center;
+            padding: 2rem;
+        }
+        .health-circle {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            margin: 0 auto 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-weight: 700;
+            position: relative;
+        }
+        .health-circle::before {
+            content: '';
+            position: absolute;
+            inset: 8px;
+            border-radius: 50%;
+            background: var(--card-bg);
+        }
+        .health-circle span { position: relative; z-index: 1; }
+        .health-good { background: conic-gradient(#10b981 0deg, #10b981 calc(var(--score) * 3.6deg), rgba(255,255,255,0.1) calc(var(--score) * 3.6deg)); }
+        .health-warning { background: conic-gradient(#f59e0b 0deg, #f59e0b calc(var(--score) * 3.6deg), rgba(255,255,255,0.1) calc(var(--score) * 3.6deg)); }
+        .health-critical { background: conic-gradient(#ef4444 0deg, #ef4444 calc(var(--score) * 3.6deg), rgba(255,255,255,0.1) calc(var(--score) * 3.6deg)); }
+
+        /* Prediction Cards */
+        .prediction-card {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid;
+        }
+        .prediction-card.critical { border-color: #ef4444; }
+        .prediction-card.warning { border-color: #f59e0b; }
+        .prediction-card.info { border-color: #3b82f6; }
+        .prediction-card.good { border-color: #10b981; }
+
+        .prediction-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .prediction-title { font-weight: 600; }
+        .prediction-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .badge-critical { background: rgba(239,68,68,0.2); color: #f87171; }
+        .badge-warning { background: rgba(245,158,11,0.2); color: #fbbf24; }
+        .badge-info { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .badge-good { background: rgba(16,185,129,0.2); color: #34d399; }
+
+        .prediction-details { font-size: 0.9rem; color: #94a3b8; }
+        .prediction-time { font-size: 0.8rem; color: #64748b; margin-top: 0.5rem; }
+
+        /* Timeline */
+        .timeline { position: relative; padding-left: 2rem; }
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 7px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: rgba(255,255,255,0.1);
+        }
+        .timeline-item {
+            position: relative;
+            padding-bottom: 1.5rem;
+        }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -1.55rem;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            border: 2px solid var(--card-bg);
+        }
+        .timeline-item.complete::before { background: #10b981; }
+        .timeline-item.warning::before { background: #f59e0b; }
+        .timeline-item.critical::before { background: #ef4444; }
+
+        /* Component Health */
+        .component-row {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .component-name { flex: 1; }
+        .component-bar {
+            width: 150px;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            margin: 0 1rem;
+            overflow: hidden;
+        }
+        .component-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s;
+        }
+        .component-value { width: 60px; text-align: right; font-weight: 600; }
+
+        /* Stats */
+        .stat-card {
+            text-align: center;
+            padding: 1.5rem;
+        }
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 1.5rem;
+        }
+        .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-label { color: #64748b; font-size: 0.85rem; }
+
+        /* Chart container */
+        .chart-container { height: 250px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Predictive Maintenance</a>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm bg-dark text-light border-secondary" style="width:180px">
+                    <option>All Machines</option>
+                    <option>CNC-001</option>
+                    <option>CNC-002</option>
+                    <option>CNC-003</option>
+                    <option>CNC-004</option>
+                </select>
+                <button class="btn btn-outline-light btn-sm" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="card">
+                    <div class="card-body stat-card">
+                        <div class="stat-icon" style="background: rgba(16,185,129,0.2); color: #34d399;">
+                            <i class="bi bi-heart-pulse"></i>
+                        </div>
+                        <div class="stat-value text-success" id="overallHealth">94%</div>
+                        <div class="stat-label">Overall Health</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="card">
+                    <div class="card-body stat-card">
+                        <div class="stat-icon" style="background: rgba(239,68,68,0.2); color: #f87171;">
+                            <i class="bi bi-exclamation-triangle"></i>
+                        </div>
+                        <div class="stat-value text-danger" id="criticalAlerts">2</div>
+                        <div class="stat-label">Critical Alerts</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="card">
+                    <div class="card-body stat-card">
+                        <div class="stat-icon" style="background: rgba(245,158,11,0.2); color: #fbbf24;">
+                            <i class="bi bi-calendar-event"></i>
+                        </div>
+                        <div class="stat-value text-warning" id="upcomingMaint">5</div>
+                        <div class="stat-label">Upcoming Maintenance</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="card">
+                    <div class="card-body stat-card">
+                        <div class="stat-icon" style="background: rgba(59,130,246,0.2); color: #60a5fa;">
+                            <i class="bi bi-clock-history"></i>
+                        </div>
+                        <div class="stat-value" id="mtbf">847h</div>
+                        <div class="stat-label">Avg MTBF</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Left Column: Machine Health -->
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <i class="bi bi-speedometer2 me-2"></i>Machine Health Score
+                    </div>
+                    <div class="card-body">
+                        <div class="health-score">
+                            <div class="health-circle health-good" style="--score: 94" id="healthCircle">
+                                <span id="healthScore">94%</span>
+                            </div>
+                            <div class="text-success fw-bold">Good Condition</div>
+                            <div class="text-muted small mt-2">Next scheduled maintenance: 12 days</div>
+                        </div>
+
+                        <h6 class="mt-4 mb-3 text-muted">Component Health</h6>
+                        <div id="componentHealth">
+                            <!-- Components loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Column: Predictions & Trends -->
+            <div class="col-lg-5">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-graph-up-arrow me-2"></i>AI Predictions</span>
+                        <span class="badge bg-primary">ML Model v2.3</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="p-3" id="predictions">
+                            <!-- Predictions loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-activity me-2"></i>Health Trend
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="healthTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Maintenance Schedule -->
+            <div class="col-lg-3">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <i class="bi bi-calendar3 me-2"></i>Maintenance Schedule
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline" id="maintenanceTimeline">
+                            <!-- Timeline loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Second Row -->
+        <div class="row g-4 mt-2">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-thermometer-half me-2"></i>Sensor Anomalies
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="anomalyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-bar-chart me-2"></i>Failure Risk by Component
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="riskChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="/static/js/realtime.js"></script>
+    <script>
+        // Initialize real-time
+        const rt = new CNCRealtime();
+        createConnectionIndicator(rt);
+
+        // Charts
+        let healthTrendChart, anomalyChart, riskChart;
+
+        // Demo data
+        const components = [
+            { name: 'Spindle Bearings', health: 92, status: 'good' },
+            { name: 'Ball Screws (X)', health: 88, status: 'good' },
+            { name: 'Ball Screws (Y)', health: 95, status: 'good' },
+            { name: 'Ball Screws (Z)', health: 78, status: 'warning' },
+            { name: 'Coolant Pump', health: 85, status: 'good' },
+            { name: 'Servo Motors', health: 96, status: 'good' },
+            { name: 'Way Covers', health: 65, status: 'warning' }
+        ];
+
+        const predictions = [
+            {
+                type: 'warning',
+                title: 'Z-Axis Ball Screw Wear Detected',
+                machine: 'CNC-001',
+                details: 'Vibration pattern indicates 22% wear. Recommend inspection within 2 weeks.',
+                confidence: 87,
+                timeToFailure: '45-60 days'
+            },
+            {
+                type: 'critical',
+                title: 'Spindle Bearing Degradation',
+                machine: 'CNC-003',
+                details: 'Temperature anomaly and increased vibration. Immediate inspection recommended.',
+                confidence: 94,
+                timeToFailure: '7-14 days'
+            },
+            {
+                type: 'info',
+                title: 'Coolant Level Low',
+                machine: 'CNC-002',
+                details: 'Coolant reservoir at 35%. Schedule refill within 3 days.',
+                confidence: 99,
+                timeToFailure: 'N/A'
+            },
+            {
+                type: 'good',
+                title: 'Servo Motor Health Optimal',
+                machine: 'All Machines',
+                details: 'All servo motors operating within normal parameters.',
+                confidence: 96,
+                timeToFailure: '>180 days'
+            }
+        ];
+
+        const maintenanceSchedule = [
+            { date: 'Today', task: 'Spindle inspection - CNC-003', status: 'critical' },
+            { date: 'Jan 5', task: 'Coolant system check - CNC-002', status: 'warning' },
+            { date: 'Jan 8', task: 'Lubrication - All machines', status: 'complete' },
+            { date: 'Jan 12', task: 'Way cover replacement - CNC-001', status: '' },
+            { date: 'Jan 15', task: 'Ball screw inspection - CNC-001', status: '' },
+            { date: 'Jan 20', task: 'Quarterly calibration', status: '' }
+        ];
+
+        function init() {
+            renderComponents();
+            renderPredictions();
+            renderTimeline();
+            initCharts();
+        }
+
+        function renderComponents() {
+            const container = document.getElementById('componentHealth');
+            container.innerHTML = components.map(c => {
+                const color = c.health >= 90 ? '#10b981' : c.health >= 70 ? '#f59e0b' : '#ef4444';
+                return `
+                    <div class="component-row">
+                        <span class="component-name">${c.name}</span>
+                        <div class="component-bar">
+                            <div class="component-bar-fill" style="width: ${c.health}%; background: ${color}"></div>
+                        </div>
+                        <span class="component-value" style="color: ${color}">${c.health}%</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderPredictions() {
+            const container = document.getElementById('predictions');
+            container.innerHTML = predictions.map(p => `
+                <div class="prediction-card ${p.type}">
+                    <div class="prediction-header">
+                        <span class="prediction-title">${p.title}</span>
+                        <span class="prediction-badge badge-${p.type}">${p.confidence}% confidence</span>
+                    </div>
+                    <div class="prediction-details">
+                        <strong>${p.machine}</strong>: ${p.details}
+                    </div>
+                    <div class="prediction-time">
+                        <i class="bi bi-clock me-1"></i>Est. time to failure: ${p.timeToFailure}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderTimeline() {
+            const container = document.getElementById('maintenanceTimeline');
+            container.innerHTML = maintenanceSchedule.map(item => `
+                <div class="timeline-item ${item.status}">
+                    <div class="fw-bold">${item.date}</div>
+                    <div class="text-muted small">${item.task}</div>
+                </div>
+            `).join('');
+        }
+
+        function initCharts() {
+            // Health Trend
+            const trendCtx = document.getElementById('healthTrendChart').getContext('2d');
+            healthTrendChart = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: ['6d ago', '5d ago', '4d ago', '3d ago', '2d ago', 'Yesterday', 'Today'],
+                    datasets: [{
+                        label: 'Health Score',
+                        data: [97, 96, 95, 94, 94, 93, 94],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Threshold',
+                        data: [80, 80, 80, 80, 80, 80, 80],
+                        borderColor: '#ef4444',
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { min: 60, max: 100, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            // Anomaly Chart
+            const anomalyCtx = document.getElementById('anomalyChart').getContext('2d');
+            anomalyChart = new Chart(anomalyCtx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Normal',
+                        data: Array.from({length: 50}, () => ({
+                            x: Math.random() * 100,
+                            y: Math.random() * 50 + 25
+                        })),
+                        backgroundColor: 'rgba(59, 130, 246, 0.5)',
+                        pointRadius: 4
+                    }, {
+                        label: 'Anomaly',
+                        data: [
+                            {x: 85, y: 92}, {x: 78, y: 88}, {x: 92, y: 95}
+                        ],
+                        backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                        pointRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: {
+                            title: { display: true, text: 'Temperature (°C)', color: '#94a3b8' },
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: {
+                            title: { display: true, text: 'Vibration (mm/s)', color: '#94a3b8' },
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+
+            // Risk Chart
+            const riskCtx = document.getElementById('riskChart').getContext('2d');
+            riskChart = new Chart(riskCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Spindle', 'Ball Screw X', 'Ball Screw Y', 'Ball Screw Z', 'Coolant', 'Servo', 'Way Cover'],
+                    datasets: [{
+                        label: 'Failure Risk %',
+                        data: [8, 12, 5, 22, 15, 4, 35],
+                        backgroundColor: [
+                            'rgba(16, 185, 129, 0.7)',
+                            'rgba(245, 158, 11, 0.7)',
+                            'rgba(16, 185, 129, 0.7)',
+                            'rgba(239, 68, 68, 0.7)',
+                            'rgba(245, 158, 11, 0.7)',
+                            'rgba(16, 185, 129, 0.7)',
+                            'rgba(239, 68, 68, 0.7)'
+                        ],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            max: 50,
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        function refreshData() {
+            // Simulate data refresh
+            const healthScore = 90 + Math.floor(Math.random() * 8);
+            document.getElementById('healthScore').textContent = healthScore + '%';
+            document.getElementById('overallHealth').textContent = healthScore + '%';
+
+            // Update health circle
+            const circle = document.getElementById('healthCircle');
+            circle.style.setProperty('--score', healthScore);
+            circle.className = 'health-circle ' + (healthScore >= 85 ? 'health-good' : healthScore >= 70 ? 'health-warning' : 'health-critical');
+        }
+
+        // Real-time handlers
+        rt.on('predictive:update', (data) => {
+            console.log('Predictive update:', data);
+            refreshData();
+        });
+
+        rt.on('sensor:alert', (data) => {
+            if (data.type === 'anomaly') {
+                showToast(`Anomaly detected: ${data.message}`, 'warning');
+            }
+        });
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type} position-fixed`;
+            toast.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

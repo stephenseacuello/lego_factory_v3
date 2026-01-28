@@ -1,0 +1,93 @@
+# Observability Parameters
+# Reference: OpenTelemetry Configuration, Prometheus Best Practices
+
+lego_mcp_observability:
+  ros__parameters:
+    # Export configuration
+    export:
+      interval_ms: 1000         # Export interval
+      metrics_file: "/tmp/lego_mcp_metrics.prom"
+      traces_file: "/tmp/lego_mcp_traces.json"
+
+    # Tracing configuration
+    tracing:
+      enabled: true
+      sample_rate: 1.0          # 1.0 = 100% sampling
+      max_queued_spans: 10000
+      service_name: "lego-mcp-ros2"
+
+    # Metrics configuration
+    metrics:
+      enabled: true
+      # Histogram buckets for cycle time (seconds)
+      cycle_time_buckets: [0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 120.0]
+      # Histogram buckets for control loop latency (seconds)
+      latency_buckets: [0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1]
+
+    # OTLP exporter (for Jaeger/Zipkin/Grafana Tempo)
+    otlp:
+      enabled: false
+      endpoint: "http://localhost:4317"
+      protocol: "grpc"          # grpc or http
+      headers: {}
+      timeout_ms: 10000
+
+    # Prometheus remote write
+    prometheus:
+      enabled: true
+      port: 9090
+      path: "/metrics"
+      # Push gateway (optional)
+      pushgateway:
+        enabled: false
+        endpoint: "http://localhost:9091"
+        job: "lego-mcp"
+
+    # Health check configuration
+    health:
+      enabled: true
+      port: 8080
+      liveness_path: "/health/live"
+      readiness_path: "/health/ready"
+      startup_path: "/health/startup"
+
+    # Logging configuration
+    logging:
+      structured: true          # JSON logging
+      level: "info"             # debug, info, warning, error
+      include_trace_context: true
+      # ECS (Elastic Common Schema) format
+      ecs_format: false
+
+    # Equipment monitoring
+    equipment:
+      # Automatic equipment discovery
+      auto_discover: true
+      # Equipment health check interval (ms)
+      health_check_interval_ms: 5000
+      # Equipment metrics to collect
+      metrics:
+        - state
+        - temperature
+        - vibration
+        - cycle_count
+        - error_count
+
+    # Alert thresholds
+    alerts:
+      # Temperature alerts (Celsius)
+      temperature:
+        warning: 50.0
+        critical: 70.0
+      # Vibration alerts (mm/s)
+      vibration:
+        warning: 5.0
+        critical: 10.0
+      # OEE alerts
+      oee:
+        warning: 0.65
+        critical: 0.50
+      # Cycle time alerts (seconds)
+      cycle_time:
+        warning: 60.0
+        critical: 120.0

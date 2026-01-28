@@ -1,0 +1,801 @@
+{% extends "base.html" %}
+{% block title %}Tool Management - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #22c55e;
+        --accent-yellow: #eab308;
+        --accent-red: #ef4444;
+        --accent-purple: #a855f7;
+        --accent-cyan: #06b6d4;
+    }
+
+    .tool-container {
+        padding: 24px;
+        background: var(--bg-dark);
+        min-height: 100vh;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
+    .btn-warning { background: var(--accent-yellow); color: #000; }
+    .btn-danger { background: var(--accent-red); color: white; }
+
+    /* Stats Row */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .stat-value {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .stat-card.warning .stat-value { color: var(--accent-yellow); }
+    .stat-card.danger .stat-value { color: var(--accent-red); }
+    .stat-card.success .stat-value { color: var(--accent-green); }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 8px;
+    }
+
+    .tab {
+        padding: 10px 20px;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-radius: 8px 8px 0 0;
+        transition: all 0.2s;
+    }
+
+    .tab.active {
+        background: var(--bg-card);
+        color: var(--accent-blue);
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Tool Grid */
+    .tool-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+    }
+
+    .tool-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: transform 0.2s;
+    }
+
+    .tool-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .tool-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .tool-id {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .tool-type {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .tool-status {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .tool-status.active { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+    .tool-status.warning { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+    .tool-status.critical { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .tool-status.idle { background: rgba(148, 163, 184, 0.2); color: var(--text-secondary); }
+
+    .tool-body {
+        padding: 16px 20px;
+    }
+
+    .tool-info {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .info-item {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .info-label {
+        font-size: 11px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .info-value {
+        font-size: 14px;
+        color: var(--text-primary);
+        font-weight: 500;
+        margin-top: 2px;
+    }
+
+    /* Life Progress Bar */
+    .life-container {
+        margin-top: 12px;
+    }
+
+    .life-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+
+    .life-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .life-percent {
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .life-bar {
+        height: 8px;
+        background: var(--bg-dark);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .life-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+
+    .life-fill.good { background: var(--accent-green); }
+    .life-fill.warning { background: var(--accent-yellow); }
+    .life-fill.critical { background: var(--accent-red); }
+
+    .tool-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .tool-actions .btn {
+        flex: 1;
+        padding: 8px;
+        font-size: 13px;
+    }
+
+    /* History Table */
+    .table-container {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .table-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .table-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 14px 20px;
+        text-align: left;
+    }
+
+    .data-table th {
+        background: var(--bg-dark);
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .data-table td {
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+        font-size: 14px;
+    }
+
+    .data-table tr:hover td {
+        background: rgba(59, 130, 246, 0.05);
+    }
+
+    /* Preset Library */
+    .preset-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+    }
+
+    .preset-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 20px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+    }
+
+    .preset-card:hover {
+        border-color: var(--accent-blue);
+    }
+
+    .preset-name {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+    }
+
+    .preset-specs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        font-size: 13px;
+    }
+
+    .preset-spec {
+        color: var(--text-secondary);
+    }
+
+    .preset-spec span {
+        color: var(--text-primary);
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .modal-overlay.show { display: flex; }
+
+    .modal-content {
+        background: var(--bg-card);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 24px;
+        cursor: pointer;
+    }
+
+    .modal-body {
+        padding: 24px;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+    }
+
+    .form-input,
+    .form-select {
+        width: 100%;
+        padding: 10px 14px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .form-input:focus,
+    .form-select:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    @media (max-width: 1200px) {
+        .stats-row { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 768px) {
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+        .tool-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tool-container">
+    <div class="page-header">
+        <h1 class="page-title">Tool Management</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="exportInventory()">Export Inventory</button>
+            <button class="btn btn-primary" onclick="openAddToolModal()">+ Add Tool</button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-value">156</div>
+            <div class="stat-label">Total Tools</div>
+        </div>
+        <div class="stat-card success">
+            <div class="stat-value">128</div>
+            <div class="stat-label">Active / In Use</div>
+        </div>
+        <div class="stat-card warning">
+            <div class="stat-value">18</div>
+            <div class="stat-label">Approaching EOL</div>
+        </div>
+        <div class="stat-card danger">
+            <div class="stat-value">6</div>
+            <div class="stat-label">Need Replacement</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">4</div>
+            <div class="stat-label">In Calibration</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab active" data-tab="inventory">Tool Inventory</button>
+        <button class="tab" data-tab="history">Change History</button>
+        <button class="tab" data-tab="presets">Tool Presets</button>
+        <button class="tab" data-tab="offsets">Tool Offsets</button>
+    </div>
+
+    <!-- Inventory Tab -->
+    <div class="tab-content active" id="inventory">
+        <div class="tool-grid" id="toolGrid">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- History Tab -->
+    <div class="tab-content" id="history">
+        <div class="table-container">
+            <div class="table-header">
+                <h3 class="table-title">Tool Change History</h3>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Tool</th>
+                        <th>Machine</th>
+                        <th>Action</th>
+                        <th>Operator</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTable">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Presets Tab -->
+    <div class="tab-content" id="presets">
+        <div class="preset-grid" id="presetGrid">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Offsets Tab -->
+    <div class="tab-content" id="offsets">
+        <div class="table-container">
+            <div class="table-header">
+                <h3 class="table-title">Tool Offset Table</h3>
+                <button class="btn btn-secondary" onclick="syncOffsets()">Sync from Machine</button>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tool #</th>
+                        <th>Description</th>
+                        <th>Length (H)</th>
+                        <th>Diameter (D)</th>
+                        <th>Wear Length</th>
+                        <th>Wear Diameter</th>
+                        <th>Last Updated</th>
+                    </tr>
+                </thead>
+                <tbody id="offsetTable">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Tool Modal -->
+<div class="modal-overlay" id="addToolModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Add New Tool</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Tool ID</label>
+                <input type="text" class="form-input" id="toolId" placeholder="e.g., T001">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Tool Type</label>
+                <select class="form-select" id="toolType">
+                    <option value="endmill">End Mill</option>
+                    <option value="drill">Drill</option>
+                    <option value="facemill">Face Mill</option>
+                    <option value="boring">Boring Bar</option>
+                    <option value="tap">Tap</option>
+                    <option value="reamer">Reamer</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Diameter (mm)</label>
+                <input type="number" class="form-input" id="toolDiameter" step="0.01">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Expected Life (minutes)</label>
+                <input type="number" class="form-input" id="toolLife" value="120">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Assign to Machine</label>
+                <select class="form-select" id="toolMachine">
+                    <option value="">Unassigned</option>
+                    <option value="CNC-001">CNC Mill #1</option>
+                    <option value="CNC-002">CNC Mill #2</option>
+                    <option value="CNC-003">CNC Lathe #1</option>
+                    <option value="CNC-004">CNC Lathe #2</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveTool()">Add Tool</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Tool inventory data
+    const tools = [
+        { id: 'T001', type: 'End Mill', diameter: 10, material: 'Carbide', machine: 'CNC-001', lifeUsed: 85, lifeTotal: 120, status: 'active', pocket: 1 },
+        { id: 'T002', type: 'End Mill', diameter: 6, material: 'Carbide', machine: 'CNC-001', lifeUsed: 110, lifeTotal: 120, status: 'warning', pocket: 2 },
+        { id: 'T003', type: 'Drill', diameter: 8.5, material: 'HSS', machine: 'CNC-001', lifeUsed: 118, lifeTotal: 120, status: 'critical', pocket: 3 },
+        { id: 'T004', type: 'Face Mill', diameter: 50, material: 'Carbide', machine: 'CNC-002', lifeUsed: 45, lifeTotal: 180, status: 'active', pocket: 1 },
+        { id: 'T005', type: 'Boring Bar', diameter: 25, material: 'Carbide', machine: 'CNC-003', lifeUsed: 60, lifeTotal: 90, status: 'warning', pocket: 1 },
+        { id: 'T006', type: 'End Mill', diameter: 12, material: 'Carbide', machine: 'CNC-002', lifeUsed: 20, lifeTotal: 120, status: 'active', pocket: 2 },
+        { id: 'T007', type: 'Tap', diameter: 6, material: 'HSS-E', machine: null, lifeUsed: 0, lifeTotal: 60, status: 'idle', pocket: null },
+        { id: 'T008', type: 'Reamer', diameter: 10, material: 'Carbide', machine: 'CNC-004', lifeUsed: 88, lifeTotal: 100, status: 'warning', pocket: 4 }
+    ];
+
+    const changeHistory = [
+        { time: '2024-01-15 14:32', tool: 'T003', machine: 'CNC-001', action: 'Replaced', operator: 'John Smith', reason: 'End of life' },
+        { time: '2024-01-15 11:15', tool: 'T002', machine: 'CNC-001', action: 'Offset adjusted', operator: 'Maria Garcia', reason: 'Wear compensation' },
+        { time: '2024-01-15 09:45', tool: 'T006', machine: 'CNC-002', action: 'Installed', operator: 'Robert Chen', reason: 'New job setup' },
+        { time: '2024-01-14 16:20', tool: 'T004', machine: 'CNC-002', action: 'Insert changed', operator: 'Sarah Johnson', reason: 'Scheduled maintenance' },
+        { time: '2024-01-14 10:30', tool: 'T001', machine: 'CNC-001', action: 'Recalibrated', operator: 'John Smith', reason: 'Dimensional drift' }
+    ];
+
+    const presets = [
+        { name: 'Roughing End Mill 10mm', type: 'End Mill', diameter: 10, speed: 8000, feed: 2000, doc: 3, woc: 5 },
+        { name: 'Finishing End Mill 6mm', type: 'End Mill', diameter: 6, speed: 12000, feed: 1500, doc: 0.5, woc: 3 },
+        { name: 'Drilling 8.5mm', type: 'Drill', diameter: 8.5, speed: 3000, feed: 150, doc: 25, woc: 0 },
+        { name: 'Face Mill 50mm', type: 'Face Mill', diameter: 50, speed: 2500, feed: 800, doc: 2, woc: 35 },
+        { name: 'Tapping M6', type: 'Tap', diameter: 6, speed: 500, feed: 500, doc: 15, woc: 0 },
+        { name: 'Boring 25mm', type: 'Boring Bar', diameter: 25, speed: 1500, feed: 100, doc: 1, woc: 0.5 }
+    ];
+
+    const offsets = [
+        { num: 1, desc: 'End Mill 10mm', lengthH: 125.432, diameterD: 9.998, wearL: -0.015, wearD: -0.002, updated: '2024-01-15 14:00' },
+        { num: 2, desc: 'End Mill 6mm', lengthH: 98.215, diameterD: 5.995, wearL: -0.025, wearD: -0.005, updated: '2024-01-15 11:15' },
+        { num: 3, desc: 'Drill 8.5mm', lengthH: 142.100, diameterD: 8.500, wearL: 0, wearD: 0, updated: '2024-01-15 14:32' },
+        { num: 4, desc: 'Face Mill 50mm', lengthH: 85.650, diameterD: 50.000, wearL: -0.008, wearD: 0, updated: '2024-01-14 16:20' },
+        { num: 5, desc: 'Boring Bar 25mm', lengthH: 156.320, diameterD: 25.012, wearL: -0.012, wearD: -0.003, updated: '2024-01-14 09:00' }
+    ];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        renderToolGrid();
+        renderHistory();
+        renderPresets();
+        renderOffsets();
+        setupTabs();
+    });
+
+    function setupTabs() {
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById(this.dataset.tab).classList.add('active');
+            });
+        });
+    }
+
+    function renderToolGrid() {
+        const grid = document.getElementById('toolGrid');
+        grid.innerHTML = tools.map(t => {
+            const lifePercent = Math.round((t.lifeUsed / t.lifeTotal) * 100);
+            const remaining = t.lifeTotal - t.lifeUsed;
+            let lifeClass = 'good';
+            if (lifePercent >= 90) lifeClass = 'critical';
+            else if (lifePercent >= 75) lifeClass = 'warning';
+
+            return `
+                <div class="tool-card">
+                    <div class="tool-header">
+                        <div>
+                            <div class="tool-id">${t.id}</div>
+                            <div class="tool-type">${t.type} - ${t.diameter}mm ${t.material}</div>
+                        </div>
+                        <span class="tool-status ${t.status}">${t.status.charAt(0).toUpperCase() + t.status.slice(1)}</span>
+                    </div>
+                    <div class="tool-body">
+                        <div class="tool-info">
+                            <div class="info-item">
+                                <span class="info-label">Machine</span>
+                                <span class="info-value">${t.machine || 'Unassigned'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Pocket</span>
+                                <span class="info-value">${t.pocket || '-'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Time Used</span>
+                                <span class="info-value">${t.lifeUsed} min</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Remaining</span>
+                                <span class="info-value">${remaining} min</span>
+                            </div>
+                        </div>
+                        <div class="life-container">
+                            <div class="life-header">
+                                <span class="life-label">Tool Life</span>
+                                <span class="life-percent" style="color: var(--accent-${lifeClass === 'good' ? 'green' : lifeClass === 'warning' ? 'yellow' : 'red'})">${lifePercent}%</span>
+                            </div>
+                            <div class="life-bar">
+                                <div class="life-fill ${lifeClass}" style="width: ${lifePercent}%"></div>
+                            </div>
+                        </div>
+                        <div class="tool-actions">
+                            <button class="btn btn-secondary" onclick="editTool('${t.id}')">Edit</button>
+                            <button class="btn btn-warning" onclick="replaceTool('${t.id}')">Replace</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderHistory() {
+        document.getElementById('historyTable').innerHTML = changeHistory.map(h => `
+            <tr>
+                <td>${h.time}</td>
+                <td>${h.tool}</td>
+                <td>${h.machine}</td>
+                <td>${h.action}</td>
+                <td>${h.operator}</td>
+                <td>${h.reason}</td>
+            </tr>
+        `).join('');
+    }
+
+    function renderPresets() {
+        document.getElementById('presetGrid').innerHTML = presets.map(p => `
+            <div class="preset-card" onclick="applyPreset('${p.name}')">
+                <div class="preset-name">${p.name}</div>
+                <div class="preset-specs">
+                    <div class="preset-spec">Type: <span>${p.type}</span></div>
+                    <div class="preset-spec">Diameter: <span>${p.diameter}mm</span></div>
+                    <div class="preset-spec">Speed: <span>${p.speed} RPM</span></div>
+                    <div class="preset-spec">Feed: <span>${p.feed} mm/min</span></div>
+                    <div class="preset-spec">DOC: <span>${p.doc}mm</span></div>
+                    <div class="preset-spec">WOC: <span>${p.woc}mm</span></div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderOffsets() {
+        document.getElementById('offsetTable').innerHTML = offsets.map(o => `
+            <tr>
+                <td>T${String(o.num).padStart(2, '0')}</td>
+                <td>${o.desc}</td>
+                <td>${o.lengthH.toFixed(3)}</td>
+                <td>${o.diameterD.toFixed(3)}</td>
+                <td style="color: ${o.wearL < 0 ? 'var(--accent-yellow)' : 'var(--text-primary)'}">${o.wearL.toFixed(3)}</td>
+                <td style="color: ${o.wearD < 0 ? 'var(--accent-yellow)' : 'var(--text-primary)'}">${o.wearD.toFixed(3)}</td>
+                <td>${o.updated}</td>
+            </tr>
+        `).join('');
+    }
+
+    function openAddToolModal() {
+        document.getElementById('addToolModal').classList.add('show');
+    }
+
+    function closeModal() {
+        document.getElementById('addToolModal').classList.remove('show');
+    }
+
+    function saveTool() {
+        alert('Tool added successfully!');
+        closeModal();
+    }
+
+    function editTool(id) {
+        alert(`Edit tool ${id}`);
+    }
+
+    function replaceTool(id) {
+        if (confirm(`Replace tool ${id}? This will reset the tool life counter.`)) {
+            alert(`Tool ${id} marked for replacement`);
+        }
+    }
+
+    function applyPreset(name) {
+        alert(`Preset "${name}" applied to current setup`);
+    }
+
+    function syncOffsets() {
+        alert('Syncing offsets from machine controller...');
+    }
+
+    function exportInventory() {
+        alert('Exporting tool inventory to Excel...');
+    }
+
+    document.getElementById('addToolModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,103 @@
+# CNC Vision Configuration
+# Configuration for YOLO inference and camera settings
+
+# Camera settings
+camera:
+  device: "/dev/video0"
+  width: 1280
+  height: 720
+  fps: 30
+  auto_exposure: true
+  exposure_ms: 10.0
+
+# Roboflow settings
+roboflow:
+  api_key: "${ROBOFLOW_API_KEY}"
+  inference_server_url: "http://roboflow-inference:9001"
+  use_local_inference: true  # Use Docker inference server
+
+# Model configuration
+models:
+  defect_detection:
+    model_id: "cnc-defect-detection/1"
+    confidence_threshold: 0.7
+    overlap_threshold: 0.3
+    enabled: true
+
+  tool_wear:
+    model_id: "tool-wear-detection/1"
+    confidence_threshold: 0.6
+    overlap_threshold: 0.3
+    enabled: true
+
+  part_presence:
+    model_id: "part-detection/1"
+    confidence_threshold: 0.8
+    overlap_threshold: 0.5
+    enabled: true
+
+  safety:
+    model_id: "hand-detection/1"  # Pretrained Roboflow Universe model
+    confidence_threshold: 0.5  # Lower threshold for safety
+    overlap_threshold: 0.3
+    enabled: true
+    classes:
+      - "hand"
+      - "person"
+
+# Safety zones (normalized coordinates 0-1)
+safety_zones:
+  work_envelope:
+    enabled: true
+    x_min: 0.1
+    y_min: 0.1
+    x_max: 0.9
+    y_max: 0.9
+    warning_level: 1
+
+  spindle_area:
+    enabled: true
+    x_min: 0.3
+    y_min: 0.3
+    x_max: 0.7
+    y_max: 0.7
+    warning_level: 2  # Critical zone
+
+  fixture_zone:
+    enabled: true
+    x_min: 0.2
+    y_min: 0.4
+    x_max: 0.8
+    y_max: 0.8
+    warning_level: 1
+
+# Inference settings
+inference:
+  mode: "continuous"  # "continuous" or "on_demand"
+  target_fps: 10  # Inference FPS (lower than camera FPS)
+  batch_size: 1
+  max_queue_size: 5
+  gpu_enabled: false  # Set true if GPU available
+
+# MQTT bridge settings
+mqtt:
+  broker_host: "mosquitto"
+  broker_port: 1883
+  topic_prefix: "cnc"
+  qos: 1
+  publish_all_detections: true
+  publish_safety_alerts: true
+
+# Image capture settings
+capture:
+  save_detections: true
+  save_path: "/ros2_ws/captures"
+  annotate_images: true
+  max_saved_images: 1000
+  jpeg_quality: 85
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_inference_times: true
+  log_detections: true

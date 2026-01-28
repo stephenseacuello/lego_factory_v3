@@ -1,0 +1,84 @@
+# MachineOperation.action - Execute operation on CNC/Laser machine
+# LEGO MCP Manufacturing System v7.0
+
+# Goal
+string operation_id                # Operation ID
+string work_order_id               # Parent work order
+string machine_id                  # Target machine (CNC, Laser, etc.)
+string machine_type                # Machine type: cnc, laser, grbl
+
+# G-code execution
+string gcode                       # G-code to execute (inline)
+string gcode_file                  # Path to G-code file (alternative to inline)
+
+# Operation parameters
+float32 feed_rate_override         # Feed rate override percentage (100 = normal)
+float32 spindle_override           # Spindle speed override percentage
+float32 rapid_override             # Rapid movement override percentage
+
+# Laser-specific (for MKS Laser)
+float32 laser_power_percent        # Laser power (0-100)
+uint32 passes                      # Number of passes
+float32 focal_height               # Focal height in mm
+
+# CNC-specific (for TinyG Bantam)
+string tool_id                     # Tool to use
+bool require_tool_change           # Tool change required
+float32 depth_per_pass             # Depth per pass in mm
+
+# Safety
+bool dry_run                       # Dry run (no actual movement)
+bool require_confirmation          # Require operator confirmation to start
+float32 timeout_sec                # Operation timeout (0 = no timeout)
+
+# Options
+bool home_before                   # Home machine before operation
+bool home_after                    # Home machine after operation
+bool park_after                    # Park at safe position after
+
+---
+
+# Result
+bool success                       # Operation completed successfully
+string message                     # Success/error message
+string result_file                 # Path to any output file
+
+# Completion details
+float32 actual_duration_sec        # Actual operation duration
+uint32 lines_executed              # G-code lines executed
+float32 distance_traveled_mm       # Total distance traveled
+builtin_interfaces/Time completed_at
+
+# Machine state after
+geometry_msgs/Point final_position # Final machine position
+float32 spindle_runtime_sec        # Total spindle runtime
+float32 laser_on_time_sec          # Total laser on time (for laser)
+
+# Quality (if measurable)
+float32 surface_quality            # Surface quality score (0-1)
+string measurement_report          # Path to measurement report
+
+---
+
+# Feedback
+uint32 current_line                # Current G-code line
+uint32 total_lines                 # Total G-code lines
+string current_command             # Current G-code command
+float32 progress_percent           # Overall progress (0-100)
+
+uint8 state                        # 0=idle, 1=running, 2=paused, 3=tool_change, 4=homing
+string state_name                  # Human-readable state
+
+# Position
+geometry_msgs/Point position       # Current XYZ position
+float32 feed_rate_actual           # Actual feed rate mm/min
+float32 spindle_speed_actual       # Actual spindle RPM
+float32 laser_power_actual         # Actual laser power %
+
+# Timing
+float32 elapsed_sec                # Elapsed time
+float32 remaining_sec              # Estimated remaining time
+
+# Status
+string status_message              # Current status message
+float32 buffer_fill_percent        # Command buffer fill level

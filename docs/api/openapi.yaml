@@ -1,0 +1,1466 @@
+openapi: 3.1.0
+info:
+  title: LEGO Factory v3 API
+  description: |
+    REST API for the LEGO Factory v3 Manufacturing Platform.
+
+    ## Overview
+    This API provides endpoints for:
+    - **SCADA**: Machine control, tags, alarms, historian
+    - **MES**: Work orders, scheduling, OEE, labor tracking
+    - **ERP**: Sales orders, purchasing, inventory, financial
+    - **QMS**: Documents, NCR/CAPA, training, calibration
+    - **CMMS**: Assets, maintenance, work orders
+    - **LEGO**: Brick designs, slicing, catalog
+    - **ML**: Inference, predictions, anomaly detection
+    - **Unity**: Digital twin state synchronization
+    - **ROS2**: Robot control and cell orchestration
+
+    ## Authentication
+    Currently supports session-based authentication via /api/auth endpoints.
+
+    ## Rate Limiting
+    API endpoints are not rate-limited in the current version.
+
+  version: 3.0.0
+  contact:
+    name: LEGO Factory Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+  - url: http://lego-factory:5000
+    description: Docker container
+
+tags:
+  - name: SCADA
+    description: Supervisory Control and Data Acquisition
+  - name: MES
+    description: Manufacturing Execution System
+  - name: ERP
+    description: Enterprise Resource Planning
+  - name: QMS
+    description: Quality Management System
+  - name: CMMS
+    description: Computerized Maintenance Management System
+  - name: LEGO
+    description: LEGO Brick Design and Slicing
+  - name: ML
+    description: Machine Learning and Inference
+  - name: Unity
+    description: Digital Twin Integration
+  - name: ROS2
+    description: Robot Operating System Integration
+  - name: Auth
+    description: Authentication
+
+paths:
+  # ============================================================================
+  # SCADA Endpoints
+  # ============================================================================
+  /api/scada/machines:
+    get:
+      tags: [SCADA]
+      summary: List all machines
+      description: Returns all configured machines with their current status.
+      responses:
+        '200':
+          description: List of machines
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  machines:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Machine'
+                  count:
+                    type: integer
+
+  /api/scada/machines/{machine_id}:
+    get:
+      tags: [SCADA]
+      summary: Get machine details
+      parameters:
+        - name: machine_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Machine details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Machine'
+        '404':
+          description: Machine not found
+
+  /api/scada/machines/{machine_id}/connect:
+    post:
+      tags: [SCADA]
+      summary: Connect to a machine
+      parameters:
+        - name: machine_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Connection successful
+        '404':
+          description: Machine not found
+
+  /api/scada/machines/{machine_id}/disconnect:
+    post:
+      tags: [SCADA]
+      summary: Disconnect from a machine
+      parameters:
+        - name: machine_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Disconnection successful
+
+  /api/scada/machines/{machine_id}/status:
+    get:
+      tags: [SCADA]
+      summary: Get machine status
+      parameters:
+        - name: machine_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Machine status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MachineStatus'
+
+  /api/scada/tags:
+    get:
+      tags: [SCADA]
+      summary: List all tags
+      responses:
+        '200':
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tag'
+
+  /api/scada/alarms:
+    get:
+      tags: [SCADA]
+      summary: List active alarms
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [active, cleared, shelved]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, medium, low]
+      responses:
+        '200':
+          description: List of alarms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alarms:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alarm'
+
+  /api/scada/alarms/{alarm_id}/acknowledge:
+    post:
+      tags: [SCADA]
+      summary: Acknowledge an alarm
+      parameters:
+        - name: alarm_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user:
+                  type: string
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Alarm acknowledged
+
+  /api/scada/historian/query:
+    post:
+      tags: [SCADA]
+      summary: Query historian data
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tag_ids, start_time, end_time]
+              properties:
+                tag_ids:
+                  type: array
+                  items:
+                    type: string
+                start_time:
+                  type: string
+                  format: date-time
+                end_time:
+                  type: string
+                  format: date-time
+                aggregation:
+                  type: string
+                  enum: [raw, avg, min, max, sum, count]
+                interval:
+                  type: string
+      responses:
+        '200':
+          description: Historical data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+
+  # ============================================================================
+  # MES Endpoints
+  # ============================================================================
+  /api/mes/work-orders:
+    get:
+      tags: [MES]
+      summary: List work orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [planned, released, in_progress, completed, on_hold, cancelled]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of work orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  work_orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkOrder'
+    post:
+      tags: [MES]
+      summary: Create a work order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkOrderCreate'
+      responses:
+        '201':
+          description: Work order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+
+  /api/mes/work-orders/{work_order_id}:
+    get:
+      tags: [MES]
+      summary: Get work order details
+      parameters:
+        - name: work_order_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Work order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+        '404':
+          description: Work order not found
+
+  /api/mes/oee:
+    get:
+      tags: [MES]
+      summary: Get OEE metrics
+      parameters:
+        - name: machine_id
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OEE metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OEEMetrics'
+
+  /api/mes/recipes:
+    get:
+      tags: [MES]
+      summary: List recipes
+      responses:
+        '200':
+          description: List of recipes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recipes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Recipe'
+
+  # ============================================================================
+  # ERP Endpoints
+  # ============================================================================
+  /api/erp/sales-orders:
+    get:
+      tags: [ERP]
+      summary: List sales orders
+      responses:
+        '200':
+          description: List of sales orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sales_orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SalesOrder'
+    post:
+      tags: [ERP]
+      summary: Create a sales order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderCreate'
+      responses:
+        '201':
+          description: Sales order created
+
+  /api/erp/purchase-orders:
+    get:
+      tags: [ERP]
+      summary: List purchase orders
+      responses:
+        '200':
+          description: List of purchase orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  purchase_orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PurchaseOrder'
+
+  /api/erp/inventory:
+    get:
+      tags: [ERP]
+      summary: Get inventory balances
+      parameters:
+        - name: item_id
+          in: query
+          schema:
+            type: string
+        - name: location_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory balances
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  balances:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/InventoryBalance'
+
+  /api/erp/mrp/run:
+    post:
+      tags: [ERP]
+      summary: Run MRP planning
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                horizon_days:
+                  type: integer
+                  default: 90
+                include_forecasts:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: MRP run results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MRPResult'
+
+  # ============================================================================
+  # QMS Endpoints
+  # ============================================================================
+  /api/qms/documents:
+    get:
+      tags: [QMS]
+      summary: List documents
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, pending_approval, approved, effective, obsolete]
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+
+  /api/qms/ncrs:
+    get:
+      tags: [QMS]
+      summary: List non-conformance reports
+      responses:
+        '200':
+          description: List of NCRs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ncrs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NCR'
+    post:
+      tags: [QMS]
+      summary: Create an NCR
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NCRCreate'
+      responses:
+        '201':
+          description: NCR created
+
+  /api/qms/capas:
+    get:
+      tags: [QMS]
+      summary: List CAPAs
+      responses:
+        '200':
+          description: List of CAPAs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  capas:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CAPA'
+
+  # ============================================================================
+  # CMMS Endpoints
+  # ============================================================================
+  /api/cmms/assets:
+    get:
+      tags: [CMMS]
+      summary: List assets
+      responses:
+        '200':
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Asset'
+
+  /api/cmms/work-orders:
+    get:
+      tags: [CMMS]
+      summary: List maintenance work orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, completed, closed]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [emergency, high, medium, low]
+      responses:
+        '200':
+          description: List of maintenance work orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  work_orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MaintenanceWorkOrder'
+    post:
+      tags: [CMMS]
+      summary: Create a maintenance work order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceWorkOrderCreate'
+      responses:
+        '201':
+          description: Work order created
+
+  /api/cmms/pm-schedules:
+    get:
+      tags: [CMMS]
+      summary: List PM schedules
+      responses:
+        '200':
+          description: List of PM schedules
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  schedules:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PMSchedule'
+
+  # ============================================================================
+  # LEGO Endpoints
+  # ============================================================================
+  /api/lego/catalog:
+    get:
+      tags: [LEGO]
+      summary: Browse brick catalog
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: brick_type
+          in: query
+          schema:
+            type: string
+            enum: [standard, plate, tile, slope, technic, duplo, custom]
+      responses:
+        '200':
+          description: Brick catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bricks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrickTemplate'
+
+  /api/lego/designs:
+    get:
+      tags: [LEGO]
+      summary: List brick designs
+      responses:
+        '200':
+          description: List of designs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  designs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrickDesign'
+    post:
+      tags: [LEGO]
+      summary: Create a brick design
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrickDesignCreate'
+      responses:
+        '201':
+          description: Design created
+
+  /api/lego/designs/{design_id}/export:
+    post:
+      tags: [LEGO]
+      summary: Export a brick design
+      parameters:
+        - name: design_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                format:
+                  type: string
+                  enum: [stl, step, obj, 3mf, gcode]
+                printer_type:
+                  type: string
+                profile_id:
+                  type: string
+      responses:
+        '202':
+          description: Export job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportJob'
+
+  /api/lego/colors:
+    get:
+      tags: [LEGO]
+      summary: List LEGO colors
+      responses:
+        '200':
+          description: List of colors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  colors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrickColor'
+
+  # ============================================================================
+  # ML Endpoints
+  # ============================================================================
+  /api/ml/status:
+    get:
+      tags: [ML]
+      summary: Get ML service status
+      responses:
+        '200':
+          description: ML service status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  models_loaded:
+                    type: array
+                    items:
+                      type: string
+                  last_inference:
+                    type: string
+                    format: date-time
+
+  /api/ml/inference:
+    post:
+      tags: [ML]
+      summary: Run inference
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model_name, data]
+              properties:
+                model_name:
+                  type: string
+                data:
+                  type: object
+      responses:
+        '200':
+          description: Inference result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceResult'
+
+  /api/ml/anomalies:
+    get:
+      tags: [ML]
+      summary: Get detected anomalies
+      parameters:
+        - name: start_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of anomalies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  anomalies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Anomaly'
+
+  # ============================================================================
+  # Unity Endpoints
+  # ============================================================================
+  /api/unity/state:
+    get:
+      tags: [Unity]
+      summary: Get factory state for Unity
+      responses:
+        '200':
+          description: Factory state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FactoryState'
+    post:
+      tags: [Unity]
+      summary: Send command from Unity
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                command:
+                  type: string
+                target:
+                  type: string
+                parameters:
+                  type: object
+      responses:
+        '200':
+          description: Command executed
+
+  # ============================================================================
+  # ROS2 Endpoints
+  # ============================================================================
+  /api/ros2/status:
+    get:
+      tags: [ROS2]
+      summary: Get ROS2 bridge status
+      responses:
+        '200':
+          description: ROS2 status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connected:
+                    type: boolean
+                  nodes:
+                    type: array
+                    items:
+                      type: string
+                  topics:
+                    type: array
+                    items:
+                      type: string
+
+  /api/ros2/robots:
+    get:
+      tags: [ROS2]
+      summary: List robots
+      responses:
+        '200':
+          description: List of robots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  robots:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Robot'
+
+  /api/ros2/robots/{robot_id}/move:
+    post:
+      tags: [ROS2]
+      summary: Move robot to position
+      parameters:
+        - name: robot_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                position:
+                  type: object
+                  properties:
+                    x:
+                      type: number
+                    y:
+                      type: number
+                    z:
+                      type: number
+                orientation:
+                  type: object
+      responses:
+        '202':
+          description: Move command sent
+
+  # ============================================================================
+  # Auth Endpoints
+  # ============================================================================
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+        '401':
+          description: Invalid credentials
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout
+      responses:
+        '200':
+          description: Logout successful
+
+components:
+  schemas:
+    Machine:
+      type: object
+      properties:
+        machine_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        machine_type:
+          type: string
+        controller_type:
+          type: string
+        status:
+          type: string
+          enum: [disconnected, idle, running, paused, error, alarm]
+        connected:
+          type: boolean
+
+    MachineStatus:
+      type: object
+      properties:
+        state:
+          type: string
+        position:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            z:
+              type: number
+        feedrate:
+          type: number
+        spindle_speed:
+          type: number
+        active_alarms:
+          type: array
+          items:
+            type: string
+
+    Tag:
+      type: object
+      properties:
+        tag_id:
+          type: string
+        name:
+          type: string
+        data_type:
+          type: string
+        value:
+          type: string
+        quality:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    Alarm:
+      type: object
+      properties:
+        alarm_id:
+          type: string
+        message:
+          type: string
+        priority:
+          type: string
+        state:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        acknowledged:
+          type: boolean
+        acknowledged_by:
+          type: string
+
+    WorkOrder:
+      type: object
+      properties:
+        work_order_id:
+          type: string
+        description:
+          type: string
+        product_id:
+          type: string
+        quantity_ordered:
+          type: number
+        quantity_completed:
+          type: number
+        status:
+          type: string
+        priority:
+          type: integer
+        due_date:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    WorkOrderCreate:
+      type: object
+      required: [description, product_id, quantity_ordered]
+      properties:
+        description:
+          type: string
+        product_id:
+          type: string
+        quantity_ordered:
+          type: number
+        priority:
+          type: integer
+        due_date:
+          type: string
+          format: date-time
+
+    Recipe:
+      type: object
+      properties:
+        recipe_id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        product_id:
+          type: string
+        status:
+          type: string
+        operations:
+          type: array
+          items:
+            type: object
+
+    OEEMetrics:
+      type: object
+      properties:
+        availability:
+          type: number
+        performance:
+          type: number
+        quality:
+          type: number
+        oee:
+          type: number
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+            end:
+              type: string
+              format: date-time
+
+    SalesOrder:
+      type: object
+      properties:
+        order_id:
+          type: string
+        customer_id:
+          type: string
+        order_date:
+          type: string
+          format: date
+        status:
+          type: string
+        total_amount:
+          type: number
+        lines:
+          type: array
+          items:
+            type: object
+
+    SalesOrderCreate:
+      type: object
+      required: [customer_id, lines]
+      properties:
+        customer_id:
+          type: string
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              item_id:
+                type: string
+              quantity:
+                type: number
+              unit_price:
+                type: number
+
+    PurchaseOrder:
+      type: object
+      properties:
+        order_id:
+          type: string
+        vendor_id:
+          type: string
+        order_date:
+          type: string
+          format: date
+        status:
+          type: string
+        total_amount:
+          type: number
+
+    InventoryBalance:
+      type: object
+      properties:
+        item_id:
+          type: string
+        location_id:
+          type: string
+        quantity_on_hand:
+          type: number
+        quantity_reserved:
+          type: number
+        quantity_available:
+          type: number
+
+    MRPResult:
+      type: object
+      properties:
+        run_id:
+          type: string
+        run_datetime:
+          type: string
+          format: date-time
+        horizon_days:
+          type: integer
+        planned_orders_count:
+          type: integer
+        action_messages_count:
+          type: integer
+        status:
+          type: string
+
+    Document:
+      type: object
+      properties:
+        document_id:
+          type: string
+        title:
+          type: string
+        category:
+          type: string
+        status:
+          type: string
+        version:
+          type: string
+        effective_date:
+          type: string
+          format: date
+
+    NCR:
+      type: object
+      properties:
+        ncr_id:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        severity:
+          type: string
+        disposition:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    NCRCreate:
+      type: object
+      required: [title, description]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+        item_id:
+          type: string
+        lot_id:
+          type: string
+
+    CAPA:
+      type: object
+      properties:
+        capa_id:
+          type: string
+        title:
+          type: string
+        capa_type:
+          type: string
+          enum: [corrective, preventive]
+        status:
+          type: string
+        due_date:
+          type: string
+          format: date
+
+    Asset:
+      type: object
+      properties:
+        asset_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        asset_class:
+          type: string
+        status:
+          type: string
+        location:
+          type: string
+
+    MaintenanceWorkOrder:
+      type: object
+      properties:
+        work_order_id:
+          type: string
+        asset_id:
+          type: string
+        description:
+          type: string
+        work_type:
+          type: string
+        priority:
+          type: string
+        status:
+          type: string
+        scheduled_start:
+          type: string
+          format: date-time
+
+    MaintenanceWorkOrderCreate:
+      type: object
+      required: [asset_id, description, work_type]
+      properties:
+        asset_id:
+          type: string
+        description:
+          type: string
+        work_type:
+          type: string
+        priority:
+          type: string
+
+    PMSchedule:
+      type: object
+      properties:
+        schedule_id:
+          type: string
+        asset_id:
+          type: string
+        description:
+          type: string
+        frequency:
+          type: string
+        next_due_date:
+          type: string
+          format: date
+
+    BrickTemplate:
+      type: object
+      properties:
+        part_number:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        studs_x:
+          type: integer
+        studs_y:
+          type: integer
+        height_plates:
+          type: integer
+        is_printable:
+          type: boolean
+
+    BrickDesign:
+      type: object
+      properties:
+        design_id:
+          type: string
+        name:
+          type: string
+        brick_type:
+          type: string
+        studs_x:
+          type: integer
+        studs_y:
+          type: integer
+        height_units:
+          type: integer
+        is_valid:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+
+    BrickDesignCreate:
+      type: object
+      required: [name, studs_x, studs_y]
+      properties:
+        name:
+          type: string
+        brick_type:
+          type: string
+        studs_x:
+          type: integer
+        studs_y:
+          type: integer
+        height_units:
+          type: integer
+        color_name:
+          type: string
+
+    ExportJob:
+      type: object
+      properties:
+        job_id:
+          type: string
+        design_id:
+          type: string
+        export_format:
+          type: string
+        status:
+          type: string
+        progress:
+          type: number
+        output_file:
+          type: string
+
+    BrickColor:
+      type: object
+      properties:
+        color_id:
+          type: integer
+        name:
+          type: string
+        hex_code:
+          type: string
+        is_transparent:
+          type: boolean
+        is_current:
+          type: boolean
+
+    InferenceResult:
+      type: object
+      properties:
+        model_name:
+          type: string
+        predictions:
+          type: array
+          items:
+            type: object
+        confidence:
+          type: number
+        processing_time_ms:
+          type: number
+
+    Anomaly:
+      type: object
+      properties:
+        anomaly_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        source:
+          type: string
+        anomaly_score:
+          type: number
+        description:
+          type: string
+
+    FactoryState:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        machines:
+          type: array
+          items:
+            type: object
+        robots:
+          type: array
+          items:
+            type: object
+        alarms:
+          type: array
+          items:
+            type: object
+        work_orders:
+          type: array
+          items:
+            type: object
+
+    Robot:
+      type: object
+      properties:
+        robot_id:
+          type: string
+        name:
+          type: string
+        robot_type:
+          type: string
+        status:
+          type: string
+        position:
+          type: object
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            z:
+              type: number

@@ -1,0 +1,44 @@
+# RestartNode.srv - Request node restart via supervisor
+# LEGO MCP Manufacturing System v7.0
+# OTP-style supervision for fault tolerance
+
+# Request
+string node_id                      # Node identifier to restart
+string supervisor_id                # Supervisor managing the node (optional, auto-detect if empty)
+
+# Restart options
+bool force                          # Force restart even if node is running
+bool wait_for_ready                 # Wait until node is running before returning
+float32 timeout_sec                 # Timeout for restart operation (0 = default)
+
+# Restart reason
+uint8 REASON_MANUAL = 0             # Manual restart request
+uint8 REASON_HEARTBEAT_TIMEOUT = 1  # Heartbeat timeout
+uint8 REASON_ERROR_THRESHOLD = 2    # Error threshold exceeded
+uint8 REASON_RESOURCE_EXHAUSTION = 3 # Resource limits exceeded
+uint8 REASON_DEPENDENCY_RESTART = 4 # Dependency was restarted
+uint8 REASON_CONFIGURATION_CHANGE = 5 # Configuration was updated
+uint8 REASON_CHAOS_TEST = 6         # Chaos testing injection
+uint8 restart_reason
+string reason_detail                # Additional reason information
+
+---
+# Response
+bool success                        # True if restart was initiated
+string message                      # Human-readable result message
+
+# Restart information
+string restart_id                   # Unique ID for this restart operation
+uint32 restart_count                # Total restarts for this node
+builtin_interfaces/Time restart_time # When restart was initiated
+
+# Node state after restart
+uint8 STATE_UNKNOWN = 0
+uint8 STATE_STARTING = 1
+uint8 STATE_RUNNING = 2
+uint8 STATE_FAILED = 3
+uint8 final_state                   # Node state after restart (if wait_for_ready)
+
+# Error information (if failed)
+string error_code                   # Error code if failed
+string error_detail                 # Detailed error information

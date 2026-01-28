@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Wear Predictions - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --primary: #3b82f6; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: var(--primary); box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25); }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.1); vertical-align: middle; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+        .tool-card { background: var(--card-bg); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); padding: 1.25rem; transition: all 0.2s; }
+        .tool-card:hover { border-color: var(--primary); }
+        .tool-card.critical { border-left: 4px solid #ef4444; }
+        .tool-card.warning { border-left: 4px solid #f59e0b; }
+        .tool-card.good { border-left: 4px solid #10b981; }
+        .rul-gauge { width: 120px; height: 120px; position: relative; }
+        .rul-gauge svg { transform: rotate(-90deg); }
+        .rul-gauge circle { fill: none; stroke-width: 10; }
+        .rul-gauge .bg { stroke: #1e293b; }
+        .rul-gauge .progress { stroke-linecap: round; transition: stroke-dashoffset 0.5s; }
+        .rul-value { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
+        .wear-bar { height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden; }
+        .wear-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Tool Wear Predictions</a>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" style="width:150px">
+                    <option>All Machines</option>
+                    <option>CNC Mills</option>
+                    <option>Lathes</option>
+                    <option>Injection Molds</option>
+                </select>
+                <button class="btn btn-outline-light btn-sm" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-primary bg-opacity-25 text-primary me-3">
+                            <i class="bi bi-tools"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Active Tools</div>
+                            <h4 class="mb-0">47</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-danger bg-opacity-25 text-danger me-3">
+                            <i class="bi bi-exclamation-triangle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Critical Wear</div>
+                            <h4 class="mb-0 text-danger">3</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-warning bg-opacity-25 text-warning me-3">
+                            <i class="bi bi-clock"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Replace Within 7 Days</div>
+                            <h4 class="mb-0 text-warning">8</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-success bg-opacity-25 text-success me-3">
+                            <i class="bi bi-check-circle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Prediction Accuracy</div>
+                            <h4 class="mb-0">93.7%</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Tool List -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-tools me-2"></i>Tool Wear Status</span>
+                        <div>
+                            <button class="btn btn-outline-light btn-sm me-1"><i class="bi bi-download me-1"></i>Export</button>
+                            <button class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Schedule Replacement</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Tool ID</th>
+                                    <th>Type</th>
+                                    <th>Machine</th>
+                                    <th>Wear Level</th>
+                                    <th>RUL</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>TL-001</strong></td>
+                                    <td>End Mill 10mm</td>
+                                    <td>CNC-001</td>
+                                    <td>
+                                        <div class="wear-bar" style="width: 100px;">
+                                            <div class="wear-fill bg-danger" style="width: 92%"></div>
+                                        </div>
+                                        <small class="text-danger">92%</small>
+                                    </td>
+                                    <td><strong class="text-danger">4 hours</strong></td>
+                                    <td><span class="badge bg-danger">Critical</span></td>
+                                    <td><button class="btn btn-sm btn-outline-danger">Replace Now</button></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>TL-015</strong></td>
+                                    <td>Drill Bit 6mm</td>
+                                    <td>CNC-003</td>
+                                    <td>
+                                        <div class="wear-bar" style="width: 100px;">
+                                            <div class="wear-fill bg-danger" style="width: 88%"></div>
+                                        </div>
+                                        <small class="text-danger">88%</small>
+                                    </td>
+                                    <td><strong class="text-danger">12 hours</strong></td>
+                                    <td><span class="badge bg-danger">Critical</span></td>
+                                    <td><button class="btn btn-sm btn-outline-danger">Replace Now</button></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>TL-008</strong></td>
+                                    <td>Face Mill 50mm</td>
+                                    <td>CNC-002</td>
+                                    <td>
+                                        <div class="wear-bar" style="width: 100px;">
+                                            <div class="wear-fill bg-warning" style="width: 72%"></div>
+                                        </div>
+                                        <small class="text-warning">72%</small>
+                                    </td>
+                                    <td><strong class="text-warning">3 days</strong></td>
+                                    <td><span class="badge bg-warning text-dark">Warning</span></td>
+                                    <td><button class="btn btn-sm btn-outline-warning">Schedule</button></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>TL-022</strong></td>
+                                    <td>Ball End Mill 8mm</td>
+                                    <td>CNC-004</td>
+                                    <td>
+                                        <div class="wear-bar" style="width: 100px;">
+                                            <div class="wear-fill bg-warning" style="width: 65%"></div>
+                                        </div>
+                                        <small class="text-warning">65%</small>
+                                    </td>
+                                    <td><strong class="text-warning">5 days</strong></td>
+                                    <td><span class="badge bg-warning text-dark">Warning</span></td>
+                                    <td><button class="btn btn-sm btn-outline-warning">Schedule</button></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>TL-031</strong></td>
+                                    <td>Reamer 12mm</td>
+                                    <td>CNC-001</td>
+                                    <td>
+                                        <div class="wear-bar" style="width: 100px;">
+                                            <div class="wear-fill bg-success" style="width: 35%"></div>
+                                        </div>
+                                        <small class="text-success">35%</small>
+                                    </td>
+                                    <td><strong>18 days</strong></td>
+                                    <td><span class="badge bg-success">Good</span></td>
+                                    <td><button class="btn btn-sm btn-outline-secondary">Monitor</button></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>TL-045</strong></td>
+                                    <td>Thread Mill M8</td>
+                                    <td>CNC-005</td>
+                                    <td>
+                                        <div class="wear-bar" style="width: 100px;">
+                                            <div class="wear-fill bg-success" style="width: 22%"></div>
+                                        </div>
+                                        <small class="text-success">22%</small>
+                                    </td>
+                                    <td><strong>28 days</strong></td>
+                                    <td><span class="badge bg-success">Good</span></td>
+                                    <td><button class="btn btn-sm btn-outline-secondary">Monitor</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Critical Tool Detail -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-exclamation-triangle text-danger me-2"></i>Critical Tool Detail
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h5 class="mb-0">TL-001</h5>
+                                <small class="text-muted">End Mill 10mm Carbide</small>
+                            </div>
+                            <div class="rul-gauge">
+                                <svg width="120" height="120" viewBox="0 0 120 120">
+                                    <circle class="bg" cx="60" cy="60" r="50"></circle>
+                                    <circle class="progress" cx="60" cy="60" r="50" stroke="#ef4444" stroke-dasharray="314" stroke-dashoffset="25"></circle>
+                                </svg>
+                                <div class="rul-value">
+                                    <div class="h4 mb-0 text-danger">4h</div>
+                                    <small class="text-muted">RUL</small>
+                                </div>
+                            </div>
+                        </div>
+                        <table class="table table-sm table-borderless" style="color: #e2e8f0;">
+                            <tr><td class="text-muted">Machine</td><td>CNC-001</td></tr>
+                            <tr><td class="text-muted">Usage Hours</td><td>847 hours</td></tr>
+                            <tr><td class="text-muted">Parts Produced</td><td>12,456</td></tr>
+                            <tr><td class="text-muted">Last Replaced</td><td>45 days ago</td></tr>
+                            <tr><td class="text-muted">Wear Rate</td><td>2.1%/day</td></tr>
+                            <tr><td class="text-muted">Confidence</td><td>94.2%</td></tr>
+                        </table>
+                        <button class="btn btn-danger w-100 mt-2">
+                            <i class="bi bi-arrow-repeat me-1"></i>Create Replacement Order
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Prediction Model -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-cpu me-2"></i>Prediction Model
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Model Type</span>
+                            <strong>LSTM Neural Network</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Version</span>
+                            <span class="badge bg-success">v1.5.3</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Accuracy</span>
+                            <strong>93.7%</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">RMSE</span>
+                            <strong>2.4 hours</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Last Updated</span>
+                            <strong>2 days ago</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upcoming Replacements -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-calendar-event me-2"></i>Scheduled Replacements
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" style="background: transparent;">
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>TL-008 - Face Mill</span>
+                                    <span class="badge bg-warning text-dark">Tomorrow</span>
+                                </div>
+                                <small class="text-muted">CNC-002 - 2:00 PM</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>TL-022 - Ball End Mill</span>
+                                    <span class="badge bg-secondary">Jan 25</span>
+                                </div>
+                                <small class="text-muted">CNC-004 - 9:00 AM</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>TL-018 - Tap M6</span>
+                                    <span class="badge bg-secondary">Jan 27</span>
+                                </div>
+                                <small class="text-muted">CNC-003 - 11:00 AM</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function refreshData() {
+            console.log('Refreshing tool wear data...');
+        }
+    </script>
+</body>
+</html>

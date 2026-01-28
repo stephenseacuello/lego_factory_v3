@@ -1,0 +1,587 @@
+{% extends "base.html" %}
+
+{% block title %}Genealogy & Traceability{% endblock %}
+
+{% block extra_css %}
+<style>
+.genealogy-tree {
+    width: 100%;
+    height: 500px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.node circle {
+    stroke-width: 2px;
+}
+
+.node.product circle {
+    fill: #4CAF50;
+    stroke: #2E7D32;
+}
+
+.node.operation circle {
+    fill: #2196F3;
+    stroke: #1565C0;
+}
+
+.node.material circle {
+    fill: #FF9800;
+    stroke: #EF6C00;
+}
+
+.node text {
+    font-size: 12px;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.link {
+    fill: none;
+    stroke: #ccc;
+    stroke-width: 2px;
+}
+
+.link.produces {
+    stroke: #4CAF50;
+}
+
+.link.consumed {
+    stroke: #FF9800;
+    stroke-dasharray: 5,5;
+}
+
+.trace-card {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.trace-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.quality-passed { color: #4CAF50; }
+.quality-failed { color: #f44336; }
+.quality-pending { color: #FF9800; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Genealogy & Traceability</h2>
+            <p class="text-muted mb-0">Track products from raw materials to finished goods</p>
+        </div>
+    </div>
+
+    <!-- Search Section -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label">Search</label>
+                    <input type="text" id="search-input" class="form-control" placeholder="Enter serial number or lot number...">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Trace Direction</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="trace-direction" id="trace-backward" value="backward" checked>
+                        <label class="btn btn-outline-primary" for="trace-backward">
+                            <i class="bi bi-arrow-left"></i> Backward
+                        </label>
+                        <input type="radio" class="btn-check" name="trace-direction" id="trace-forward" value="forward">
+                        <label class="btn btn-outline-primary" for="trace-forward">
+                            Forward <i class="bi bi-arrow-right"></i>
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-primary w-100" onclick="performTrace()">
+                        <i class="bi bi-search"></i> Trace
+                    </button>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary w-100" onclick="exportTrace()">
+                        <i class="bi bi-download"></i> Export CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="results-section" style="display: none;">
+        <div class="row">
+            <!-- Tree Visualization -->
+            <div class="col-md-8 mb-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-diagram-3"></i> Genealogy Tree</h5>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-secondary" onclick="zoomIn()"><i class="bi bi-zoom-in"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="zoomOut()"><i class="bi bi-zoom-out"></i></button>
+                            <button class="btn btn-outline-secondary" onclick="resetZoom()"><i class="bi bi-arrows-fullscreen"></i></button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="tree-container" class="genealogy-tree"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Details Panel -->
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-info-circle"></i> Details</h5>
+                    </div>
+                    <div class="card-body" id="details-panel">
+                        <p class="text-muted text-center">Click a node to view details</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-value" id="summary-product">--</div>
+                    <div class="stat-label">Product</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-value" id="summary-steps">--</div>
+                    <div class="stat-label">Process Steps</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <div class="stat-value" id="summary-materials">--</div>
+                    <div class="stat-label">Input Materials</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card" id="summary-quality-card">
+                    <div class="stat-value" id="summary-quality">--</div>
+                    <div class="stat-label">Quality Status</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Process Steps Table -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-list-ol"></i> Process History</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Operation</th>
+                                <th>Machine</th>
+                                <th>Operator</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Duration</th>
+                                <th>Quality</th>
+                            </tr>
+                        </thead>
+                        <tbody id="steps-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Materials Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-box-seam"></i> Input Materials</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Lot Number</th>
+                                <th>Material Type</th>
+                                <th>Supplier</th>
+                                <th>Supplier Lot</th>
+                                <th>Quantity Used</th>
+                                <th>Received Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="materials-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="text-center py-5">
+        <i class="bi bi-diagram-3 display-1 text-muted"></i>
+        <h4 class="mt-3">Search for a Product or Lot</h4>
+        <p class="text-muted">Enter a serial number for backward trace or lot number for forward trace</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+let currentData = null;
+let svg = null;
+let zoom = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initTree();
+
+    // Enter key search
+    document.getElementById('search-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') performTrace();
+    });
+});
+
+function initTree() {
+    const container = document.getElementById('tree-container');
+    const width = container.clientWidth;
+    const height = 500;
+
+    svg = d3.select('#tree-container')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    // Add zoom behavior
+    zoom = d3.zoom()
+        .scaleExtent([0.5, 3])
+        .on('zoom', (event) => {
+            svg.select('g').attr('transform', event.transform);
+        });
+
+    svg.call(zoom);
+
+    // Add main group
+    svg.append('g').attr('transform', 'translate(50,50)');
+}
+
+async function performTrace() {
+    const search = document.getElementById('search-input').value.trim();
+    if (!search) {
+        alert('Please enter a serial number or lot number');
+        return;
+    }
+
+    const direction = document.querySelector('input[name="trace-direction"]:checked').value;
+
+    try {
+        let url;
+        if (direction === 'backward') {
+            url = `/api/mes/genealogy/${encodeURIComponent(search)}`;
+        } else {
+            url = `/api/mes/trace/forward/${encodeURIComponent(search)}`;
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+
+        currentData = data;
+        displayResults(data, direction);
+
+    } catch (error) {
+        console.error('Trace failed:', error);
+        alert('Trace failed: ' + error.message);
+    }
+}
+
+function displayResults(data, direction) {
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('results-section').style.display = 'block';
+
+    // Update summary cards
+    if (direction === 'backward') {
+        document.getElementById('summary-product').textContent = data.product_id || '--';
+        document.getElementById('summary-steps').textContent = data.process_steps?.length || 0;
+        document.getElementById('summary-materials').textContent = data.input_materials?.length || 0;
+
+        const quality = data.quality || 'pending';
+        document.getElementById('summary-quality').textContent = quality.toUpperCase();
+        document.getElementById('summary-quality-card').className = `stat-card ${quality === 'passed' ? 'success' : quality === 'failed' ? 'danger' : 'warning'}`;
+
+        // Display process steps
+        displayProcessSteps(data.process_steps || []);
+
+        // Display input materials
+        displayMaterials(data.input_materials || []);
+
+        // Render tree
+        renderBackwardTree(data);
+    } else {
+        document.getElementById('summary-product').textContent = data.material_type || '--';
+        document.getElementById('summary-steps').textContent = '--';
+        document.getElementById('summary-materials').textContent = `${data.product_count || 0} products made`;
+        document.getElementById('summary-quality').textContent = '--';
+
+        // Clear tables for forward trace
+        document.getElementById('steps-body').innerHTML = '<tr><td colspan="8" class="text-muted text-center">Not applicable for forward trace</td></tr>';
+        displayForwardProducts(data.products_made || []);
+
+        // Render tree
+        renderForwardTree(data);
+    }
+}
+
+function displayProcessSteps(steps) {
+    const tbody = document.getElementById('steps-body');
+    if (steps.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-muted text-center">No process steps recorded</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = steps.map(step => `
+        <tr>
+            <td>${step.sequence}</td>
+            <td>${step.operation_name || step.operation_id}</td>
+            <td>${step.machine_id || '-'}</td>
+            <td>${step.worker_id || '-'}</td>
+            <td>${step.started_at ? new Date(step.started_at).toLocaleString() : '-'}</td>
+            <td>${step.completed_at ? new Date(step.completed_at).toLocaleString() : '-'}</td>
+            <td>${step.actual_duration_mins ? step.actual_duration_mins.toFixed(1) + ' min' : '-'}</td>
+            <td>
+                <span class="quality-${step.quality_result || 'pending'}">
+                    <i class="bi bi-${step.quality_result === 'passed' ? 'check-circle' : step.quality_result === 'failed' ? 'x-circle' : 'clock'}"></i>
+                    ${step.quality_result || 'pending'}
+                </span>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function displayMaterials(materials) {
+    const tbody = document.getElementById('materials-body');
+    if (materials.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-muted text-center">No input materials recorded</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = materials.map(mat => `
+        <tr>
+            <td><strong>${mat.lot_number}</strong></td>
+            <td>${mat.material_type || '-'}</td>
+            <td>${mat.supplier || '-'}</td>
+            <td>${mat.supplier_lot || '-'}</td>
+            <td>${mat.quantity_used || '-'}</td>
+            <td>${mat.received_date ? new Date(mat.received_date).toLocaleDateString() : '-'}</td>
+        </tr>
+    `).join('');
+}
+
+function displayForwardProducts(products) {
+    const tbody = document.getElementById('materials-body');
+    if (products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-muted text-center">No products made from this lot</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = products.map(p => `
+        <tr class="trace-card" onclick="traceProduct('${p.serial_number}')">
+            <td><strong>${p.serial_number}</strong></td>
+            <td>${p.product_id}</td>
+            <td>${p.product_name || '-'}</td>
+            <td>${p.status}</td>
+            <td>${p.quantity_used || '-'}</td>
+            <td>${p.consumed_at ? new Date(p.consumed_at).toLocaleString() : '-'}</td>
+        </tr>
+    `).join('');
+}
+
+function renderBackwardTree(data) {
+    const g = svg.select('g');
+    g.selectAll('*').remove();
+
+    // Build tree structure
+    const root = {
+        id: data.serial_number,
+        name: data.product_name || data.product_id,
+        type: 'product',
+        children: []
+    };
+
+    // Add process steps as children
+    (data.process_steps || []).forEach(step => {
+        root.children.push({
+            id: `step-${step.sequence}`,
+            name: step.operation_name,
+            type: 'operation',
+            data: step,
+            children: []
+        });
+    });
+
+    // Add materials to first step
+    if (root.children.length > 0 && data.input_materials) {
+        data.input_materials.forEach(mat => {
+            root.children[0].children.push({
+                id: `mat-${mat.lot_number}`,
+                name: `${mat.material_type}\n${mat.lot_number}`,
+                type: 'material',
+                data: mat
+            });
+        });
+    }
+
+    renderTree(root);
+}
+
+function renderForwardTree(data) {
+    const g = svg.select('g');
+    g.selectAll('*').remove();
+
+    // Build tree structure
+    const root = {
+        id: data.lot_number,
+        name: `${data.material_type}\n${data.lot_number}`,
+        type: 'material',
+        children: (data.products_made || []).map(p => ({
+            id: p.serial_number,
+            name: p.product_name || p.product_id,
+            type: 'product',
+            data: p
+        }))
+    };
+
+    renderTree(root);
+}
+
+function renderTree(rootData) {
+    const g = svg.select('g');
+    const width = svg.node().getBoundingClientRect().width - 100;
+    const height = 400;
+
+    const hierarchy = d3.hierarchy(rootData);
+    const treeLayout = d3.tree().size([height, width]);
+    const treeData = treeLayout(hierarchy);
+
+    // Links
+    g.selectAll('.link')
+        .data(treeData.links())
+        .enter()
+        .append('path')
+        .attr('class', d => `link ${d.target.data.type === 'material' ? 'consumed' : 'produces'}`)
+        .attr('d', d3.linkHorizontal()
+            .x(d => d.y)
+            .y(d => d.x));
+
+    // Nodes
+    const nodes = g.selectAll('.node')
+        .data(treeData.descendants())
+        .enter()
+        .append('g')
+        .attr('class', d => `node ${d.data.type}`)
+        .attr('transform', d => `translate(${d.y},${d.x})`)
+        .on('click', (event, d) => showNodeDetails(d.data));
+
+    nodes.append('circle')
+        .attr('r', 10);
+
+    nodes.append('text')
+        .attr('dy', 3)
+        .attr('x', d => d.children ? -15 : 15)
+        .attr('text-anchor', d => d.children ? 'end' : 'start')
+        .text(d => d.data.name.split('\n')[0]);
+}
+
+function showNodeDetails(node) {
+    const panel = document.getElementById('details-panel');
+
+    let content = `<h5>${node.name}</h5><hr>`;
+
+    if (node.type === 'product') {
+        content += `
+            <p><strong>Serial:</strong> ${node.id}</p>
+            ${node.data?.status ? `<p><strong>Status:</strong> ${node.data.status}</p>` : ''}
+            ${node.data?.quality ? `<p><strong>Quality:</strong> ${node.data.quality}</p>` : ''}
+        `;
+    } else if (node.type === 'operation') {
+        const step = node.data;
+        content += `
+            <p><strong>Operation:</strong> ${step.operation_name}</p>
+            <p><strong>Machine:</strong> ${step.machine_id || '-'}</p>
+            <p><strong>Worker:</strong> ${step.worker_id || '-'}</p>
+            <p><strong>Duration:</strong> ${step.actual_duration_mins?.toFixed(1) || '-'} min</p>
+            <p><strong>Quality:</strong> ${step.quality_result || 'pending'}</p>
+        `;
+    } else if (node.type === 'material') {
+        const mat = node.data;
+        content += `
+            <p><strong>Lot:</strong> ${mat?.lot_number || node.id}</p>
+            <p><strong>Type:</strong> ${mat?.material_type || '-'}</p>
+            <p><strong>Supplier:</strong> ${mat?.supplier || '-'}</p>
+            <p><strong>Qty Used:</strong> ${mat?.quantity_used || '-'}</p>
+        `;
+    }
+
+    panel.innerHTML = content;
+}
+
+function zoomIn() {
+    svg.transition().call(zoom.scaleBy, 1.3);
+}
+
+function zoomOut() {
+    svg.transition().call(zoom.scaleBy, 0.7);
+}
+
+function resetZoom() {
+    svg.transition().call(zoom.transform, d3.zoomIdentity.translate(50, 50));
+}
+
+function traceProduct(serial) {
+    document.getElementById('search-input').value = serial;
+    document.getElementById('trace-backward').checked = true;
+    performTrace();
+}
+
+function exportTrace() {
+    if (!currentData) {
+        alert('No data to export');
+        return;
+    }
+
+    let csv = 'Type,ID,Name,Details\n';
+
+    if (currentData.serial_number) {
+        csv += `Product,${currentData.serial_number},${currentData.product_name || ''},Status: ${currentData.status || ''}\n`;
+
+        (currentData.process_steps || []).forEach(step => {
+            csv += `Step,${step.sequence},${step.operation_name},Machine: ${step.machine_id || ''}\n`;
+        });
+
+        (currentData.input_materials || []).forEach(mat => {
+            csv += `Material,${mat.lot_number},${mat.material_type},Supplier: ${mat.supplier || ''}\n`;
+        });
+    }
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trace_${currentData.serial_number || currentData.lot_number || 'export'}.csv`;
+    a.click();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+{% block title %}Maintenance Work Orders - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">Maintenance</a></li>
+<li class="breadcrumb-item active">Work Orders</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-tools me-2"></i>Maintenance Work Orders</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addWoModal">
+        <i class="bi bi-plus me-1"></i>New Work Order
+    </button>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white text-center p-3">
+            <h3 id="emergencyCount">0</h3>
+            <small>Emergency</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark text-center p-3">
+            <h3 id="openCount">0</h3>
+            <small>Open</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-primary text-white text-center p-3">
+            <h3 id="inProgressCount">0</h3>
+            <small>In Progress</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white text-center p-3">
+            <h3 id="completedCount">0</h3>
+            <small>Completed (7d)</small>
+        </div>
+    </div>
+</div>
+
+<!-- Work Orders Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Work Order List</span>
+        <div class="d-flex gap-2">
+            <select class="form-select form-select-sm" id="statusFilter" onchange="filterWorkOrders()" style="width: auto;">
+                <option value="">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" onclick="refreshWorkOrders()">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="workOrdersTable">
+                <thead>
+                    <tr>
+                        <th>WO #</th>
+                        <th>Asset</th>
+                        <th>Type</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Assigned</th>
+                        <th>Due</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="workOrdersTableBody">
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Work Order Modal -->
+<div class="modal fade" id="addWoModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>New Maintenance Work Order</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addWoForm">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Asset <span class="text-danger">*</span></label>
+                            <select class="form-select" id="woAsset" required>
+                                <option value="">Select asset...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Work Order Type</label>
+                            <select class="form-select" id="woType">
+                                <option value="corrective">Corrective (Breakdown)</option>
+                                <option value="preventive">Preventive (PM)</option>
+                                <option value="predictive">Predictive</option>
+                                <option value="inspection">Inspection</option>
+                                <option value="improvement">Improvement</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select" id="woPriority">
+                                <option value="low">Low</option>
+                                <option value="medium" selected>Medium</option>
+                                <option value="high">High</option>
+                                <option value="emergency">Emergency</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Assigned To</label>
+                            <select class="form-select" id="woAssigned">
+                                <option value="">Unassigned</option>
+                                <option value="tech-a">Technician A</option>
+                                <option value="tech-b">Technician B</option>
+                                <option value="tech-c">Technician C</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Target Start</label>
+                            <input type="datetime-local" class="form-control" id="woTargetStart">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Target Completion</label>
+                            <input type="datetime-local" class="form-control" id="woTargetCompletion">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Problem Description <span class="text-danger">*</span></label>
+                            <textarea class="form-control" id="woProblem" rows="3" required placeholder="Describe the issue or maintenance task..."></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Instructions</label>
+                            <textarea class="form-control" id="woInstructions" rows="2" placeholder="Special instructions or notes..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus me-1"></i>Create Work Order
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/api_client.js"></script>
+<script>
+let workOrders = [];
+let assets = [];
+
+async function loadWorkOrders() {
+    const tbody = document.getElementById('workOrdersTableBody');
+
+    try {
+        const response = await fetch('/api/cmms/work-orders');
+        const data = await response.json();
+        workOrders = data.work_orders || data.data || [];
+
+        if (workOrders.length === 0) {
+            workOrders = getDemoWorkOrders();
+        }
+
+        renderWorkOrders();
+        updateStats();
+    } catch (error) {
+        console.error('Error loading work orders:', error);
+        workOrders = getDemoWorkOrders();
+        renderWorkOrders();
+        updateStats();
+    }
+}
+
+async function loadAssets() {
+    const select = document.getElementById('woAsset');
+
+    try {
+        const response = await fetch('/api/cmms/assets');
+        const data = await response.json();
+        assets = data.assets || data.data || [];
+
+        if (assets.length === 0) {
+            assets = [
+                { asset_id: 'AST-001', name: 'Bambu Lab P1S' },
+                { asset_id: 'AST-002', name: 'Bantam Desktop CNC' },
+                { asset_id: 'AST-003', name: 'Niryo Ned2 Robot' },
+                { asset_id: 'AST-004', name: 'Longer Ray5 Laser' },
+            ];
+        }
+
+        populateAssetSelect();
+    } catch (error) {
+        console.error('Error loading assets:', error);
+        assets = [
+            { asset_id: 'AST-001', name: 'Bambu Lab P1S' },
+            { asset_id: 'AST-002', name: 'Bantam Desktop CNC' },
+            { asset_id: 'AST-003', name: 'Niryo Ned2 Robot' },
+        ];
+        populateAssetSelect();
+    }
+}
+
+function populateAssetSelect() {
+    const select = document.getElementById('woAsset');
+    select.innerHTML = '<option value="">Select asset...</option>';
+    assets.forEach(a => {
+        const option = document.createElement('option');
+        option.value = a.asset_id || a.id;
+        option.textContent = `${a.asset_id || a.id} - ${a.name}`;
+        select.appendChild(option);
+    });
+}
+
+function getDemoWorkOrders() {
+    const now = new Date();
+    return [
+        {
+            wo_number: 'MWO-001',
+            asset_id: 'AST-003',
+            asset_name: 'Niryo Ned2 Robot',
+            wo_type: 'corrective',
+            priority: 'emergency',
+            status: 'in_progress',
+            assigned_to: 'tech-a',
+            target_completion: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+            problem_description: 'Joint 3 motor failure'
+        },
+        {
+            wo_number: 'MWO-002',
+            asset_id: 'AST-002',
+            asset_name: 'Bantam Desktop CNC',
+            wo_type: 'preventive',
+            priority: 'high',
+            status: 'open',
+            assigned_to: 'tech-b',
+            target_completion: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+            problem_description: 'Monthly PM - spindle lubrication'
+        },
+        {
+            wo_number: 'MWO-003',
+            asset_id: 'AST-001',
+            asset_name: 'Bambu Lab P1S',
+            wo_type: 'inspection',
+            priority: 'medium',
+            status: 'open',
+            assigned_to: null,
+            target_completion: new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString(),
+            problem_description: 'Quarterly bed calibration check'
+        },
+        {
+            wo_number: 'MWO-004',
+            asset_id: 'AST-004',
+            asset_name: 'Longer Ray5 Laser',
+            wo_type: 'corrective',
+            priority: 'low',
+            status: 'completed',
+            assigned_to: 'tech-c',
+            target_completion: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+            problem_description: 'Lens cleaning and alignment'
+        },
+    ];
+}
+
+function renderWorkOrders() {
+    const tbody = document.getElementById('workOrdersTableBody');
+    const filter = document.getElementById('statusFilter').value;
+
+    let filtered = workOrders;
+    if (filter) {
+        filtered = workOrders.filter(wo => wo.status === filter);
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No work orders found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(wo => `
+        <tr>
+            <td><a href="/cmms/work-orders/${wo.wo_number}">${wo.wo_number}</a></td>
+            <td>${wo.asset_name || wo.asset_id || 'N/A'}</td>
+            <td>${getTypeBadge(wo.wo_type)}</td>
+            <td>${getPriorityBadge(wo.priority)}</td>
+            <td>${getStatusBadge(wo.status)}</td>
+            <td>${wo.assigned_to || '<span class="text-muted">Unassigned</span>'}</td>
+            <td>${formatDueDate(wo.target_completion)}</td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-success" title="Start" onclick="startWorkOrder('${wo.wo_number}')" ${wo.status !== 'open' ? 'disabled' : ''}>
+                        <i class="bi bi-play"></i>
+                    </button>
+                    <button class="btn btn-outline-primary" title="Complete" onclick="completeWorkOrder('${wo.wo_number}')" ${wo.status !== 'in_progress' ? 'disabled' : ''}>
+                        <i class="bi bi-check"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getTypeBadge(type) {
+    const badges = {
+        'corrective': '<span class="badge bg-danger">Corrective</span>',
+        'preventive': '<span class="badge bg-info">PM</span>',
+        'predictive': '<span class="badge bg-primary">Predictive</span>',
+        'inspection': '<span class="badge bg-secondary">Inspection</span>',
+        'improvement': '<span class="badge bg-success">Improvement</span>',
+    };
+    return badges[type] || `<span class="badge bg-secondary">${type}</span>`;
+}
+
+function getPriorityBadge(priority) {
+    const badges = {
+        'low': '<span class="badge bg-secondary">Low</span>',
+        'medium': '<span class="badge bg-info">Medium</span>',
+        'high': '<span class="badge bg-warning text-dark">High</span>',
+        'emergency': '<span class="badge bg-danger">Emergency</span>',
+    };
+    return badges[priority] || `<span class="badge bg-secondary">${priority}</span>`;
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'draft': '<span class="badge bg-secondary">Draft</span>',
+        'open': '<span class="badge bg-warning text-dark">Open</span>',
+        'in_progress': '<span class="badge bg-primary">In Progress</span>',
+        'completed': '<span class="badge bg-success">Completed</span>',
+        'cancelled': '<span class="badge bg-dark">Cancelled</span>',
+    };
+    return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function formatDueDate(dateStr) {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = date - now;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+
+    if (diffMs < 0) {
+        return `<span class="text-danger">Overdue</span>`;
+    } else if (diffHours < 24) {
+        return `<span class="text-warning">Today</span>`;
+    } else {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+}
+
+function updateStats() {
+    const emergency = workOrders.filter(wo => wo.priority === 'emergency' && wo.status !== 'completed').length;
+    const open = workOrders.filter(wo => wo.status === 'open').length;
+    const inProgress = workOrders.filter(wo => wo.status === 'in_progress').length;
+
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const completed = workOrders.filter(wo =>
+        wo.status === 'completed' &&
+        (!wo.completed_at || new Date(wo.completed_at) > sevenDaysAgo)
+    ).length;
+
+    document.getElementById('emergencyCount').textContent = emergency;
+    document.getElementById('openCount').textContent = open;
+    document.getElementById('inProgressCount').textContent = inProgress;
+    document.getElementById('completedCount').textContent = completed;
+}
+
+function filterWorkOrders() {
+    renderWorkOrders();
+}
+
+function refreshWorkOrders() {
+    loadWorkOrders();
+}
+
+async function startWorkOrder(woNumber) {
+    try {
+        const response = await fetch(`/api/cmms/work-orders/${woNumber}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+            loadWorkOrders();
+        } else {
+            // Demo mode fallback
+            const wo = workOrders.find(w => w.wo_number === woNumber);
+            if (wo) {
+                wo.status = 'in_progress';
+                renderWorkOrders();
+                updateStats();
+            }
+        }
+    } catch (error) {
+        // Demo mode fallback
+        const wo = workOrders.find(w => w.wo_number === woNumber);
+        if (wo) {
+            wo.status = 'in_progress';
+            renderWorkOrders();
+            updateStats();
+        }
+    }
+}
+
+async function completeWorkOrder(woNumber) {
+    try {
+        const response = await fetch(`/api/cmms/work-orders/${woNumber}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        if (response.ok) {
+            loadWorkOrders();
+        } else {
+            // Demo mode fallback
+            const wo = workOrders.find(w => w.wo_number === woNumber);
+            if (wo) {
+                wo.status = 'completed';
+                wo.completed_at = new Date().toISOString();
+                renderWorkOrders();
+                updateStats();
+            }
+        }
+    } catch (error) {
+        // Demo mode fallback
+        const wo = workOrders.find(w => w.wo_number === woNumber);
+        if (wo) {
+            wo.status = 'completed';
+            wo.completed_at = new Date().toISOString();
+            renderWorkOrders();
+            updateStats();
+        }
+    }
+}
+
+// Form submission
+document.getElementById('addWoForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const asset = assets.find(a => (a.asset_id || a.id) === document.getElementById('woAsset').value);
+
+    const data = {
+        asset_id: document.getElementById('woAsset').value,
+        wo_type: document.getElementById('woType').value,
+        priority: document.getElementById('woPriority').value,
+        assigned_to: document.getElementById('woAssigned').value || null,
+        target_start: document.getElementById('woTargetStart').value || null,
+        target_completion: document.getElementById('woTargetCompletion').value || null,
+        problem_description: document.getElementById('woProblem').value,
+        instructions: document.getElementById('woInstructions').value,
+    };
+
+    try {
+        const response = await fetch('/api/cmms/work-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('addWoModal')).hide();
+            this.reset();
+            loadWorkOrders();
+            alert('Work order created successfully!');
+        } else {
+            const error = await response.json();
+            alert('Error: ' + (error.error || error.message || 'Failed to create work order'));
+        }
+    } catch (error) {
+        console.error('Error creating work order:', error);
+        // Demo mode fallback
+        const newWo = {
+            wo_number: `MWO-${String(workOrders.length + 1).padStart(3, '0')}`,
+            asset_id: data.asset_id,
+            asset_name: asset ? asset.name : data.asset_id,
+            wo_type: data.wo_type,
+            priority: data.priority,
+            status: 'open',
+            assigned_to: data.assigned_to,
+            target_completion: data.target_completion,
+            problem_description: data.problem_description,
+        };
+        workOrders.unshift(newWo);
+        renderWorkOrders();
+        updateStats();
+        bootstrap.Modal.getInstance(document.getElementById('addWoModal')).hide();
+        this.reset();
+        alert('Work order created (demo mode)');
+    }
+});
+
+// Initialize
+loadAssets();
+loadWorkOrders();
+</script>
+{% endblock %}

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historian - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --primary: #3b82f6; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .tag-item { background: rgba(59,130,246,0.2); padding: 0.5rem 1rem; border-radius: 8px; margin: 0.25rem; cursor: pointer; }
+        .tag-item.selected { background: var(--primary); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Historian</a>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-light btn-sm" onclick="exportData()"><i class="bi bi-download me-1"></i>Export</button>
+            </div>
+        </div>
+    </nav>
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card h-100">
+                    <div class="card-header"><i class="bi bi-tags me-2"></i>Tag Selection</div>
+                    <div class="card-body">
+                        <input type="text" class="form-control mb-3" placeholder="Search tags..." id="tagSearch">
+                        <div id="tagList" style="max-height: 400px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-9">
+                <div class="card mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-calendar me-2"></i>Time Range</span>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-light" onclick="setRange('1h')">1H</button>
+                            <button class="btn btn-outline-light" onclick="setRange('8h')">8H</button>
+                            <button class="btn btn-outline-light active" onclick="setRange('24h')">24H</button>
+                            <button class="btn btn-outline-light" onclick="setRange('7d')">7D</button>
+                            <button class="btn btn-outline-light" onclick="setRange('30d')">30D</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4"><input type="datetime-local" class="form-control" id="startTime"></div>
+                            <div class="col-md-4"><input type="datetime-local" class="form-control" id="endTime"></div>
+                            <div class="col-md-2">
+                                <select class="form-select" id="aggregation">
+                                    <option value="raw">Raw</option>
+                                    <option value="avg">Average</option>
+                                    <option value="min">Min</option>
+                                    <option value="max">Max</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2"><button class="btn btn-primary w-100" onclick="queryData()">Query</button></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header"><i class="bi bi-graph-up me-2"></i>Trend Chart</div>
+                    <div class="card-body"><canvas id="trendChart" height="300"></canvas></div>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><i class="bi bi-table me-2"></i>Data Table</div>
+            <div class="card-body">
+                <table class="table table-dark table-hover" id="dataTable">
+                    <thead><tr><th>Timestamp</th><th>Tag</th><th>Value</th><th>Quality</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let chart;
+        document.addEventListener('DOMContentLoaded', () => {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: { responsive: true, scales: { x: { grid: { color: 'rgba(255,255,255,0.1)' } }, y: { grid: { color: 'rgba(255,255,255,0.1)' } } } }
+            });
+            loadTags();
+        });
+        async function loadTags() {
+            const tags = ['temperature_1', 'pressure_1', 'flow_rate', 'spindle_speed', 'vibration_x'];
+            const list = document.getElementById('tagList');
+            list.innerHTML = tags.map(t => `<div class="tag-item" onclick="toggleTag(this)">${t}</div>`).join('');
+        }
+        function toggleTag(el) { el.classList.toggle('selected'); }
+        function setRange(r) { console.log('Set range:', r); }
+        function queryData() { console.log('Query historian data'); }
+        function exportData() { console.log('Export data'); }
+    </script>
+</body>
+</html>

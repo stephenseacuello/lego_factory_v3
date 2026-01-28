@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Twin - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; overflow: hidden; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar { position: fixed; left: 0; top: 56px; width: 320px; height: calc(100vh - 56px); background: var(--dark-bg); border-right: 1px solid rgba(255,255,255,0.1); overflow-y: auto; z-index: 100; }
+        .main-view { margin-left: 320px; height: calc(100vh - 56px); position: relative; }
+        #canvas3d { width: 100%; height: 100%; display: block; }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; margin-bottom: 1rem; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; padding: 0.75rem 1rem; font-size: 0.9rem; }
+        .card-body { padding: 1rem; }
+        .machine-card { cursor: pointer; transition: all 0.2s; border-left: 4px solid transparent; }
+        .machine-card:hover { background: rgba(59,130,246,0.1); }
+        .machine-card.selected { border-left-color: #3b82f6; background: rgba(59,130,246,0.15); }
+        .machine-card.running { border-left-color: #22c55e; }
+        .machine-card.idle { border-left-color: #f59e0b; }
+        .machine-card.down { border-left-color: #ef4444; }
+        .machine-card.setup { border-left-color: #3b82f6; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .status-running { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+        .status-idle { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+        .status-down { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+        .status-setup { background: #3b82f6; box-shadow: 0 0 8px #3b82f6; }
+        .metric-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .metric-label { color: #94a3b8; font-size: 0.85rem; }
+        .metric-value { font-weight: 600; }
+        .axis-indicator { position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.7); padding: 10px 15px; border-radius: 8px; }
+        .view-controls { position: absolute; top: 20px; right: 20px; display: flex; gap: 8px; }
+        .view-btn { background: rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; padding: 8px 12px; border-radius: 6px; cursor: pointer; }
+        .view-btn:hover { background: rgba(59,130,246,0.5); }
+        .view-btn.active { background: #3b82f6; }
+        .info-overlay { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 8px; max-width: 300px; display: none; }
+        .info-overlay.visible { display: block; }
+        .progress-mini { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+        .progress-mini-bar { height: 100%; border-radius: 2px; }
+        .alarm-badge { position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; font-size: 0.7rem; padding: 2px 6px; border-radius: 10px; }
+        .floor-grid { position: absolute; bottom: 0; left: 0; right: 0; top: 0; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Digital Twin</a>
+            <div class="d-flex align-items-center gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="status-dot status-running"></span><small>Running: <span id="runningCount">3</span></small>
+                    <span class="status-dot status-idle ms-2"></span><small>Idle: <span id="idleCount">1</span></small>
+                    <span class="status-dot status-down ms-2"></span><small>Down: <span id="downCount">1</span></small>
+                </div>
+                <button class="btn btn-outline-light btn-sm" onclick="resetCamera()"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset View</button>
+                <button class="btn btn-outline-light btn-sm" onclick="toggleFullscreen()"><i class="bi bi-arrows-fullscreen"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="sidebar p-3">
+        <div class="card">
+            <div class="card-header"><i class="bi bi-speedometer2 me-2"></i>Factory Overview</div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-4">
+                        <div class="h4 text-success mb-0" id="factoryOEE">87%</div>
+                        <small class="text-muted">OEE</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 text-info mb-0" id="factoryUtil">92%</div>
+                        <small class="text-muted">Utilization</small>
+                    </div>
+                    <div class="col-4">
+                        <div class="h4 text-warning mb-0" id="activeJobs">12</div>
+                        <small class="text-muted">Active Jobs</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><i class="bi bi-hdd-stack me-2"></i>Machines</div>
+            <div class="card-body p-0">
+                <div id="machineList">
+                    <div class="machine-card running p-3" onclick="selectMachine('CNC-001')">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>CNC-001</strong>
+                                <div class="small text-muted">Haas VF-2</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-success">Running</span>
+                                <div class="small">OEE: 91%</div>
+                            </div>
+                        </div>
+                        <div class="progress-mini mt-2">
+                            <div class="progress-mini-bar bg-success" style="width:65%"></div>
+                        </div>
+                        <small class="text-muted">Job: WO-2024-0042 | 65% complete</small>
+                    </div>
+                    <div class="machine-card running p-3" onclick="selectMachine('CNC-002')">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>CNC-002</strong>
+                                <div class="small text-muted">Haas VF-3</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-success">Running</span>
+                                <div class="small">OEE: 88%</div>
+                            </div>
+                        </div>
+                        <div class="progress-mini mt-2">
+                            <div class="progress-mini-bar bg-success" style="width:30%"></div>
+                        </div>
+                        <small class="text-muted">Job: WO-2024-0043 | 30% complete</small>
+                    </div>
+                    <div class="machine-card idle p-3" onclick="selectMachine('CNC-003')">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>CNC-003</strong>
+                                <div class="small text-muted">Mazak Quick Turn</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-warning">Idle</span>
+                                <div class="small">OEE: 75%</div>
+                            </div>
+                        </div>
+                        <small class="text-muted">Waiting for material</small>
+                    </div>
+                    <div class="machine-card down p-3" onclick="selectMachine('CNC-004')" style="position:relative">
+                        <span class="alarm-badge">!</span>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>CNC-004</strong>
+                                <div class="small text-muted">DMG MORI</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-danger">Down</span>
+                                <div class="small">OEE: 45%</div>
+                            </div>
+                        </div>
+                        <small class="text-danger">Spindle fault - 2h 15m</small>
+                    </div>
+                    <div class="machine-card running p-3" onclick="selectMachine('CNC-005')">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>CNC-005</strong>
+                                <div class="small text-muted">Bantam Tools</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge bg-success">Running</span>
+                                <div class="small">OEE: 94%</div>
+                            </div>
+                        </div>
+                        <div class="progress-mini mt-2">
+                            <div class="progress-mini-bar bg-success" style="width:85%"></div>
+                        </div>
+                        <small class="text-muted">Job: WO-2024-0045 | 85% complete</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card" id="selectedMachineCard" style="display:none">
+            <div class="card-header"><i class="bi bi-info-circle me-2"></i>Machine Details</div>
+            <div class="card-body">
+                <h5 id="selectedMachineName">CNC-001</h5>
+                <div class="metric-row">
+                    <span class="metric-label">Status</span>
+                    <span class="metric-value" id="detailStatus">Running</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Spindle Speed</span>
+                    <span class="metric-value" id="detailSpindle">7500 RPM</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Feed Rate</span>
+                    <span class="metric-value" id="detailFeed">2500 mm/min</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Position</span>
+                    <span class="metric-value" id="detailPosition">X:125.5 Y:80.2 Z:-15.0</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Tool</span>
+                    <span class="metric-value" id="detailTool">T1 - 10mm End Mill</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Program</span>
+                    <span class="metric-value" id="detailProgram">O1001</span>
+                </div>
+                <div class="mt-3">
+                    <canvas id="machineChart" height="100"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-view">
+        <canvas id="canvas3d"></canvas>
+
+        <div class="view-controls">
+            <button class="view-btn active" onclick="setView('perspective')"><i class="bi bi-box"></i> 3D</button>
+            <button class="view-btn" onclick="setView('top')"><i class="bi bi-arrow-down"></i> Top</button>
+            <button class="view-btn" onclick="setView('front')"><i class="bi bi-arrow-right"></i> Front</button>
+            <button class="view-btn" onclick="setView('side')"><i class="bi bi-arrow-up"></i> Side</button>
+        </div>
+
+        <div class="axis-indicator">
+            <span style="color:#ef4444">X</span> /
+            <span style="color:#22c55e">Y</span> /
+            <span style="color:#3b82f6">Z</span>
+        </div>
+
+        <div class="info-overlay" id="machineInfoOverlay">
+            <h6 id="overlayName">CNC-001</h6>
+            <div class="small" id="overlayStatus">Status: Running</div>
+            <div class="small" id="overlayJob">Job: WO-2024-0042</div>
+            <div class="small" id="overlayOEE">OEE: 91%</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        // Three.js scene setup
+        let scene, camera, renderer, controls;
+        let machines = {};
+        let selectedMachine = null;
+        let machineChart = null;
+
+        function init3D() {
+            const canvas = document.getElementById('canvas3d');
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
+            camera.position.set(15, 12, 15);
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 20, 10);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            const pointLight = new THREE.PointLight(0x3b82f6, 0.3);
+            pointLight.position.set(-10, 10, -10);
+            scene.add(pointLight);
+
+            // Floor
+            const floorGeometry = new THREE.PlaneGeometry(30, 20);
+            const floorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1e293b,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // Grid
+            const gridHelper = new THREE.GridHelper(30, 30, 0x334155, 0x1e293b);
+            scene.add(gridHelper);
+
+            // Create machines
+            createMachine('CNC-001', -8, 0, -4, 0x22c55e, 'running');
+            createMachine('CNC-002', -8, 0, 4, 0x22c55e, 'running');
+            createMachine('CNC-003', 0, 0, -4, 0xf59e0b, 'idle');
+            createMachine('CNC-004', 0, 0, 4, 0xef4444, 'down');
+            createMachine('CNC-005', 8, 0, 0, 0x22c55e, 'running');
+
+            // Create robot arm
+            createRobot('Robot-001', 4, 0, -4);
+
+            // Create conveyor
+            createConveyor(-4, 0, 0, 12);
+
+            // Mouse controls
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    const deltaMove = {
+                        x: e.clientX - previousMousePosition.x,
+                        y: e.clientY - previousMousePosition.y
+                    };
+
+                    const spherical = new THREE.Spherical();
+                    spherical.setFromVector3(camera.position);
+                    spherical.theta -= deltaMove.x * 0.005;
+                    spherical.phi -= deltaMove.y * 0.005;
+                    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+
+                    camera.position.setFromSpherical(spherical);
+                    camera.lookAt(0, 0, 0);
+
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                }
+
+                // Raycasting for hover
+                const raycaster = new THREE.Raycaster();
+                const mouse = new THREE.Vector2();
+                const rect = canvas.getBoundingClientRect();
+                mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(Object.values(machines).map(m => m.mesh));
+
+                if (intersects.length > 0) {
+                    const machineId = intersects[0].object.userData.id;
+                    showMachineOverlay(machineId, e.clientX, e.clientY);
+                    canvas.style.cursor = 'pointer';
+                } else {
+                    hideMachineOverlay();
+                    canvas.style.cursor = 'grab';
+                }
+            });
+
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoom = e.deltaY > 0 ? 1.1 : 0.9;
+                camera.position.multiplyScalar(zoom);
+                camera.position.clampLength(5, 50);
+            });
+
+            canvas.addEventListener('click', (e) => {
+                if (isDragging) return;
+
+                const raycaster = new THREE.Raycaster();
+                const mouse = new THREE.Vector2();
+                const rect = canvas.getBoundingClientRect();
+                mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(Object.values(machines).map(m => m.mesh));
+
+                if (intersects.length > 0) {
+                    selectMachine(intersects[0].object.userData.id);
+                }
+            });
+
+            // Handle resize
+            window.addEventListener('resize', () => {
+                const width = canvas.clientWidth;
+                const height = canvas.clientHeight;
+                camera.aspect = width / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(width, height);
+            });
+
+            animate();
+        }
+
+        function createMachine(id, x, y, z, color, status) {
+            const group = new THREE.Group();
+
+            // Base
+            const baseGeometry = new THREE.BoxGeometry(3, 0.3, 2.5);
+            const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x475569 });
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            base.position.y = 0.15;
+            base.castShadow = true;
+            group.add(base);
+
+            // Body
+            const bodyGeometry = new THREE.BoxGeometry(2.8, 2, 2.3);
+            const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x64748b });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 1.3;
+            body.castShadow = true;
+            group.add(body);
+
+            // Control panel
+            const panelGeometry = new THREE.BoxGeometry(0.8, 1.2, 0.1);
+            const panelMaterial = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+            const panel = new THREE.Mesh(panelGeometry, panelMaterial);
+            panel.position.set(0, 1.5, 1.2);
+            group.add(panel);
+
+            // Status light
+            const lightGeometry = new THREE.SphereGeometry(0.1, 16, 16);
+            const lightMaterial = new THREE.MeshBasicMaterial({ color: color });
+            const statusLight = new THREE.Mesh(lightGeometry, lightMaterial);
+            statusLight.position.set(0, 2.5, 0);
+            group.add(statusLight);
+
+            // Spindle (if running)
+            if (status === 'running') {
+                const spindleGeometry = new THREE.CylinderGeometry(0.15, 0.15, 0.8, 16);
+                const spindleMaterial = new THREE.MeshStandardMaterial({ color: 0x94a3b8 });
+                const spindle = new THREE.Mesh(spindleGeometry, spindleMaterial);
+                spindle.position.set(0, 1.8, 0);
+                spindle.userData.isSpindle = true;
+                group.add(spindle);
+            }
+
+            group.position.set(x, y, z);
+            group.userData.id = id;
+            group.userData.status = status;
+
+            // Create a single mesh for raycasting
+            const boundingBox = new THREE.BoxGeometry(3, 2.5, 2.5);
+            const boundingMaterial = new THREE.MeshBasicMaterial({ visible: false });
+            const boundingMesh = new THREE.Mesh(boundingBox, boundingMaterial);
+            boundingMesh.position.set(x, 1.25, z);
+            boundingMesh.userData.id = id;
+            scene.add(boundingMesh);
+
+            scene.add(group);
+            machines[id] = { group, mesh: boundingMesh, status, statusLight };
+        }
+
+        function createRobot(id, x, y, z) {
+            const group = new THREE.Group();
+
+            // Base
+            const baseGeometry = new THREE.CylinderGeometry(0.5, 0.6, 0.3, 16);
+            const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x475569 });
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            base.position.y = 0.15;
+            group.add(base);
+
+            // Arm segment 1
+            const arm1Geometry = new THREE.BoxGeometry(0.2, 1.2, 0.2);
+            const armMaterial = new THREE.MeshStandardMaterial({ color: 0xf97316 });
+            const arm1 = new THREE.Mesh(arm1Geometry, armMaterial);
+            arm1.position.y = 0.9;
+            group.add(arm1);
+
+            // Arm segment 2
+            const arm2 = new THREE.Mesh(arm1Geometry, armMaterial);
+            arm2.position.set(0.3, 1.5, 0);
+            arm2.rotation.z = Math.PI / 4;
+            group.add(arm2);
+
+            // End effector
+            const gripperGeometry = new THREE.BoxGeometry(0.3, 0.1, 0.2);
+            const gripperMaterial = new THREE.MeshStandardMaterial({ color: 0x64748b });
+            const gripper = new THREE.Mesh(gripperGeometry, gripperMaterial);
+            gripper.position.set(0.8, 1.8, 0);
+            group.add(gripper);
+
+            group.position.set(x, y, z);
+            scene.add(group);
+        }
+
+        function createConveyor(x, y, z, length) {
+            const group = new THREE.Group();
+
+            // Frame
+            const frameGeometry = new THREE.BoxGeometry(length, 0.3, 1);
+            const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x475569 });
+            const frame = new THREE.Mesh(frameGeometry, frameMaterial);
+            frame.position.y = 0.5;
+            group.add(frame);
+
+            // Belt
+            const beltGeometry = new THREE.BoxGeometry(length - 0.2, 0.05, 0.8);
+            const beltMaterial = new THREE.MeshStandardMaterial({ color: 0x1e293b });
+            const belt = new THREE.Mesh(beltGeometry, beltMaterial);
+            belt.position.y = 0.68;
+            group.add(belt);
+
+            // Rollers
+            for (let i = 0; i < length; i += 0.5) {
+                const rollerGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.9, 8);
+                const rollerMaterial = new THREE.MeshStandardMaterial({ color: 0x94a3b8 });
+                const roller = new THREE.Mesh(rollerGeometry, rollerMaterial);
+                roller.rotation.x = Math.PI / 2;
+                roller.position.set(i - length / 2 + 0.25, 0.65, 0);
+                group.add(roller);
+            }
+
+            group.position.set(x, y, z);
+            scene.add(group);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Animate spindles
+            Object.values(machines).forEach(machine => {
+                if (machine.status === 'running') {
+                    machine.group.children.forEach(child => {
+                        if (child.userData.isSpindle) {
+                            child.rotation.y += 0.2;
+                        }
+                    });
+                    // Pulse status light
+                    const time = Date.now() * 0.003;
+                    machine.statusLight.scale.setScalar(1 + Math.sin(time) * 0.1);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        function selectMachine(id) {
+            selectedMachine = id;
+
+            // Update sidebar selection
+            document.querySelectorAll('.machine-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event?.target?.closest('.machine-card')?.classList.add('selected');
+
+            // Show details card
+            document.getElementById('selectedMachineCard').style.display = 'block';
+            document.getElementById('selectedMachineName').textContent = id;
+
+            // Update camera to focus on machine
+            const machine = machines[id];
+            if (machine) {
+                const pos = machine.group.position;
+                camera.position.set(pos.x + 8, 8, pos.z + 8);
+                camera.lookAt(pos.x, 1, pos.z);
+            }
+
+            // Load machine details
+            loadMachineDetails(id);
+        }
+
+        async function loadMachineDetails(id) {
+            // Demo data
+            const details = {
+                'CNC-001': { status: 'Running', spindle: '7500 RPM', feed: '2500 mm/min', pos: 'X:125.5 Y:80.2 Z:-15.0', tool: 'T1 - 10mm End Mill', program: 'O1001' },
+                'CNC-002': { status: 'Running', spindle: '6000 RPM', feed: '2000 mm/min', pos: 'X:50.0 Y:120.5 Z:-8.0', tool: 'T3 - 6mm Ball Nose', program: 'O1002' },
+                'CNC-003': { status: 'Idle', spindle: '0 RPM', feed: '0 mm/min', pos: 'X:0.0 Y:0.0 Z:0.0', tool: 'T1 - 12mm Face Mill', program: '-' },
+                'CNC-004': { status: 'Down', spindle: '0 RPM', feed: '0 mm/min', pos: 'X:45.2 Y:30.0 Z:-5.0', tool: 'T2 - 8mm End Mill', program: 'O1003' },
+                'CNC-005': { status: 'Running', spindle: '12000 RPM', feed: '3000 mm/min', pos: 'X:80.0 Y:60.0 Z:-2.5', tool: 'T1 - 3.175mm End Mill', program: 'ENGRAVE01' }
+            };
+
+            const d = details[id] || details['CNC-001'];
+            document.getElementById('detailStatus').textContent = d.status;
+            document.getElementById('detailSpindle').textContent = d.spindle;
+            document.getElementById('detailFeed').textContent = d.feed;
+            document.getElementById('detailPosition').textContent = d.pos;
+            document.getElementById('detailTool').textContent = d.tool;
+            document.getElementById('detailProgram').textContent = d.program;
+
+            updateMachineChart();
+        }
+
+        function updateMachineChart() {
+            const ctx = document.getElementById('machineChart').getContext('2d');
+            if (machineChart) machineChart.destroy();
+
+            machineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 20}, (_, i) => ''),
+                    datasets: [{
+                        label: 'Spindle Load',
+                        data: Array.from({length: 20}, () => 30 + Math.random() * 40),
+                        borderColor: '#3b82f6',
+                        borderWidth: 1,
+                        fill: false,
+                        pointRadius: 0,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { display: false },
+                        x: { display: false }
+                    }
+                }
+            });
+        }
+
+        function showMachineOverlay(id, x, y) {
+            const overlay = document.getElementById('machineInfoOverlay');
+            overlay.classList.add('visible');
+            overlay.style.left = (x - 300) + 'px';
+            overlay.style.top = (y - 56) + 'px';
+
+            const data = {
+                'CNC-001': { name: 'CNC-001 (Haas VF-2)', status: 'Running', job: 'WO-2024-0042', oee: '91%' },
+                'CNC-002': { name: 'CNC-002 (Haas VF-3)', status: 'Running', job: 'WO-2024-0043', oee: '88%' },
+                'CNC-003': { name: 'CNC-003 (Mazak)', status: 'Idle', job: '-', oee: '75%' },
+                'CNC-004': { name: 'CNC-004 (DMG MORI)', status: 'Down - Spindle Fault', job: '-', oee: '45%' },
+                'CNC-005': { name: 'CNC-005 (Bantam)', status: 'Running', job: 'WO-2024-0045', oee: '94%' }
+            };
+
+            const d = data[id] || data['CNC-001'];
+            document.getElementById('overlayName').textContent = d.name;
+            document.getElementById('overlayStatus').textContent = 'Status: ' + d.status;
+            document.getElementById('overlayJob').textContent = 'Job: ' + d.job;
+            document.getElementById('overlayOEE').textContent = 'OEE: ' + d.oee;
+        }
+
+        function hideMachineOverlay() {
+            document.getElementById('machineInfoOverlay').classList.remove('visible');
+        }
+
+        function setView(view) {
+            document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            switch(view) {
+                case 'top':
+                    camera.position.set(0, 25, 0.1);
+                    break;
+                case 'front':
+                    camera.position.set(0, 5, 25);
+                    break;
+                case 'side':
+                    camera.position.set(25, 5, 0);
+                    break;
+                default:
+                    camera.position.set(15, 12, 15);
+            }
+            camera.lookAt(0, 0, 0);
+        }
+
+        function resetCamera() {
+            camera.position.set(15, 12, 15);
+            camera.lookAt(0, 0, 0);
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // WebSocket for real-time updates
+        function initWebSocket() {
+            try {
+                const socket = io();
+
+                socket.on('machine_update', (data) => {
+                    updateMachineStatus(data.machine_id, data.status);
+                });
+
+                socket.on('position_update', (data) => {
+                    if (selectedMachine === data.machine_id) {
+                        document.getElementById('detailPosition').textContent =
+                            `X:${data.x.toFixed(1)} Y:${data.y.toFixed(1)} Z:${data.z.toFixed(1)}`;
+                    }
+                });
+            } catch(e) {
+                console.log('WebSocket not available');
+            }
+        }
+
+        function updateMachineStatus(id, status) {
+            const machine = machines[id];
+            if (!machine) return;
+
+            const colors = {
+                running: 0x22c55e,
+                idle: 0xf59e0b,
+                down: 0xef4444,
+                setup: 0x3b82f6
+            };
+
+            machine.status = status;
+            machine.statusLight.material.color.setHex(colors[status] || 0x94a3b8);
+        }
+
+        // Initialize
+        init3D();
+        initWebSocket();
+    </script>
+</body>
+</html>

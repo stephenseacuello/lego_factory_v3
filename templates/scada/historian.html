@@ -1,0 +1,727 @@
+{% extends "base.html" %}
+{% block title %}Historian - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">SCADA</a></li>
+<li class="breadcrumb-item active">Historian</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-graph-up me-2"></i>Historian</h2>
+    <div class="btn-group">
+        <button class="btn btn-outline-secondary" onclick="historian.exportCSV()">
+            <i class="bi bi-download"></i> Export CSV
+        </button>
+        <button class="btn btn-outline-secondary" onclick="historian.refresh()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Filter Controls -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Machine</label>
+                <select class="form-select" id="machineSelect" onchange="historian.loadTags()">
+                    <option value="">All Machines</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Parameters</label>
+                <select class="form-select" id="tagSelect" multiple size="1">
+                    <option value="">Select parameters...</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Time Range</label>
+                <select class="form-select" id="timeRange" onchange="historian.handleTimeRangeChange()">
+                    <option value="1h">Last 1 Hour</option>
+                    <option value="8h" selected>Last 8 Hours</option>
+                    <option value="24h">Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-primary w-100" onclick="historian.loadData()">
+                    <i class="bi bi-search me-1"></i>Query
+                </button>
+            </div>
+        </div>
+
+        <!-- Custom Date Range (hidden by default) -->
+        <div class="row g-3 mt-2" id="customDateRange" style="display: none;">
+            <div class="col-md-3">
+                <label class="form-label">Start Date/Time</label>
+                <input type="datetime-local" class="form-control" id="startDateTime">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End Date/Time</label>
+                <input type="datetime-local" class="form-control" id="endDateTime">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart Section -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-graph-up me-2"></i>Time Series Chart</span>
+        <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary active" data-chart-type="line" onclick="historian.setChartType('line')">
+                <i class="bi bi-graph-up"></i>
+            </button>
+            <button class="btn btn-outline-secondary" data-chart-type="bar" onclick="historian.setChartType('bar')">
+                <i class="bi bi-bar-chart"></i>
+            </button>
+            <button class="btn btn-outline-secondary" data-chart-type="scatter" onclick="historian.setChartType('scatter')">
+                <i class="bi bi-scatter"></i>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div style="position: relative; height: 400px;">
+            <canvas id="historianChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row g-3 mb-4" id="statsCards">
+    <!-- Populated dynamically -->
+</div>
+
+<!-- Data Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-2"></i>Raw Data</span>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="autoRefresh">
+            <label class="form-check-label" for="autoRefresh">Auto-refresh (10s)</label>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+            <table class="table table-sm table-hover mb-0">
+                <thead class="table-light sticky-top">
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Machine</th>
+                        <th>Parameter</th>
+                        <th class="text-end">Value</th>
+                        <th>Unit</th>
+                        <th>Quality</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <i class="bi bi-graph-up display-6 d-block mb-2"></i>
+                            Select parameters and click Query to load data
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer text-muted" id="dataFooter">
+        0 records
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        border-left: 4px solid var(--lego-blue);
+    }
+    .stat-card.min { border-left-color: #0dcaf0; }
+    .stat-card.max { border-left-color: #dc3545; }
+    .stat-card.avg { border-left-color: #198754; }
+    .stat-card.std { border-left-color: #6c757d; }
+
+    .quality-good { color: #198754; }
+    .quality-uncertain { color: #ffc107; }
+    .quality-bad { color: #dc3545; }
+
+    #tagSelect {
+        min-height: 38px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/api_client.js"></script>
+
+<script>
+/**
+ * Historian Dashboard Controller
+ */
+class HistorianDashboard {
+    constructor() {
+        this.chart = null;
+        this.data = [];
+        this.machines = [];
+        this.tags = [];
+        this.selectedTags = [];
+        this.chartType = 'line';
+        this.autoRefreshInterval = null;
+
+        this.init();
+    }
+
+    async init() {
+        await this.loadMachines();
+        this.setupChart();
+        this.setupEventListeners();
+        this.setDefaultDateRange();
+    }
+
+    setupEventListeners() {
+        // Tag multi-select handling
+        document.getElementById('tagSelect').addEventListener('change', (e) => {
+            this.selectedTags = Array.from(e.target.selectedOptions).map(o => o.value).filter(v => v);
+        });
+
+        // Auto-refresh toggle
+        document.getElementById('autoRefresh').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                this.startAutoRefresh();
+            } else {
+                this.stopAutoRefresh();
+            }
+        });
+    }
+
+    setDefaultDateRange() {
+        const now = new Date();
+        const start = new Date(now.getTime() - 8 * 60 * 60 * 1000); // 8 hours ago
+
+        document.getElementById('endDateTime').value = now.toISOString().slice(0, 16);
+        document.getElementById('startDateTime').value = start.toISOString().slice(0, 16);
+    }
+
+    handleTimeRangeChange() {
+        const range = document.getElementById('timeRange').value;
+        const customRange = document.getElementById('customDateRange');
+
+        if (range === 'custom') {
+            customRange.style.display = 'flex';
+        } else {
+            customRange.style.display = 'none';
+        }
+    }
+
+    /**
+     * Load machines for dropdown
+     */
+    async loadMachines() {
+        try {
+            const response = await fetch('/api/scada/machines');
+            const data = await response.json();
+            this.machines = data.machines || data.data || [];
+
+            const select = document.getElementById('machineSelect');
+            this.machines.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m.id || m.machine_id;
+                option.textContent = m.name;
+                select.appendChild(option);
+            });
+
+            // Load initial tags
+            await this.loadTags();
+        } catch (error) {
+            console.error('Failed to load machines:', error);
+            this.loadDemoMachines();
+        }
+    }
+
+    loadDemoMachines() {
+        const demoMachines = [
+            { id: 'PRUSA-MK4-1', name: 'Prusa MK4 #1' },
+            { id: 'PRUSA-MK4-2', name: 'Prusa MK4 #2' },
+            { id: 'BAMBU-X1C', name: 'Bambu X1C' },
+            { id: 'VORON-2.4', name: 'Voron 2.4' },
+            { id: 'HAAS-VF2', name: 'Haas VF2' },
+        ];
+
+        this.machines = demoMachines;
+        const select = document.getElementById('machineSelect');
+        demoMachines.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m.id;
+            option.textContent = m.name;
+            select.appendChild(option);
+        });
+
+        this.loadDemoTags();
+    }
+
+    /**
+     * Load tags for selected machine
+     */
+    async loadTags() {
+        const machineId = document.getElementById('machineSelect').value;
+
+        try {
+            const url = machineId
+                ? `/api/scada/tags?machine_id=${machineId}`
+                : '/api/scada/tags';
+            const response = await fetch(url);
+            const data = await response.json();
+            this.tags = data.tags || data.data || [];
+
+            this.renderTagSelect();
+        } catch (error) {
+            console.error('Failed to load tags:', error);
+            this.loadDemoTags();
+        }
+    }
+
+    loadDemoTags() {
+        const machineId = document.getElementById('machineSelect').value;
+        const baseTags = [
+            { id: 'temp_extruder', name: 'Extruder Temperature', unit: '°C', category: 'analog_input' },
+            { id: 'temp_bed', name: 'Bed Temperature', unit: '°C', category: 'analog_input' },
+            { id: 'speed_print', name: 'Print Speed', unit: 'mm/s', category: 'setpoint' },
+            { id: 'flow_rate', name: 'Flow Rate', unit: '%', category: 'analog_output' },
+            { id: 'fan_speed', name: 'Fan Speed', unit: 'RPM', category: 'analog_output' },
+            { id: 'z_position', name: 'Z Position', unit: 'mm', category: 'analog_input' },
+            { id: 'layer_height', name: 'Layer Height', unit: 'mm', category: 'setpoint' },
+            { id: 'power_consumption', name: 'Power Consumption', unit: 'W', category: 'analog_input' },
+        ];
+
+        this.tags = machineId
+            ? baseTags.map(t => ({ ...t, id: `${machineId}.${t.id}` }))
+            : baseTags;
+
+        this.renderTagSelect();
+    }
+
+    renderTagSelect() {
+        const select = document.getElementById('tagSelect');
+        select.innerHTML = '';
+
+        // Group tags by category
+        const categories = {};
+        this.tags.forEach(t => {
+            const cat = t.category || 'other';
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(t);
+        });
+
+        Object.entries(categories).forEach(([category, tags]) => {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = category.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+            tags.forEach(t => {
+                const option = document.createElement('option');
+                option.value = t.id || t.tag_id;
+                option.textContent = `${t.name} (${t.unit || '-'})`;
+                optgroup.appendChild(option);
+            });
+
+            select.appendChild(optgroup);
+        });
+    }
+
+    /**
+     * Setup Chart.js
+     */
+    setupChart() {
+        const ctx = document.getElementById('historianChart').getContext('2d');
+
+        this.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: []
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: (items) => {
+                                return new Date(items[0].parsed.x).toLocaleString();
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            displayFormats: {
+                                hour: 'HH:mm',
+                                day: 'MMM d'
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Value'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Load historian data
+     */
+    async loadData() {
+        const machineId = document.getElementById('machineSelect').value;
+        const tagSelect = document.getElementById('tagSelect');
+        const selectedTags = Array.from(tagSelect.selectedOptions).map(o => o.value).filter(v => v);
+        const timeRange = document.getElementById('timeRange').value;
+
+        if (selectedTags.length === 0) {
+            alert('Please select at least one parameter');
+            return;
+        }
+
+        const { startTime, endTime } = this.getTimeRange(timeRange);
+
+        try {
+            // Try to fetch from API
+            const params = new URLSearchParams({
+                tags: selectedTags.join(','),
+                start: startTime.toISOString(),
+                end: endTime.toISOString()
+            });
+            if (machineId) params.append('machine_id', machineId);
+
+            const response = await fetch(`/api/scada/historian?${params}`);
+            if (response.ok) {
+                const data = await response.json();
+                this.data = data.values || data.data || [];
+            } else {
+                // Generate demo data
+                this.data = this.generateDemoData(selectedTags, startTime, endTime);
+            }
+        } catch (error) {
+            console.log('Using demo data');
+            this.data = this.generateDemoData(selectedTags, startTime, endTime);
+        }
+
+        this.updateChart();
+        this.updateTable();
+        this.updateStats();
+    }
+
+    getTimeRange(range) {
+        const endTime = new Date();
+        let startTime;
+
+        if (range === 'custom') {
+            startTime = new Date(document.getElementById('startDateTime').value);
+            const endInput = document.getElementById('endDateTime').value;
+            return {
+                startTime,
+                endTime: endInput ? new Date(endInput) : endTime
+            };
+        }
+
+        const hours = {
+            '1h': 1,
+            '8h': 8,
+            '24h': 24,
+            '7d': 24 * 7,
+            '30d': 24 * 30
+        };
+
+        startTime = new Date(endTime.getTime() - (hours[range] || 8) * 60 * 60 * 1000);
+
+        return { startTime, endTime };
+    }
+
+    /**
+     * Generate demo data for selected tags
+     */
+    generateDemoData(tags, startTime, endTime) {
+        const data = [];
+        const intervalMs = Math.max((endTime - startTime) / 500, 60000); // Max 500 points, min 1 minute
+
+        const tagConfigs = {
+            'temp_extruder': { base: 210, variance: 5, unit: '°C' },
+            'temp_bed': { base: 60, variance: 2, unit: '°C' },
+            'speed_print': { base: 60, variance: 10, unit: 'mm/s' },
+            'flow_rate': { base: 100, variance: 5, unit: '%' },
+            'fan_speed': { base: 4000, variance: 500, unit: 'RPM' },
+            'z_position': { base: 50, variance: 50, unit: 'mm', trend: true },
+            'layer_height': { base: 0.2, variance: 0.01, unit: 'mm' },
+            'power_consumption': { base: 200, variance: 50, unit: 'W' }
+        };
+
+        for (let time = startTime.getTime(); time <= endTime.getTime(); time += intervalMs) {
+            tags.forEach(tagId => {
+                const tagName = tagId.split('.').pop();
+                const config = tagConfigs[tagName] || { base: 50, variance: 10, unit: '' };
+
+                let value = config.base + (Math.random() - 0.5) * config.variance * 2;
+                if (config.trend) {
+                    // Add trending for position-like values
+                    value = (time - startTime.getTime()) / (endTime - startTime) * config.base * 2;
+                    value += (Math.random() - 0.5) * config.variance;
+                }
+
+                data.push({
+                    timestamp: new Date(time).toISOString(),
+                    tag_id: tagId,
+                    tag_name: this.getTagName(tagId),
+                    value: Number(value.toFixed(2)),
+                    unit: config.unit,
+                    quality: Math.random() > 0.02 ? 'good' : 'uncertain',
+                    machine_id: document.getElementById('machineSelect').value || 'DEMO'
+                });
+            });
+        }
+
+        return data;
+    }
+
+    getTagName(tagId) {
+        const tag = this.tags.find(t => (t.id || t.tag_id) === tagId);
+        return tag ? tag.name : tagId;
+    }
+
+    /**
+     * Update chart with loaded data
+     */
+    updateChart() {
+        // Group data by tag
+        const tagData = {};
+        this.data.forEach(d => {
+            if (!tagData[d.tag_id]) {
+                tagData[d.tag_id] = {
+                    name: d.tag_name || d.tag_id,
+                    unit: d.unit,
+                    values: []
+                };
+            }
+            tagData[d.tag_id].values.push({
+                x: new Date(d.timestamp),
+                y: d.value
+            });
+        });
+
+        const colors = [
+            '#E3000B', '#006CB7', '#4DB848', '#FFD700',
+            '#9C27B0', '#FF5722', '#00BCD4', '#795548'
+        ];
+
+        const datasets = Object.entries(tagData).map(([tagId, data], idx) => ({
+            label: `${data.name} (${data.unit})`,
+            data: data.values.sort((a, b) => a.x - b.x),
+            borderColor: colors[idx % colors.length],
+            backgroundColor: colors[idx % colors.length] + '20',
+            fill: this.chartType === 'line',
+            tension: 0.2,
+            pointRadius: this.chartType === 'scatter' ? 3 : 0,
+            pointHoverRadius: 5
+        }));
+
+        this.chart.data.datasets = datasets;
+        this.chart.config.type = this.chartType === 'scatter' ? 'scatter' : this.chartType;
+        this.chart.update();
+    }
+
+    /**
+     * Update data table
+     */
+    updateTable() {
+        const tbody = document.getElementById('dataTableBody');
+        const footer = document.getElementById('dataFooter');
+
+        // Sort by timestamp descending
+        const sortedData = [...this.data].sort((a, b) =>
+            new Date(b.timestamp) - new Date(a.timestamp)
+        );
+
+        if (sortedData.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        No data found for the selected parameters and time range
+                    </td>
+                </tr>
+            `;
+            footer.textContent = '0 records';
+            return;
+        }
+
+        // Show latest 1000 records
+        const displayData = sortedData.slice(0, 1000);
+
+        tbody.innerHTML = displayData.map(d => `
+            <tr>
+                <td><code>${new Date(d.timestamp).toLocaleString()}</code></td>
+                <td>${d.machine_id || '-'}</td>
+                <td>${d.tag_name || d.tag_id}</td>
+                <td class="text-end fw-bold">${d.value}</td>
+                <td>${d.unit || '-'}</td>
+                <td><span class="quality-${d.quality || 'good'}">${(d.quality || 'good').toUpperCase()}</span></td>
+            </tr>
+        `).join('');
+
+        footer.textContent = `Showing ${displayData.length} of ${sortedData.length} records`;
+    }
+
+    /**
+     * Update statistics cards
+     */
+    updateStats() {
+        const container = document.getElementById('statsCards');
+
+        // Group by tag
+        const tagData = {};
+        this.data.forEach(d => {
+            if (!tagData[d.tag_id]) {
+                tagData[d.tag_id] = {
+                    name: d.tag_name || d.tag_id,
+                    unit: d.unit,
+                    values: []
+                };
+            }
+            tagData[d.tag_id].values.push(d.value);
+        });
+
+        const cards = Object.entries(tagData).map(([tagId, data]) => {
+            const values = data.values;
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const avg = values.reduce((a, b) => a + b, 0) / values.length;
+            const std = Math.sqrt(values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length);
+
+            return `
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="text-muted mb-3">${data.name}</h6>
+                            <div class="row g-2 text-center">
+                                <div class="col-6">
+                                    <div class="text-info small">MIN</div>
+                                    <div class="fw-bold">${min.toFixed(2)}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-danger small">MAX</div>
+                                    <div class="fw-bold">${max.toFixed(2)}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-success small">AVG</div>
+                                    <div class="fw-bold">${avg.toFixed(2)}</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="text-secondary small">STD</div>
+                                    <div class="fw-bold">${std.toFixed(2)}</div>
+                                </div>
+                            </div>
+                            <div class="text-muted small text-center mt-2">${data.unit}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        container.innerHTML = cards;
+    }
+
+    /**
+     * Set chart type
+     */
+    setChartType(type) {
+        this.chartType = type;
+
+        document.querySelectorAll('[data-chart-type]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.chartType === type);
+        });
+
+        if (this.data.length > 0) {
+            this.updateChart();
+        }
+    }
+
+    /**
+     * Export data to CSV
+     */
+    exportCSV() {
+        if (this.data.length === 0) {
+            alert('No data to export');
+            return;
+        }
+
+        const headers = ['Timestamp', 'Machine', 'Parameter', 'Value', 'Unit', 'Quality'];
+        const rows = this.data.map(d => [
+            d.timestamp,
+            d.machine_id || '',
+            d.tag_name || d.tag_id,
+            d.value,
+            d.unit || '',
+            d.quality || 'good'
+        ]);
+
+        const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `historian_export_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+        a.click();
+
+        URL.revokeObjectURL(url);
+    }
+
+    /**
+     * Auto-refresh functionality
+     */
+    startAutoRefresh() {
+        this.stopAutoRefresh();
+        this.autoRefreshInterval = setInterval(() => this.loadData(), 10000);
+    }
+
+    stopAutoRefresh() {
+        if (this.autoRefreshInterval) {
+            clearInterval(this.autoRefreshInterval);
+            this.autoRefreshInterval = null;
+        }
+    }
+
+    /**
+     * Manual refresh
+     */
+    refresh() {
+        this.loadData();
+    }
+}
+
+// Chart.js date adapter
+Chart.defaults.scales.time = { adapters: { date: {} } };
+
+// Initialize
+const historian = new HistorianDashboard();
+</script>
+
+<!-- Chart.js date adapter for time scale -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+{% endblock %}

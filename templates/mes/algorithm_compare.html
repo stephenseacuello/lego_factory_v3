@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+
+{% block title %}Algorithm Comparison - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Algorithm Comparison</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-graph-up-arrow me-2"></i>Scheduling Algorithm Comparison</h2>
+    <a href="{{ url_for('mes_web.scheduling') }}" class="btn btn-outline-primary">
+        <i class="bi bi-calendar3 me-1"></i>Back to Scheduling
+    </a>
+</div>
+
+<!-- Configuration Card -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-gear me-2"></i>Comparison Settings
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">Algorithms to Compare</label>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="algo_cpsat" value="cpsat" checked>
+                            <label class="form-check-label" for="algo_cpsat">
+                                <strong>CP-SAT</strong> <small class="text-muted">(OR-Tools)</small>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="algo_genetic" value="genetic">
+                            <label class="form-check-label" for="algo_genetic">
+                                <strong>NSGA-II</strong> <small class="text-muted">(Genetic)</small>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="algo_rl" value="rl">
+                            <label class="form-check-label" for="algo_rl">
+                                <strong>RL Agent</strong> <small class="text-muted">(PPO)</small>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="algo_spt" value="spt" checked>
+                            <label class="form-check-label" for="algo_spt">
+                                <strong>SPT</strong> <small class="text-muted">(Shortest Processing Time)</small>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="algo_edd" value="edd" checked>
+                            <label class="form-check-label" for="algo_edd">
+                                <strong>EDD</strong> <small class="text-muted">(Earliest Due Date)</small>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="algo_wspt" value="wspt">
+                            <label class="form-check-label" for="algo_wspt">
+                                <strong>WSPT</strong> <small class="text-muted">(Weighted SPT)</small>
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="algo_cr" value="cr">
+                            <label class="form-check-label" for="algo_cr">
+                                <strong>CR</strong> <small class="text-muted">(Critical Ratio)</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Job Set</label>
+                <select class="form-select" id="jobSetSelect">
+                    <option value="current">Current Pending Jobs</option>
+                    <option value="random">Generate Random Jobs</option>
+                </select>
+                <div class="mt-2" id="randomJobsConfig" style="display: none;">
+                    <label class="form-label">Number of Jobs</label>
+                    <input type="number" class="form-control" id="numJobs" value="20" min="5" max="100">
+                </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button class="btn btn-primary w-100" onclick="algoCompare.runComparison()">
+                    <i class="bi bi-play-fill me-1"></i>Run Comparison
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Section -->
+<div id="resultsSection" style="display: none;">
+    <!-- Summary Stats -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1">Jobs Compared</h6>
+                    <h2 class="mb-0" id="statJobs">--</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1">Machines</h6>
+                    <h2 class="mb-0" id="statMachines">--</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card success">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1">Best Makespan</h6>
+                    <h2 class="mb-0" id="statBestMakespan">--</h2>
+                    <small class="text-muted" id="statBestAlgo">--</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card info">
+                <div class="card-body">
+                    <h6 class="text-muted mb-1">Fastest Algorithm</h6>
+                    <h2 class="mb-0" id="statFastest">--</h2>
+                    <small class="text-muted" id="statFastestTime">--</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Table -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <i class="bi bi-table me-2"></i>Comparison Results
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Algorithm</th>
+                            <th class="text-end">Makespan (min)</th>
+                            <th class="text-end">Tardiness (min)</th>
+                            <th class="text-end">Avg Utilization</th>
+                            <th class="text-end">Setup Time (min)</th>
+                            <th class="text-end">Compute Time</th>
+                            <th class="text-center">Rank</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTable">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-4 mb-4">
+        <!-- Makespan Chart -->
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-bar-chart me-2"></i>Makespan Comparison
+                </div>
+                <div class="card-body">
+                    <canvas id="makespanChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Utilization Chart -->
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-bar-chart me-2"></i>Utilization Comparison
+                </div>
+                <div class="card-body">
+                    <canvas id="utilizationChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-4">
+        <!-- Radar Chart -->
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-hexagon me-2"></i>Multi-Metric Radar
+                </div>
+                <div class="card-body">
+                    <canvas id="radarChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Compute Time Chart -->
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <i class="bi bi-clock me-2"></i>Compute Time
+                </div>
+                <div class="card-body">
+                    <canvas id="computeTimeChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Winner Card -->
+    <div class="card bg-light">
+        <div class="card-body text-center py-4">
+            <h5 class="text-muted mb-3">Recommended Algorithm</h5>
+            <div class="d-flex justify-content-center align-items-center gap-3">
+                <i class="bi bi-trophy-fill text-warning fs-1"></i>
+                <div class="text-start">
+                    <h3 class="mb-0" id="winnerAlgo">--</h3>
+                    <p class="text-muted mb-0" id="winnerReason">Based on overall score</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading State -->
+<div id="loadingState" class="text-center py-5" style="display: none;">
+    <div class="spinner-border text-primary mb-3" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="text-muted">Running algorithm comparison...</p>
+</div>
+
+<!-- Empty State -->
+<div id="emptyState" class="text-center py-5">
+    <i class="bi bi-graph-up-arrow fs-1 text-muted mb-3 d-block"></i>
+    <h5>Select algorithms and run comparison</h5>
+    <p class="text-muted">Choose which scheduling algorithms to compare and click "Run Comparison"</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const algoCompare = {
+    results: [],
+    makespanChart: null,
+    utilizationChart: null,
+    radarChart: null,
+    computeTimeChart: null,
+
+    init() {
+        // Show/hide random jobs config
+        document.getElementById('jobSetSelect').addEventListener('change', (e) => {
+            document.getElementById('randomJobsConfig').style.display =
+                e.target.value === 'random' ? 'block' : 'none';
+        });
+
+        this.initCharts();
+    },
+
+    initCharts() {
+        // Makespan Chart
+        const makespanCtx = document.getElementById('makespanChart').getContext('2d');
+        this.makespanChart = new Chart(makespanCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: { display: true, text: 'Minutes' }
+                    }
+                }
+            }
+        });
+
+        // Utilization Chart
+        const utilCtx = document.getElementById('utilizationChart').getContext('2d');
+        this.utilizationChart = new Chart(utilCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: { display: true, text: 'Utilization %' }
+                    }
+                }
+            }
+        });
+
+        // Radar Chart
+        const radarCtx = document.getElementById('radarChart').getContext('2d');
+        this.radarChart = new Chart(radarCtx, {
+            type: 'radar',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                scales: {
+                    r: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+
+        // Compute Time Chart
+        const computeCtx = document.getElementById('computeTimeChart').getContext('2d');
+        this.computeTimeChart = new Chart(computeCtx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: {
+                responsive: true,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Milliseconds' }
+                    }
+                }
+            }
+        });
+    },
+
+    getSelectedAlgorithms() {
+        const algos = [];
+        document.querySelectorAll('input[id^="algo_"]:checked').forEach(cb => {
+            algos.push(cb.value);
+        });
+        return algos;
+    },
+
+    async runComparison() {
+        const algorithms = this.getSelectedAlgorithms();
+        if (algorithms.length < 2) {
+            showToast('Please select at least 2 algorithms to compare', 'warning');
+            return;
+        }
+
+        const jobSet = document.getElementById('jobSetSelect').value;
+        const numJobs = parseInt(document.getElementById('numJobs').value) || 20;
+
+        // Show loading
+        document.getElementById('emptyState').style.display = 'none';
+        document.getElementById('resultsSection').style.display = 'none';
+        document.getElementById('loadingState').style.display = 'block';
+
+        try {
+            const response = await fetch('/api/mes/scheduling/compare', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    algorithms: algorithms,
+                    job_set: jobSet,
+                    n_jobs: numJobs
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                showToast(data.error, 'error');
+                document.getElementById('loadingState').style.display = 'none';
+                document.getElementById('emptyState').style.display = 'block';
+                return;
+            }
+
+            this.results = data.results.filter(r => !r.error);
+            this.displayResults(data);
+
+        } catch (error) {
+            console.error('Error running comparison:', error);
+            showToast('Error running comparison', 'error');
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'block';
+        }
+    },
+
+    displayResults(data) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('resultsSection').style.display = 'block';
+
+        // Update stats
+        document.getElementById('statJobs').textContent = data.job_count;
+        document.getElementById('statMachines').textContent = data.machine_count;
+
+        const results = this.results;
+        if (results.length === 0) {
+            showToast('No valid results from algorithms', 'warning');
+            return;
+        }
+
+        // Find best makespan
+        const bestMakespan = results.reduce((best, r) =>
+            r.makespan < best.makespan ? r : best
+        );
+        document.getElementById('statBestMakespan').textContent = `${bestMakespan.makespan} min`;
+        document.getElementById('statBestAlgo').textContent = bestMakespan.algorithm.toUpperCase();
+
+        // Find fastest compute
+        const fastest = results.reduce((best, r) =>
+            r.compute_time_ms < best.compute_time_ms ? r : best
+        );
+        document.getElementById('statFastest').textContent = fastest.algorithm.toUpperCase();
+        document.getElementById('statFastestTime').textContent = `${fastest.compute_time_ms} ms`;
+
+        // Rank results (lower is better for makespan and tardiness)
+        const ranked = [...results].sort((a, b) => {
+            // Multi-criteria: 60% makespan, 30% tardiness, 10% compute
+            const scoreA = a.makespan * 0.6 + a.total_tardiness * 0.3 + a.compute_time_ms * 0.0001;
+            const scoreB = b.makespan * 0.6 + b.total_tardiness * 0.3 + b.compute_time_ms * 0.0001;
+            return scoreA - scoreB;
+        });
+
+        // Update table
+        const tbody = document.getElementById('resultsTable');
+        tbody.innerHTML = ranked.map((r, i) => `
+            <tr class="${i === 0 ? 'table-success' : ''}">
+                <td>
+                    <strong>${r.algorithm.toUpperCase()}</strong>
+                    ${i === 0 ? '<span class="badge bg-success ms-2">Best</span>' : ''}
+                </td>
+                <td class="text-end">${r.makespan.toFixed(1)}</td>
+                <td class="text-end">${r.total_tardiness.toFixed(1)}</td>
+                <td class="text-end">${r.avg_utilization.toFixed(1)}%</td>
+                <td class="text-end">${r.total_setup_time.toFixed(1)}</td>
+                <td class="text-end">${r.compute_time_ms.toFixed(1)} ms</td>
+                <td class="text-center">
+                    <span class="badge ${i === 0 ? 'bg-success' : i === 1 ? 'bg-info' : 'bg-secondary'}">
+                        #${i + 1}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+
+        // Update winner
+        document.getElementById('winnerAlgo').textContent = ranked[0].algorithm.toUpperCase();
+        document.getElementById('winnerReason').textContent =
+            `Makespan: ${ranked[0].makespan} min | Tardiness: ${ranked[0].total_tardiness} min | Utilization: ${ranked[0].avg_utilization}%`;
+
+        // Update charts
+        this.updateCharts(results);
+    },
+
+    updateCharts(results) {
+        const labels = results.map(r => r.algorithm.toUpperCase());
+        const colors = [
+            '#0d6efd', '#198754', '#ffc107', '#dc3545',
+            '#6f42c1', '#20c997', '#fd7e14', '#6c757d'
+        ];
+
+        // Makespan Chart
+        this.makespanChart.data = {
+            labels: labels,
+            datasets: [{
+                label: 'Makespan',
+                data: results.map(r => r.makespan),
+                backgroundColor: colors.slice(0, results.length),
+            }]
+        };
+        this.makespanChart.update();
+
+        // Utilization Chart
+        this.utilizationChart.data = {
+            labels: labels,
+            datasets: [{
+                label: 'Utilization',
+                data: results.map(r => r.avg_utilization),
+                backgroundColor: colors.slice(0, results.length),
+            }]
+        };
+        this.utilizationChart.update();
+
+        // Compute Time Chart
+        this.computeTimeChart.data = {
+            labels: labels,
+            datasets: [{
+                label: 'Compute Time',
+                data: results.map(r => r.compute_time_ms),
+                backgroundColor: colors.slice(0, results.length),
+            }]
+        };
+        this.computeTimeChart.update();
+
+        // Radar Chart - normalize metrics
+        const maxMakespan = Math.max(...results.map(r => r.makespan));
+        const maxTardiness = Math.max(...results.map(r => r.total_tardiness)) || 1;
+        const maxCompute = Math.max(...results.map(r => r.compute_time_ms));
+
+        this.radarChart.data = {
+            labels: ['Makespan (inv)', 'Utilization', 'Low Tardiness', 'Speed'],
+            datasets: results.map((r, i) => ({
+                label: r.algorithm.toUpperCase(),
+                data: [
+                    100 - (r.makespan / maxMakespan * 100),  // Inverted: lower is better
+                    r.avg_utilization,
+                    100 - (r.total_tardiness / maxTardiness * 100),  // Inverted
+                    100 - (r.compute_time_ms / maxCompute * 100),  // Inverted
+                ],
+                borderColor: colors[i],
+                backgroundColor: colors[i] + '33',
+            }))
+        };
+        this.radarChart.update();
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    algoCompare.init();
+});
+</script>
+{% endblock %}

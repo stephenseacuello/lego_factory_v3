@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filament Inventory - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --primary: #3b82f6; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: var(--primary); box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25); }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.1); vertical-align: middle; }
+        .spool-card { background: var(--card-bg); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); padding: 1rem; transition: all 0.2s; }
+        .spool-card:hover { border-color: var(--primary); }
+        .spool-icon { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+        .usage-bar { height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden; }
+        .usage-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+        .modal-content { background: var(--card-bg); color: #e2e8f0; }
+        .modal-header, .modal-footer { border-color: rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Filament Inventory</a>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" style="width:150px">
+                    <option>All Materials</option>
+                    <option>ABS</option>
+                    <option>PLA</option>
+                    <option>PETG</option>
+                    <option>ASA</option>
+                </select>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSpoolModal">
+                    <i class="bi bi-plus-lg me-1"></i>Add Spool
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-primary bg-opacity-25 text-primary me-3">
+                            <i class="bi bi-archive"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Total Spools</div>
+                            <h4 class="mb-0">48</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-success bg-opacity-25 text-success me-3">
+                            <i class="bi bi-box-seam"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Total Weight</div>
+                            <h4 class="mb-0">42.5 kg</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-warning bg-opacity-25 text-warning me-3">
+                            <i class="bi bi-exclamation-triangle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Low Stock</div>
+                            <h4 class="mb-0">5</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-info bg-opacity-25 text-info me-3">
+                            <i class="bi bi-graph-down"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Used This Month</div>
+                            <h4 class="mb-0">8.2 kg</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Spool Grid -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-archive me-2"></i>Active Spools</span>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-outline-light btn-sm active"><i class="bi bi-grid-3x3-gap"></i></button>
+                            <button class="btn btn-outline-light btn-sm"><i class="bi bi-list"></i></button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <!-- Spool 1 -->
+                            <div class="col-md-6 col-lg-4">
+                                <div class="spool-card">
+                                    <div class="d-flex align-items-start mb-3">
+                                        <div class="spool-icon me-3" style="background: #c91a09;">
+                                            <i class="bi bi-circle-fill text-white"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-0">ABS Red</h6>
+                                            <small class="text-muted">Polymaker</small>
+                                        </div>
+                                        <span class="badge bg-success">Active</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span>Remaining</span>
+                                            <span>720g / 1000g</span>
+                                        </div>
+                                        <div class="usage-bar">
+                                            <div class="usage-fill bg-success" style="width: 72%;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted">
+                                        <span>Spool #SP-001</span>
+                                        <span>Est. 45 prints</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Spool 2 -->
+                            <div class="col-md-6 col-lg-4">
+                                <div class="spool-card">
+                                    <div class="d-flex align-items-start mb-3">
+                                        <div class="spool-icon me-3" style="background: #1e5aa8;">
+                                            <i class="bi bi-circle-fill text-white"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-0">ABS Blue</h6>
+                                            <small class="text-muted">Polymaker</small>
+                                        </div>
+                                        <span class="badge bg-success">Active</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span>Remaining</span>
+                                            <span>450g / 1000g</span>
+                                        </div>
+                                        <div class="usage-bar">
+                                            <div class="usage-fill bg-warning" style="width: 45%;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted">
+                                        <span>Spool #SP-002</span>
+                                        <span>Est. 28 prints</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Spool 3 -->
+                            <div class="col-md-6 col-lg-4">
+                                <div class="spool-card">
+                                    <div class="d-flex align-items-start mb-3">
+                                        <div class="spool-icon me-3" style="background: #f7d117;">
+                                            <i class="bi bi-circle-fill text-dark"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-0">ABS Yellow</h6>
+                                            <small class="text-muted">Polymaker</small>
+                                        </div>
+                                        <span class="badge bg-warning text-dark">Low</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span>Remaining</span>
+                                            <span>120g / 1000g</span>
+                                        </div>
+                                        <div class="usage-bar">
+                                            <div class="usage-fill bg-danger" style="width: 12%;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted">
+                                        <span>Spool #SP-003</span>
+                                        <span>Est. 7 prints</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Spool 4 -->
+                            <div class="col-md-6 col-lg-4">
+                                <div class="spool-card">
+                                    <div class="d-flex align-items-start mb-3">
+                                        <div class="spool-icon me-3" style="background: #237841;">
+                                            <i class="bi bi-circle-fill text-white"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-0">ABS Green</h6>
+                                            <small class="text-muted">eSUN</small>
+                                        </div>
+                                        <span class="badge bg-success">Active</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span>Remaining</span>
+                                            <span>890g / 1000g</span>
+                                        </div>
+                                        <div class="usage-bar">
+                                            <div class="usage-fill bg-success" style="width: 89%;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted">
+                                        <span>Spool #SP-004</span>
+                                        <span>Est. 56 prints</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Spool 5 -->
+                            <div class="col-md-6 col-lg-4">
+                                <div class="spool-card">
+                                    <div class="d-flex align-items-start mb-3">
+                                        <div class="spool-icon me-3" style="background: #1b2a34;">
+                                            <i class="bi bi-circle-fill text-white"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-0">ABS Black</h6>
+                                            <small class="text-muted">Polymaker</small>
+                                        </div>
+                                        <span class="badge bg-success">Active</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span>Remaining</span>
+                                            <span>650g / 1000g</span>
+                                        </div>
+                                        <div class="usage-bar">
+                                            <div class="usage-fill bg-success" style="width: 65%;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted">
+                                        <span>Spool #SP-005</span>
+                                        <span>Est. 41 prints</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Spool 6 -->
+                            <div class="col-md-6 col-lg-4">
+                                <div class="spool-card">
+                                    <div class="d-flex align-items-start mb-3">
+                                        <div class="spool-icon me-3" style="background: #ffffff;">
+                                            <i class="bi bi-circle-fill text-dark"></i>
+                                        </div>
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-0">ABS White</h6>
+                                            <small class="text-muted">eSUN</small>
+                                        </div>
+                                        <span class="badge bg-warning text-dark">Low</span>
+                                    </div>
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between small mb-1">
+                                            <span>Remaining</span>
+                                            <span>180g / 1000g</span>
+                                        </div>
+                                        <div class="usage-bar">
+                                            <div class="usage-fill bg-danger" style="width: 18%;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-between small text-muted">
+                                        <span>Spool #SP-006</span>
+                                        <span>Est. 11 prints</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Usage Stats -->
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-graph-up me-2"></i>Usage Statistics
+                    </div>
+                    <div class="card-body">
+                        <h6 class="text-muted mb-3">Material Breakdown</h6>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>ABS</span>
+                                <span>28.5 kg (67%)</span>
+                            </div>
+                            <div class="usage-bar">
+                                <div class="usage-fill bg-primary" style="width: 67%;"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>PLA</span>
+                                <span>8.2 kg (19%)</span>
+                            </div>
+                            <div class="usage-bar">
+                                <div class="usage-fill bg-success" style="width: 19%;"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>PETG</span>
+                                <span>4.1 kg (10%)</span>
+                            </div>
+                            <div class="usage-bar">
+                                <div class="usage-fill bg-warning" style="width: 10%;"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>ASA</span>
+                                <span>1.7 kg (4%)</span>
+                            </div>
+                            <div class="usage-bar">
+                                <div class="usage-fill bg-info" style="width: 4%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-clock-history me-2"></i>Recent Usage
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" style="background: transparent;">
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>ABS Red - 16g</span>
+                                    <small class="text-muted">10 min ago</small>
+                                </div>
+                                <small class="text-muted">Brick 2x4 batch print</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>ABS Blue - 24g</span>
+                                    <small class="text-muted">45 min ago</small>
+                                </div>
+                                <small class="text-muted">Custom brick order</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>ABS Black - 8g</span>
+                                    <small class="text-muted">2 hours ago</small>
+                                </div>
+                                <small class="text-muted">Technic beam prototype</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-bell me-2"></i>Low Stock Alerts
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" style="background: transparent;">
+                            <div class="list-group-item d-flex justify-content-between align-items-center" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div>
+                                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>ABS Yellow
+                                </div>
+                                <span class="badge bg-danger">12% left</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div>
+                                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>ABS White
+                                </div>
+                                <span class="badge bg-danger">18% left</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Spool Modal -->
+    <div class="modal fade" id="addSpoolModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add New Spool</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Material Type</label>
+                        <select class="form-select">
+                            <option>ABS</option>
+                            <option>PLA</option>
+                            <option>PETG</option>
+                            <option>ASA</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Color</label>
+                        <input type="text" class="form-control" placeholder="Enter color name">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Brand</label>
+                        <input type="text" class="form-control" placeholder="Enter brand name">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <label class="form-label">Weight (g)</label>
+                            <input type="number" class="form-control" value="1000">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Diameter (mm)</label>
+                            <select class="form-select">
+                                <option>1.75</option>
+                                <option>2.85</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Spool ID</label>
+                        <input type="text" class="form-control" placeholder="Auto-generated" readonly>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary">Add Spool</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

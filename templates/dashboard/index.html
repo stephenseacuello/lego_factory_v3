@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Dashboard</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .hero-section {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+        border-radius: 1rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        color: white;
+    }
+
+    .hero-section h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+    }
+
+    .hero-section .lead {
+        color: rgba(255,255,255,0.8);
+    }
+
+    .section-card {
+        border-radius: 1rem;
+        overflow: hidden;
+        transition: transform 0.2s, box-shadow 0.2s;
+        height: 100%;
+    }
+
+    .section-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15);
+    }
+
+    .section-card .card-header {
+        padding: 1.25rem;
+        font-size: 1.1rem;
+    }
+
+    .section-card .card-body {
+        padding: 1.25rem;
+    }
+
+    .section-icon {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .scada-header { background: linear-gradient(135deg, #0f3460 0%, #16213e 100%); color: white; }
+    .mes-header { background: linear-gradient(135deg, #1a472a 0%, #2d5016 100%); color: white; }
+    .erp-header { background: linear-gradient(135deg, #4a148c 0%, #311b92 100%); color: white; }
+    .qms-header { background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%); color: white; }
+    .lego-header { background: linear-gradient(135deg, #c41e3a 0%, #8b0000 100%); color: white; }
+    .cmms-header { background: linear-gradient(135deg, #e65100 0%, #ff6d00 100%); color: white; }
+
+    .nav-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .nav-list li {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .nav-list li:last-child {
+        border-bottom: none;
+    }
+
+    .nav-list a {
+        color: #333;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .nav-list a:hover {
+        color: var(--lego-blue);
+    }
+
+    .stat-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-box {
+        background: white;
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        text-align: center;
+        box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+    }
+
+    .stat-box .value {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+
+    .stat-box .label {
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+
+    .stat-box.success .value { color: var(--lego-green); }
+    .stat-box.danger .value { color: var(--lego-red); }
+    .stat-box.primary .value { color: var(--lego-blue); }
+    .stat-box.warning .value { color: #fd7e14; }
+
+    @media (max-width: 768px) {
+        .stat-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h1><i class="bi bi-bricks text-danger"></i> LEGO Factory v3</h1>
+            <p class="lead mb-0">Unified Smart Manufacturing Platform</p>
+            <p class="text-muted mb-0">SCADA | MES | ERP | QMS | Digital Twin | ML Analytics</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="badge bg-success fs-6 mb-2">System Online</div>
+            <div class="text-muted small">Last updated: <span id="lastUpdate">--</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Row -->
+<div class="stat-row">
+    <div class="stat-box success">
+        <div class="value" id="statOee">85.2%</div>
+        <div class="label">Fleet OEE</div>
+    </div>
+    <div class="stat-box danger">
+        <div class="value" id="statAlarms">2</div>
+        <div class="label">Active Alarms</div>
+    </div>
+    <div class="stat-box primary">
+        <div class="value" id="statWorkOrders">12</div>
+        <div class="label">Work Orders</div>
+    </div>
+    <div class="stat-box warning">
+        <div class="value" id="statMachines">5/8</div>
+        <div class="label">Machines Running</div>
+    </div>
+</div>
+
+<!-- Main Sections -->
+<div class="row g-4">
+    <!-- SCADA Section -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card section-card">
+            <div class="card-header scada-header text-center">
+                <i class="bi bi-cpu section-icon"></i>
+                <h5 class="mb-0">SCADA</h5>
+                <small class="opacity-75">Level 1 & 2</small>
+            </div>
+            <div class="card-body">
+                <ul class="nav-list">
+                    <li><a href="{{ url_for('scada_web.machines') }}"><i class="bi bi-pc-display"></i> Machines</a></li>
+                    <li><a href="{{ url_for('scada_web.alarms') }}"><i class="bi bi-bell"></i> Alarms</a></li>
+                    <li><a href="{{ url_for('scada_web.historian') }}"><i class="bi bi-graph-up"></i> Historian</a></li>
+                    <li><a href="{{ url_for('scada_web.recipes') }}"><i class="bi bi-file-code"></i> Recipes</a></li>
+                    <li><a href="{{ url_for('scada_web.sensors') }}"><i class="bi bi-thermometer-half"></i> Sensors</a></li>
+                    <li><a href="{{ url_for('scada_web.gcode_manager') }}"><i class="bi bi-code-slash"></i> G-code Manager</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- MES Section -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card section-card">
+            <div class="card-header mes-header text-center">
+                <i class="bi bi-clipboard-check section-icon"></i>
+                <h5 class="mb-0">MES</h5>
+                <small class="opacity-75">Level 3</small>
+            </div>
+            <div class="card-body">
+                <ul class="nav-list">
+                    <li><a href="{{ url_for('mes_web.work_orders') }}"><i class="bi bi-list-task"></i> Work Orders</a></li>
+                    <li><a href="{{ url_for('mes_web.scheduling') }}"><i class="bi bi-calendar3"></i> Scheduling</a></li>
+                    <li><a href="{{ url_for('mes_web.oee') }}"><i class="bi bi-pie-chart"></i> OEE Dashboard</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ERP Section -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card section-card">
+            <div class="card-header erp-header text-center">
+                <i class="bi bi-building section-icon"></i>
+                <h5 class="mb-0">ERP</h5>
+                <small class="opacity-75">Level 4</small>
+            </div>
+            <div class="card-body">
+                <ul class="nav-list">
+                    <li><a href="{{ url_for('erp_web.sales_orders') }}"><i class="bi bi-cart"></i> Sales Orders</a></li>
+                    <li><a href="{{ url_for('erp_web.inventory') }}"><i class="bi bi-boxes"></i> Inventory</a></li>
+                    <li><a href="{{ url_for('erp_web.mrp') }}"><i class="bi bi-diagram-3"></i> MRP</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- QMS Section -->
+    <div class="col-md-6 col-lg-3">
+        <div class="card section-card">
+            <div class="card-header qms-header text-center">
+                <i class="bi bi-shield-check section-icon"></i>
+                <h5 class="mb-0">QMS</h5>
+                <small class="opacity-75">Quality Management</small>
+            </div>
+            <div class="card-body">
+                <ul class="nav-list">
+                    <li><a href="{{ url_for('qms_web.documents') }}"><i class="bi bi-file-earmark-text"></i> Documents</a></li>
+                    <li><a href="{{ url_for('qms_web.ncr_list') }}"><i class="bi bi-exclamation-triangle"></i> NCR/CAPA</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Secondary Sections Row -->
+<div class="row g-4 mt-3">
+    <!-- LEGO Design Section -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card section-card">
+            <div class="card-header lego-header text-center">
+                <i class="bi bi-bricks section-icon"></i>
+                <h5 class="mb-0">LEGO Design</h5>
+                <small class="opacity-75">Product Engineering</small>
+            </div>
+            <div class="card-body">
+                <ul class="nav-list">
+                    <li><a href="{{ url_for('lego_web.catalog') }}"><i class="bi bi-grid-3x3"></i> Brick Catalog</a></li>
+                    <li><a href="{{ url_for('lego_web.designer') }}"><i class="bi bi-pencil-square"></i> Brick Designer</a></li>
+                    <li><a href="{{ url_for('lego_web.export_jobs') }}"><i class="bi bi-box-arrow-up"></i> Export Jobs</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Maintenance (CMMS) -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card section-card">
+            <div class="card-header cmms-header text-center">
+                <i class="bi bi-wrench section-icon"></i>
+                <h5 class="mb-0">CMMS</h5>
+                <small class="opacity-75">Maintenance</small>
+            </div>
+            <div class="card-body">
+                <ul class="nav-list">
+                    <li><a href="{{ url_for('cmms_web.assets') }}"><i class="bi bi-gear"></i> Assets</a></li>
+                    <li><a href="{{ url_for('cmms_web.cmms_work_orders') }}"><i class="bi bi-tools"></i> Work Orders</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Digital Twin & ML -->
+    <div class="col-md-6 col-lg-4">
+        <div class="card section-card">
+            <div class="card-header text-center" style="background: linear-gradient(135deg, #00695c 0%, #00897b 100%); color: white;">
+                <i class="bi bi-cpu section-icon"></i>
+                <h5 class="mb-0">Digital Twin & ML</h5>
+                <small class="opacity-75">Analytics</small>
+            </div>
+            <div class="card-body">
+                <ul class="nav-list">
+                    <li><a href="{{ url_for('unity_web.viewer') }}"><i class="bi bi-badge-3d"></i> 3D Viewer</a></li>
+                    <li><a href="{{ url_for('ml_web.fingerprint') }}"><i class="bi bi-fingerprint"></i> G-code Fingerprinting</a></li>
+                    <li><a href="{{ url_for('ml_web.anomaly') }}"><i class="bi bi-activity"></i> Anomaly Detection</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bell me-2"></i>Recent Alarms</span>
+                <a href="{{ url_for('scada_web.alarms') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <tbody id="recentAlarms">
+                        <tr>
+                            <td><span class="badge bg-danger">HIGH</span></td>
+                            <td>Printer 1</td>
+                            <td>Temperature warning</td>
+                            <td class="text-muted">2 min ago</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge bg-warning">MEDIUM</span></td>
+                            <td>Conveyor A</td>
+                            <td>Belt tension low</td>
+                            <td class="text-muted">15 min ago</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-task me-2"></i>Active Work Orders</span>
+                <a href="{{ url_for('mes_web.work_orders') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-hover mb-0">
+                    <tbody id="activeWorkOrders">
+                        <tr>
+                            <td><strong>WO-2024-156</strong></td>
+                            <td>2x4 Red Brick</td>
+                            <td>
+                                <div class="progress" style="height: 20px; min-width: 100px;">
+                                    <div class="progress-bar" style="width: 67%">67%</div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>WO-2024-157</strong></td>
+                            <td>2x2 Blue Brick</td>
+                            <td>
+                                <div class="progress" style="height: 20px; min-width: 100px;">
+                                    <div class="progress-bar" style="width: 23%">23%</div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Update last update time
+    function updateLastUpdate() {
+        document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+    }
+    updateLastUpdate();
+    setInterval(updateLastUpdate, 30000);
+
+    // Fetch dashboard stats
+    async function fetchStats() {
+        try {
+            // Try to fetch real data
+            const [alarmsRes, workOrdersRes, machinesRes] = await Promise.allSettled([
+                fetch('/api/v1/scada/alarms/active'),
+                fetch('/api/v1/mes/work-orders'),
+                fetch('/api/v1/scada/machines')
+            ]);
+
+            // Update stats if we got responses
+            if (alarmsRes.status === 'fulfilled' && alarmsRes.value.ok) {
+                const data = await alarmsRes.value.json();
+                document.getElementById('statAlarms').textContent = data.count || data.alarms?.length || 0;
+            }
+
+            if (workOrdersRes.status === 'fulfilled' && workOrdersRes.value.ok) {
+                const data = await workOrdersRes.value.json();
+                const active = data.work_orders?.filter(wo => wo.status === 'in_progress').length || 0;
+                document.getElementById('statWorkOrders').textContent = data.work_orders?.length || 0;
+            }
+
+            if (machinesRes.status === 'fulfilled' && machinesRes.value.ok) {
+                const data = await machinesRes.value.json();
+                const running = data.machines?.filter(m => m.state === 'running').length || 0;
+                const total = data.machines?.length || 0;
+                document.getElementById('statMachines').textContent = `${running}/${total}`;
+            }
+        } catch (error) {
+            console.log('Using demo data');
+        }
+    }
+
+    // Initial fetch
+    fetchStats();
+    setInterval(fetchStats, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,824 @@
+{% extends "base.html" %}
+{% block title %}Job Costing - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #10b981;
+        --accent-red: #ef4444;
+        --accent-yellow: #f59e0b;
+        --accent-purple: #8b5cf6;
+        --accent-cyan: #06b6d4;
+    }
+
+    .costing-container {
+        padding: 1.5rem;
+        background: var(--bg-dark);
+        min-height: calc(100vh - 60px);
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i {
+        color: var(--accent-green);
+    }
+
+    .header-controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .date-range {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        background: var(--bg-card);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .date-range input {
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .date-range span {
+        color: var(--text-secondary);
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+        border: none;
+    }
+
+    .btn-primary {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #2563eb;
+    }
+
+    .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    /* Summary Cards */
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .summary-card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .summary-label {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+    }
+
+    .summary-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .summary-value.currency::before {
+        content: '$';
+        font-size: 1.25rem;
+        color: var(--text-secondary);
+    }
+
+    .summary-change {
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .summary-change.positive { color: var(--accent-green); }
+    .summary-change.negative { color: var(--accent-red); }
+
+    /* Main Grid */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-body {
+        padding: 1.25rem;
+    }
+
+    /* Jobs Table */
+    .jobs-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .jobs-table th,
+    .jobs-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .jobs-table th {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    .jobs-table td {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .jobs-table tr:hover {
+        background: var(--bg-dark);
+    }
+
+    .job-link {
+        color: var(--accent-blue);
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .job-link:hover {
+        text-decoration: underline;
+    }
+
+    .variance {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .variance.under { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+    .variance.over { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .variance.on-target { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+
+    .progress-bar {
+        width: 100px;
+        height: 6px;
+        background: var(--bg-dark);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: var(--accent-blue);
+        border-radius: 3px;
+    }
+
+    /* Cost Breakdown */
+    .cost-breakdown {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .cost-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+    }
+
+    .cost-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .cost-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+    }
+
+    .cost-icon.labor { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .cost-icon.material { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+    .cost-icon.overhead { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+    .cost-icon.tooling { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+    .cost-icon.setup { background: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); }
+
+    .cost-label h4 {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .cost-label span {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+    }
+
+    .cost-values {
+        text-align: right;
+    }
+
+    .cost-amount {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .cost-percent {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    /* Chart Container */
+    .chart-container {
+        height: 200px;
+        position: relative;
+    }
+
+    /* Profitability Analysis */
+    .profit-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .profit-card {
+        padding: 1rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+        text-align: center;
+    }
+
+    .profit-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .profit-value.positive { color: var(--accent-green); }
+    .profit-value.negative { color: var(--accent-red); }
+
+    .profit-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    /* Rate Table */
+    .rate-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .rate-table th,
+    .rate-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .rate-table th {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.75rem;
+    }
+
+    .rate-table td {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .rate-input {
+        width: 80px;
+        padding: 0.375rem 0.5rem;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 0.25rem;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+        padding: 0 1.25rem;
+    }
+
+    .tab {
+        padding: 1rem 1.25rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        transition: all 0.2s;
+    }
+
+    .tab.active {
+        color: var(--accent-blue);
+        border-bottom-color: var(--accent-blue);
+    }
+
+    .tab:hover:not(.active) {
+        color: var(--text-primary);
+    }
+
+    /* Search */
+    .search-box {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--bg-dark);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .search-box input {
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        width: 200px;
+    }
+
+    .search-box input::placeholder {
+        color: var(--text-secondary);
+    }
+
+    .search-box i {
+        color: var(--text-secondary);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .summary-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        .main-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .summary-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="costing-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-calculator"></i>
+            Job Costing
+        </h1>
+        <div class="header-controls">
+            <div class="date-range">
+                <input type="date" id="start-date" value="2024-01-01">
+                <span>to</span>
+                <input type="date" id="end-date" value="2024-01-31">
+            </div>
+            <button class="btn btn-secondary">
+                <i class="fas fa-filter"></i>
+                Filters
+            </button>
+            <button class="btn btn-primary" onclick="exportCostData()">
+                <i class="fas fa-file-excel"></i>
+                Export
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-label">Total Revenue</div>
+            <div class="summary-value currency">247,850</div>
+            <div class="summary-change positive">
+                <i class="fas fa-arrow-up"></i> +12.5% vs last month
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Total Cost</div>
+            <div class="summary-value currency">186,420</div>
+            <div class="summary-change negative">
+                <i class="fas fa-arrow-up"></i> +8.2% vs last month
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Gross Profit</div>
+            <div class="summary-value currency">61,430</div>
+            <div class="summary-change positive">
+                <i class="fas fa-arrow-up"></i> +24.7% vs last month
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Avg Margin</div>
+            <div class="summary-value">24.8%</div>
+            <div class="summary-change positive">
+                <i class="fas fa-arrow-up"></i> +3.2pts
+            </div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Jobs Completed</div>
+            <div class="summary-value">47</div>
+            <div class="summary-change positive">
+                <i class="fas fa-arrow-up"></i> +5 vs last month
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-grid">
+        <!-- Left Column -->
+        <div class="left-column">
+            <!-- Jobs Table -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-briefcase"></i>
+                        Job Cost Summary
+                    </span>
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search jobs..." id="job-search">
+                    </div>
+                </div>
+                <div class="tabs">
+                    <span class="tab active" data-tab="all">All Jobs</span>
+                    <span class="tab" data-tab="active">In Progress</span>
+                    <span class="tab" data-tab="completed">Completed</span>
+                    <span class="tab" data-tab="over-budget">Over Budget</span>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="jobs-table">
+                        <thead>
+                            <tr>
+                                <th>Job #</th>
+                                <th>Customer</th>
+                                <th>Est. Cost</th>
+                                <th>Actual Cost</th>
+                                <th>Variance</th>
+                                <th>Progress</th>
+                                <th>Margin</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobs-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Cost Trend Chart -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-chart-line"></i>
+                        Cost Trends
+                    </span>
+                    <select class="btn btn-secondary" style="padding: 0.375rem 0.75rem;">
+                        <option>Last 30 Days</option>
+                        <option>Last 90 Days</option>
+                        <option>Year to Date</option>
+                    </select>
+                </div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="costTrendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="right-column">
+            <!-- Cost Breakdown -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-chart-pie"></i>
+                        Cost Breakdown
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="cost-breakdown" id="cost-breakdown">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profitability -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-dollar-sign"></i>
+                        Profitability Analysis
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="profit-grid">
+                        <div class="profit-card">
+                            <div class="profit-value positive">+$12,450</div>
+                            <div class="profit-label">Best Performer</div>
+                        </div>
+                        <div class="profit-card">
+                            <div class="profit-value negative">-$3,280</div>
+                            <div class="profit-label">Worst Performer</div>
+                        </div>
+                        <div class="profit-card">
+                            <div class="profit-value positive">32.4%</div>
+                            <div class="profit-label">Highest Margin</div>
+                        </div>
+                        <div class="profit-card">
+                            <div class="profit-value negative">-5.2%</div>
+                            <div class="profit-label">Lowest Margin</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Labor Rates -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-user-clock"></i>
+                        Labor Rates
+                    </span>
+                    <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="editRates()">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="rate-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Rate/Hr</th>
+                                <th>Burden</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>CNC Operator</td>
+                                <td>$45.00</td>
+                                <td>$67.50</td>
+                            </tr>
+                            <tr>
+                                <td>Setup Tech</td>
+                                <td>$55.00</td>
+                                <td>$82.50</td>
+                            </tr>
+                            <tr>
+                                <td>Programmer</td>
+                                <td>$65.00</td>
+                                <td>$97.50</td>
+                            </tr>
+                            <tr>
+                                <td>Inspector</td>
+                                <td>$50.00</td>
+                                <td>$75.00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Sample data
+    const jobs = [
+        { id: 'JOB-2024-001', customer: 'Aerospace Inc', estCost: 15200, actualCost: 14850, progress: 100, margin: 28.5 },
+        { id: 'JOB-2024-002', customer: 'AutoParts Co', estCost: 8500, actualCost: 9200, progress: 100, margin: 18.2 },
+        { id: 'JOB-2024-003', customer: 'Medical Dev', estCost: 22000, actualCost: 19500, progress: 85, margin: 32.4 },
+        { id: 'JOB-2024-004', customer: 'Defense LLC', estCost: 45000, actualCost: 42800, progress: 65, margin: 24.8 },
+        { id: 'JOB-2024-005', customer: 'Tech Systems', estCost: 12800, actualCost: 13500, progress: 100, margin: -5.2 },
+        { id: 'JOB-2024-006', customer: 'Robotics Inc', estCost: 18500, actualCost: 16200, progress: 40, margin: 26.1 },
+    ];
+
+    const costCategories = [
+        { name: 'Labor', icon: 'labor', amount: 74568, percent: 40 },
+        { name: 'Materials', icon: 'material', amount: 55926, percent: 30 },
+        { name: 'Overhead', icon: 'overhead', amount: 27963, percent: 15 },
+        { name: 'Tooling', icon: 'tooling', amount: 18642, percent: 10 },
+        { name: 'Setup', icon: 'setup', amount: 9321, percent: 5 },
+    ];
+
+    function renderJobs() {
+        const tbody = document.getElementById('jobs-body');
+        tbody.innerHTML = jobs.map(job => {
+            const variance = job.actualCost - job.estCost;
+            const variancePercent = ((variance / job.estCost) * 100).toFixed(1);
+            let varianceClass = 'on-target';
+            if (variancePercent < -5) varianceClass = 'under';
+            else if (variancePercent > 5) varianceClass = 'over';
+
+            return `
+                <tr>
+                    <td><a href="/portal/workorder/${job.id}" class="job-link">${job.id}</a></td>
+                    <td>${job.customer}</td>
+                    <td>$${job.estCost.toLocaleString()}</td>
+                    <td>$${job.actualCost.toLocaleString()}</td>
+                    <td>
+                        <span class="variance ${varianceClass}">
+                            ${variance >= 0 ? '+' : ''}$${variance.toLocaleString()} (${variancePercent}%)
+                        </span>
+                    </td>
+                    <td>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${job.progress}%"></div>
+                        </div>
+                    </td>
+                    <td style="color: ${job.margin >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'}">
+                        ${job.margin}%
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function renderCostBreakdown() {
+        const container = document.getElementById('cost-breakdown');
+        container.innerHTML = costCategories.map(cat => `
+            <div class="cost-item">
+                <div class="cost-info">
+                    <div class="cost-icon ${cat.icon}">
+                        <i class="fas fa-${cat.icon === 'labor' ? 'users' : cat.icon === 'material' ? 'cubes' : cat.icon === 'overhead' ? 'building' : cat.icon === 'tooling' ? 'tools' : 'cog'}"></i>
+                    </div>
+                    <div class="cost-label">
+                        <h4>${cat.name}</h4>
+                        <span>${cat.percent}% of total</span>
+                    </div>
+                </div>
+                <div class="cost-values">
+                    <div class="cost-amount">$${cat.amount.toLocaleString()}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function initChart() {
+        const ctx = document.getElementById('costTrendChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+                datasets: [
+                    {
+                        label: 'Estimated',
+                        data: [42000, 48000, 52000, 58000],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'Actual',
+                        data: [40500, 49200, 50800, 56200],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#94a3b8' }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8' }
+                    },
+                    y: {
+                        grid: { color: '#334155' },
+                        ticks: {
+                            color: '#94a3b8',
+                            callback: value => '$' + value.toLocaleString()
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    // Search
+    document.getElementById('job-search').addEventListener('input', function(e) {
+        const query = e.target.value.toLowerCase();
+        const rows = document.querySelectorAll('#jobs-body tr');
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(query) ? '' : 'none';
+        });
+    });
+
+    function exportCostData() {
+        alert('Exporting cost data to Excel...');
+    }
+
+    function editRates() {
+        alert('Opening rate editor...');
+    }
+
+    // Initialize
+    renderJobs();
+    renderCostBreakdown();
+    initChart();
+</script>
+{% endblock %}

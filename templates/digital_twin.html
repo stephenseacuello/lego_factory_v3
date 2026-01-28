@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Digital Twin - CNC SCADA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Three.js (r128 - last version with global THREE namespace for addons) -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <style>
+        :root {
+            --navy-900: #0a1628;
+            --navy-800: #0f2744;
+            --navy-700: #1a365d;
+            --navy-600: #2c5282;
+            --steel-800: #2d3748;
+            --steel-600: #718096;
+            --steel-400: #cbd5e0;
+            --gold-500: #d69e2e;
+            --status-success: #38a169;
+            --status-warning: #dd6b20;
+            --status-danger: #c53030;
+            --status-info: #3182ce;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Source Sans Pro', sans-serif;
+            background: linear-gradient(180deg, var(--navy-900) 0%, var(--navy-800) 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1800px; margin: 0 auto; }
+        .header {
+            background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%);
+            padding: 20px 30px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid var(--navy-600);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 24px; color: var(--gold-500); }
+        .header .status { display: flex; gap: 20px; align-items: center; }
+        .status-indicator {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px; border-radius: 20px;
+            background: rgba(0,0,0,0.3);
+        }
+        .status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        .status-dot.connected { background: var(--status-success); }
+        .status-dot.disconnected { background: var(--status-danger); }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .grid { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
+        .panel {
+            background: linear-gradient(135deg, var(--steel-800) 0%, var(--navy-800) 100%);
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid var(--navy-600);
+        }
+        .panel h2 {
+            font-size: 16px;
+            color: var(--gold-500);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--navy-600);
+        }
+        .twin-viewer {
+            background: #0a1628;
+            border-radius: 8px;
+            height: 600px;
+            position: relative;
+            overflow: hidden;
+        }
+        .twin-viewer canvas {
+            width: 100% !important;
+            height: 100% !important;
+            display: block;
+        }
+        .axis-display {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.85);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Roboto Mono', monospace;
+            border: 1px solid var(--navy-600);
+            z-index: 10;
+        }
+        .axis-row { display: flex; gap: 20px; margin: 5px 0; }
+        .axis-label { color: var(--gold-500); width: 20px; }
+        .axis-value { color: #0f0; }
+        .camera-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 10;
+        }
+        .camera-btn {
+            background: rgba(0,0,0,0.7);
+            border: 1px solid var(--navy-600);
+            color: var(--steel-400);
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .camera-btn:hover {
+            background: var(--navy-600);
+            color: #fff;
+        }
+        .camera-btn.active {
+            background: var(--gold-500);
+            color: var(--navy-900);
+        }
+        .loading-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 22, 40, 0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--navy-600);
+            border-top-color: var(--gold-500);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-text {
+            margin-top: 15px;
+            color: var(--steel-400);
+        }
+        .health-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .health-card {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .health-card .label { font-size: 12px; color: var(--steel-600); margin-bottom: 5px; }
+        .health-card .value { font-size: 28px; font-weight: bold; }
+        .health-card .trend { font-size: 11px; margin-top: 5px; }
+        .trend.improving { color: var(--status-success); }
+        .trend.stable { color: var(--status-info); }
+        .trend.declining { color: var(--status-warning); }
+        .tool-list { display: flex; flex-direction: column; gap: 10px; }
+        .tool-item {
+            background: rgba(0,0,0,0.3);
+            padding: 12px 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tool-info .name { font-weight: 600; }
+        .tool-info .detail { font-size: 12px; color: var(--steel-600); }
+        .wear-bar {
+            width: 100px; height: 8px;
+            background: var(--steel-800);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .wear-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s;
+        }
+        .wear-fill.good { background: var(--status-success); }
+        .wear-fill.warning { background: var(--status-warning); }
+        .wear-fill.critical { background: var(--status-danger); }
+        .state-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .state-item {
+            background: rgba(0,0,0,0.3);
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .state-item .label { font-size: 11px; color: var(--steel-600); }
+        .state-item .value { font-size: 16px; font-weight: 600; margin-top: 4px; }
+        .robot-status {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .robot-card {
+            background: rgba(0,0,0,0.3);
+            padding: 12px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .robot-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--navy-600);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        .robot-info { flex: 1; }
+        .robot-name { font-weight: 600; }
+        .robot-state { font-size: 12px; color: var(--steel-600); }
+        .refresh-time { font-size: 12px; color: var(--steel-600); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation Bar -->
+        <nav style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px 15px; background: rgba(0,0,0,0.3); border-radius: 6px;">
+            <a href="/" style="color: var(--steel-400); text-decoration: none;">&larr; Main Dashboard</a>
+            <div style="display: flex; gap: 10px;">
+                <a href="/digital-twin" style="color: #fff; text-decoration: none; padding: 4px 10px; background: var(--navy-600); border-radius: 4px; font-size: 0.85rem;">Digital Twin</a>
+                <a href="/scheduling" style="color: var(--gold-500); text-decoration: none; padding: 4px 10px; background: rgba(214,158,46,0.15); border-radius: 4px; font-size: 0.85rem;">Scheduling</a>
+                <a href="/sensors" style="color: var(--gold-500); text-decoration: none; padding: 4px 10px; background: rgba(214,158,46,0.15); border-radius: 4px; font-size: 0.85rem;">Sensors</a>
+                <a href="/mcp" style="color: var(--gold-500); text-decoration: none; padding: 4px 10px; background: rgba(214,158,46,0.15); border-radius: 4px; font-size: 0.85rem;">MCP</a>
+            </div>
+        </nav>
+
+        <div class="header">
+            <div>
+                <h1>Factory Digital Twin - LABFAB Cell</h1>
+                <span style="font-size: 12px; color: var(--steel-600);">Niryo Ned2 + xArm Lite 6 + Bantam CNC</span>
+            </div>
+            <div class="status">
+                <div class="status-indicator">
+                    <span class="status-dot" id="connectionStatus"></span>
+                    <span id="connectionText">Connecting...</span>
+                </div>
+                <span class="refresh-time">Updated: <span id="lastUpdate">--</span></span>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="panel">
+                <h2>3D Factory Visualization</h2>
+                <div class="twin-viewer" id="twinViewer">
+                    <!-- Loading overlay -->
+                    <div class="loading-overlay" id="loadingOverlay">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text" id="loadingText">Initializing 3D scene...</div>
+                    </div>
+
+                    <!-- Camera controls -->
+                    <div class="camera-controls">
+                        <button class="camera-btn active" data-view="overview">Overview</button>
+                        <button class="camera-btn" data-view="front">Front</button>
+                        <button class="camera-btn" data-view="side">Side</button>
+                        <button class="camera-btn" data-view="top">Top</button>
+                        <button class="camera-btn" data-view="close-spindle">Spindle</button>
+                    </div>
+
+                    <!-- Position display -->
+                    <div class="axis-display">
+                        <div style="font-size: 11px; color: var(--steel-600); margin-bottom: 8px;">CNC Position</div>
+                        <div class="axis-row">
+                            <span class="axis-label">X:</span>
+                            <span class="axis-value" id="posX">0.000</span>
+                        </div>
+                        <div class="axis-row">
+                            <span class="axis-label">Y:</span>
+                            <span class="axis-value" id="posY">0.000</span>
+                        </div>
+                        <div class="axis-row">
+                            <span class="axis-label">Z:</span>
+                            <span class="axis-value" id="posZ">0.000</span>
+                        </div>
+                        <div class="axis-row" style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
+                            <span class="axis-label">S:</span>
+                            <span class="axis-value" id="spindleRpm">0</span>
+                            <span style="color: #666; margin-left: 5px;">RPM</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <!-- Robot Status -->
+                <div class="panel">
+                    <h2>Robot Status</h2>
+                    <div class="robot-status">
+                        <div class="robot-card">
+                            <div class="robot-icon">N</div>
+                            <div class="robot-info">
+                                <div class="robot-name">Niryo Ned2</div>
+                                <div class="robot-state" id="ned2State">Idle</div>
+                            </div>
+                            <span class="status-dot connected" id="ned2Status"></span>
+                        </div>
+                        <div class="robot-card">
+                            <div class="robot-icon">X</div>
+                            <div class="robot-info">
+                                <div class="robot-name">xArm Lite 6</div>
+                                <div class="robot-state" id="xarmState">Idle</div>
+                            </div>
+                            <span class="status-dot connected" id="xarmStatus"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Machine Health -->
+                <div class="panel">
+                    <h2>Machine Health</h2>
+                    <div class="health-grid">
+                        <div class="health-card">
+                            <div class="label">Overall Health</div>
+                            <div class="value" id="healthOverall" style="color: var(--status-success)">--</div>
+                            <div class="trend stable" id="healthOverallTrend">Loading...</div>
+                        </div>
+                        <div class="health-card">
+                            <div class="label">Spindle</div>
+                            <div class="value" id="healthSpindle">--</div>
+                            <div class="trend" id="healthSpindleTrend">--</div>
+                        </div>
+                        <div class="health-card">
+                            <div class="label">Bearing</div>
+                            <div class="value" id="healthBearing">--</div>
+                            <div class="trend" id="healthBearingTrend">--</div>
+                        </div>
+                        <div class="health-card">
+                            <div class="label">Motor</div>
+                            <div class="value" id="healthMotor">--</div>
+                            <div class="trend" id="healthMotorTrend">--</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tool Wear Predictions -->
+                <div class="panel">
+                    <h2>Tool Wear Predictions</h2>
+                    <div class="tool-list" id="toolList">
+                        <div class="tool-item">
+                            <div class="tool-info">
+                                <div class="name">Loading...</div>
+                                <div class="detail">Fetching tool data</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Operational State -->
+                <div class="panel">
+                    <h2>Operational State</h2>
+                    <div class="state-grid">
+                        <div class="state-item">
+                            <div class="label">Execution</div>
+                            <div class="value" id="stateExecution">--</div>
+                        </div>
+                        <div class="state-item">
+                            <div class="label">Mode</div>
+                            <div class="value" id="stateMode">--</div>
+                        </div>
+                        <div class="state-item">
+                            <div class="label">Program</div>
+                            <div class="value" id="stateProgram">--</div>
+                        </div>
+                        <div class="state-item">
+                            <div class="label">Line</div>
+                            <div class="value" id="stateLine">--</div>
+                        </div>
+                        <div class="state-item">
+                            <div class="label">Feed Override</div>
+                            <div class="value" id="stateFeed">--</div>
+                        </div>
+                        <div class="state-item">
+                            <div class="label">Quality Score</div>
+                            <div class="value" id="stateQuality">--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js Digital Twin Script -->
+    <script src="/static/js/three-digital-twin.js"></script>
+    <script>
+        const MACHINE_ID = 'mill-01';
+        let socket;
+        let scene;
+
+        // Initialize Three.js scene
+        async function initScene() {
+            const loadingText = document.getElementById('loadingText');
+            const loadingOverlay = document.getElementById('loadingOverlay');
+
+            try {
+                // Create scene
+                loadingText.textContent = 'Creating 3D scene...';
+                scene = new DigitalTwinScene('twinViewer');
+
+                // Load Bantam Explorer CNC from STL models
+                loadingText.textContent = 'Loading Bantam Explorer CNC...';
+                try {
+                    await scene.loadBantamExplorer('bantam-cnc', { x: 0, y: 0, z: 0 });
+                } catch (e) {
+                    console.warn('Failed to load Bantam STL models, using parametric fallback');
+                    scene.createCNCMachine('bantam-cnc', { x: 0, y: 0, z: 0 }, {
+                        width: 300,
+                        depth: 200,
+                        height: 150,
+                        color: 0x4a5568
+                    });
+                }
+
+                // Load Niryo Ned2 robot (positioned to the left)
+                loadingText.textContent = 'Loading Niryo Ned2 robot...';
+                try {
+                    await scene.loadNiryoNed2('ned2', { x: -150, y: 0, z: 0 });
+                } catch (e) {
+                    console.warn('Failed to load Ned2 STL models, using placeholder');
+                    createPlaceholderRobot('ned2', { x: -150, y: 0, z: 0 }, 0x2c5282);
+                }
+
+                // Load xArm robot (positioned to the right)
+                loadingText.textContent = 'Loading xArm Lite 6 robot...';
+                try {
+                    await scene.loadXArm('xarm', { x: 150, y: 0, z: 0 });
+                } catch (e) {
+                    console.warn('Failed to load xArm STL models, using placeholder');
+                    createPlaceholderRobot('xarm', { x: 150, y: 0, z: 0 }, 0xcccccc);
+                }
+
+                // Hide loading overlay
+                loadingOverlay.style.display = 'none';
+
+                // Set initial camera view
+                scene.setCameraView('overview');
+
+                console.log('Digital Twin scene initialized successfully');
+
+            } catch (error) {
+                console.error('Failed to initialize scene:', error);
+                loadingText.textContent = 'Error initializing 3D scene: ' + error.message;
+            }
+        }
+
+        // Create placeholder robot if STL loading fails
+        function createPlaceholderRobot(name, position, color) {
+            if (!scene) return;
+
+            const group = new THREE.Group();
+            group.position.set(position.x, position.y, position.z);
+
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.4,
+                metalness: 0.6
+            });
+
+            // Base
+            const baseGeom = new THREE.CylinderGeometry(30, 35, 20, 16);
+            const base = new THREE.Mesh(baseGeom, material);
+            base.position.y = 10;
+            base.castShadow = true;
+            group.add(base);
+
+            // Arm segments - scaled for scene
+            const segments = [
+                { height: 60, radius: 20 },
+                { height: 80, radius: 15 },
+                { height: 60, radius: 12 },
+                { height: 40, radius: 10 }
+            ];
+
+            let y = 20;
+            segments.forEach((seg, i) => {
+                const geom = new THREE.CylinderGeometry(seg.radius, seg.radius, seg.height, 12);
+                const mesh = new THREE.Mesh(geom, material);
+                mesh.position.y = y + seg.height / 2;
+                mesh.castShadow = true;
+                group.add(mesh);
+                y += seg.height;
+            });
+
+            scene.scene.add(group);
+
+            // Store as a simple robot for animation
+            scene.robots[name] = {
+                name: name,
+                type: 'placeholder',
+                group: group,
+                links: [],
+                joints: [0, 0, 0, 0, 0, 0]
+            };
+        }
+
+        // Camera view buttons
+        document.querySelectorAll('.camera-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.camera-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if (scene) {
+                    scene.setCameraView(btn.dataset.view);
+                }
+            });
+        });
+
+        // Connect to Socket.IO for real-time updates
+        function connectSocket() {
+            socket = io({
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                document.getElementById('connectionStatus').className = 'status-dot connected';
+                document.getElementById('connectionText').textContent = 'Connected';
+                socket.emit('join', { room: `unity:${MACHINE_ID}` });
+            });
+
+            socket.on('disconnect', () => {
+                document.getElementById('connectionStatus').className = 'status-dot disconnected';
+                document.getElementById('connectionText').textContent = 'Disconnected';
+            });
+
+            socket.on('unity_state', (data) => {
+                updateMachineState(data);
+            });
+
+            // Factory cell updates
+            socket.on('factory_state', (data) => {
+                updateFactoryState(data);
+            });
+        }
+
+        // Fetch Unity state
+        async function fetchUnityState() {
+            try {
+                const response = await fetch(`/api/unity/state/${MACHINE_ID}`);
+                const data = await response.json();
+                if (!data.error) {
+                    updateMachineState(data);
+                }
+            } catch (e) {
+                console.error('Error fetching state:', e);
+            }
+        }
+
+        // Fetch predictive health
+        async function fetchHealth() {
+            try {
+                const response = await fetch(`/api/predictive/unity/${MACHINE_ID}/health`);
+                const data = await response.json();
+                if (data.success && data.data) {
+                    updateHealth(data.data);
+                }
+            } catch (e) {
+                console.error('Error fetching health:', e);
+            }
+        }
+
+        // Fetch tool predictions
+        async function fetchTools() {
+            try {
+                const response = await fetch(`/api/predictive/unity/${MACHINE_ID}/tools`);
+                const data = await response.json();
+                if (data.tools) {
+                    updateTools(data.tools);
+                }
+            } catch (e) {
+                console.error('Error fetching tools:', e);
+            }
+        }
+
+        function updateMachineState(data) {
+            // Update position display
+            if (data.position) {
+                const x = data.position.x || 0;
+                const y = data.position.y || 0;
+                const z = data.position.z || 0;
+
+                document.getElementById('posX').textContent = x.toFixed(3);
+                document.getElementById('posY').textContent = y.toFixed(3);
+                document.getElementById('posZ').textContent = z.toFixed(3);
+
+                // Update 3D scene
+                if (scene) {
+                    const spindle = data.kinematics?.spindle?.speed || 0;
+                    scene.setMachinePosition('bantam-cnc', x, y, z, spindle);
+                }
+            }
+
+            // Update spindle RPM
+            if (data.kinematics && data.kinematics.spindle) {
+                document.getElementById('spindleRpm').textContent = Math.round(data.kinematics.spindle.speed || 0);
+            }
+
+            // Update operational state
+            if (data.operational_state) {
+                document.getElementById('stateExecution').textContent = data.operational_state.execution || '--';
+                document.getElementById('stateMode').textContent = data.operational_state.mode || '--';
+                document.getElementById('stateProgram').textContent = data.operational_state.program || 'None';
+                document.getElementById('stateLine').textContent = data.operational_state.line_number || '0';
+                document.getElementById('stateFeed').textContent = (data.operational_state.feed_override || 100) + '%';
+
+                // Update machine status light
+                if (scene) {
+                    scene.setMachineStatus('bantam-cnc', data.operational_state.execution);
+                }
+            }
+
+            if (data.quality_score !== undefined) {
+                document.getElementById('stateQuality').textContent = (data.quality_score * 100).toFixed(1) + '%';
+            }
+
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        function updateFactoryState(data) {
+            // Update robot states
+            if (data.robots) {
+                if (data.robots.ned2) {
+                    document.getElementById('ned2State').textContent = data.robots.ned2.state || 'Unknown';
+                    if (scene && data.robots.ned2.joints) {
+                        scene.setRobotJoints('ned2', data.robots.ned2.joints);
+                    }
+                }
+                if (data.robots.xarm) {
+                    document.getElementById('xarmState').textContent = data.robots.xarm.state || 'Unknown';
+                    if (scene && data.robots.xarm.joints) {
+                        scene.setRobotJoints('xarm', data.robots.xarm.joints);
+                    }
+                }
+            }
+        }
+
+        function updateHealth(data) {
+            if (data.overall) {
+                document.getElementById('healthOverall').textContent = data.overall.score.toFixed(1) + '%';
+                const overallEl = document.getElementById('healthOverall');
+                overallEl.style.color = getHealthColor(data.overall.score);
+            }
+
+            if (data.components) {
+                for (const [name, comp] of Object.entries(data.components)) {
+                    const el = document.getElementById(`health${name.charAt(0).toUpperCase() + name.slice(1)}`);
+                    const trendEl = document.getElementById(`health${name.charAt(0).toUpperCase() + name.slice(1)}Trend`);
+                    if (el) {
+                        el.textContent = comp.score.toFixed(1) + '%';
+                        el.style.color = getHealthColor(comp.score);
+                    }
+                    if (trendEl && comp.trend) {
+                        trendEl.textContent = comp.trend.charAt(0).toUpperCase() + comp.trend.slice(1);
+                        trendEl.className = `trend ${comp.trend}`;
+                    }
+                }
+            }
+        }
+
+        function updateTools(tools) {
+            const container = document.getElementById('toolList');
+            container.innerHTML = tools.map(tool => `
+                <div class="tool-item">
+                    <div class="tool-info">
+                        <div class="name">T${tool.tool_number}: ${tool.tool_name}</div>
+                        <div class="detail">${tool.life_remaining_hours.toFixed(1)}h remaining (${(tool.confidence * 100).toFixed(0)}% conf)</div>
+                    </div>
+                    <div>
+                        <div class="wear-bar">
+                            <div class="wear-fill ${getWearClass(tool.wear_percent)}" style="width: ${tool.wear_percent}%"></div>
+                        </div>
+                        <div style="font-size: 11px; text-align: right; margin-top: 4px;">${tool.wear_percent.toFixed(1)}% worn</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getHealthColor(score) {
+            if (score >= 90) return 'var(--status-success)';
+            if (score >= 70) return 'var(--status-warning)';
+            return 'var(--status-danger)';
+        }
+
+        function getWearClass(percent) {
+            if (percent < 50) return 'good';
+            if (percent < 80) return 'warning';
+            return 'critical';
+        }
+
+        // Demo animation for robots when no real data
+        let demoTime = 0;
+        function demoAnimation() {
+            if (!scene) return;
+
+            demoTime += 0.02;
+
+            // Animate Ned2 robot
+            const ned2Joints = [
+                Math.sin(demoTime * 0.5) * 0.5,
+                Math.sin(demoTime * 0.3) * 0.3 - 0.3,
+                Math.sin(demoTime * 0.4) * 0.4,
+                Math.sin(demoTime * 0.6) * 0.3,
+                Math.sin(demoTime * 0.7) * 0.2,
+                demoTime * 0.5
+            ];
+            scene.setRobotJoints('ned2', ned2Joints);
+
+            // Animate xArm robot
+            const xarmJoints = [
+                Math.sin(demoTime * 0.4 + 1) * 0.5,
+                Math.sin(demoTime * 0.35 + 1) * 0.3 - 0.2,
+                Math.sin(demoTime * 0.45 + 1) * 0.35,
+                Math.sin(demoTime * 0.55 + 1) * 0.25,
+                Math.sin(demoTime * 0.65 + 1) * 0.2,
+                demoTime * 0.4
+            ];
+            scene.setRobotJoints('xarm', xarmJoints);
+
+            // Animate CNC position
+            const cncX = Math.sin(demoTime * 0.3) * 50;
+            const cncY = Math.cos(demoTime * 0.25) * 30;
+            const cncZ = Math.sin(demoTime * 0.2) * 20 + 30;
+            scene.setMachinePosition('bantam-cnc', cncX, cncY, cncZ, 8000);
+
+            // Update position display
+            document.getElementById('posX').textContent = cncX.toFixed(3);
+            document.getElementById('posY').textContent = cncY.toFixed(3);
+            document.getElementById('posZ').textContent = cncZ.toFixed(3);
+            document.getElementById('spindleRpm').textContent = '8000';
+
+            requestAnimationFrame(demoAnimation);
+        }
+
+        // Initialize
+        initScene().then(() => {
+            connectSocket();
+            fetchUnityState();
+            fetchHealth();
+            fetchTools();
+
+            // Start demo animation (remove this when real data is available)
+            demoAnimation();
+        });
+
+        // Poll for updates
+        setInterval(fetchUnityState, 2000);
+        setInterval(fetchHealth, 10000);
+        setInterval(fetchTools, 10000);
+    </script>
+</body>
+</html>

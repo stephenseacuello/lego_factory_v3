@@ -1,0 +1,129 @@
+# Fleet Manager Configuration
+# Machine capabilities and dispatch parameters
+
+fleet_manager:
+  ros__parameters:
+    # Heartbeat monitoring
+    heartbeat_timeout: 10.0  # seconds before machine considered offline
+
+    # Default dispatch strategy (1=LEAST_LOADED)
+    # 0=ROUND_ROBIN, 1=LEAST_LOADED, 2=HIGHEST_OEE, 3=SHORTEST_QUEUE, 4=MANUAL
+    default_strategy: 1
+
+    # Machine definitions
+    # Note: Machines auto-register when they publish status,
+    # but pre-defining them enables capability filtering
+    machines:
+      tinyg_001:
+        type: cnc_mill
+        capabilities:
+          - milling
+          - drilling
+          - tapping
+          - engraving
+          - facing
+          - contouring
+        work_envelope:
+          x: 300.0  # mm
+          y: 200.0
+          z: 100.0
+        max_spindle_rpm: 10000
+        max_feed_rate: 5000.0  # mm/min
+        tool_capacity: 6
+        coolant_types:
+          - flood
+          - mist
+
+      tinyg_002:
+        type: cnc_mill
+        capabilities:
+          - milling
+          - drilling
+          - tapping
+          - engraving
+        work_envelope:
+          x: 300.0
+          y: 200.0
+          z: 100.0
+        max_spindle_rpm: 10000
+        max_feed_rate: 5000.0
+        tool_capacity: 6
+        coolant_types:
+          - flood
+
+      grbl_001:
+        type: cnc_router
+        capabilities:
+          - routing
+          - drilling
+          - engraving
+          - profiling
+          - pocketing
+        work_envelope:
+          x: 600.0
+          y: 400.0
+          z: 50.0
+        max_spindle_rpm: 24000
+        max_feed_rate: 8000.0
+        tool_capacity: 1  # Manual tool change
+        coolant_types: []  # Dust collection only
+
+      grbl_002:
+        type: cnc_router
+        capabilities:
+          - routing
+          - drilling
+          - engraving
+        work_envelope:
+          x: 400.0
+          y: 300.0
+          z: 50.0
+        max_spindle_rpm: 20000
+        max_feed_rate: 6000.0
+        tool_capacity: 1
+        coolant_types: []
+
+      laser_001:
+        type: laser_engraver
+        capabilities:
+          - engraving
+          - cutting_thin
+          - marking
+          - etching
+        work_envelope:
+          x: 400.0
+          y: 400.0
+          z: 0.0  # 2D only
+        max_power_watts: 40
+        max_feed_rate: 10000.0
+        supported_materials:
+          - wood
+          - acrylic
+          - leather
+          - paper
+          - anodized_aluminum
+
+    # Dispatch strategy weights (for multi-objective optimization)
+    dispatch_weights:
+      queue_depth: 0.3      # Prefer machines with shorter queues
+      oee_score: 0.3        # Prefer machines with higher OEE
+      capability_match: 0.2 # Prefer exact capability matches
+      proximity: 0.1        # Prefer machines near material source
+      energy: 0.1           # Prefer more energy-efficient machines
+
+    # Allocation defaults
+    allocation:
+      max_duration_minutes: 480  # 8 hours max allocation
+      auto_expire: true
+      require_reason: true
+
+    # Job queue limits
+    queue:
+      max_depth_per_machine: 100
+      warn_at_depth: 50
+
+    # Fleet status publishing
+    status:
+      publish_interval: 5.0  # seconds
+      include_oee: true
+      include_queues: true

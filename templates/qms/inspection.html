@@ -1,0 +1,799 @@
+{% extends "base.html" %}
+
+{% block title %}Inspections - LEGO Factory v3{% endblock %}
+
+{% block extra_css %}
+<style>
+.measurement-input {
+    width: 100px;
+}
+
+.tolerance-cell {
+    font-size: 0.85rem;
+    color: #6c757d;
+}
+
+.pass-cell { color: #28a745; font-weight: bold; }
+.fail-cell { color: #dc3545; font-weight: bold; }
+
+.inspection-card {
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.inspection-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.critical-badge {
+    background-color: #dc3545 !important;
+}
+
+.dimension-row.fail {
+    background-color: #f8d7da;
+}
+
+.stat-gauge {
+    width: 120px;
+    height: 60px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="bi bi-clipboard-check me-2"></i>Quality Inspections</h2>
+            <p class="text-muted mb-0">Manage inspection records and measurements</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newInspectionModal">
+                <i class="bi bi-plus-lg me-1"></i> Create Inspection
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Inspections Today</h6>
+                            <h3 class="mb-0" id="stat-today">--</h3>
+                        </div>
+                        <i class="bi bi-calendar-check fs-1 text-primary opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card success h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Pass Rate</h6>
+                            <h3 class="mb-0" id="stat-pass-rate">--%</h3>
+                        </div>
+                        <i class="bi bi-check-circle fs-1 text-success opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card danger h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Open NCRs</h6>
+                            <h3 class="mb-0" id="stat-ncrs">--</h3>
+                        </div>
+                        <i class="bi bi-exclamation-triangle fs-1 text-danger opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card warning h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Pending</h6>
+                            <h3 class="mb-0" id="stat-pending">--</h3>
+                        </div>
+                        <i class="bi bi-hourglass-split fs-1 text-warning opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <ul class="nav nav-tabs mb-3" id="inspectionTabs">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#pending-tab">
+                <i class="bi bi-hourglass me-1"></i> Pending
+                <span class="badge bg-warning text-dark ms-1" id="pending-count">0</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#completed-tab">
+                <i class="bi bi-check-all me-1"></i> Completed
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#failed-tab">
+                <i class="bi bi-x-circle me-1"></i> Failed
+                <span class="badge bg-danger ms-1" id="failed-count">0</span>
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Pending Inspections -->
+        <div class="tab-pane fade show active" id="pending-tab">
+            <div class="row" id="pending-inspections">
+                <!-- Loaded dynamically -->
+            </div>
+        </div>
+
+        <!-- Completed Inspections -->
+        <div class="tab-pane fade" id="completed-tab">
+            <div class="card">
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Inspection #</th>
+                                <th>Job / Serial</th>
+                                <th>Plan</th>
+                                <th>Inspector</th>
+                                <th>Result</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="completed-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Failed Inspections -->
+        <div class="tab-pane fade" id="failed-tab">
+            <div class="card">
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Inspection #</th>
+                                <th>Job / Serial</th>
+                                <th>Plan</th>
+                                <th>Failed Dimensions</th>
+                                <th>NCR #</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="failed-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Inspection Modal -->
+<div class="modal fade" id="newInspectionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Inspection</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="new-inspection-form">
+                    <div class="mb-3">
+                        <label class="form-label">Job / Work Order</label>
+                        <select class="form-select" id="new-job-id" required>
+                            <option value="">Select Job</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Inspection Plan</label>
+                        <select class="form-select" id="new-plan-id" required>
+                            <option value="">Select Plan</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Serial Number (optional)</label>
+                        <input type="text" class="form-control" id="new-serial">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Lot Number (optional)</label>
+                        <input type="text" class="form-control" id="new-lot">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-control" id="new-quantity" value="1" min="1">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createInspection()">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inspection Detail Modal -->
+<div class="modal fade" id="inspectionDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <span id="detail-title">Inspection Details</span>
+                    <span class="badge ms-2" id="detail-status-badge"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Info Row -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <small class="text-muted">Inspection #</small>
+                        <div class="fw-bold" id="detail-number">--</div>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">Job / Work Order</small>
+                        <div class="fw-bold" id="detail-job">--</div>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">Serial / Lot</small>
+                        <div class="fw-bold" id="detail-serial">--</div>
+                    </div>
+                    <div class="col-md-3">
+                        <small class="text-muted">Inspector</small>
+                        <div class="fw-bold" id="detail-inspector">--</div>
+                    </div>
+                </div>
+
+                <!-- Measurements Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">Measurements</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Characteristic</th>
+                                    <th>Nominal</th>
+                                    <th>Tolerance</th>
+                                    <th>Actual</th>
+                                    <th>Deviation</th>
+                                    <th>Result</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detail-measurements">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4 class="mb-0" id="detail-passed">--</h4>
+                                <small class="text-muted">Passed</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4 class="mb-0 text-danger" id="detail-failed">--</h4>
+                                <small class="text-muted">Failed</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4 class="mb-0" id="detail-total">--</h4>
+                                <small class="text-muted">Total</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Perform Inspection Modal -->
+<div class="modal fade" id="performInspectionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Perform Inspection</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong id="perform-inspection-number"></strong>
+                    <span class="text-muted ms-2" id="perform-plan-name"></span>
+                </div>
+
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Characteristic</th>
+                            <th>Nominal</th>
+                            <th>Tolerance</th>
+                            <th>Measured Value</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="perform-measurements">
+                    </tbody>
+                </table>
+
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control" id="perform-notes" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="completeInspection()">
+                    <i class="bi bi-check-lg me-1"></i> Complete Inspection
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentInspectionId = null;
+let inspectionCharacteristics = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadInspections();
+    loadJobs();
+    loadPlans();
+    loadStats();
+});
+
+async function loadStats() {
+    try {
+        const response = await fetch('/api/qms/inspections/stats');
+        const stats = await response.json();
+
+        document.getElementById('stat-today').textContent = stats.total_inspections || 0;
+        document.getElementById('stat-pass-rate').textContent = (stats.pass_rate || 0).toFixed(1) + '%';
+        document.getElementById('stat-ncrs').textContent = stats.ncr_count || 0;
+    } catch (error) {
+        console.error('Failed to load stats:', error);
+        displaySampleStats();
+    }
+}
+
+function displaySampleStats() {
+    document.getElementById('stat-today').textContent = '12';
+    document.getElementById('stat-pass-rate').textContent = '91.7%';
+    document.getElementById('stat-ncrs').textContent = '1';
+    document.getElementById('stat-pending').textContent = '3';
+}
+
+async function loadInspections() {
+    try {
+        const response = await fetch('/api/qms/inspections');
+        const data = await response.json();
+        displayInspections(data);
+    } catch (error) {
+        console.error('Failed to load inspections:', error);
+        displaySampleInspections();
+    }
+}
+
+function displaySampleInspections() {
+    const sampleData = {
+        pending: [
+            {
+                id: 'insp-1',
+                inspection_number: 'INS-20260128-001',
+                job_id: 'WO-2024-001',
+                serial_number: 'SN-001',
+                plan_name: 'Brick Dimension Check',
+                inspection_type: 'in_process',
+                status: 'pending',
+            },
+            {
+                id: 'insp-2',
+                inspection_number: 'INS-20260128-002',
+                job_id: 'WO-2024-002',
+                serial_number: 'SN-002',
+                plan_name: 'First Article Inspection',
+                inspection_type: 'first_article',
+                status: 'in_progress',
+            },
+        ],
+        completed: [
+            {
+                id: 'insp-3',
+                inspection_number: 'INS-20260127-001',
+                job_id: 'WO-2024-001',
+                serial_number: 'SN-003',
+                plan_name: 'Final Inspection',
+                inspector_id: 'W004',
+                status: 'passed',
+                completed_at: '2026-01-27T14:30:00Z',
+            },
+            {
+                id: 'insp-4',
+                inspection_number: 'INS-20260127-002',
+                job_id: 'WO-2024-003',
+                serial_number: 'SN-004',
+                plan_name: 'Dimension Check',
+                inspector_id: 'W004',
+                status: 'passed',
+                completed_at: '2026-01-27T10:15:00Z',
+            },
+        ],
+        failed: [
+            {
+                id: 'insp-5',
+                inspection_number: 'INS-20260126-003',
+                job_id: 'WO-2024-002',
+                serial_number: 'SN-005',
+                plan_name: 'Final Inspection',
+                failed_count: 2,
+                ncr_number: 'NCR-20260126-001',
+                status: 'failed',
+                completed_at: '2026-01-26T16:45:00Z',
+            },
+        ],
+    };
+
+    displayInspections(sampleData);
+}
+
+function displayInspections(data) {
+    // Pending
+    const pendingContainer = document.getElementById('pending-inspections');
+    const pending = data.pending || [];
+
+    document.getElementById('pending-count').textContent = pending.length;
+    document.getElementById('stat-pending').textContent = pending.length;
+
+    if (pending.length === 0) {
+        pendingContainer.innerHTML = '<div class="col-12 text-center text-muted py-4">No pending inspections</div>';
+    } else {
+        pendingContainer.innerHTML = pending.map(insp => `
+            <div class="col-md-4 mb-3">
+                <div class="card inspection-card h-100" onclick="performInspection('${insp.id}')">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h6 class="mb-0">${insp.inspection_number}</h6>
+                            <span class="badge ${insp.status === 'in_progress' ? 'bg-primary' : 'bg-warning text-dark'}">${insp.status}</span>
+                        </div>
+                        <p class="text-muted mb-1">
+                            <i class="bi bi-box me-1"></i> ${insp.job_id}
+                            ${insp.serial_number ? `<br><i class="bi bi-upc me-1"></i> ${insp.serial_number}` : ''}
+                        </p>
+                        <p class="mb-0">
+                            <span class="badge bg-light text-dark">${insp.inspection_type}</span>
+                            <span class="text-muted ms-2">${insp.plan_name}</span>
+                        </p>
+                    </div>
+                    <div class="card-footer bg-transparent border-0">
+                        <button class="btn btn-sm btn-outline-primary w-100">
+                            <i class="bi bi-play-fill me-1"></i> Start Inspection
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Completed
+    const completedBody = document.getElementById('completed-body');
+    const completed = data.completed || [];
+
+    if (completed.length === 0) {
+        completedBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No completed inspections</td></tr>';
+    } else {
+        completedBody.innerHTML = completed.map(insp => `
+            <tr>
+                <td>${insp.inspection_number}</td>
+                <td>${insp.job_id} / ${insp.serial_number || '--'}</td>
+                <td>${insp.plan_name}</td>
+                <td>${insp.inspector_id || '--'}</td>
+                <td><span class="badge bg-success">Passed</span></td>
+                <td>${insp.completed_at ? new Date(insp.completed_at).toLocaleDateString() : '--'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="viewInspection('${insp.id}')">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // Failed
+    const failedBody = document.getElementById('failed-body');
+    const failed = data.failed || [];
+
+    document.getElementById('failed-count').textContent = failed.length;
+
+    if (failed.length === 0) {
+        failedBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No failed inspections</td></tr>';
+    } else {
+        failedBody.innerHTML = failed.map(insp => `
+            <tr class="table-danger">
+                <td>${insp.inspection_number}</td>
+                <td>${insp.job_id} / ${insp.serial_number || '--'}</td>
+                <td>${insp.plan_name}</td>
+                <td><span class="badge bg-danger">${insp.failed_count} failed</span></td>
+                <td>
+                    ${insp.ncr_number ?
+                        `<a href="/qms/ncr/${insp.ncr_number}">${insp.ncr_number}</a>` :
+                        '--'}
+                </td>
+                <td>${insp.completed_at ? new Date(insp.completed_at).toLocaleDateString() : '--'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="viewInspection('${insp.id}')">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    }
+}
+
+async function loadJobs() {
+    // Load active jobs for dropdown
+    const select = document.getElementById('new-job-id');
+    const sampleJobs = ['WO-2024-001', 'WO-2024-002', 'WO-2024-003', 'WO-2024-004'];
+    sampleJobs.forEach(j => {
+        select.innerHTML += `<option value="${j}">${j}</option>`;
+    });
+}
+
+async function loadPlans() {
+    // Load inspection plans for dropdown
+    const select = document.getElementById('new-plan-id');
+    const samplePlans = [
+        { id: 'plan-1', name: 'Brick Dimension Check' },
+        { id: 'plan-2', name: 'First Article Inspection' },
+        { id: 'plan-3', name: 'Final Inspection' },
+        { id: 'plan-4', name: 'Receiving Inspection' },
+    ];
+    samplePlans.forEach(p => {
+        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+    });
+}
+
+async function createInspection() {
+    const data = {
+        job_id: document.getElementById('new-job-id').value,
+        plan_id: document.getElementById('new-plan-id').value,
+        serial_number: document.getElementById('new-serial').value || null,
+        lot_number: document.getElementById('new-lot').value || null,
+        quantity: parseInt(document.getElementById('new-quantity').value) || 1,
+    };
+
+    try {
+        const response = await fetch('/api/qms/inspections', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('newInspectionModal')).hide();
+            document.getElementById('new-inspection-form').reset();
+            loadInspections();
+        } else {
+            alert('Failed to create inspection');
+        }
+    } catch (error) {
+        console.error('Failed to create inspection:', error);
+        // For demo, just close modal and refresh
+        bootstrap.Modal.getInstance(document.getElementById('newInspectionModal')).hide();
+        loadInspections();
+    }
+}
+
+function performInspection(inspectionId) {
+    currentInspectionId = inspectionId;
+
+    // Load inspection characteristics
+    inspectionCharacteristics = [
+        { id: 'char-1', name: 'Height', nominal: 9.6, upper_tolerance: 0.2, lower_tolerance: 0.2, is_critical: true },
+        { id: 'char-2', name: 'Width', nominal: 15.8, upper_tolerance: 0.15, lower_tolerance: 0.15, is_critical: false },
+        { id: 'char-3', name: 'Stud Diameter', nominal: 4.85, upper_tolerance: 0.05, lower_tolerance: 0.05, is_critical: true },
+        { id: 'char-4', name: 'Weight', nominal: 2.3, upper_tolerance: 0.1, lower_tolerance: 0.1, is_critical: false },
+    ];
+
+    document.getElementById('perform-inspection-number').textContent = `INS-${inspectionId}`;
+    document.getElementById('perform-plan-name').textContent = 'Brick Dimension Check';
+
+    const tbody = document.getElementById('perform-measurements');
+    tbody.innerHTML = inspectionCharacteristics.map((char, idx) => `
+        <tr id="measurement-row-${char.id}">
+            <td>
+                ${char.name}
+                ${char.is_critical ? '<span class="badge critical-badge ms-1">Critical</span>' : ''}
+            </td>
+            <td>${char.nominal}</td>
+            <td class="tolerance-cell">+${char.upper_tolerance} / -${char.lower_tolerance}</td>
+            <td>
+                <input type="number" step="0.01" class="form-control form-control-sm measurement-input"
+                       id="value-${char.id}" onchange="checkMeasurement('${char.id}')">
+            </td>
+            <td id="status-${char.id}">--</td>
+        </tr>
+    `).join('');
+
+    new bootstrap.Modal(document.getElementById('performInspectionModal')).show();
+}
+
+function checkMeasurement(charId) {
+    const char = inspectionCharacteristics.find(c => c.id === charId);
+    if (!char) return;
+
+    const input = document.getElementById(`value-${charId}`);
+    const statusCell = document.getElementById(`status-${charId}`);
+    const row = document.getElementById(`measurement-row-${charId}`);
+    const value = parseFloat(input.value);
+
+    if (isNaN(value)) {
+        statusCell.innerHTML = '--';
+        row.classList.remove('fail');
+        return;
+    }
+
+    const upperLimit = char.nominal + char.upper_tolerance;
+    const lowerLimit = char.nominal - char.lower_tolerance;
+
+    if (value >= lowerLimit && value <= upperLimit) {
+        statusCell.innerHTML = '<span class="pass-cell">PASS</span>';
+        row.classList.remove('fail');
+    } else {
+        statusCell.innerHTML = '<span class="fail-cell">FAIL</span>';
+        row.classList.add('fail');
+    }
+}
+
+async function completeInspection() {
+    if (!currentInspectionId) return;
+
+    // Collect all measurements
+    const measurements = inspectionCharacteristics.map(char => ({
+        characteristic_id: char.id,
+        value: parseFloat(document.getElementById(`value-${char.id}`).value) || null,
+    })).filter(m => m.value !== null);
+
+    if (measurements.length === 0) {
+        alert('Please enter at least one measurement');
+        return;
+    }
+
+    try {
+        // In production, would call API to record measurements and complete
+        const response = await fetch(`/api/qms/inspections/${currentInspectionId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                measurements: measurements,
+                notes: document.getElementById('perform-notes').value || null,
+            }),
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('performInspectionModal')).hide();
+        loadInspections();
+        loadStats();
+    } catch (error) {
+        console.error('Failed to complete inspection:', error);
+        // For demo, just close and refresh
+        bootstrap.Modal.getInstance(document.getElementById('performInspectionModal')).hide();
+        loadInspections();
+    }
+}
+
+async function viewInspection(inspectionId) {
+    try {
+        const response = await fetch(`/api/qms/inspections/${inspectionId}`);
+        const data = await response.json();
+        displayInspectionDetail(data);
+    } catch (error) {
+        console.error('Failed to load inspection:', error);
+        displaySampleDetail(inspectionId);
+    }
+}
+
+function displaySampleDetail(inspectionId) {
+    displayInspectionDetail({
+        record: {
+            inspection_number: `INS-${inspectionId}`,
+            job_id: 'WO-2024-001',
+            serial_number: 'SN-001',
+            inspector_id: 'W004',
+            status: 'passed',
+        },
+        measurements: [
+            { characteristic: { name: 'Height', nominal: 9.6, upper_tolerance: 0.2, lower_tolerance: 0.2 }, measurement: { measured_value: 9.58, result: 'pass' } },
+            { characteristic: { name: 'Width', nominal: 15.8, upper_tolerance: 0.15, lower_tolerance: 0.15 }, measurement: { measured_value: 15.82, result: 'pass' } },
+            { characteristic: { name: 'Stud Diameter', nominal: 4.85, upper_tolerance: 0.05, lower_tolerance: 0.05 }, measurement: { measured_value: 4.86, result: 'pass' } },
+        ],
+        summary: { total: 3, passed: 3, failed: 0 },
+    });
+}
+
+function displayInspectionDetail(data) {
+    const record = data.record;
+    const measurements = data.measurements || [];
+    const summary = data.summary || {};
+
+    document.getElementById('detail-title').textContent = record.inspection_number;
+    document.getElementById('detail-number').textContent = record.inspection_number;
+    document.getElementById('detail-job').textContent = record.job_id;
+    document.getElementById('detail-serial').textContent = record.serial_number || record.lot_number || '--';
+    document.getElementById('detail-inspector').textContent = record.inspector_id || '--';
+
+    const statusBadge = document.getElementById('detail-status-badge');
+    if (record.status === 'passed') {
+        statusBadge.className = 'badge bg-success ms-2';
+        statusBadge.textContent = 'PASSED';
+    } else if (record.status === 'failed') {
+        statusBadge.className = 'badge bg-danger ms-2';
+        statusBadge.textContent = 'FAILED';
+    } else {
+        statusBadge.className = 'badge bg-secondary ms-2';
+        statusBadge.textContent = record.status;
+    }
+
+    const tbody = document.getElementById('detail-measurements');
+    tbody.innerHTML = measurements.map((m, idx) => {
+        const char = m.characteristic;
+        const meas = m.measurement;
+        const deviation = meas.measured_value - char.nominal;
+
+        return `
+            <tr class="dimension-row ${meas.result === 'fail' ? 'fail' : ''}">
+                <td>${idx + 1}</td>
+                <td>${char.name}</td>
+                <td>${char.nominal}</td>
+                <td class="tolerance-cell">+${char.upper_tolerance} / -${char.lower_tolerance}</td>
+                <td class="fw-bold">${meas.measured_value}</td>
+                <td class="${deviation >= 0 ? 'text-primary' : 'text-danger'}">${deviation >= 0 ? '+' : ''}${deviation.toFixed(3)}</td>
+                <td class="${meas.result === 'pass' ? 'pass-cell' : 'fail-cell'}">${meas.result.toUpperCase()}</td>
+            </tr>
+        `;
+    }).join('');
+
+    document.getElementById('detail-passed').textContent = summary.passed || 0;
+    document.getElementById('detail-failed').textContent = summary.failed || 0;
+    document.getElementById('detail-total').textContent = summary.total || 0;
+
+    new bootstrap.Modal(document.getElementById('inspectionDetailModal')).show();
+}
+</script>
+{% endblock %}

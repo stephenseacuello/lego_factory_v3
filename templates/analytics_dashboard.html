@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Dashboard - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .nav-tabs { border-color: rgba(255,255,255,0.1); }
+        .nav-tabs .nav-link { color: #94a3b8; border: none; }
+        .nav-tabs .nav-link.active { background: var(--card-bg); color: #3b82f6; border-bottom: 2px solid #3b82f6; }
+        .nav-tabs .nav-link:hover { color: #e2e8f0; border-color: transparent; }
+        .metric-card { text-align: center; padding: 1.5rem; }
+        .metric-value { font-size: 2rem; font-weight: 700; }
+        .metric-label { color: #64748b; font-size: 0.85rem; }
+        .alert-item { padding: 0.75rem 1rem; border-left: 4px solid; margin-bottom: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .alert-critical { border-color: #ef4444; }
+        .alert-warning { border-color: #f59e0b; }
+        .alert-info { border-color: #3b82f6; }
+        .health-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+        .health-good { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+        .health-warning { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+        .health-critical { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.05); vertical-align: middle; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.1); color: #e2e8f0; }
+        .prediction-card { border-left: 4px solid; padding: 1rem; margin-bottom: 1rem; background: rgba(0,0,0,0.2); border-radius: 4px; }
+        .prediction-high { border-color: #ef4444; }
+        .prediction-medium { border-color: #f59e0b; }
+        .prediction-low { border-color: #22c55e; }
+        .progress { background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; }
+        .spectrum-bar { height: 100px; display: flex; align-items: flex-end; gap: 2px; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 4px; }
+        .spectrum-bar div { flex: 1; background: linear-gradient(to top, #3b82f6, #22d3ee); border-radius: 2px 2px 0 0; transition: height 0.3s; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Analytics</a>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm bg-dark text-light border-secondary" id="machineSelect" style="width:180px" onchange="loadAnalytics()">
+                    <option value="">All Machines</option>
+                    <option value="CNC-001">CNC-001</option>
+                    <option value="CNC-002">CNC-002</option>
+                    <option value="CNC-003">CNC-003</option>
+                </select>
+                <select class="form-select form-select-sm bg-dark text-light border-secondary" id="timeRange" style="width:120px" onchange="loadAnalytics()">
+                    <option value="1h">Last 1h</option>
+                    <option value="6h">Last 6h</option>
+                    <option value="24h" selected>Last 24h</option>
+                    <option value="7d">Last 7d</option>
+                </select>
+                <button class="btn btn-outline-light btn-sm" onclick="loadAnalytics()"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <ul class="nav nav-tabs mb-4" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#vibration"><i class="bi bi-activity me-2"></i>Vibration Analysis</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#anomaly"><i class="bi bi-exclamation-diamond me-2"></i>Anomaly Detection</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#predictive"><i class="bi bi-graph-up-arrow me-2"></i>Predictive Maintenance</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#thermal"><i class="bi bi-thermometer-half me-2"></i>Thermal Analysis</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Vibration Analysis Tab -->
+            <div class="tab-pane fade show active" id="vibration">
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-success" id="vibOverall">2.4</div>
+                                <div class="metric-label">Overall Vibration (mm/s)</div>
+                                <small class="text-muted">ISO 10816: Good</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-info" id="vibPeakFreq">125</div>
+                                <div class="metric-label">Peak Frequency (Hz)</div>
+                                <small class="text-muted">Spindle: 7500 RPM</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-warning" id="vibCrestFactor">4.2</div>
+                                <div class="metric-label">Crest Factor</div>
+                                <small class="text-muted">Normal: 3-6</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value" id="vibKurtosis">3.1</div>
+                                <div class="metric-label">Kurtosis</div>
+                                <small class="text-muted">Normal: ~3</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-graph-up me-2"></i>Vibration Time Series</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-light active" onclick="setVibAxis('X')">X-Axis</button>
+                                    <button class="btn btn-outline-light" onclick="setVibAxis('Y')">Y-Axis</button>
+                                    <button class="btn btn-outline-light" onclick="setVibAxis('Z')">Z-Axis</button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="vibrationChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header"><i class="bi bi-bar-chart me-2"></i>Frequency Spectrum</div>
+                            <div class="card-body">
+                                <div class="spectrum-bar" id="spectrumBar">
+                                    <div style="height:30%"></div>
+                                    <div style="height:45%"></div>
+                                    <div style="height:80%"></div>
+                                    <div style="height:65%"></div>
+                                    <div style="height:40%"></div>
+                                    <div style="height:25%"></div>
+                                    <div style="height:35%"></div>
+                                    <div style="height:50%"></div>
+                                    <div style="height:30%"></div>
+                                    <div style="height:20%"></div>
+                                    <div style="height:15%"></div>
+                                    <div style="height:10%"></div>
+                                </div>
+                                <div class="d-flex justify-content-between mt-2 small text-muted">
+                                    <span>0 Hz</span>
+                                    <span>500 Hz</span>
+                                    <span>1000 Hz</span>
+                                </div>
+                                <div class="mt-3">
+                                    <div class="d-flex justify-content-between small">
+                                        <span>1x RPM (125 Hz)</span>
+                                        <span class="text-success">Normal</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between small">
+                                        <span>2x RPM (250 Hz)</span>
+                                        <span class="text-success">Normal</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between small">
+                                        <span>BPFO (312 Hz)</span>
+                                        <span class="text-warning">Elevated</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-speedometer2 me-2"></i>Bearing Health Analysis</div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Bearing</th>
+                                                <th>Location</th>
+                                                <th>Health</th>
+                                                <th>BPFO</th>
+                                                <th>BPFI</th>
+                                                <th>BSF</th>
+                                                <th>FTF</th>
+                                                <th>RUL</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>SKF 6205</td>
+                                                <td>Spindle Front</td>
+                                                <td><span class="health-indicator health-good"></span> Good</td>
+                                                <td>0.12</td>
+                                                <td>0.08</td>
+                                                <td>0.05</td>
+                                                <td>0.03</td>
+                                                <td><span class="text-success">2400+ hrs</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td>SKF 6206</td>
+                                                <td>Spindle Rear</td>
+                                                <td><span class="health-indicator health-warning"></span> Watch</td>
+                                                <td class="text-warning">0.35</td>
+                                                <td>0.12</td>
+                                                <td>0.08</td>
+                                                <td>0.04</td>
+                                                <td><span class="text-warning">850 hrs</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td>NSK 7208</td>
+                                                <td>X-Axis Drive</td>
+                                                <td><span class="health-indicator health-good"></span> Good</td>
+                                                <td>0.10</td>
+                                                <td>0.06</td>
+                                                <td>0.04</td>
+                                                <td>0.02</td>
+                                                <td><span class="text-success">3200+ hrs</span></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Anomaly Detection Tab -->
+            <div class="tab-pane fade" id="anomaly">
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-danger" id="anomalyCount">3</div>
+                                <div class="metric-label">Active Anomalies</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-success" id="modelAccuracy">94.2%</div>
+                                <div class="metric-label">Model Accuracy</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-info" id="anomalyScore">0.82</div>
+                                <div class="metric-label">Current Anomaly Score</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value" id="lastTraining">2h ago</div>
+                                <div class="metric-label">Model Last Updated</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-graph-up me-2"></i>Anomaly Score Timeline</div>
+                            <div class="card-body">
+                                <canvas id="anomalyChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header"><i class="bi bi-exclamation-triangle me-2"></i>Active Alerts</div>
+                            <div class="card-body" style="max-height:300px;overflow-y:auto">
+                                <div class="alert-item alert-critical">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>Spindle Vibration Spike</strong>
+                                        <small>5 min ago</small>
+                                    </div>
+                                    <small class="text-muted">Score: 0.92 | Z-axis acceleration exceeded threshold</small>
+                                </div>
+                                <div class="alert-item alert-warning">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>Temperature Drift</strong>
+                                        <small>15 min ago</small>
+                                    </div>
+                                    <small class="text-muted">Score: 0.78 | Coolant temp rising above baseline</small>
+                                </div>
+                                <div class="alert-item alert-info">
+                                    <div class="d-flex justify-content-between">
+                                        <strong>Power Fluctuation</strong>
+                                        <small>1 hr ago</small>
+                                    </div>
+                                    <small class="text-muted">Score: 0.65 | Spindle power variance detected</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-cpu me-2"></i>ML Model Status</div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Isolation Forest</span>
+                                        <span class="text-success">Active</span>
+                                    </div>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-success" style="width:94%"></div>
+                                    </div>
+                                    <small class="text-muted">Accuracy: 94.2% | Samples: 50,000</small>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>LSTM Autoencoder</span>
+                                        <span class="text-success">Active</span>
+                                    </div>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-info" style="width:91%"></div>
+                                    </div>
+                                    <small class="text-muted">Accuracy: 91.5% | Epochs: 100</small>
+                                </div>
+                                <div>
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>One-Class SVM</span>
+                                        <span class="text-warning">Training</span>
+                                    </div>
+                                    <div class="progress">
+                                        <div class="progress-bar bg-warning progress-bar-striped progress-bar-animated" style="width:65%"></div>
+                                    </div>
+                                    <small class="text-muted">Training in progress... 65%</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-sliders me-2"></i>Detection Parameters</div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Anomaly Threshold</label>
+                                        <input type="range" class="form-range" min="0.5" max="0.95" step="0.05" value="0.75" id="anomalyThreshold">
+                                        <small class="text-muted">Current: 0.75</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Sensitivity</label>
+                                        <select class="form-select form-select-sm">
+                                            <option>Low</option>
+                                            <option selected>Medium</option>
+                                            <option>High</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Window Size</label>
+                                        <input type="number" class="form-control form-control-sm" value="100">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Contamination</label>
+                                        <input type="number" class="form-control form-control-sm" value="0.01" step="0.01">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Predictive Maintenance Tab -->
+            <div class="tab-pane fade" id="predictive">
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-warning" id="pendingMaint">4</div>
+                                <div class="metric-label">Pending Maintenance</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-success" id="mtbfValue">1,240</div>
+                                <div class="metric-label">MTBF (hours)</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-info" id="predAccuracy">87%</div>
+                                <div class="metric-label">Prediction Accuracy</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-success" id="costSavings">$12.4K</div>
+                                <div class="metric-label">Est. Savings (MTD)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-calendar-check me-2"></i>Maintenance Predictions</div>
+                            <div class="card-body">
+                                <div class="prediction-card prediction-high">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="mb-1"><i class="bi bi-exclamation-circle text-danger me-2"></i>Spindle Bearing Replacement</h6>
+                                            <small class="text-muted">CNC-001 | SKF 6206 Rear Bearing</small>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="text-danger fw-bold">High Priority</div>
+                                            <small>RUL: 850 hours</small>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <div class="progress" style="height:6px">
+                                            <div class="progress-bar bg-danger" style="width:75%"></div>
+                                        </div>
+                                        <small class="text-muted">Confidence: 89% | Based on vibration trend + operating hours</small>
+                                    </div>
+                                </div>
+
+                                <div class="prediction-card prediction-medium">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="mb-1"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Coolant System Service</h6>
+                                            <small class="text-muted">CNC-002 | Pump + Filter</small>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="text-warning fw-bold">Medium Priority</div>
+                                            <small>Due in: 120 hours</small>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <div class="progress" style="height:6px">
+                                            <div class="progress-bar bg-warning" style="width:55%"></div>
+                                        </div>
+                                        <small class="text-muted">Confidence: 82% | Based on flow rate degradation</small>
+                                    </div>
+                                </div>
+
+                                <div class="prediction-card prediction-low">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="mb-1"><i class="bi bi-info-circle text-success me-2"></i>Ball Screw Lubrication</h6>
+                                            <small class="text-muted">CNC-003 | X-Axis</small>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="text-success fw-bold">Low Priority</div>
+                                            <small>Due in: 450 hours</small>
+                                        </div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <div class="progress" style="height:6px">
+                                            <div class="progress-bar bg-success" style="width:25%"></div>
+                                        </div>
+                                        <small class="text-muted">Confidence: 76% | Based on cycle count + temperature</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header"><i class="bi bi-graph-up me-2"></i>RUL Trends</div>
+                            <div class="card-body">
+                                <canvas id="rulChart" height="250"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-clock-history me-2"></i>Maintenance Schedule</span>
+                                <button class="btn btn-sm btn-primary" onclick="generateSchedule()">
+                                    <i class="bi bi-calendar-plus me-1"></i>Generate Schedule
+                                </button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Machine</th>
+                                                <th>Component</th>
+                                                <th>Task</th>
+                                                <th>Priority</th>
+                                                <th>RUL</th>
+                                                <th>Est. Duration</th>
+                                                <th>Scheduled</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>CNC-001</td>
+                                                <td>Spindle Bearing</td>
+                                                <td>Replace</td>
+                                                <td><span class="badge bg-danger">High</span></td>
+                                                <td>850 hrs</td>
+                                                <td>4 hrs</td>
+                                                <td>2024-01-20</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-info"><i class="bi bi-calendar"></i></button>
+                                                    <button class="btn btn-sm btn-outline-success"><i class="bi bi-check"></i></button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>CNC-002</td>
+                                                <td>Coolant System</td>
+                                                <td>Service</td>
+                                                <td><span class="badge bg-warning">Medium</span></td>
+                                                <td>120 hrs</td>
+                                                <td>2 hrs</td>
+                                                <td>2024-01-25</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-info"><i class="bi bi-calendar"></i></button>
+                                                    <button class="btn btn-sm btn-outline-success"><i class="bi bi-check"></i></button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Thermal Analysis Tab -->
+            <div class="tab-pane fade" id="thermal">
+                <div class="row g-4 mb-4">
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-success" id="spindleTemp">42.5</div>
+                                <div class="metric-label">Spindle Temp (°C)</div>
+                                <small class="text-muted">Max: 65°C</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-info" id="coolantTemp">22.3</div>
+                                <div class="metric-label">Coolant Temp (°C)</div>
+                                <small class="text-muted">Target: 20-25°C</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-warning" id="ambientTemp">24.8</div>
+                                <div class="metric-label">Ambient Temp (°C)</div>
+                                <small class="text-muted">Ideal: 20°C</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-success" id="thermalComp">Enabled</div>
+                                <div class="metric-label">Thermal Compensation</div>
+                                <small class="text-muted">Offset: +0.012mm</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-thermometer me-2"></i>Temperature Trends</div>
+                            <div class="card-body">
+                                <canvas id="thermalChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header"><i class="bi bi-rulers me-2"></i>Thermal Compensation</div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>X-Axis Offset</span>
+                                        <span class="text-info">+0.008 mm</span>
+                                    </div>
+                                    <div class="progress mt-1" style="height:4px">
+                                        <div class="progress-bar bg-info" style="width:40%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Y-Axis Offset</span>
+                                        <span class="text-info">+0.012 mm</span>
+                                    </div>
+                                    <div class="progress mt-1" style="height:4px">
+                                        <div class="progress-bar bg-info" style="width:60%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Z-Axis Offset</span>
+                                        <span class="text-warning">+0.025 mm</span>
+                                    </div>
+                                    <div class="progress mt-1" style="height:4px">
+                                        <div class="progress-bar bg-warning" style="width:85%"></div>
+                                    </div>
+                                </div>
+                                <hr>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Last Calibration</span>
+                                    <span>2024-01-15 06:00</span>
+                                </div>
+                                <div class="d-flex justify-content-between small">
+                                    <span>Model Accuracy</span>
+                                    <span class="text-success">±0.005mm</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let vibrationChart, anomalyChart, rulChart, thermalChart;
+
+        function initCharts() {
+            // Vibration Chart
+            const vibCtx = document.getElementById('vibrationChart').getContext('2d');
+            vibrationChart = new Chart(vibCtx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 100}, (_, i) => i),
+                    datasets: [{
+                        label: 'X-Axis Vibration',
+                        data: Array.from({length: 100}, () => Math.random() * 2 + 1.5),
+                        borderColor: '#3b82f6',
+                        borderWidth: 1,
+                        fill: false,
+                        pointRadius: 0,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { display: false }
+                    }
+                }
+            });
+
+            // Anomaly Chart
+            const anomCtx = document.getElementById('anomalyChart').getContext('2d');
+            anomalyChart = new Chart(anomCtx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                    datasets: [{
+                        label: 'Anomaly Score',
+                        data: [0.2, 0.25, 0.3, 0.28, 0.35, 0.4, 0.38, 0.5, 0.65, 0.82, 0.78, 0.72,
+                               0.68, 0.55, 0.48, 0.42, 0.38, 0.35, 0.32, 0.3, 0.28, 0.25, 0.22, 0.2],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245,158,11,0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Threshold',
+                        data: Array(24).fill(0.75),
+                        borderColor: '#ef4444',
+                        borderDash: [5, 5],
+                        fill: false,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { min: 0, max: 1, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            // RUL Chart
+            const rulCtx = document.getElementById('rulChart').getContext('2d');
+            rulChart = new Chart(rulCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Spindle', 'Coolant', 'Ball Screw', 'Servo X', 'Servo Y'],
+                    datasets: [{
+                        label: 'RUL (hours)',
+                        data: [850, 120, 450, 1200, 980],
+                        backgroundColor: ['#ef4444', '#f59e0b', '#22c55e', '#22c55e', '#22c55e']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            // Thermal Chart
+            const thermCtx = document.getElementById('thermalChart').getContext('2d');
+            thermalChart = new Chart(thermCtx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                    datasets: [{
+                        label: 'Spindle',
+                        data: [38, 39, 40, 41, 42, 43, 44, 44, 43, 42, 42, 43,
+                               44, 45, 44, 43, 42, 41, 40, 39, 38, 37, 37, 38],
+                        borderColor: '#ef4444',
+                        fill: false,
+                        tension: 0.4
+                    }, {
+                        label: 'Coolant',
+                        data: [20, 20, 21, 21, 22, 22, 23, 23, 23, 22, 22, 22,
+                               23, 23, 23, 22, 22, 21, 21, 20, 20, 20, 20, 20],
+                        borderColor: '#3b82f6',
+                        fill: false,
+                        tension: 0.4
+                    }, {
+                        label: 'Ambient',
+                        data: Array(24).fill(24),
+                        borderColor: '#94a3b8',
+                        borderDash: [5, 5],
+                        fill: false,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        async function loadAnalytics() {
+            const machine = document.getElementById('machineSelect').value;
+            const timeRange = document.getElementById('timeRange').value;
+            // Load data from API
+            console.log(`Loading analytics for ${machine || 'all'} over ${timeRange}`);
+        }
+
+        function setVibAxis(axis) {
+            console.log('Set vibration axis:', axis);
+        }
+
+        function generateSchedule() {
+            alert('Maintenance schedule generated based on predictive models');
+        }
+
+        // Animate spectrum bars
+        function animateSpectrum() {
+            const bars = document.querySelectorAll('#spectrumBar div');
+            bars.forEach(bar => {
+                const height = 10 + Math.random() * 70;
+                bar.style.height = height + '%';
+            });
+        }
+
+        initCharts();
+        setInterval(animateSpectrum, 500);
+        loadAnalytics();
+    </script>
+</body>
+</html>

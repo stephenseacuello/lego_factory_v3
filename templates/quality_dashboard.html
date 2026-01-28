@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quality & SPC Dashboard - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .nav-pills .nav-link { color: #94a3b8; border-radius: 8px; }
+        .nav-pills .nav-link.active { background: #3b82f6; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-label { color: #64748b; font-size: 0.85rem; }
+        .control-limit { stroke-dasharray: 5,5; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.05); }
+        .rpn-high { background: rgba(239,68,68,0.2); color: #f87171; }
+        .rpn-medium { background: rgba(245,158,11,0.2); color: #fbbf24; }
+        .rpn-low { background: rgba(16,185,129,0.2); color: #34d399; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: #3b82f6; }
+        .modal-content { background: var(--card-bg); color: #e2e8f0; }
+        .modal-header, .modal-footer { border-color: rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Quality Dashboard</a>
+            <button class="btn btn-outline-light btn-sm" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-success" id="statCpk">1.67</div>
+                    <div class="stat-label">Process Cpk</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-info" id="statYield">99.2%</div>
+                    <div class="stat-label">First Pass Yield</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-warning" id="statOOC">0</div>
+                    <div class="stat-label">Out of Control</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-primary" id="statFmeaItems">24</div>
+                    <div class="stat-label">FMEA Items</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-danger" id="statHighRpn">3</div>
+                    <div class="stat-label">High RPN Items</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value" id="statInspections">47</div>
+                    <div class="stat-label">Today's Inspections</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-pills mb-4">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#spc"><i class="bi bi-graph-up me-1"></i>SPC Control Charts</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#fmea"><i class="bi bi-shield-exclamation me-1"></i>FMEA</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#inspection"><i class="bi bi-check2-square me-1"></i>Inspection</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- SPC Tab -->
+            <div class="tab-pane fade show active" id="spc">
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-graph-up me-2"></i>X-bar Control Chart</span>
+                                <select class="form-select form-select-sm" style="width:200px" id="spcCharacteristic">
+                                    <option>Diameter</option>
+                                    <option>Length</option>
+                                    <option>Surface Finish</option>
+                                </select>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="xbarChart" height="250"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header"><i class="bi bi-info-circle me-2"></i>Process Capability</div>
+                            <div class="card-body">
+                                <div class="mb-4">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Cp</span>
+                                        <strong class="text-success">1.78</strong>
+                                    </div>
+                                    <div class="progress" style="height:8px">
+                                        <div class="progress-bar bg-success" style="width:89%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-4">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Cpk</span>
+                                        <strong class="text-success">1.67</strong>
+                                    </div>
+                                    <div class="progress" style="height:8px">
+                                        <div class="progress-bar bg-success" style="width:83%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-4">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Pp</span>
+                                        <strong class="text-info">1.62</strong>
+                                    </div>
+                                    <div class="progress" style="height:8px">
+                                        <div class="progress-bar bg-info" style="width:81%"></div>
+                                    </div>
+                                </div>
+                                <div class="mb-4">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Ppk</span>
+                                        <strong class="text-info">1.55</strong>
+                                    </div>
+                                    <div class="progress" style="height:8px">
+                                        <div class="progress-bar bg-info" style="width:77%"></div>
+                                    </div>
+                                </div>
+                                <hr class="border-secondary">
+                                <small class="text-muted">
+                                    <strong>Interpretation:</strong><br>
+                                    Cpk ≥ 1.33: Capable<br>
+                                    Cpk ≥ 1.67: Very Capable<br>
+                                    Cpk ≥ 2.00: Six Sigma
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FMEA Tab -->
+            <div class="tab-pane fade" id="fmea">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><i class="bi bi-shield-exclamation me-2"></i>Failure Mode and Effects Analysis</span>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newFmeaModal">
+                            <i class="bi bi-plus-lg me-1"></i>Add FMEA Item
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Process/Function</th>
+                                        <th>Failure Mode</th>
+                                        <th>Effect</th>
+                                        <th>Cause</th>
+                                        <th>S</th>
+                                        <th>O</th>
+                                        <th>D</th>
+                                        <th>RPN</th>
+                                        <th>Actions</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fmeaTable">
+                                    <tr>
+                                        <td>CNC Milling</td>
+                                        <td>Tool breakage</td>
+                                        <td>Scrapped part, machine damage</td>
+                                        <td>Excessive feed rate</td>
+                                        <td>8</td>
+                                        <td>4</td>
+                                        <td>6</td>
+                                        <td><span class="badge rpn-high">192</span></td>
+                                        <td>Implement tool wear monitoring</td>
+                                        <td><span class="badge bg-warning">In Progress</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>CNC Milling</td>
+                                        <td>Dimensional deviation</td>
+                                        <td>Part out of tolerance</td>
+                                        <td>Thermal expansion</td>
+                                        <td>7</td>
+                                        <td>5</td>
+                                        <td>4</td>
+                                        <td><span class="badge rpn-medium">140</span></td>
+                                        <td>Add thermal compensation</td>
+                                        <td><span class="badge bg-info">Planned</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Workholding</td>
+                                        <td>Part slippage</td>
+                                        <td>Incorrect machining, crash</td>
+                                        <td>Insufficient clamping force</td>
+                                        <td>9</td>
+                                        <td>3</td>
+                                        <td>5</td>
+                                        <td><span class="badge rpn-medium">135</span></td>
+                                        <td>Add force verification sensor</td>
+                                        <td><span class="badge bg-success">Complete</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Tool Change</td>
+                                        <td>Wrong tool selected</td>
+                                        <td>Wrong operation performed</td>
+                                        <td>Programming error</td>
+                                        <td>6</td>
+                                        <td>2</td>
+                                        <td>3</td>
+                                        <td><span class="badge rpn-low">36</span></td>
+                                        <td>RFID tool verification</td>
+                                        <td><span class="badge bg-success">Complete</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Coolant System</td>
+                                        <td>Coolant failure</td>
+                                        <td>Thermal damage, poor finish</td>
+                                        <td>Pump failure</td>
+                                        <td>7</td>
+                                        <td>3</td>
+                                        <td>4</td>
+                                        <td><span class="badge rpn-low">84</span></td>
+                                        <td>Flow sensor alarm</td>
+                                        <td><span class="badge bg-success">Complete</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-4 mt-2">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-bar-chart me-2"></i>RPN Distribution</div>
+                            <div class="card-body">
+                                <canvas id="rpnChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-pie-chart me-2"></i>FMEA Status</div>
+                            <div class="card-body">
+                                <canvas id="fmeaStatusChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inspection Tab -->
+            <div class="tab-pane fade" id="inspection">
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-check2-square me-2"></i>Recent Inspections</div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Time</th>
+                                                <th>Part</th>
+                                                <th>Serial</th>
+                                                <th>Inspector</th>
+                                                <th>Result</th>
+                                                <th>Defects</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="inspectionTable">
+                                            <tr>
+                                                <td>10:45 AM</td>
+                                                <td>BRACKET-A1</td>
+                                                <td>SN-2024-00147</td>
+                                                <td>J. Smith</td>
+                                                <td><span class="badge bg-success">PASS</span></td>
+                                                <td>0</td>
+                                            </tr>
+                                            <tr>
+                                                <td>10:32 AM</td>
+                                                <td>HOUSING-B2</td>
+                                                <td>SN-2024-00146</td>
+                                                <td>M. Johnson</td>
+                                                <td><span class="badge bg-success">PASS</span></td>
+                                                <td>0</td>
+                                            </tr>
+                                            <tr>
+                                                <td>10:18 AM</td>
+                                                <td>SHAFT-C3</td>
+                                                <td>SN-2024-00145</td>
+                                                <td>J. Smith</td>
+                                                <td><span class="badge bg-danger">FAIL</span></td>
+                                                <td>1 - Diameter OOT</td>
+                                            </tr>
+                                            <tr>
+                                                <td>10:05 AM</td>
+                                                <td>BRACKET-A1</td>
+                                                <td>SN-2024-00144</td>
+                                                <td>J. Smith</td>
+                                                <td><span class="badge bg-success">PASS</span></td>
+                                                <td>0</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-graph-up me-2"></i>Today's Summary</div>
+                            <div class="card-body">
+                                <canvas id="inspectionSummaryChart" height="200"></canvas>
+                                <div class="mt-3 text-center">
+                                    <h4 class="text-success">98% Pass Rate</h4>
+                                    <small class="text-muted">46 Pass / 1 Fail</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New FMEA Modal -->
+    <div class="modal fade" id="newFmeaModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add FMEA Item</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="fmeaForm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Process/Function</label>
+                                <input type="text" class="form-control" id="fmeaProcess" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Failure Mode</label>
+                                <input type="text" class="form-control" id="fmeaMode" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Effect</label>
+                                <input type="text" class="form-control" id="fmeaEffect" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Cause</label>
+                                <input type="text" class="form-control" id="fmeaCause" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Severity (1-10)</label>
+                                <input type="number" class="form-control" id="fmeaSeverity" min="1" max="10" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Occurrence (1-10)</label>
+                                <input type="number" class="form-control" id="fmeaOccurrence" min="1" max="10" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Detection (1-10)</label>
+                                <input type="number" class="form-control" id="fmeaDetection" min="1" max="10" required>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Recommended Actions</label>
+                                <textarea class="form-control" id="fmeaActions" rows="2"></textarea>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="addFmeaItem()">Add Item</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function initCharts() {
+            // X-bar Chart
+            const xbarCtx = document.getElementById('xbarChart').getContext('2d');
+            new Chart(xbarCtx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 25}, (_, i) => i + 1),
+                    datasets: [{
+                        label: 'X-bar',
+                        data: [10.02, 10.01, 9.99, 10.00, 10.03, 9.98, 10.01, 10.02, 9.99, 10.00,
+                               10.01, 9.98, 10.02, 10.00, 9.99, 10.01, 10.03, 9.97, 10.00, 10.02,
+                               10.01, 9.99, 10.00, 10.01, 9.98],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59,130,246,0.1)',
+                        fill: false,
+                        tension: 0.1
+                    }, {
+                        label: 'UCL',
+                        data: Array(25).fill(10.05),
+                        borderColor: '#ef4444',
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }, {
+                        label: 'CL',
+                        data: Array(25).fill(10.00),
+                        borderColor: '#10b981',
+                        pointRadius: 0,
+                        fill: false
+                    }, {
+                        label: 'LCL',
+                        data: Array(25).fill(9.95),
+                        borderColor: '#ef4444',
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            // RPN Chart
+            new Chart(document.getElementById('rpnChart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['High (>125)', 'Medium (50-125)', 'Low (<50)'],
+                    datasets: [{
+                        data: [3, 8, 13],
+                        backgroundColor: ['#ef4444', '#f59e0b', '#10b981']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            // FMEA Status Chart
+            new Chart(document.getElementById('fmeaStatusChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Complete', 'In Progress', 'Planned'],
+                    datasets: [{
+                        data: [12, 7, 5],
+                        backgroundColor: ['#10b981', '#f59e0b', '#3b82f6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } }
+                }
+            });
+
+            // Inspection Summary
+            new Chart(document.getElementById('inspectionSummaryChart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Pass', 'Fail'],
+                    datasets: [{
+                        data: [46, 1],
+                        backgroundColor: ['#10b981', '#ef4444']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } }
+                }
+            });
+        }
+
+        function addFmeaItem() {
+            const s = parseInt(document.getElementById('fmeaSeverity').value);
+            const o = parseInt(document.getElementById('fmeaOccurrence').value);
+            const d = parseInt(document.getElementById('fmeaDetection').value);
+            const rpn = s * o * d;
+
+            alert(`FMEA Item Added!\nRPN: ${rpn} (${rpn > 125 ? 'HIGH' : rpn > 50 ? 'MEDIUM' : 'LOW'})`);
+            bootstrap.Modal.getInstance(document.getElementById('newFmeaModal')).hide();
+        }
+
+        function loadData() {
+            // Load real data from API
+        }
+
+        initCharts();
+    </script>
+</body>
+</html>

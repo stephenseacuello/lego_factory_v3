@@ -1,0 +1,693 @@
+{% extends "base.html" %}
+{% block title %}Scrap Analysis - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #10b981;
+        --accent-red: #ef4444;
+        --accent-yellow: #f59e0b;
+        --accent-purple: #8b5cf6;
+        --accent-orange: #f97316;
+    }
+
+    .scrap-container {
+        padding: 1.5rem;
+        background: var(--bg-dark);
+        min-height: calc(100vh - 60px);
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i { color: var(--accent-red); }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .date-selector {
+        display: flex;
+        background: var(--bg-card);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+    }
+
+    .date-btn {
+        padding: 0.5rem 1rem;
+        background: transparent;
+        color: var(--text-secondary);
+        border: none;
+        cursor: pointer;
+        font-size: 0.875rem;
+    }
+
+    .date-btn.active {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+        border: none;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    /* KPI Banner */
+    .kpi-banner {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card.highlight {
+        border-color: var(--accent-red);
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, var(--bg-card) 100%);
+    }
+
+    .kpi-label {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .kpi-value.negative { color: var(--accent-red); }
+    .kpi-value.positive { color: var(--accent-green); }
+
+    .kpi-trend {
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .kpi-trend.up { color: var(--accent-red); }
+    .kpi-trend.down { color: var(--accent-green); }
+
+    /* Main Grid */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-body { padding: 1.25rem; }
+
+    .chart-container {
+        height: 250px;
+        position: relative;
+    }
+
+    /* Pareto Chart */
+    .pareto-bar {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.5rem;
+        height: 200px;
+        padding: 1rem 0;
+    }
+
+    .pareto-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .pareto-column {
+        width: 100%;
+        max-width: 50px;
+        background: var(--accent-red);
+        border-radius: 4px 4px 0 0;
+        position: relative;
+    }
+
+    .pareto-value {
+        position: absolute;
+        top: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.75rem;
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .pareto-label {
+        margin-top: 0.5rem;
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-align: center;
+        max-width: 60px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* Scrap by Machine */
+    .machine-scrap-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .machine-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+    }
+
+    .machine-name {
+        width: 80px;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .machine-bar-container {
+        flex: 1;
+        height: 24px;
+        background: var(--bg-card);
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .machine-bar {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+
+    .machine-bar.low { background: var(--accent-green); }
+    .machine-bar.medium { background: var(--accent-yellow); }
+    .machine-bar.high { background: var(--accent-red); }
+
+    .machine-percent {
+        width: 50px;
+        text-align: right;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    /* Recent Scrap Table */
+    .scrap-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .scrap-table th,
+    .scrap-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .scrap-table th {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    .scrap-table td {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .reason-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .reason-tool { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .reason-operator { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; }
+    .reason-material { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .reason-machine { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .reason-setup { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+
+    .cost-cell {
+        color: var(--accent-red);
+        font-weight: 500;
+    }
+
+    /* Trend Chart */
+    .trend-section {
+        grid-column: span 2;
+    }
+
+    /* Root Cause Analysis */
+    .rca-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .rca-card {
+        padding: 1rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+        text-align: center;
+    }
+
+    .rca-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.75rem;
+        font-size: 1.25rem;
+    }
+
+    .rca-icon.tooling { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .rca-icon.operator { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+    .rca-icon.material { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+    .rca-icon.machine { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .rca-icon.setup { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+    .rca-icon.process { background: rgba(249, 115, 22, 0.2); color: var(--accent-orange); }
+
+    .rca-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .rca-label {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    @media (max-width: 1200px) {
+        .kpi-banner { grid-template-columns: repeat(3, 1fr); }
+        .main-grid { grid-template-columns: 1fr; }
+        .trend-section { grid-column: span 1; }
+        .rca-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scrap-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-trash-alt"></i>
+            Scrap Analysis
+        </h1>
+        <div class="header-actions">
+            <div class="date-selector">
+                <button class="date-btn">Today</button>
+                <button class="date-btn active">Week</button>
+                <button class="date-btn">Month</button>
+                <button class="date-btn">Quarter</button>
+            </div>
+            <button class="btn btn-secondary">
+                <i class="fas fa-filter"></i>
+                Filters
+            </button>
+            <button class="btn btn-primary" onclick="exportReport()">
+                <i class="fas fa-file-export"></i>
+                Export
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Banner -->
+    <div class="kpi-banner">
+        <div class="kpi-card highlight">
+            <div class="kpi-label">Scrap Rate</div>
+            <div class="kpi-value negative">3.2%</div>
+            <div class="kpi-trend up">
+                <i class="fas fa-arrow-up"></i> +0.4% vs target (2.8%)
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Total Scrap Cost</div>
+            <div class="kpi-value">$18,450</div>
+            <div class="kpi-trend up">
+                <i class="fas fa-arrow-up"></i> +12% vs last week
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Parts Scrapped</div>
+            <div class="kpi-value">847</div>
+            <div class="kpi-trend up">
+                <i class="fas fa-arrow-up"></i> +156 vs last week
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Avg Cost/Scrap</div>
+            <div class="kpi-value">$21.78</div>
+            <div class="kpi-trend down">
+                <i class="fas fa-arrow-down"></i> -$2.30 vs last week
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Top Issue</div>
+            <div class="kpi-value" style="font-size: 1.25rem;">Tool Wear</div>
+            <div class="kpi-trend" style="color: var(--text-secondary);">
+                32% of all scrap
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Charts -->
+    <div class="main-grid">
+        <!-- Pareto Analysis -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fas fa-chart-bar"></i>
+                    Scrap by Reason (Pareto)
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="pareto-bar" id="pareto-chart">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Scrap by Machine -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fas fa-cogs"></i>
+                    Scrap Rate by Machine
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="machine-scrap-list" id="machine-scrap">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Root Cause Breakdown -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fas fa-search"></i>
+                    Root Cause Breakdown
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="rca-grid">
+                    <div class="rca-card">
+                        <div class="rca-icon tooling"><i class="fas fa-wrench"></i></div>
+                        <div class="rca-value">32%</div>
+                        <div class="rca-label">Tooling Issues</div>
+                    </div>
+                    <div class="rca-card">
+                        <div class="rca-icon operator"><i class="fas fa-user"></i></div>
+                        <div class="rca-value">24%</div>
+                        <div class="rca-label">Operator Error</div>
+                    </div>
+                    <div class="rca-card">
+                        <div class="rca-icon material"><i class="fas fa-cubes"></i></div>
+                        <div class="rca-value">18%</div>
+                        <div class="rca-label">Material Defect</div>
+                    </div>
+                    <div class="rca-card">
+                        <div class="rca-icon machine"><i class="fas fa-cog"></i></div>
+                        <div class="rca-value">14%</div>
+                        <div class="rca-label">Machine Fault</div>
+                    </div>
+                    <div class="rca-card">
+                        <div class="rca-icon setup"><i class="fas fa-sliders-h"></i></div>
+                        <div class="rca-value">8%</div>
+                        <div class="rca-label">Setup Error</div>
+                    </div>
+                    <div class="rca-card">
+                        <div class="rca-icon process"><i class="fas fa-project-diagram"></i></div>
+                        <div class="rca-value">4%</div>
+                        <div class="rca-label">Process Issue</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trend Chart -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fas fa-chart-line"></i>
+                    Scrap Rate Trend
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Scrap Events -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">
+                <i class="fas fa-list"></i>
+                Recent Scrap Events
+            </span>
+            <button class="btn btn-secondary" onclick="logScrap()">
+                <i class="fas fa-plus"></i>
+                Log Scrap
+            </button>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            <table class="scrap-table">
+                <thead>
+                    <tr>
+                        <th>Date/Time</th>
+                        <th>Part Number</th>
+                        <th>Machine</th>
+                        <th>Operator</th>
+                        <th>Qty</th>
+                        <th>Reason</th>
+                        <th>Cost</th>
+                    </tr>
+                </thead>
+                <tbody id="scrap-body">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const paretoData = [
+        { reason: 'Tool Wear', count: 271, percent: 32 },
+        { reason: 'Operator Error', count: 203, percent: 24 },
+        { reason: 'Material Defect', count: 152, percent: 18 },
+        { reason: 'Machine Fault', count: 119, percent: 14 },
+        { reason: 'Setup Error', count: 68, percent: 8 },
+        { reason: 'Other', count: 34, percent: 4 },
+    ];
+
+    const machineData = [
+        { name: 'CNC-001', rate: 4.2, class: 'high' },
+        { name: 'CNC-002', rate: 2.8, class: 'medium' },
+        { name: 'CNC-003', rate: 3.5, class: 'high' },
+        { name: 'CNC-004', rate: 1.9, class: 'low' },
+        { name: 'CNC-005', rate: 2.4, class: 'medium' },
+        { name: 'Lathe-01', rate: 3.1, class: 'medium' },
+    ];
+
+    const scrapEvents = [
+        { date: '2024-01-08 14:32', part: 'PN-12345-A', machine: 'CNC-001', operator: 'J. Smith', qty: 12, reason: 'tool', cost: 245.00 },
+        { date: '2024-01-08 11:15', part: 'PN-67890-B', machine: 'CNC-003', operator: 'M. Johnson', qty: 8, reason: 'operator', cost: 184.00 },
+        { date: '2024-01-08 09:45', part: 'PN-11223-C', machine: 'Lathe-01', operator: 'R. Davis', qty: 15, reason: 'material', cost: 312.50 },
+        { date: '2024-01-07 16:20', part: 'PN-44556-A', machine: 'CNC-002', operator: 'J. Smith', qty: 5, reason: 'machine', cost: 127.50 },
+        { date: '2024-01-07 13:50', part: 'PN-78901-D', machine: 'CNC-004', operator: 'A. Wilson', qty: 3, reason: 'setup', cost: 89.25 },
+    ];
+
+    function renderPareto() {
+        const container = document.getElementById('pareto-chart');
+        const maxCount = Math.max(...paretoData.map(d => d.count));
+        container.innerHTML = paretoData.map(d => `
+            <div class="pareto-item">
+                <div class="pareto-column" style="height: ${(d.count / maxCount) * 150}px;">
+                    <span class="pareto-value">${d.count}</span>
+                </div>
+                <span class="pareto-label" title="${d.reason}">${d.reason}</span>
+            </div>
+        `).join('');
+    }
+
+    function renderMachineScrap() {
+        const container = document.getElementById('machine-scrap');
+        const maxRate = 5;
+        container.innerHTML = machineData.map(m => `
+            <div class="machine-item">
+                <span class="machine-name">${m.name}</span>
+                <div class="machine-bar-container">
+                    <div class="machine-bar ${m.class}" style="width: ${(m.rate / maxRate) * 100}%"></div>
+                </div>
+                <span class="machine-percent">${m.rate}%</span>
+            </div>
+        `).join('');
+    }
+
+    function renderScrapTable() {
+        const tbody = document.getElementById('scrap-body');
+        tbody.innerHTML = scrapEvents.map(e => `
+            <tr>
+                <td>${e.date}</td>
+                <td>${e.part}</td>
+                <td>${e.machine}</td>
+                <td>${e.operator}</td>
+                <td>${e.qty}</td>
+                <td><span class="reason-badge reason-${e.reason}">${e.reason}</span></td>
+                <td class="cost-cell">$${e.cost.toFixed(2)}</td>
+            </tr>
+        `).join('');
+    }
+
+    function initTrendChart() {
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [
+                    {
+                        label: 'Scrap Rate %',
+                        data: [2.8, 3.1, 2.9, 3.5, 3.2, 2.7, 3.2],
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'Target',
+                        data: [2.8, 2.8, 2.8, 2.8, 2.8, 2.8, 2.8],
+                        borderColor: '#10b981',
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { color: '#94a3b8' } }
+                },
+                scales: {
+                    x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    y: {
+                        grid: { color: '#334155' },
+                        ticks: { color: '#94a3b8', callback: v => v + '%' },
+                        min: 0,
+                        max: 5
+                    }
+                }
+            }
+        });
+    }
+
+    document.querySelectorAll('.date-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    function exportReport() { alert('Exporting scrap analysis report...'); }
+    function logScrap() { alert('Opening scrap entry form...'); }
+
+    renderPareto();
+    renderMachineScrap();
+    renderScrapTable();
+    initTrendChart();
+</script>
+{% endblock %}

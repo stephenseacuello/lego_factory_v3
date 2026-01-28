@@ -1,0 +1,152 @@
+# micro-ROS Agent Docker Compose - Multi-Transport Setup
+# ======================================================
+# Supports: Serial, UDP, TCP transports for ESP32-S3
+#
+# Quick Start:
+#   # WiFi/UDP (most common)
+#   docker-compose -f docker-compose.microros.yml up -d microros-agent-udp
+#
+#   # USB Serial (edit device path first!)
+#   docker-compose -f docker-compose.microros.yml --profile serial up -d
+#
+#   # View logs
+#   docker-compose -f docker-compose.microros.yml logs -f
+#
+#   # Stop all
+#   docker-compose -f docker-compose.microros.yml down
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # UDP Transport Agent (for WiFi devices) - DEFAULT
+  # ==========================================================================
+  # Use this for ESP32-S3 over WiFi with UDP transport
+  # Port: 8888 | Verbose level 6 shows connection info
+  microros-agent-udp:
+    image: microros/micro-ros-agent:jazzy
+    container_name: microros-agent-udp
+    network_mode: host
+    command: udp4 --port 8888 -v6
+    restart: unless-stopped
+    environment:
+      - ROS_DOMAIN_ID=0
+
+  # ==========================================================================
+  # Serial Transport Agent (for USB-connected ESP32-S3)
+  # ==========================================================================
+  # ESP32-S3 has native USB - typically shows as /dev/tty.usbmodem*
+  #
+  # Find your device on Mac:
+  #   ls /dev/tty.usbmodem* /dev/cu.usbmodem*
+  #
+  # Common ESP32-S3 paths:
+  #   /dev/tty.usbmodem14101
+  #   /dev/tty.usbmodem14201
+  #   /dev/cu.usbmodem14101
+  microros-agent-serial:
+    image: microros/micro-ros-agent:jazzy
+    container_name: microros-agent-serial
+    # UPDATE THIS PATH to match your ESP32-S3!
+    devices:
+      - /dev/tty.usbmodem14101:/dev/ttyUSB0
+    command: serial --dev /dev/ttyUSB0 -b 115200 -v6
+    restart: unless-stopped
+    environment:
+      - ROS_DOMAIN_ID=0
+    profiles:
+      - serial
+
+  # Alternative: CP2102/CH340 USB-UART adapter
+  microros-agent-serial-uart:
+    image: microros/micro-ros-agent:jazzy
+    container_name: microros-agent-serial-uart
+    devices:
+      - /dev/tty.usbserial-0001:/dev/ttyUSB0
+    command: serial --dev /dev/ttyUSB0 -b 115200 -v6
+    restart: unless-stopped
+    profiles:
+      - serial-uart
+
+  # ==========================================================================
+  # TCP Transport Agent (more reliable than UDP)
+  # ==========================================================================
+  # Port: 8889
+  microros-agent-tcp:
+    image: microros/micro-ros-agent:jazzy
+    container_name: microros-agent-tcp
+    network_mode: host
+    command: tcp4 --port 8889 -v6
+    restart: unless-stopped
+    environment:
+      - ROS_DOMAIN_ID=0
+    profiles:
+      - tcp
+
+  # ==========================================================================
+  # Combined Agent (UDP + TCP in single container)
+  # ==========================================================================
+  microros-agent-combined:
+    image: microros/micro-ros-agent:jazzy
+    container_name: microros-agent-combined
+    network_mode: host
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo "=== micro-ROS Multi-Transport Agent ==="
+        echo "  UDP: port 8888"
+        echo "  TCP: port 8889"
+        echo "======================================="
+        micro_ros_agent udp4 --port 8888 -v4 &
+        micro_ros_agent tcp4 --port 8889 -v4
+    restart: unless-stopped
+    profiles:
+      - combined
+
+  # ==========================================================================
+  # Diagnostics Container (for debugging)
+  # ==========================================================================
+  microros-diagnostics:
+    image: ros:jazzy-ros-base
+    container_name: microros-diagnostics
+    network_mode: host
+    stdin_open: true
+    tty: true
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        source /opt/ros/jazzy/setup.bash
+        echo "======================================="
+        echo "micro-ROS Diagnostics Shell"
+        echo "======================================="
+        echo "Commands:"
+        echo "  ros2 topic list"
+        echo "  ros2 topic echo /sensors/imu"
+        echo "  ros2 node list"
+        echo "  ros2 topic hz /sensors/imu"
+        echo ""
+        exec bash
+    profiles:
+      - diagnostics
+
+# ==========================================================================
+# Quick Reference
+# ==========================================================================
+#
+# Start UDP agent (WiFi):
+#   docker-compose -f docker-compose.microros.yml up -d microros-agent-udp
+#
+# Start Serial agent (USB) - edit device path first!:
+#   docker-compose -f docker-compose.microros.yml --profile serial up -d
+#
+# Start TCP agent:
+#   docker-compose -f docker-compose.microros.yml --profile tcp up -d
+#
+# Start UDP + TCP combined:
+#   docker-compose -f docker-compose.microros.yml --profile combined up -d
+#
+# Open diagnostics shell:
+#   docker-compose -f docker-compose.microros.yml --profile diagnostics run --rm microros-diagnostics
+#
+# Find your serial device on Mac:
+#   ls /dev/tty.usb* /dev/cu.usb* 2>/dev/null

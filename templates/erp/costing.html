@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+{% block title %}Costing - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item">ERP</li>
+<li class="breadcrumb-item active">Costing</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-calculator me-2"></i>Product Costing</h2>
+    <div>
+        <button class="btn btn-outline-primary me-2" onclick="refreshData()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+        <button class="btn btn-primary" onclick="showCostRollup()">
+            <i class="bi bi-diagram-3 me-1"></i>Run Cost Rollup
+        </button>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <h6 class="text-muted">Avg Material Cost</h6>
+                <h3 class="mb-0" id="avgMaterialCost">$0.00</h3>
+                <small class="text-muted">Per unit</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card success">
+            <div class="card-body">
+                <h6 class="text-muted">Avg Labor Cost</h6>
+                <h3 class="mb-0" id="avgLaborCost">$0.00</h3>
+                <small class="text-muted">Per unit</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning">
+            <div class="card-body">
+                <h6 class="text-muted">Avg Overhead</h6>
+                <h3 class="mb-0" id="avgOverheadCost">$0.00</h3>
+                <small class="text-muted">Per unit</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card danger">
+            <div class="card-body">
+                <h6 class="text-muted">Variance Alert</h6>
+                <h3 class="mb-0" id="varianceCount">0</h3>
+                <small class="text-muted">Products over threshold</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Product Cost Breakdown -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-table me-2"></i>Product Cost Analysis</span>
+                <div>
+                    <input type="text" class="form-control form-control-sm" id="searchProducts" placeholder="Search products..." style="width: 200px;">
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="costingTable">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Product Name</th>
+                                <th class="text-end">Material</th>
+                                <th class="text-end">Labor</th>
+                                <th class="text-end">Overhead</th>
+                                <th class="text-end">Total Cost</th>
+                                <th class="text-end">List Price</th>
+                                <th class="text-end">Margin</th>
+                                <th>Variance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="costingTableBody">
+                            <tr>
+                                <td colspan="9" class="text-center text-muted py-4">
+                                    <div class="spinner-border spinner-border-sm me-2"></div>
+                                    Loading cost data...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cost Breakdown Chart -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-pie-chart me-2"></i>Cost Distribution
+            </div>
+            <div class="card-body">
+                <canvas id="costDistributionChart" height="250"></canvas>
+            </div>
+        </div>
+
+        <!-- Variance Analysis -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-graph-up-arrow me-2"></i>Cost Variance Alerts
+            </div>
+            <div class="card-body">
+                <div id="varianceAlerts">
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+                        <p class="mb-0 mt-2">No variance alerts</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cost Details Modal -->
+<div class="modal fade" id="costDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-diagram-3 me-2"></i>Cost Breakdown: <span id="modalProductName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Material Cost</h6>
+                                <h4 id="modalMaterialCost">$0.00</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Labor Cost</h6>
+                                <h4 id="modalLaborCost">$0.00</h4>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted">Overhead Cost</h6>
+                                <h4 id="modalOverheadCost">$0.00</h4>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BOM Cost Breakdown -->
+                <h6><i class="bi bi-list-nested me-2"></i>BOM Component Costs</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Component</th>
+                            <th class="text-end">Qty</th>
+                            <th class="text-end">Unit Cost</th>
+                            <th class="text-end">Extended</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalBomCosts">
+                    </tbody>
+                </table>
+
+                <!-- Routing Cost Breakdown -->
+                <h6 class="mt-4"><i class="bi bi-gear me-2"></i>Routing Operation Costs</h6>
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Operation</th>
+                            <th>Work Center</th>
+                            <th class="text-end">Setup (min)</th>
+                            <th class="text-end">Run (min)</th>
+                            <th class="text-end">Labor Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalRoutingCosts">
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="exportCostDetail()">
+                    <i class="bi bi-download me-1"></i>Export
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let costDistributionChart = null;
+let productsData = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    initChart();
+    loadCostingData();
+
+    // Search functionality
+    document.getElementById('searchProducts').addEventListener('input', function(e) {
+        filterProducts(e.target.value);
+    });
+});
+
+function initChart() {
+    const ctx = document.getElementById('costDistributionChart').getContext('2d');
+    costDistributionChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Material', 'Labor', 'Overhead'],
+            datasets: [{
+                data: [0, 0, 0],
+                backgroundColor: ['#0d6efd', '#198754', '#ffc107'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+async function loadCostingData() {
+    try {
+        const response = await fetch('/api/erp/costing/products');
+        const data = await response.json();
+
+        if (data.error) {
+            showDemoData();
+            return;
+        }
+
+        productsData = data.products || [];
+        renderTable(productsData);
+        updateSummary(data.summary || {});
+        updateChart(data.summary || {});
+        updateVarianceAlerts(data.variance_alerts || []);
+
+    } catch (error) {
+        console.error('Error loading costing data:', error);
+        showDemoData();
+    }
+}
+
+function showDemoData() {
+    // Demo data for display
+    productsData = [
+        { sku: '3001-ABS-RED', name: '2x4 Brick - Red', material_cost: 0.12, labor_cost: 0.08, overhead_cost: 0.05, total_cost: 0.25, list_price: 0.45, variance: 2.5 },
+        { sku: '3003-ABS-BLU', name: '2x2 Brick - Blue', material_cost: 0.08, labor_cost: 0.06, overhead_cost: 0.03, total_cost: 0.17, list_price: 0.35, variance: -1.2 },
+        { sku: '3020-ABS-YEL', name: '2x4 Plate - Yellow', material_cost: 0.10, labor_cost: 0.07, overhead_cost: 0.04, total_cost: 0.21, list_price: 0.40, variance: 0.8 },
+        { sku: '3004-ABS-GRN', name: '1x2 Brick - Green', material_cost: 0.06, labor_cost: 0.05, overhead_cost: 0.02, total_cost: 0.13, list_price: 0.28, variance: 5.2 },
+        { sku: '3005-ABS-BLK', name: '1x1 Brick - Black', material_cost: 0.04, labor_cost: 0.04, overhead_cost: 0.02, total_cost: 0.10, list_price: 0.22, variance: -0.5 }
+    ];
+
+    const summary = {
+        avg_material: 0.08,
+        avg_labor: 0.06,
+        avg_overhead: 0.032,
+        variance_count: 1
+    };
+
+    renderTable(productsData);
+    updateSummary(summary);
+    updateChart(summary);
+    updateVarianceAlerts([
+        { sku: '3004-ABS-GRN', name: '1x2 Brick - Green', variance: 5.2, message: 'Cost variance exceeds 5% threshold' }
+    ]);
+}
+
+function renderTable(products) {
+    const tbody = document.getElementById('costingTableBody');
+
+    if (!products || products.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No product cost data available</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = products.map(p => {
+        const margin = p.list_price > 0 ? ((p.list_price - p.total_cost) / p.list_price * 100) : 0;
+        const varianceClass = Math.abs(p.variance) > 5 ? 'text-danger' : (Math.abs(p.variance) > 2 ? 'text-warning' : 'text-success');
+
+        return `
+            <tr style="cursor: pointer;" onclick="showCostDetail('${p.sku}')">
+                <td><code>${p.sku}</code></td>
+                <td>${p.name}</td>
+                <td class="text-end">$${p.material_cost.toFixed(4)}</td>
+                <td class="text-end">$${p.labor_cost.toFixed(4)}</td>
+                <td class="text-end">$${p.overhead_cost.toFixed(4)}</td>
+                <td class="text-end fw-bold">$${p.total_cost.toFixed(4)}</td>
+                <td class="text-end">$${p.list_price.toFixed(2)}</td>
+                <td class="text-end">${margin.toFixed(1)}%</td>
+                <td class="${varianceClass}">${p.variance >= 0 ? '+' : ''}${p.variance.toFixed(1)}%</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function updateSummary(summary) {
+    document.getElementById('avgMaterialCost').textContent = '$' + (summary.avg_material || 0).toFixed(4);
+    document.getElementById('avgLaborCost').textContent = '$' + (summary.avg_labor || 0).toFixed(4);
+    document.getElementById('avgOverheadCost').textContent = '$' + (summary.avg_overhead || 0).toFixed(4);
+    document.getElementById('varianceCount').textContent = summary.variance_count || 0;
+}
+
+function updateChart(summary) {
+    if (costDistributionChart) {
+        costDistributionChart.data.datasets[0].data = [
+            summary.avg_material || 0,
+            summary.avg_labor || 0,
+            summary.avg_overhead || 0
+        ];
+        costDistributionChart.update();
+    }
+}
+
+function updateVarianceAlerts(alerts) {
+    const container = document.getElementById('varianceAlerts');
+
+    if (!alerts || alerts.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-3">
+                <i class="bi bi-check-circle text-success" style="font-size: 2rem;"></i>
+                <p class="mb-0 mt-2">No variance alerts</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = alerts.map(a => `
+        <div class="alert alert-warning py-2 mb-2">
+            <strong>${a.sku}</strong><br>
+            <small>${a.message}</small>
+            <span class="badge bg-danger float-end">${a.variance >= 0 ? '+' : ''}${a.variance.toFixed(1)}%</span>
+        </div>
+    `).join('');
+}
+
+function filterProducts(searchTerm) {
+    const filtered = productsData.filter(p =>
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    renderTable(filtered);
+}
+
+async function showCostDetail(sku) {
+    const product = productsData.find(p => p.sku === sku);
+    if (!product) return;
+
+    document.getElementById('modalProductName').textContent = product.name;
+    document.getElementById('modalMaterialCost').textContent = '$' + product.material_cost.toFixed(4);
+    document.getElementById('modalLaborCost').textContent = '$' + product.labor_cost.toFixed(4);
+    document.getElementById('modalOverheadCost').textContent = '$' + product.overhead_cost.toFixed(4);
+
+    // Demo BOM data
+    document.getElementById('modalBomCosts').innerHTML = `
+        <tr><td>Raw Material - ABS Plastic</td><td class="text-end">5.2g</td><td class="text-end">$0.018/g</td><td class="text-end">$0.0936</td></tr>
+        <tr><td>Colorant - Red Masterbatch</td><td class="text-end">0.3g</td><td class="text-end">$0.085/g</td><td class="text-end">$0.0255</td></tr>
+        <tr class="table-light fw-bold"><td colspan="3">Total Material</td><td class="text-end">$${product.material_cost.toFixed(4)}</td></tr>
+    `;
+
+    // Demo routing data
+    document.getElementById('modalRoutingCosts').innerHTML = `
+        <tr><td>10 - Injection Molding</td><td>Arburg 370</td><td class="text-end">2</td><td class="text-end">0.5</td><td class="text-end">$0.06</td></tr>
+        <tr><td>20 - Quality Inspection</td><td>QC Station</td><td class="text-end">0</td><td class="text-end">0.2</td><td class="text-end">$0.02</td></tr>
+        <tr class="table-light fw-bold"><td colspan="4">Total Labor</td><td class="text-end">$${product.labor_cost.toFixed(4)}</td></tr>
+    `;
+
+    const modal = new bootstrap.Modal(document.getElementById('costDetailModal'));
+    modal.show();
+}
+
+function refreshData() {
+    loadCostingData();
+}
+
+function showCostRollup() {
+    alert('Cost rollup would recalculate all product costs based on current BOM and routing data.');
+}
+
+function exportCostDetail() {
+    alert('Export functionality would generate a CSV or PDF of the cost breakdown.');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,249 @@
+# Chaos Testing Scenarios Configuration
+# LEGO MCP Fusion 360 - Industry 4.0/5.0 Architecture
+# ISA-95 Level 2 - Resilience Testing
+
+# Default settings for all scenarios
+defaults:
+  timeout_seconds: 300
+  cleanup_on_failure: true
+  validation_level: normal
+
+# Predefined chaos scenarios
+scenarios:
+  # Equipment failure during production
+  equipment_failure:
+    name: "Equipment Failure Recovery"
+    description: "Simulates equipment node crash during operation and validates supervisor recovery"
+    tags:
+      - equipment
+      - recovery
+      - supervisor
+    timeout_seconds: 60
+    steps:
+      - name: "Validate initial state"
+        action: validate
+        timeout_seconds: 5
+
+      - name: "Inject equipment crash"
+        action: inject
+        fault_type: node_crash
+        target: "${EQUIPMENT_ID}"
+
+      - name: "Wait for detection"
+        action: wait
+        duration_seconds: 5
+
+      - name: "Validate supervisor detected failure"
+        action: validate
+        timeout_seconds: 10
+
+      - name: "Wait for recovery"
+        action: wait
+        duration_seconds: 10
+
+      - name: "Validate equipment recovered"
+        action: validate
+        timeout_seconds: 15
+
+  # E-stop safety response
+  safety_estop:
+    name: "Safety E-Stop Response"
+    description: "Tests system response to orchestrator heartbeat timeout triggering e-stop"
+    tags:
+      - safety
+      - estop
+      - critical
+    timeout_seconds: 30
+    steps:
+      - name: "Verify safety node active"
+        action: validate
+
+      - name: "Inject orchestrator heartbeat timeout"
+        action: inject
+        fault_type: node_hang
+        target: lego_mcp_orchestrator
+        parameters:
+          duration_seconds: 3.0
+
+      - name: "Wait for watchdog timeout"
+        action: wait
+        duration_seconds: 2.0
+
+      - name: "Validate e-stop triggered"
+        action: validate
+
+      - name: "Wait for node resume"
+        action: wait
+        duration_seconds: 2.0
+
+  # Cascade failure prevention
+  cascade_failure:
+    name: "Cascade Failure Prevention"
+    description: "Tests that single failure doesn't cascade to other systems"
+    tags:
+      - cascade
+      - isolation
+      - supervisor
+    timeout_seconds: 60
+    steps:
+      - name: "Inject supervisor crash"
+        action: inject
+        fault_type: node_crash
+        target: lego_mcp_supervisor
+
+      - name: "Wait for propagation"
+        action: wait
+        duration_seconds: 5.0
+
+      - name: "Validate safety still active"
+        action: validate
+        description: "Safety nodes must remain active during supervisor failure"
+
+      - name: "Validate orchestrator still running"
+        action: validate
+        description: "Orchestrator must continue independently"
+
+  # Network partition handling
+  network_partition:
+    name: "Network Partition"
+    description: "Tests handling of network partition between control and supervisory zones"
+    tags:
+      - network
+      - partition
+      - recovery
+    timeout_seconds: 120
+    steps:
+      - name: "Inject network partition"
+        action: inject
+        fault_type: network_partition
+        target: "control_zone,supervisory_zone"
+        parameters:
+          duration_seconds: 30.0
+
+      - name: "Wait during partition"
+        action: wait
+        duration_seconds: 10.0
+
+      - name: "Validate equipment in safe state"
+        action: validate
+        description: "Equipment must enter safe state during partition"
+
+      - name: "Stop partition"
+        action: stop
+
+      - name: "Wait for recovery"
+        action: wait
+        duration_seconds: 10.0
+
+      - name: "Validate reconnection"
+        action: validate
+        description: "All nodes must reconnect after partition heals"
+
+  # Message delay injection
+  message_delay:
+    name: "Message Delay Tolerance"
+    description: "Tests system behavior under high latency conditions"
+    tags:
+      - network
+      - latency
+      - performance
+    timeout_seconds: 90
+    steps:
+      - name: "Inject message delay on orchestrator topics"
+        action: inject
+        fault_type: message_delay
+        target: "/lego_mcp/orchestrator/status"
+        parameters:
+          delay_ms: 500
+          duration_seconds: 30.0
+
+      - name: "Wait during delay"
+        action: wait
+        duration_seconds: 15.0
+
+      - name: "Validate system still responsive"
+        action: validate
+        description: "System must remain operational under 500ms latency"
+
+      - name: "Stop delay injection"
+        action: stop
+
+  # Resource exhaustion
+  resource_stress:
+    name: "Resource Exhaustion"
+    description: "Tests system behavior under CPU/memory pressure"
+    tags:
+      - resource
+      - stress
+      - performance
+    timeout_seconds: 120
+    steps:
+      - name: "Inject CPU stress"
+        action: inject
+        fault_type: resource_exhaustion
+        target: cpu
+        parameters:
+          intensity: 0.7
+          duration_seconds: 30.0
+
+      - name: "Wait during stress"
+        action: wait
+        duration_seconds: 15.0
+
+      - name: "Validate safety still responsive"
+        action: validate
+        description: "Safety node must maintain responsiveness under load"
+
+      - name: "Wait for stress completion"
+        action: wait
+        duration_seconds: 20.0
+
+# Validation criteria
+validation_criteria:
+  safety_available:
+    description: "Safety system is responsive"
+    timeout_seconds: 5.0
+    level: strict
+
+  orchestrator_responsive:
+    description: "Orchestrator responds to requests"
+    timeout_seconds: 10.0
+    level: normal
+
+  equipment_connected:
+    description: "All equipment nodes are connected"
+    timeout_seconds: 30.0
+    level: normal
+
+  state_consistent:
+    description: "System state is consistent across nodes"
+    timeout_seconds: 15.0
+    level: normal
+
+# Recovery Time Objectives (RTO)
+recovery_targets:
+  safety_node: 1.0  # 1 second - critical
+  equipment_node: 10.0  # 10 seconds
+  orchestrator: 15.0  # 15 seconds
+  agv_fleet: 30.0  # 30 seconds
+
+# IEC 62443 Security Zones for chaos testing
+security_zones:
+  zone_0_safety:
+    description: "Safety zone - highest security, isolated"
+    chaos_allowed: false  # Never inject chaos in safety zone in production
+
+  zone_1_control:
+    description: "Control zone - equipment nodes"
+    chaos_allowed: true
+    max_concurrent_faults: 1
+
+  zone_2_supervisory:
+    description: "Supervisory zone - orchestrator, AGV"
+    chaos_allowed: true
+    max_concurrent_faults: 2
+
+  zone_3_mes:
+    description: "MES zone - dashboard, scheduling"
+    chaos_allowed: true
+    max_concurrent_faults: 3

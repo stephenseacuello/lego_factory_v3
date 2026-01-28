@@ -1,0 +1,756 @@
+{% extends "base.html" %}
+
+{% block title %}Alarms - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">SCADA</a></li>
+<li class="breadcrumb-item active">Alarms</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-bell me-2"></i>Alarm Management</h2>
+    <div class="btn-group">
+        <button class="btn btn-outline-primary btn-sm" onclick="alarmDashboard.acknowledgeSelected()">
+            <i class="bi bi-check-circle"></i> Acknowledge Selected
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#filterModal">
+            <i class="bi bi-funnel"></i> Filter
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="alarmDashboard.exportAlarms()">
+            <i class="bi bi-download"></i> Export
+        </button>
+    </div>
+</div>
+
+<!-- Alarm Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-danger text-white">
+            <div class="card-body text-center">
+                <h2 class="mb-0" id="criticalCount">0</h2>
+                <small>Critical</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card" style="background: #fd7e14; color: white;">
+            <div class="card-body text-center">
+                <h2 class="mb-0" id="highCount">0</h2>
+                <small>High</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning">
+            <div class="card-body text-center">
+                <h2 class="mb-0" id="mediumCount">0</h2>
+                <small>Medium</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h2 class="mb-0" id="lowCount">0</h2>
+                <small>Low</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Active Alarms Table -->
+<div class="card mb-4" id="alarmsCard">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Active Alarms (<span id="totalActiveCount">0</span>)</span>
+        <div class="d-flex align-items-center gap-3">
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="autoRefresh" checked>
+                <label class="form-check-label" for="autoRefresh">Auto-refresh</label>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="alarmDashboard.loadAlarms()">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="alarmTable">
+                <thead class="table-light">
+                    <tr>
+                        <th width="30"><input type="checkbox" id="selectAll"></th>
+                        <th width="80" class="sortable" data-sort="priority">Priority <i class="bi bi-arrow-down-up"></i></th>
+                        <th width="120">State</th>
+                        <th class="sortable" data-sort="tag">Tag <i class="bi bi-arrow-down-up"></i></th>
+                        <th>Source</th>
+                        <th>Message</th>
+                        <th width="150" class="sortable" data-sort="timestamp">Timestamp <i class="bi bi-arrow-down-up"></i></th>
+                        <th width="100">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="alarmTableBody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer" id="alarmPagination">
+        <!-- Pagination inserted here -->
+    </div>
+</div>
+
+<!-- Alarm History Chart -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history me-2"></i>Alarm History (Last 24 Hours)</span>
+        <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary active" onclick="alarmDashboard.setHistoryPeriod('24h')">24h</button>
+            <button class="btn btn-outline-secondary" onclick="alarmDashboard.setHistoryPeriod('7d')">7d</button>
+            <button class="btn btn-outline-secondary" onclick="alarmDashboard.setHistoryPeriod('30d')">30d</button>
+        </div>
+    </div>
+    <div class="card-body">
+        <canvas id="alarmHistoryChart" height="100"></canvas>
+    </div>
+</div>
+
+<!-- Alarm Detail Modal -->
+<div class="modal fade" id="alarmDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Alarm Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="alarmDetailContent">
+                <!-- Filled dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="ackFromModal">
+                    <i class="bi bi-check-circle"></i> Acknowledge
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Modal -->
+<div class="modal fade" id="filterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Filter Alarms</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Priority</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="filterCritical" checked>
+                            <label class="form-check-label">Critical</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="filterHigh" checked>
+                            <label class="form-check-label">High</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="filterMedium" checked>
+                            <label class="form-check-label">Medium</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="filterLow" checked>
+                            <label class="form-check-label">Low</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">State</label>
+                    <select class="form-select" id="filterState">
+                        <option value="">All States</option>
+                        <option value="active_unack">Active - Unacknowledged</option>
+                        <option value="active_ack">Active - Acknowledged</option>
+                        <option value="cleared">Cleared</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Source</label>
+                    <select class="form-select" id="filterSource">
+                        <option value="">All Sources</option>
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Date Range</label>
+                    <div class="row g-2">
+                        <div class="col">
+                            <input type="datetime-local" class="form-control" id="filterStartDate">
+                        </div>
+                        <div class="col">
+                            <input type="datetime-local" class="form-control" id="filterEndDate">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" onclick="alarmDashboard.clearFilters()">Clear</button>
+                <button type="button" class="btn btn-primary" onclick="alarmDashboard.applyFilters()">Apply Filters</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alarm-critical-row { border-left: 4px solid #dc3545; }
+    .alarm-high-row { border-left: 4px solid #fd7e14; }
+    .alarm-medium-row { border-left: 4px solid #ffc107; }
+    .alarm-low-row { border-left: 4px solid #0dcaf0; }
+
+    .alarm-row.unacknowledged {
+        animation: alarm-flash 1s infinite;
+    }
+
+    @keyframes alarm-flash {
+        0%, 100% { background-color: transparent; }
+        50% { background-color: rgba(220, 53, 69, 0.1); }
+    }
+
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .sortable:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Dashboard JS files -->
+<script src="/static/js/api_client.js"></script>
+<script src="/static/js/dashboard_common.js"></script>
+<script src="/static/js/socket_handlers.js"></script>
+
+<script>
+/**
+ * Alarm Dashboard Controller
+ */
+class AlarmDashboard {
+    constructor() {
+        this.alarms = [];
+        this.filters = {
+            priorities: ['critical', 'high', 'medium', 'low'],
+            state: '',
+            source: '',
+            startDate: null,
+            endDate: null,
+        };
+        this.sort = { field: 'timestamp', direction: 'desc' };
+        this.historyChart = null;
+        this.historyPeriod = '24h';
+        this.refreshInterval = null;
+        this.currentAlarmId = null;
+
+        // Initialize pagination
+        this.pagination = new TablePagination({
+            container: '#alarmPagination',
+            pageSize: 25,
+            onPageChange: (page) => this.loadAlarms(page),
+        });
+
+        // Initialize socket handler
+        this.socketHandler = new AlarmSocketHandler(socketManager, {
+            onNewAlarm: (data) => this.handleNewAlarm(data),
+            onAlarmAcknowledged: (data) => this.handleAlarmAcknowledged(data),
+            onAlarmCleared: (data) => this.handleAlarmCleared(data),
+            onSummaryUpdate: (data) => this.updateSummary(data),
+        });
+
+        this.init();
+    }
+
+    async init() {
+        // Set up event listeners
+        this.setupEventListeners();
+
+        // Load initial data
+        await this.loadAlarms();
+        await this.loadAlarmHistory();
+
+        // Initialize auto-refresh
+        this.setupAutoRefresh();
+
+        // Show connection indicator
+        showConnectionIndicator();
+    }
+
+    setupEventListeners() {
+        // Select all checkbox
+        document.getElementById('selectAll').addEventListener('change', (e) => {
+            document.querySelectorAll('.alarm-select').forEach(cb => cb.checked = e.target.checked);
+        });
+
+        // Sortable headers
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.addEventListener('click', () => {
+                const field = header.dataset.sort;
+                if (this.sort.field === field) {
+                    this.sort.direction = this.sort.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    this.sort.field = field;
+                    this.sort.direction = 'desc';
+                }
+                this.loadAlarms();
+            });
+        });
+
+        // Auto-refresh toggle
+        document.getElementById('autoRefresh').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                this.setupAutoRefresh();
+            } else {
+                this.stopAutoRefresh();
+            }
+        });
+    }
+
+    setupAutoRefresh() {
+        this.stopAutoRefresh();
+        this.refreshInterval = setInterval(() => {
+            if (document.getElementById('autoRefresh').checked) {
+                this.loadAlarmSummary();
+            }
+        }, 10000);
+    }
+
+    stopAutoRefresh() {
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = null;
+        }
+    }
+
+    /**
+     * Load alarms from API
+     */
+    async loadAlarms(page = 1) {
+        const card = document.getElementById('alarmsCard');
+        LoadingSpinner.show(card);
+
+        try {
+            const params = {
+                page,
+                page_size: this.pagination.pageSize,
+                sort_by: this.sort.field,
+                sort_dir: this.sort.direction,
+                ...this.getFilterParams(),
+            };
+
+            const response = await scadaApi.getAlarms(params);
+            this.alarms = response.alarms || response.data || [];
+
+            this.renderAlarms();
+            this.pagination.update(response.total || this.alarms.length, page);
+            this.updateSummary(response.summary || {});
+
+        } catch (error) {
+            console.error('Failed to load alarms:', error);
+            Toast.apiError(error);
+        } finally {
+            LoadingSpinner.hide(card);
+        }
+    }
+
+    /**
+     * Load alarm summary counts
+     */
+    async loadAlarmSummary() {
+        try {
+            const summary = await scadaApi.getAlarmSummary();
+            this.updateSummary(summary);
+        } catch (error) {
+            console.error('Failed to load alarm summary:', error);
+        }
+    }
+
+    /**
+     * Render alarms table
+     */
+    renderAlarms() {
+        const tbody = document.getElementById('alarmTableBody');
+
+        if (this.alarms.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-check-circle display-6 d-block mb-2"></i>
+                        No active alarms
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = this.alarms.map(alarm => {
+            const isUnack = alarm.state === 'active_unack';
+            const priorityBadgeClass = `alarm-${alarm.priority}`;
+            const rowClass = `alarm-row alarm-${alarm.priority}-row ${isUnack ? 'unacknowledged' : ''}`;
+
+            return `
+                <tr class="${rowClass}" data-id="${alarm.id || alarm.alarm_id}">
+                    <td><input type="checkbox" class="alarm-select" data-id="${alarm.id || alarm.alarm_id}"></td>
+                    <td>
+                        <span class="badge ${priorityBadgeClass}">
+                            ${(alarm.priority || 'low').toUpperCase()}
+                        </span>
+                    </td>
+                    <td>
+                        ${isUnack
+                            ? '<span class="badge bg-danger"><i class="bi bi-exclamation-circle"></i> Unack</span>'
+                            : alarm.state === 'active_ack'
+                                ? '<span class="badge bg-warning"><i class="bi bi-check-circle"></i> Ack</span>'
+                                : `<span class="badge bg-secondary">${alarm.state}</span>`
+                        }
+                    </td>
+                    <td><code>${alarm.tag_name || alarm.tag || '-'}</code></td>
+                    <td>${alarm.source || alarm.machine_id || '-'}</td>
+                    <td>${alarm.message || '-'}</td>
+                    <td><small>${DashboardUtils.formatDateTime(alarm.timestamp || alarm.triggered_at)}</small></td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-success" onclick="alarmDashboard.acknowledgeAlarm('${alarm.id || alarm.alarm_id}')" title="Acknowledge" ${!isUnack ? 'disabled' : ''}>
+                                <i class="bi bi-check"></i>
+                            </button>
+                            <button class="btn btn-outline-info" onclick="alarmDashboard.showAlarmDetail('${alarm.id || alarm.alarm_id}')" title="Details">
+                                <i class="bi bi-info-circle"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Update summary counts
+     */
+    updateSummary(summary) {
+        document.getElementById('criticalCount').textContent = summary.critical || 0;
+        document.getElementById('highCount').textContent = summary.high || 0;
+        document.getElementById('mediumCount').textContent = summary.medium || 0;
+        document.getElementById('lowCount').textContent = summary.low || 0;
+
+        const total = (summary.critical || 0) + (summary.high || 0) + (summary.medium || 0) + (summary.low || 0);
+        document.getElementById('totalActiveCount').textContent = summary.total || total;
+    }
+
+    /**
+     * Acknowledge single alarm
+     */
+    async acknowledgeAlarm(alarmId) {
+        const userId = '{{ current_user.id if current_user else "operator" }}';
+
+        try {
+            await scadaApi.acknowledgeAlarm(alarmId, userId);
+            Toast.success('Alarm acknowledged');
+            await this.loadAlarms(this.pagination.currentPage);
+        } catch (error) {
+            console.error('Failed to acknowledge alarm:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Acknowledge selected alarms
+     */
+    async acknowledgeSelected() {
+        const selected = Array.from(document.querySelectorAll('.alarm-select:checked'))
+            .map(cb => cb.dataset.id);
+
+        if (selected.length === 0) {
+            Toast.warning('Please select alarms to acknowledge');
+            return;
+        }
+
+        const userId = '{{ current_user.id if current_user else "operator" }}';
+
+        try {
+            await scadaApi.acknowledgeAlarms(selected, userId);
+            Toast.success(`${selected.length} alarm(s) acknowledged`);
+            document.getElementById('selectAll').checked = false;
+            await this.loadAlarms(this.pagination.currentPage);
+        } catch (error) {
+            console.error('Failed to acknowledge alarms:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Show alarm detail modal
+     */
+    async showAlarmDetail(alarmId) {
+        this.currentAlarmId = alarmId;
+
+        try {
+            const alarm = await scadaApi.getAlarm(alarmId);
+
+            document.getElementById('alarmDetailContent').innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr><th>Alarm ID</th><td>${alarm.alarm_id || alarm.id}</td></tr>
+                            <tr><th>Tag</th><td><code>${alarm.tag_name || alarm.tag || '-'}</code></td></tr>
+                            <tr><th>Priority</th><td><span class="badge alarm-${alarm.priority}">${(alarm.priority || 'low').toUpperCase()}</span></td></tr>
+                            <tr><th>State</th><td>${alarm.state || '-'}</td></tr>
+                            <tr><th>Source</th><td>${alarm.source || alarm.machine_id || '-'}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-sm">
+                            <tr><th>Triggered</th><td>${DashboardUtils.formatDateTime(alarm.timestamp || alarm.triggered_at)}</td></tr>
+                            <tr><th>Value</th><td>${alarm.value || '-'} ${alarm.engineering_unit || ''}</td></tr>
+                            <tr><th>Setpoint</th><td>${alarm.setpoint || '-'}</td></tr>
+                            <tr><th>Acknowledged</th><td>${alarm.acknowledged_at ? DashboardUtils.formatDateTime(alarm.acknowledged_at) : 'Not acknowledged'}</td></tr>
+                            <tr><th>Ack By</th><td>${alarm.acknowledged_by || '-'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <strong>Message:</strong> ${alarm.message || '-'}
+                </div>
+                ${alarm.help_text ? `<div class="mt-2 alert alert-info"><strong>Help:</strong> ${alarm.help_text}</div>` : ''}
+            `;
+
+            const ackBtn = document.getElementById('ackFromModal');
+            ackBtn.disabled = alarm.state !== 'active_unack';
+            ackBtn.onclick = () => {
+                this.acknowledgeAlarm(alarmId);
+                bootstrap.Modal.getInstance(document.getElementById('alarmDetailModal')).hide();
+            };
+
+            new bootstrap.Modal(document.getElementById('alarmDetailModal')).show();
+        } catch (error) {
+            console.error('Failed to load alarm details:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Load alarm history for chart
+     */
+    async loadAlarmHistory() {
+        try {
+            const response = await scadaApi.getAlarmHistory({ period: this.historyPeriod });
+            this.renderHistoryChart(response.data || response.history || []);
+        } catch (error) {
+            console.error('Failed to load alarm history:', error);
+            // Use mock data for demo
+            this.renderHistoryChart(this.getMockHistoryData());
+        }
+    }
+
+    /**
+     * Render history chart
+     */
+    renderHistoryChart(data) {
+        const ctx = document.getElementById('alarmHistoryChart').getContext('2d');
+
+        // Destroy existing chart
+        if (this.historyChart) {
+            this.historyChart.destroy();
+        }
+
+        // Process data for chart
+        const labels = data.map(d => d.time || d.label || '');
+        const critical = data.map(d => d.critical || 0);
+        const high = data.map(d => d.high || 0);
+        const medium = data.map(d => d.medium || 0);
+        const low = data.map(d => d.low || 0);
+
+        const config = ChartHelpers.createStackedBarConfig({
+            labels,
+            datasets: [
+                { label: 'Critical', data: critical, backgroundColor: '#dc3545' },
+                { label: 'High', data: high, backgroundColor: '#fd7e14' },
+                { label: 'Medium', data: medium, backgroundColor: '#ffc107' },
+                { label: 'Low', data: low, backgroundColor: '#0dcaf0' },
+            ],
+            chartOptions: {
+                maintainAspectRatio: false,
+            },
+        });
+
+        this.historyChart = new Chart(ctx, config);
+    }
+
+    /**
+     * Set history period
+     */
+    setHistoryPeriod(period) {
+        this.historyPeriod = period;
+
+        // Update button states
+        document.querySelectorAll('.card-header .btn-group-sm .btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.textContent.trim().toLowerCase().includes(period.replace('h', '').replace('d', ''))) {
+                btn.classList.add('active');
+            }
+        });
+
+        this.loadAlarmHistory();
+    }
+
+    /**
+     * Get mock history data for demo
+     */
+    getMockHistoryData() {
+        const hours = ['00:00', '02:00', '04:00', '06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00'];
+        return hours.map(time => ({
+            time,
+            critical: Math.floor(Math.random() * 3),
+            high: Math.floor(Math.random() * 5),
+            medium: Math.floor(Math.random() * 8),
+            low: Math.floor(Math.random() * 4),
+        }));
+    }
+
+    /**
+     * Get filter parameters
+     */
+    getFilterParams() {
+        const params = {};
+
+        if (this.filters.priorities.length < 4) {
+            params.priorities = this.filters.priorities.join(',');
+        }
+        if (this.filters.state) {
+            params.state = this.filters.state;
+        }
+        if (this.filters.source) {
+            params.source = this.filters.source;
+        }
+        if (this.filters.startDate) {
+            params.start_date = this.filters.startDate;
+        }
+        if (this.filters.endDate) {
+            params.end_date = this.filters.endDate;
+        }
+
+        return params;
+    }
+
+    /**
+     * Apply filters
+     */
+    applyFilters() {
+        this.filters.priorities = [];
+        if (document.getElementById('filterCritical').checked) this.filters.priorities.push('critical');
+        if (document.getElementById('filterHigh').checked) this.filters.priorities.push('high');
+        if (document.getElementById('filterMedium').checked) this.filters.priorities.push('medium');
+        if (document.getElementById('filterLow').checked) this.filters.priorities.push('low');
+
+        this.filters.state = document.getElementById('filterState').value;
+        this.filters.source = document.getElementById('filterSource').value;
+        this.filters.startDate = document.getElementById('filterStartDate').value;
+        this.filters.endDate = document.getElementById('filterEndDate').value;
+
+        bootstrap.Modal.getInstance(document.getElementById('filterModal')).hide();
+        this.loadAlarms();
+    }
+
+    /**
+     * Clear filters
+     */
+    clearFilters() {
+        document.getElementById('filterCritical').checked = true;
+        document.getElementById('filterHigh').checked = true;
+        document.getElementById('filterMedium').checked = true;
+        document.getElementById('filterLow').checked = true;
+        document.getElementById('filterState').value = '';
+        document.getElementById('filterSource').value = '';
+        document.getElementById('filterStartDate').value = '';
+        document.getElementById('filterEndDate').value = '';
+
+        this.filters = {
+            priorities: ['critical', 'high', 'medium', 'low'],
+            state: '',
+            source: '',
+            startDate: null,
+            endDate: null,
+        };
+
+        this.loadAlarms();
+    }
+
+    /**
+     * Export alarms
+     */
+    async exportAlarms() {
+        try {
+            await scadaApi.exportAlarms('csv');
+            Toast.success('Alarms exported');
+        } catch (error) {
+            // Fallback: use current data
+            const csv = this.generateCSV();
+            DashboardUtils.downloadFile(csv, 'alarms.csv', 'text/csv');
+        }
+    }
+
+    /**
+     * Generate CSV from current alarms
+     */
+    generateCSV() {
+        const headers = ['ID', 'Priority', 'State', 'Tag', 'Source', 'Message', 'Timestamp'];
+        const rows = this.alarms.map(a => [
+            a.id || a.alarm_id,
+            a.priority,
+            a.state,
+            a.tag_name || a.tag,
+            a.source || a.machine_id,
+            `"${(a.message || '').replace(/"/g, '""')}"`,
+            a.timestamp || a.triggered_at,
+        ]);
+
+        return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    }
+
+    /**
+     * Handle new alarm from WebSocket
+     */
+    handleNewAlarm(data) {
+        if (document.getElementById('autoRefresh').checked) {
+            this.loadAlarms(this.pagination.currentPage);
+        }
+    }
+
+    /**
+     * Handle alarm acknowledged from WebSocket
+     */
+    handleAlarmAcknowledged(data) {
+        const row = document.querySelector(`tr[data-id="${data.alarm_id}"]`);
+        if (row) {
+            row.classList.remove('unacknowledged');
+            const stateCell = row.cells[2];
+            stateCell.innerHTML = '<span class="badge bg-warning"><i class="bi bi-check-circle"></i> Ack</span>';
+        }
+    }
+
+    /**
+     * Handle alarm cleared from WebSocket
+     */
+    handleAlarmCleared(data) {
+        if (document.getElementById('autoRefresh').checked) {
+            this.loadAlarms(this.pagination.currentPage);
+        }
+    }
+}
+
+// Initialize dashboard
+const alarmDashboard = new AlarmDashboard();
+</script>
+{% endblock %}

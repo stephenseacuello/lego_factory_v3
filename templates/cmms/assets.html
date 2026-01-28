@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+{% block title %}Assets - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">Maintenance</a></li>
+<li class="breadcrumb-item active">Assets</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-gear me-2"></i>Asset Management</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addAssetModal">
+        <i class="bi bi-plus me-1"></i>Add Asset
+    </button>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-success text-white text-center p-3">
+            <h3 id="operationalCount">0</h3>
+            <small>Operational</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark text-center p-3">
+            <h3 id="maintenanceCount">0</h3>
+            <small>Under Maintenance</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white text-center p-3">
+            <h3 id="downCount">0</h3>
+            <small>Down</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white text-center p-3">
+            <h3 id="totalAssets">0</h3>
+            <small>Total Assets</small>
+        </div>
+    </div>
+</div>
+
+<!-- Assets Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Asset List</span>
+        <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-secondary" onclick="refreshAssets()">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover" id="assetsTable">
+                <thead>
+                    <tr>
+                        <th>Asset ID</th>
+                        <th>Name</th>
+                        <th>Class</th>
+                        <th>Location</th>
+                        <th>Status</th>
+                        <th>Criticality</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="assetsTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Add Asset Modal -->
+<div class="modal fade" id="addAssetModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add New Asset</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addAssetForm">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Asset ID</label>
+                            <input type="text" class="form-control" id="assetId" placeholder="AST-001">
+                            <small class="text-muted">Leave blank to auto-generate</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="assetName" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Asset Class</label>
+                            <select class="form-select" id="assetClass">
+                                <option value="">Select class...</option>
+                                <option value="production">Production Equipment</option>
+                                <option value="automation">Automation</option>
+                                <option value="facility">Facility</option>
+                                <option value="tooling">Tooling</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" id="assetStatus">
+                                <option value="operational">Operational</option>
+                                <option value="maintenance">Under Maintenance</option>
+                                <option value="down">Down</option>
+                                <option value="retired">Retired</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Location</label>
+                            <input type="text" class="form-control" id="assetLocation" placeholder="Cell A, Building 1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Criticality</label>
+                            <select class="form-select" id="assetCriticality">
+                                <option value="low">Low</option>
+                                <option value="standard" selected>Standard</option>
+                                <option value="high">High</option>
+                                <option value="critical">Critical</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Serial Number</label>
+                            <input type="text" class="form-control" id="serialNumber">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Manufacturer</label>
+                            <input type="text" class="form-control" id="manufacturer">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" id="assetDescription" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus me-1"></i>Create Asset
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/api_client.js"></script>
+<script>
+let assets = [];
+
+async function loadAssets() {
+    const tbody = document.getElementById('assetsTableBody');
+
+    try {
+        const response = await fetch('/api/cmms/assets');
+        const data = await response.json();
+        assets = data.assets || data.data || [];
+
+        if (assets.length === 0) {
+            // Load demo data
+            assets = getDemoAssets();
+        }
+
+        renderAssets();
+        updateStats();
+    } catch (error) {
+        console.error('Error loading assets:', error);
+        assets = getDemoAssets();
+        renderAssets();
+        updateStats();
+    }
+}
+
+function getDemoAssets() {
+    return [
+        { asset_id: 'AST-001', name: 'Bambu Lab P1S', asset_class: 'production', location: 'Cell A', status: 'operational', criticality: 'high' },
+        { asset_id: 'AST-002', name: 'Bantam Desktop CNC', asset_class: 'production', location: 'Cell B', status: 'operational', criticality: 'standard' },
+        { asset_id: 'AST-003', name: 'Niryo Ned2 Robot', asset_class: 'automation', location: 'Cell A', status: 'maintenance', criticality: 'high' },
+        { asset_id: 'AST-004', name: 'Longer Ray5 Laser', asset_class: 'production', location: 'Cell C', status: 'operational', criticality: 'standard' },
+        { asset_id: 'AST-005', name: 'Creality CR-30', asset_class: 'production', location: 'Cell A', status: 'down', criticality: 'low' },
+        { asset_id: 'AST-006', name: 'xArm Lite 6', asset_class: 'automation', location: 'Cell D', status: 'operational', criticality: 'critical' },
+    ];
+}
+
+function renderAssets() {
+    const tbody = document.getElementById('assetsTableBody');
+
+    if (assets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No assets found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = assets.map(asset => `
+        <tr>
+            <td><a href="/cmms/assets/${asset.asset_id}">${asset.asset_id}</a></td>
+            <td>${asset.name}</td>
+            <td><span class="badge bg-secondary">${asset.asset_class || 'N/A'}</span></td>
+            <td>${asset.location || asset.location_description || 'N/A'}</td>
+            <td>${getStatusBadge(asset.status)}</td>
+            <td>${getCriticalityBadge(asset.criticality)}</td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <a href="/cmms/assets/${asset.asset_id}" class="btn btn-outline-primary" title="View">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                    <button class="btn btn-outline-secondary" title="Edit" onclick="editAsset('${asset.asset_id}')">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'operational': '<span class="badge bg-success">Operational</span>',
+        'maintenance': '<span class="badge bg-warning text-dark">Maintenance</span>',
+        'down': '<span class="badge bg-danger">Down</span>',
+        'retired': '<span class="badge bg-secondary">Retired</span>',
+    };
+    return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function getCriticalityBadge(criticality) {
+    const badges = {
+        'low': '<span class="badge bg-secondary">Low</span>',
+        'standard': '<span class="badge bg-info">Standard</span>',
+        'high': '<span class="badge bg-warning text-dark">High</span>',
+        'critical': '<span class="badge bg-danger">Critical</span>',
+    };
+    return badges[criticality] || `<span class="badge bg-secondary">${criticality}</span>`;
+}
+
+function updateStats() {
+    const operational = assets.filter(a => a.status === 'operational').length;
+    const maintenance = assets.filter(a => a.status === 'maintenance').length;
+    const down = assets.filter(a => a.status === 'down').length;
+
+    document.getElementById('operationalCount').textContent = operational;
+    document.getElementById('maintenanceCount').textContent = maintenance;
+    document.getElementById('downCount').textContent = down;
+    document.getElementById('totalAssets').textContent = assets.length;
+}
+
+function refreshAssets() {
+    loadAssets();
+}
+
+function editAsset(assetId) {
+    alert('Edit asset: ' + assetId + ' (coming soon)');
+}
+
+// Form submission
+document.getElementById('addAssetForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const data = {
+        asset_id: document.getElementById('assetId').value || undefined,
+        name: document.getElementById('assetName').value,
+        asset_class: document.getElementById('assetClass').value,
+        status: document.getElementById('assetStatus').value,
+        location_description: document.getElementById('assetLocation').value,
+        criticality: document.getElementById('assetCriticality').value,
+        serial_number: document.getElementById('serialNumber').value,
+        manufacturer: document.getElementById('manufacturer').value,
+        description: document.getElementById('assetDescription').value,
+    };
+
+    try {
+        const response = await fetch('/api/cmms/assets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            bootstrap.Modal.getInstance(document.getElementById('addAssetModal')).hide();
+            this.reset();
+            loadAssets();
+            alert('Asset created successfully!');
+        } else {
+            const error = await response.json();
+            alert('Error: ' + (error.error || error.message || 'Failed to create asset'));
+        }
+    } catch (error) {
+        console.error('Error creating asset:', error);
+        // Demo mode fallback
+        const newAsset = {
+            asset_id: data.asset_id || `AST-${String(assets.length + 1).padStart(3, '0')}`,
+            name: data.name,
+            asset_class: data.asset_class,
+            status: data.status,
+            location: data.location_description,
+            criticality: data.criticality,
+        };
+        assets.unshift(newAsset);
+        renderAssets();
+        updateStats();
+        bootstrap.Modal.getInstance(document.getElementById('addAssetModal')).hide();
+        this.reset();
+        alert('Asset created (demo mode)');
+    }
+});
+
+// Initialize
+loadAssets();
+</script>
+{% endblock %}

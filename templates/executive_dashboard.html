@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Dashboard - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --primary: #3b82f6; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: var(--primary); box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25); }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+        .kpi-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1); height: 100%; }
+        .kpi-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+        .kpi-value { font-size: 2rem; font-weight: 700; }
+        .kpi-trend { font-size: 0.875rem; }
+        .kpi-trend.up { color: #10b981; }
+        .kpi-trend.down { color: #ef4444; }
+        .chart-placeholder { background: #1e293b; border-radius: 8px; height: 250px; display: flex; align-items: center; justify-content: center; }
+        .mini-chart { display: flex; align-items: flex-end; gap: 4px; height: 40px; }
+        .mini-bar { width: 8px; background: linear-gradient(to top, var(--primary), #60a5fa); border-radius: 2px; }
+        .factory-status { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+        .status-item { background: #1e293b; border-radius: 8px; padding: 1rem; text-align: center; }
+        .status-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 0.5rem; }
+        .status-indicator.good { background: #10b981; }
+        .status-indicator.warning { background: #f59e0b; }
+        .status-indicator.critical { background: #ef4444; }
+        .table { color: #e2e8f0; }
+        .table th { border-color: rgba(255,255,255,0.1); color: #94a3b8; }
+        .table td { border-color: rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Executive Dashboard</a>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm" style="width:150px">
+                    <option>Today</option>
+                    <option>This Week</option>
+                    <option>This Month</option>
+                    <option>This Quarter</option>
+                </select>
+                <button class="btn btn-outline-light btn-sm"><i class="bi bi-download me-1"></i>Export</button>
+                <button class="btn btn-outline-light btn-sm" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Top KPIs -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-card">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="kpi-icon bg-success bg-opacity-25 text-success">
+                            <i class="bi bi-currency-dollar"></i>
+                        </div>
+                        <div class="mini-chart">
+                            <div class="mini-bar" style="height: 60%"></div>
+                            <div class="mini-bar" style="height: 45%"></div>
+                            <div class="mini-bar" style="height: 70%"></div>
+                            <div class="mini-bar" style="height: 55%"></div>
+                            <div class="mini-bar" style="height: 80%"></div>
+                            <div class="mini-bar" style="height: 90%"></div>
+                            <div class="mini-bar" style="height: 85%"></div>
+                        </div>
+                    </div>
+                    <div class="kpi-value">$2.4M</div>
+                    <div class="text-muted mb-1">Revenue MTD</div>
+                    <div class="kpi-trend up"><i class="bi bi-arrow-up"></i> 12.5% vs last month</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-card">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="kpi-icon bg-primary bg-opacity-25 text-primary">
+                            <i class="bi bi-box-seam"></i>
+                        </div>
+                        <div class="mini-chart">
+                            <div class="mini-bar" style="height: 70%"></div>
+                            <div class="mini-bar" style="height: 65%"></div>
+                            <div class="mini-bar" style="height: 80%"></div>
+                            <div class="mini-bar" style="height: 75%"></div>
+                            <div class="mini-bar" style="height: 85%"></div>
+                            <div class="mini-bar" style="height: 78%"></div>
+                            <div class="mini-bar" style="height: 92%"></div>
+                        </div>
+                    </div>
+                    <div class="kpi-value">847K</div>
+                    <div class="text-muted mb-1">Units Produced</div>
+                    <div class="kpi-trend up"><i class="bi bi-arrow-up"></i> 8.3% vs target</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-card">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="kpi-icon bg-info bg-opacity-25 text-info">
+                            <i class="bi bi-speedometer2"></i>
+                        </div>
+                        <div class="mini-chart">
+                            <div class="mini-bar" style="height: 82%"></div>
+                            <div class="mini-bar" style="height: 85%"></div>
+                            <div class="mini-bar" style="height: 78%"></div>
+                            <div class="mini-bar" style="height: 88%"></div>
+                            <div class="mini-bar" style="height: 86%"></div>
+                            <div class="mini-bar" style="height: 90%"></div>
+                            <div class="mini-bar" style="height: 87%"></div>
+                        </div>
+                    </div>
+                    <div class="kpi-value">87.2%</div>
+                    <div class="text-muted mb-1">OEE Score</div>
+                    <div class="kpi-trend up"><i class="bi bi-arrow-up"></i> 2.1% improvement</div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-card">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="kpi-icon bg-warning bg-opacity-25 text-warning">
+                            <i class="bi bi-check2-circle"></i>
+                        </div>
+                        <div class="mini-chart">
+                            <div class="mini-bar" style="height: 95%"></div>
+                            <div class="mini-bar" style="height: 97%"></div>
+                            <div class="mini-bar" style="height: 94%"></div>
+                            <div class="mini-bar" style="height: 98%"></div>
+                            <div class="mini-bar" style="height: 96%"></div>
+                            <div class="mini-bar" style="height: 99%"></div>
+                            <div class="mini-bar" style="height: 98%"></div>
+                        </div>
+                    </div>
+                    <div class="kpi-value">99.2%</div>
+                    <div class="text-muted mb-1">Quality Rate</div>
+                    <div class="kpi-trend up"><i class="bi bi-arrow-up"></i> 0.3% vs target</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Second Row KPIs -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-card">
+                    <div class="d-flex align-items-center">
+                        <div class="kpi-icon bg-danger bg-opacity-25 text-danger me-3">
+                            <i class="bi bi-clock-history"></i>
+                        </div>
+                        <div>
+                            <div class="h4 mb-0">2.3%</div>
+                            <div class="text-muted small">Downtime Rate</div>
+                            <div class="kpi-trend down small"><i class="bi bi-arrow-down"></i> 0.5% reduction</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-card">
+                    <div class="d-flex align-items-center">
+                        <div class="kpi-icon bg-success bg-opacity-25 text-success me-3">
+                            <i class="bi bi-truck"></i>
+                        </div>
+                        <div>
+                            <div class="h4 mb-0">98.7%</div>
+                            <div class="text-muted small">On-Time Delivery</div>
+                            <div class="kpi-trend up small"><i class="bi bi-arrow-up"></i> 1.2% improvement</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-card">
+                    <div class="d-flex align-items-center">
+                        <div class="kpi-icon bg-purple bg-opacity-25 text-info me-3">
+                            <i class="bi bi-people"></i>
+                        </div>
+                        <div>
+                            <div class="h4 mb-0">156</div>
+                            <div class="text-muted small">Active Workers</div>
+                            <div class="kpi-trend small text-muted">89 on shift now</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="kpi-card">
+                    <div class="d-flex align-items-center">
+                        <div class="kpi-icon bg-warning bg-opacity-25 text-warning me-3">
+                            <i class="bi bi-exclamation-triangle"></i>
+                        </div>
+                        <div>
+                            <div class="h4 mb-0">3</div>
+                            <div class="text-muted small">Active Alerts</div>
+                            <div class="kpi-trend down small text-danger">2 critical</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Production Overview -->
+            <div class="col-lg-8">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-graph-up me-2"></i>Production Trend</span>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-light active">Daily</button>
+                            <button class="btn btn-outline-light">Weekly</button>
+                            <button class="btn btn-outline-light">Monthly</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-placeholder">
+                            <div class="text-center text-muted">
+                                <i class="bi bi-bar-chart-line" style="font-size: 3rem;"></i>
+                                <p class="mt-2">Production Volume Chart</p>
+                                <small>Last 30 days trend with forecast</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Factory Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-building me-2"></i>Factory Overview
+                    </div>
+                    <div class="card-body">
+                        <div class="factory-status">
+                            <div class="status-item">
+                                <div class="h5 mb-1">
+                                    <span class="status-indicator good"></span>Line A
+                                </div>
+                                <div class="small text-muted">Running - 94% efficiency</div>
+                            </div>
+                            <div class="status-item">
+                                <div class="h5 mb-1">
+                                    <span class="status-indicator good"></span>Line B
+                                </div>
+                                <div class="small text-muted">Running - 91% efficiency</div>
+                            </div>
+                            <div class="status-item">
+                                <div class="h5 mb-1">
+                                    <span class="status-indicator warning"></span>Line C
+                                </div>
+                                <div class="small text-muted">Setup - Color change</div>
+                            </div>
+                            <div class="status-item">
+                                <div class="h5 mb-1">
+                                    <span class="status-indicator critical"></span>Line D
+                                </div>
+                                <div class="small text-muted">Down - Maintenance</div>
+                            </div>
+                        </div>
+                        <hr style="border-color: rgba(255,255,255,0.1);">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <div class="h5 mb-0">24</div>
+                                <div class="small text-muted">Active Orders</div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="h5 mb-0">12</div>
+                                <div class="small text-muted">In Queue</div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="h5 mb-0">47</div>
+                                <div class="small text-muted">Completed Today</div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="h5 mb-0">3</div>
+                                <div class="small text-muted">Delayed</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-trophy me-2"></i>Top Performing Products
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th class="text-end">Units</th>
+                                    <th class="text-end">Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Brick 2x4</td>
+                                    <td class="text-end">124,500</td>
+                                    <td class="text-end">$186K</td>
+                                </tr>
+                                <tr>
+                                    <td>Brick 2x2</td>
+                                    <td class="text-end">98,200</td>
+                                    <td class="text-end">$147K</td>
+                                </tr>
+                                <tr>
+                                    <td>Plate 1x6</td>
+                                    <td class="text-end">87,600</td>
+                                    <td class="text-end">$131K</td>
+                                </tr>
+                                <tr>
+                                    <td>Technic Beam</td>
+                                    <td class="text-end">45,300</td>
+                                    <td class="text-end">$90K</td>
+                                </tr>
+                                <tr>
+                                    <td>Minifig Heads</td>
+                                    <td class="text-end">38,900</td>
+                                    <td class="text-end">$78K</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-bell me-2"></i>Critical Alerts
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" style="background: transparent;">
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex">
+                                    <i class="bi bi-exclamation-octagon text-danger me-2"></i>
+                                    <div>
+                                        <strong>Temperature Alert</strong>
+                                        <div class="small text-muted">Injection Mold #3 - 287C</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex">
+                                    <i class="bi bi-exclamation-octagon text-danger me-2"></i>
+                                    <div>
+                                        <strong>Vibration Anomaly</strong>
+                                        <div class="small text-muted">Conveyor C2 - Possible failure</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex">
+                                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                                    <div>
+                                        <strong>Low Inventory</strong>
+                                        <div class="small text-muted">ABS Yellow - 12% remaining</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-calendar-check me-2"></i>Upcoming Events
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" style="background: transparent;">
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <strong>PM - Line D</strong>
+                                    <span class="badge bg-info">Today 2PM</span>
+                                </div>
+                                <small class="text-muted">Scheduled maintenance</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <strong>Quality Audit</strong>
+                                    <span class="badge bg-warning text-dark">Tomorrow</span>
+                                </div>
+                                <small class="text-muted">ISO 9001 internal audit</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <strong>Rush Order Due</strong>
+                                    <span class="badge bg-danger">Tomorrow 5PM</span>
+                                </div>
+                                <small class="text-muted">ACME Corp - 50,000 units</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function refreshData() {
+            console.log('Refreshing executive dashboard...');
+        }
+    </script>
+</body>
+</html>

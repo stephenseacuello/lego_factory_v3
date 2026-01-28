@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brick Designer - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --primary: #3b82f6; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: var(--primary); box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25); }
+        .form-label { color: #94a3b8; font-size: 0.875rem; }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+        .design-canvas { background: #1e293b; border-radius: 12px; border: 2px dashed rgba(255,255,255,0.2); min-height: 400px; display: flex; align-items: center; justify-content: center; }
+        .stud-grid { display: grid; gap: 4px; }
+        .stud { width: 30px; height: 30px; background: linear-gradient(145deg, #4a5568, #2d3748); border-radius: 50%; border: 2px solid rgba(255,255,255,0.1); cursor: pointer; transition: all 0.2s; }
+        .stud:hover { transform: scale(1.1); border-color: var(--primary); }
+        .stud.active { background: linear-gradient(145deg, var(--primary), #2563eb); border-color: #60a5fa; }
+        .dimension-input { width: 80px; text-align: center; }
+        .preview-3d { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 12px; min-height: 300px; display: flex; align-items: center; justify-content: center; }
+        .spec-table td { padding: 0.5rem; border-color: rgba(255,255,255,0.1); }
+        .color-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+        .color-option { width: 32px; height: 32px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+        .color-option:hover, .color-option.selected { border-color: #fff; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Brick Designer</a>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-light btn-sm"><i class="bi bi-folder2-open me-1"></i>Load</button>
+                <button class="btn btn-outline-light btn-sm"><i class="bi bi-save me-1"></i>Save</button>
+                <button class="btn btn-primary btn-sm"><i class="bi bi-printer me-1"></i>Export to Print</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <div class="row">
+            <!-- Design Controls -->
+            <div class="col-lg-3 col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-rulers me-2"></i>Stud Dimensions
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label class="form-label">Width (studs)</label>
+                                <input type="number" class="form-control dimension-input" id="widthStuds" value="2" min="1" max="16">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Length (studs)</label>
+                                <input type="number" class="form-control dimension-input" id="lengthStuds" value="4" min="1" max="16">
+                            </div>
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-6">
+                                <label class="form-label">Height (plates)</label>
+                                <input type="number" class="form-control dimension-input" id="heightPlates" value="3" min="1" max="12">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label">Wall Thickness</label>
+                                <select class="form-select" id="wallThickness">
+                                    <option value="1.2">1.2mm</option>
+                                    <option value="1.5" selected>1.5mm</option>
+                                    <option value="1.8">1.8mm</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary w-100" onclick="updatePreview()">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Update Preview
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-palette me-2"></i>Brick Color
+                    </div>
+                    <div class="card-body">
+                        <div class="color-picker">
+                            <div class="color-option selected" style="background:#c91a09" title="Red"></div>
+                            <div class="color-option" style="background:#1e5aa8" title="Blue"></div>
+                            <div class="color-option" style="background:#f7d117" title="Yellow"></div>
+                            <div class="color-option" style="background:#237841" title="Green"></div>
+                            <div class="color-option" style="background:#ffffff" title="White"></div>
+                            <div class="color-option" style="background:#1b2a34" title="Black"></div>
+                            <div class="color-option" style="background:#f57d20" title="Orange"></div>
+                            <div class="color-option" style="background:#95b90b" title="Lime"></div>
+                            <div class="color-option" style="background:#923978" title="Magenta"></div>
+                            <div class="color-option" style="background:#a5a9b4" title="Light Gray"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-gear me-2"></i>Advanced Options
+                    </div>
+                    <div class="card-body">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="hollowInterior" checked>
+                            <label class="form-check-label" for="hollowInterior">Hollow Interior</label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="addTubes" checked>
+                            <label class="form-check-label" for="addTubes">Add Anti-Stud Tubes</label>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" id="roundedEdges">
+                            <label class="form-check-label" for="roundedEdges">Rounded Edges</label>
+                        </div>
+                        <label class="form-label">Stud Style</label>
+                        <select class="form-select form-select-sm">
+                            <option>Standard LEGO</option>
+                            <option>Open Stud</option>
+                            <option>Logo Stud</option>
+                            <option>Flat (No Studs)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Design Canvas -->
+            <div class="col-lg-6 col-md-8">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-grid-3x3 me-2"></i>Stud Layout Editor</span>
+                        <div>
+                            <button class="btn btn-outline-light btn-sm me-1"><i class="bi bi-zoom-in"></i></button>
+                            <button class="btn btn-outline-light btn-sm me-1"><i class="bi bi-zoom-out"></i></button>
+                            <button class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-counterclockwise"></i></button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="design-canvas" id="designCanvas">
+                            <div class="stud-grid" id="studGrid" style="grid-template-columns: repeat(4, 1fr);">
+                                <div class="stud active"></div>
+                                <div class="stud active"></div>
+                                <div class="stud active"></div>
+                                <div class="stud active"></div>
+                                <div class="stud active"></div>
+                                <div class="stud active"></div>
+                                <div class="stud active"></div>
+                                <div class="stud active"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-box me-2"></i>3D Preview
+                    </div>
+                    <div class="card-body">
+                        <div class="preview-3d">
+                            <div class="text-center text-muted">
+                                <i class="bi bi-box" style="font-size: 4rem;"></i>
+                                <p class="mt-2">3D Preview - Brick 2x4</p>
+                                <small>Click and drag to rotate</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Specifications -->
+            <div class="col-lg-3">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-info-circle me-2"></i>Specifications
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0" style="color: #e2e8f0;">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted">Dimensions</td>
+                                    <td>2 x 4 x 3 plates</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Size (mm)</td>
+                                    <td>15.8 x 31.8 x 9.6</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Stud Count</td>
+                                    <td>8 studs</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Volume</td>
+                                    <td>1.24 cm3</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Est. Weight</td>
+                                    <td>2.3g (ABS)</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Print Time</td>
+                                    <td>~12 min</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Filament</td>
+                                    <td>~0.8g</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-download me-2"></i>Export Options
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-outline-light btn-sm w-100 mb-2">
+                            <i class="bi bi-file-earmark-binary me-1"></i>Export STL
+                        </button>
+                        <button class="btn btn-outline-light btn-sm w-100 mb-2">
+                            <i class="bi bi-file-earmark-code me-1"></i>Export OBJ
+                        </button>
+                        <button class="btn btn-outline-light btn-sm w-100 mb-2">
+                            <i class="bi bi-file-earmark me-1"></i>Export STEP
+                        </button>
+                        <button class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-printer me-1"></i>Send to Print Queue
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-clock-history me-2"></i>Recent Designs
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" style="background: transparent;">
+                            <a href="#" class="list-group-item list-group-item-action" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>Custom 2x6 Brick</span>
+                                    <small class="text-muted">2h ago</small>
+                                </div>
+                            </a>
+                            <a href="#" class="list-group-item list-group-item-action" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>Technic 1x8 Beam</span>
+                                    <small class="text-muted">Yesterday</small>
+                                </div>
+                            </a>
+                            <a href="#" class="list-group-item list-group-item-action" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span>Slope 2x2x3</span>
+                                    <small class="text-muted">3 days ago</small>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function updatePreview() {
+            const width = document.getElementById('widthStuds').value;
+            const length = document.getElementById('lengthStuds').value;
+            const grid = document.getElementById('studGrid');
+            grid.style.gridTemplateColumns = `repeat(${length}, 1fr)`;
+            grid.innerHTML = '';
+            for (let i = 0; i < width * length; i++) {
+                const stud = document.createElement('div');
+                stud.className = 'stud active';
+                stud.onclick = function() { this.classList.toggle('active'); };
+                grid.appendChild(stud);
+            }
+        }
+
+        document.querySelectorAll('.color-option').forEach(opt => {
+            opt.addEventListener('click', function() {
+                document.querySelectorAll('.color-option').forEach(o => o.classList.remove('selected'));
+                this.classList.add('selected');
+            });
+        });
+
+        document.querySelectorAll('.stud').forEach(stud => {
+            stud.addEventListener('click', function() {
+                this.classList.toggle('active');
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}Algorithm Comparison{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Algorithm Comparison</h2>
+            <p class="text-muted mb-0">Compare scheduling algorithms using Monte Carlo simulation</p>
+        </div>
+        <div>
+            <a href="{{ url_for('simulation_views.simulation_dashboard') }}" class="btn btn-outline-primary">
+                <i class="bi bi-speedometer2"></i> Simulation Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Configuration Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="bi bi-sliders"></i> Comparison Settings</h5>
+        </div>
+        <div class="card-body">
+            <form id="compare-form">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Algorithms to Compare</label>
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input type="checkbox" id="algo-cpsat" class="form-check-input algo-check" value="cpsat" checked>
+                                    <label class="form-check-label" for="algo-cpsat">CP-SAT (Optimal)</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="algo-spt" class="form-check-input algo-check" value="spt" checked>
+                                    <label class="form-check-label" for="algo-spt">SPT (Shortest Processing Time)</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="algo-edd" class="form-check-input algo-check" value="edd" checked>
+                                    <label class="form-check-label" for="algo-edd">EDD (Earliest Due Date)</label>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input type="checkbox" id="algo-wspt" class="form-check-input algo-check" value="wspt" checked>
+                                    <label class="form-check-label" for="algo-wspt">WSPT (Weighted SPT)</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="algo-cr" class="form-check-input algo-check" value="cr">
+                                    <label class="form-check-label" for="algo-cr">Critical Ratio</label>
+                                </div>
+                                <div class="form-check">
+                                    <input type="checkbox" id="algo-fifo" class="form-check-input algo-check" value="fifo">
+                                    <label class="form-check-label" for="algo-fifo">FIFO</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Replications per Algorithm</label>
+                        <input type="range" id="replications" class="form-range" min="10" max="50" value="30" oninput="document.getElementById('rep-value').textContent=this.value">
+                        <small class="text-muted">Count: <span id="rep-value">30</span></small>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Random Seed</label>
+                        <input type="number" id="seed" class="form-control" value="42">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <button type="submit" class="btn btn-primary" id="compare-btn">
+                        <i class="bi bi-play-circle"></i> Run Comparison
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Progress -->
+    <div id="progress-section" class="card mb-4" style="display: none;">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border text-primary me-3" role="status">
+                    <span class="visually-hidden">Running...</span>
+                </div>
+                <div>
+                    <strong>Running Comparison</strong>
+                    <p class="mb-0 text-muted">This may take a while for multiple algorithms...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results-section" style="display: none;">
+        <!-- Winner Banner -->
+        <div class="alert alert-success mb-4" id="winner-banner">
+            <h5 class="mb-1"><i class="bi bi-trophy"></i> Overall Winner: <span id="winner-name">--</span></h5>
+            <p class="mb-0" id="winner-detail"></p>
+        </div>
+
+        <!-- Comparison Table -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Results Table</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover" id="comparison-table">
+                        <thead>
+                            <tr>
+                                <th>Algorithm</th>
+                                <th>Makespan (min)</th>
+                                <th>Tardiness (min)</th>
+                                <th>Utilization (%)</th>
+                                <th>Adherence (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="comparison-tbody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Bar Chart Comparison -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Makespan Comparison</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="makespan-compare-chart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Radar Chart -->
+            <div class="col-md-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="mb-0">Multi-Metric Comparison</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="radar-chart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Box Plot Style Comparison -->
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Tardiness Distribution by Algorithm</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="tardiness-compare-chart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Per-Algorithm Winners -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-award"></i> Winners by Metric</h5>
+            </div>
+            <div class="card-body">
+                <div class="row" id="winners-row">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let makespanCompareChart = null;
+let radarChart = null;
+let tardinessCompareChart = null;
+
+const ALGO_COLORS = {
+    'cpsat': 'rgba(54, 162, 235, 0.8)',
+    'spt': 'rgba(255, 99, 132, 0.8)',
+    'edd': 'rgba(255, 206, 86, 0.8)',
+    'wspt': 'rgba(75, 192, 192, 0.8)',
+    'cr': 'rgba(153, 102, 255, 0.8)',
+    'fifo': 'rgba(255, 159, 64, 0.8)',
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+
+    document.getElementById('compare-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        await runComparison();
+    });
+});
+
+function initCharts() {
+    // Makespan comparison bar chart
+    const makespanCtx = document.getElementById('makespan-compare-chart').getContext('2d');
+    makespanCompareChart = new Chart(makespanCtx, {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Mean Makespan',
+                data: [],
+                backgroundColor: [],
+                borderWidth: 1,
+                error: []
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) {
+                            return `${ctx.parsed.y.toFixed(0)} min`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    title: { display: true, text: 'Makespan (minutes)' }
+                }
+            }
+        }
+    });
+
+    // Radar chart
+    const radarCtx = document.getElementById('radar-chart').getContext('2d');
+    radarChart = new Chart(radarCtx, {
+        type: 'radar',
+        data: {
+            labels: ['Makespan', 'Tardiness', 'Utilization', 'Adherence'],
+            datasets: []
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+
+    // Tardiness comparison
+    const tardinessCtx = document.getElementById('tardiness-compare-chart').getContext('2d');
+    tardinessCompareChart = new Chart(tardinessCtx, {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Mean Tardiness',
+                data: [],
+                backgroundColor: [],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Tardiness (minutes)' }
+                }
+            }
+        }
+    });
+}
+
+async function runComparison() {
+    const progressSection = document.getElementById('progress-section');
+    const resultsSection = document.getElementById('results-section');
+    const compareBtn = document.getElementById('compare-btn');
+
+    // Get selected algorithms
+    const algorithms = [];
+    document.querySelectorAll('.algo-check:checked').forEach(cb => {
+        algorithms.push(cb.value);
+    });
+
+    if (algorithms.length < 2) {
+        alert('Please select at least 2 algorithms to compare');
+        return;
+    }
+
+    progressSection.style.display = 'block';
+    resultsSection.style.display = 'none';
+    compareBtn.disabled = true;
+
+    try {
+        const response = await fetch('/api/simulation/compare', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                algorithms: algorithms,
+                n_replications: parseInt(document.getElementById('replications').value),
+                seed: parseInt(document.getElementById('seed').value) || 42
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Comparison failed');
+        }
+
+        displayComparisonResults(data);
+
+    } catch (error) {
+        console.error('Comparison error:', error);
+        alert('Comparison failed: ' + error.message);
+    } finally {
+        progressSection.style.display = 'none';
+        compareBtn.disabled = false;
+    }
+}
+
+function displayComparisonResults(data) {
+    const resultsSection = document.getElementById('results-section');
+    resultsSection.style.display = 'block';
+
+    // Winner banner
+    document.getElementById('winner-name').textContent = data.winner?.overall || 'N/A';
+    document.getElementById('winner-detail').textContent =
+        `Best algorithm across multiple metrics with ${data.n_replications} replications`;
+
+    // Build comparison table
+    const tbody = document.getElementById('comparison-tbody');
+    tbody.innerHTML = '';
+
+    const comparison = data.comparison || {};
+    const rows = comparison.rows || [];
+
+    rows.forEach(row => {
+        const tr = document.createElement('tr');
+
+        // Highlight winner row
+        if (row.algorithm === data.winner?.overall) {
+            tr.classList.add('table-success');
+        }
+
+        tr.innerHTML = `
+            <td><strong>${row.algorithm.toUpperCase()}</strong></td>
+            <td>${formatCI(row.makespan, row.makespan_ci)}</td>
+            <td>${formatCI(row.tardiness, row.tardiness_ci)}</td>
+            <td>${formatCI(row.utilization * 100, row.utilization_ci?.map(v => v * 100), '%')}</td>
+            <td>${formatCI(row.schedule_adherence * 100, row.schedule_adherence_ci?.map(v => v * 100), '%')}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Update charts
+    updateComparisonCharts(data);
+    updateWinners(data.winner);
+}
+
+function formatCI(mean, ci, suffix = '') {
+    if (mean === undefined) return '--';
+    const meanStr = mean.toFixed(1) + suffix;
+    if (ci && ci.length === 2) {
+        return `${meanStr} <small class="text-muted">(${ci[0].toFixed(1)}-${ci[1].toFixed(1)})</small>`;
+    }
+    return meanStr;
+}
+
+function updateComparisonCharts(data) {
+    const rows = data.comparison?.rows || [];
+
+    // Makespan chart
+    makespanCompareChart.data.labels = rows.map(r => r.algorithm.toUpperCase());
+    makespanCompareChart.data.datasets[0].data = rows.map(r => r.makespan || 0);
+    makespanCompareChart.data.datasets[0].backgroundColor = rows.map(r => ALGO_COLORS[r.algorithm] || 'gray');
+    makespanCompareChart.update();
+
+    // Tardiness chart
+    tardinessCompareChart.data.labels = rows.map(r => r.algorithm.toUpperCase());
+    tardinessCompareChart.data.datasets[0].data = rows.map(r => r.tardiness || 0);
+    tardinessCompareChart.data.datasets[0].backgroundColor = rows.map(r => ALGO_COLORS[r.algorithm] || 'gray');
+    tardinessCompareChart.update();
+
+    // Radar chart - normalize values to 0-100 scale
+    const maxMakespan = Math.max(...rows.map(r => r.makespan || 0));
+    const maxTardiness = Math.max(...rows.map(r => r.tardiness || 0)) || 1;
+
+    radarChart.data.datasets = rows.map(row => ({
+        label: row.algorithm.toUpperCase(),
+        data: [
+            100 - (row.makespan / maxMakespan * 100) || 0,  // Lower makespan is better
+            100 - (row.tardiness / maxTardiness * 100) || 0,  // Lower tardiness is better
+            (row.utilization || 0) * 100,  // Higher utilization is better
+            (row.schedule_adherence || 0) * 100  // Higher adherence is better
+        ],
+        backgroundColor: ALGO_COLORS[row.algorithm]?.replace('0.8', '0.2') || 'rgba(128,128,128,0.2)',
+        borderColor: ALGO_COLORS[row.algorithm] || 'gray',
+        borderWidth: 2
+    }));
+    radarChart.update();
+}
+
+function updateWinners(winner) {
+    const winnersRow = document.getElementById('winners-row');
+    winnersRow.innerHTML = '';
+
+    const metrics = [
+        { key: 'makespan', label: 'Makespan', icon: 'clock' },
+        { key: 'tardiness', label: 'Tardiness', icon: 'exclamation-triangle' },
+        { key: 'utilization', label: 'Utilization', icon: 'speedometer2' },
+        { key: 'schedule_adherence', label: 'Adherence', icon: 'check-circle' }
+    ];
+
+    metrics.forEach(metric => {
+        const algo = winner?.[metric.key] || '--';
+        const col = document.createElement('div');
+        col.className = 'col-md-3';
+        col.innerHTML = `
+            <div class="card text-center">
+                <div class="card-body">
+                    <i class="bi bi-${metric.icon} fs-3 text-primary"></i>
+                    <h6 class="mt-2">${metric.label}</h6>
+                    <span class="badge bg-success fs-6">${algo.toUpperCase()}</span>
+                </div>
+            </div>
+        `;
+        winnersRow.appendChild(col);
+    });
+}
+</script>
+{% endblock %}

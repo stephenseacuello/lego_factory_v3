@@ -1,0 +1,297 @@
+# LEGO MCP Factory Floor Map Configuration
+# Defines the factory cell layout, waypoints, and navigation zones
+#
+# Coordinate system:
+# - Origin (0,0) at factory cell center
+# - X-axis: Positive toward printer area
+# - Y-axis: Positive toward CNC area
+# - Units: meters
+#
+# LEGO MCP Manufacturing System v7.0
+
+map_info:
+  name: "LEGO MCP Factory Cell"
+  version: "7.0.0"
+  resolution: 0.01  # meters per pixel (for occupancy grid)
+  origin: [-1.0, -1.0, 0.0]  # x, y, yaw
+  dimensions:
+    width: 2.0    # meters
+    height: 2.0   # meters
+
+# Factory cell zones
+zones:
+  assembly_zone:
+    description: "Robot arm assembly area"
+    bounds:
+      x_min: 0.0
+      x_max: 0.6
+      y_min: -0.4
+      y_max: 0.4
+    equipment:
+      - ned2
+      - xarm
+    restricted: true  # AGVs should not enter during assembly
+
+  printer_zone:
+    description: "3D printer area"
+    bounds:
+      x_min: 0.6
+      x_max: 1.0
+      y_min: -0.3
+      y_max: 0.3
+    equipment:
+      - formlabs
+      - coastrunner
+    restricted: false
+
+  cnc_zone:
+    description: "CNC and laser area"
+    bounds:
+      x_min: -0.2
+      x_max: 0.6
+      y_min: 0.4
+      y_max: 0.8
+    equipment:
+      - tinyg_cnc
+      - mks_laser
+    restricted: true  # Restricted during operation
+
+  storage_zone:
+    description: "Material storage"
+    bounds:
+      x_min: -0.6
+      x_max: -0.2
+      y_min: -0.6
+      y_max: 0.6
+    restricted: false
+
+  charging_zone:
+    description: "AGV charging area"
+    bounds:
+      x_min: -0.8
+      x_max: -0.4
+      y_min: -0.2
+      y_max: 0.4
+    restricted: false
+
+  quality_zone:
+    description: "Quality inspection area"
+    bounds:
+      x_min: 0.4
+      x_max: 0.8
+      y_min: 0.2
+      y_max: 0.5
+    equipment:
+      - quality_camera
+    restricted: false
+
+# Navigation waypoints for AGVs
+waypoints:
+  # Home and charging positions
+  home:
+    x: 0.0
+    y: 0.0
+    yaw: 0.0
+    type: general
+    description: "Factory cell center"
+
+  charging_1:
+    x: -0.6
+    y: 0.0
+    yaw: 3.14159
+    type: charging
+    description: "Charging station 1"
+    capacity: 1
+
+  charging_2:
+    x: -0.6
+    y: 0.3
+    yaw: 3.14159
+    type: charging
+    description: "Charging station 2"
+    capacity: 1
+
+  # Printer pickup points
+  printer_pickup:
+    x: 0.75
+    y: 0.0
+    yaw: 0.0
+    type: station
+    description: "SLA printer pickup point"
+    equipment: formlabs
+
+  fdm_pickup:
+    x: 0.75
+    y: -0.2
+    yaw: 0.0
+    type: station
+    description: "FDM printer pickup point"
+    equipment: coastrunner
+
+  # CNC/Laser pickup points
+  cnc_pickup:
+    x: 0.2
+    y: 0.55
+    yaw: 1.5708
+    type: station
+    description: "CNC part pickup"
+    equipment: tinyg_cnc
+
+  laser_pickup:
+    x: 0.45
+    y: 0.55
+    yaw: 1.5708
+    type: station
+    description: "Laser engraving pickup"
+    equipment: mks_laser
+
+  # Assembly drop-off points
+  assembly_ned2:
+    x: 0.25
+    y: 0.15
+    yaw: 0.0
+    type: station
+    description: "Ned2 assembly input"
+    equipment: ned2
+
+  assembly_xarm:
+    x: 0.25
+    y: -0.15
+    yaw: 0.0
+    type: station
+    description: "xArm assembly input"
+    equipment: xarm
+
+  # Quality inspection
+  quality_inspection:
+    x: 0.55
+    y: 0.35
+    yaw: 0.7854
+    type: station
+    description: "Quality inspection station"
+
+  # Storage waypoints
+  storage_in:
+    x: -0.4
+    y: 0.4
+    yaw: 1.5708
+    type: storage
+    description: "Storage input"
+
+  storage_out:
+    x: -0.4
+    y: -0.4
+    yaw: -1.5708
+    type: storage
+    description: "Storage output"
+
+  # Transit waypoints (for path planning)
+  transit_north:
+    x: 0.0
+    y: 0.5
+    yaw: 0.0
+    type: transit
+    description: "North corridor waypoint"
+
+  transit_south:
+    x: 0.0
+    y: -0.5
+    yaw: 0.0
+    type: transit
+    description: "South corridor waypoint"
+
+  transit_east:
+    x: 0.6
+    y: 0.0
+    yaw: 0.0
+    type: transit
+    description: "East corridor waypoint"
+
+  transit_west:
+    x: -0.3
+    y: 0.0
+    yaw: 0.0
+    type: transit
+    description: "West corridor waypoint"
+
+# Static obstacles (permanent fixtures)
+obstacles:
+  worktable:
+    type: box
+    center: [0.3, 0.0]
+    dimensions: [0.6, 0.4]
+    height: 0.75
+
+  printer_cabinet:
+    type: box
+    center: [0.85, 0.0]
+    dimensions: [0.3, 0.5]
+    height: 0.6
+
+  cnc_enclosure:
+    type: box
+    center: [0.3, 0.65]
+    dimensions: [0.4, 0.25]
+    height: 0.4
+
+  storage_rack:
+    type: box
+    center: [-0.5, 0.0]
+    dimensions: [0.2, 0.8]
+    height: 1.0
+
+# Navigation lanes (preferred AGV paths)
+lanes:
+  main_corridor:
+    waypoints: [transit_west, home, transit_east]
+    width: 0.3
+    bidirectional: true
+
+  north_corridor:
+    waypoints: [transit_west, transit_north, transit_east]
+    width: 0.25
+    bidirectional: true
+
+  south_corridor:
+    waypoints: [transit_west, transit_south, transit_east]
+    width: 0.25
+    bidirectional: true
+
+  printer_access:
+    waypoints: [transit_east, printer_pickup]
+    width: 0.2
+    bidirectional: true
+
+  cnc_access:
+    waypoints: [transit_north, cnc_pickup]
+    width: 0.2
+    bidirectional: true
+
+  assembly_access:
+    waypoints: [home, assembly_ned2]
+    width: 0.2
+    bidirectional: true
+
+  charging_access:
+    waypoints: [transit_west, charging_1]
+    width: 0.2
+    bidirectional: true
+
+# Safety zones (speed limits)
+safety_zones:
+  assembly_approach:
+    zone: assembly_zone
+    buffer: 0.2
+    max_speed: 0.1  # m/s
+
+  cnc_approach:
+    zone: cnc_zone
+    buffer: 0.15
+    max_speed: 0.15
+
+# Traffic rules
+traffic_rules:
+  default_speed: 0.2  # m/s
+  intersection_yield: true
+  priority_to_loaded_agv: true
+  one_way_lanes: []

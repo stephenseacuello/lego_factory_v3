@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MES Dashboard - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --primary: #3b82f6; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; text-transform: uppercase; font-size: 0.75rem; }
+        .table td { border-color: rgba(255,255,255,0.05); vertical-align: middle; }
+        .table-hover tbody tr:hover { background: rgba(59, 130, 246, 0.1); }
+        .badge { font-weight: 500; }
+        .status-created { background: #64748b; }
+        .status-released { background: #3b82f6; }
+        .status-in_progress { background: #f59e0b; }
+        .status-completed { background: #10b981; }
+        .status-cancelled { background: #ef4444; }
+        .nav-pills .nav-link { color: #94a3b8; border-radius: 8px; }
+        .nav-pills .nav-link.active { background: var(--primary); }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; text-align: center; }
+        .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-label { color: #64748b; font-size: 0.85rem; }
+        .btn-action { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+        .modal-content { background: var(--card-bg); color: #e2e8f0; }
+        .modal-header { border-color: rgba(255,255,255,0.1); }
+        .modal-footer { border-color: rgba(255,255,255,0.1); }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: var(--primary); box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25); }
+        .progress { height: 8px; background: rgba(255,255,255,0.1); }
+        .labor-entry { background: rgba(16,185,129,0.1); border-left: 3px solid #10b981; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 0 8px 8px 0; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>MES Dashboard</a>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newWorkOrderModal">
+                    <i class="bi bi-plus-lg me-1"></i>New Work Order
+                </button>
+                <button class="btn btn-outline-light btn-sm" onclick="loadData()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats Row -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-primary" id="statTotal">0</div>
+                    <div class="stat-label">Total Orders</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-warning" id="statInProgress">0</div>
+                    <div class="stat-label">In Progress</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-success" id="statCompleted">0</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-info" id="statOperators">0</div>
+                    <div class="stat-label">Operators Working</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value" id="statYield">-</div>
+                    <div class="stat-label">Yield Rate</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-danger" id="statOverdue">0</div>
+                    <div class="stat-label">Overdue</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-pills mb-4" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#workorders"><i class="bi bi-clipboard-data me-1"></i>Work Orders</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#labor"><i class="bi bi-people me-1"></i>Labor Tracking</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#dispatching"><i class="bi bi-signpost-split me-1"></i>Dispatching</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Work Orders Tab -->
+            <div class="tab-pane fade show active" id="workorders">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-clipboard-data me-2"></i>Work Orders</span>
+                        <div class="d-flex gap-2">
+                            <select class="form-select form-select-sm" style="width:150px" id="woStatusFilter" onchange="loadWorkOrders()">
+                                <option value="">All Statuses</option>
+                                <option value="created">Created</option>
+                                <option value="released">Released</option>
+                                <option value="in_progress">In Progress</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>WO Number</th>
+                                        <th>Part</th>
+                                        <th>Qty Ordered</th>
+                                        <th>Progress</th>
+                                        <th>Due Date</th>
+                                        <th>Priority</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="workOrdersTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Labor Tab -->
+            <div class="tab-pane fade" id="labor">
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <i class="bi bi-person-check me-2"></i>Who's Working Now
+                            </div>
+                            <div class="card-body" id="whoIsWorking">
+                                <p class="text-muted">Loading...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-clock-history me-2"></i>Recent Time Entries</span>
+                                <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#clockInModal">
+                                    <i class="bi bi-box-arrow-in-right me-1"></i>Clock In
+                                </button>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0">
+                                        <thead>
+                                            <tr><th>Operator</th><th>Type</th><th>Start</th><th>Duration</th><th>Status</th></tr>
+                                        </thead>
+                                        <tbody id="timeEntriesTable"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dispatching Tab -->
+            <div class="tab-pane fade" id="dispatching">
+                <div class="row g-4">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-list-ol me-2"></i>Job Queue</span>
+                                <div class="d-flex gap-2">
+                                    <select class="form-select form-select-sm" style="width:120px" id="dispatchRule">
+                                        <option value="FIFO">FIFO</option>
+                                        <option value="SPT">SPT</option>
+                                        <option value="EDD">EDD</option>
+                                        <option value="CR">Critical Ratio</option>
+                                    </select>
+                                    <button class="btn btn-primary btn-sm" onclick="rankQueue()">
+                                        <i class="bi bi-sort-numeric-down me-1"></i>Rank
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>#</th>
+                                                <th>Job ID</th>
+                                                <th>Work Order</th>
+                                                <th>Work Center</th>
+                                                <th>Process Time</th>
+                                                <th>Due Date</th>
+                                                <th>Priority</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="dispatchQueueTable"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-info-circle me-2"></i>Dispatching Rules</div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <strong>FIFO</strong><br><small class="text-muted">First In First Out - Fair scheduling</small>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>SPT</strong><br><small class="text-muted">Shortest Processing Time - Minimize WIP</small>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>EDD</strong><br><small class="text-muted">Earliest Due Date - Minimize tardiness</small>
+                                </div>
+                                <div class="mb-3">
+                                    <strong>CR</strong><br><small class="text-muted">Critical Ratio - Dynamic urgency</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Work Order Modal -->
+    <div class="modal fade" id="newWorkOrderModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Work Order</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="newWoForm">
+                        <div class="mb-3">
+                            <label class="form-label">Part Number</label>
+                            <input type="text" class="form-control" id="woPartNumber" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Part Name</label>
+                            <input type="text" class="form-control" id="woPartName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" class="form-control" id="woQuantity" min="1" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Due Date</label>
+                            <input type="datetime-local" class="form-control" id="woDueDate">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Priority (1-10)</label>
+                            <input type="number" class="form-control" id="woPriority" min="1" max="10" value="5">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="createWorkOrder()">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clock In Modal -->
+    <div class="modal fade" id="clockInModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Clock In</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="clockInForm">
+                        <div class="mb-3">
+                            <label class="form-label">Badge Number</label>
+                            <input type="text" class="form-control" id="ciBadge" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Labor Type</label>
+                            <select class="form-select" id="ciLaborType">
+                                <option value="direct">Direct</option>
+                                <option value="indirect">Indirect</option>
+                                <option value="setup">Setup</option>
+                                <option value="rework">Rework</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Work Order ID (optional)</label>
+                            <input type="text" class="form-control" id="ciWorkOrder">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success" onclick="clockIn()">Clock In</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function loadData() {
+            await Promise.all([loadWorkOrders(), loadLaborData(), loadDispatchQueue()]);
+            loadStats();
+        }
+
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/workorders/analytics/summary');
+                if (res.ok) {
+                    const data = await res.json();
+                    const s = data.summary;
+                    document.getElementById('statTotal').textContent = s.total_work_orders || 0;
+                    document.getElementById('statInProgress').textContent = s.by_status?.in_progress || 0;
+                    document.getElementById('statCompleted').textContent = s.by_status?.completed || 0;
+                    document.getElementById('statYield').textContent = (s.yield_rate || 0).toFixed(1) + '%';
+                }
+            } catch(e) {}
+
+            try {
+                const res = await fetch('/api/labor/who-is-working');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('statOperators').textContent = data.count || 0;
+                }
+            } catch(e) {}
+
+            try {
+                const res = await fetch('/api/workorders/alerts/due-date?days_ahead=0');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('statOverdue').textContent = data.count || 0;
+                }
+            } catch(e) {}
+        }
+
+        async function loadWorkOrders() {
+            const status = document.getElementById('woStatusFilter').value;
+            const url = '/api/workorders/' + (status ? `?status=${status}` : '');
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                const tbody = document.getElementById('workOrdersTable');
+                if (data.work_orders?.length) {
+                    tbody.innerHTML = data.work_orders.map(wo => `
+                        <tr>
+                            <td><strong>${wo.wo_number}</strong></td>
+                            <td>${wo.part_number}<br><small class="text-muted">${wo.part_name}</small></td>
+                            <td>${wo.quantity_ordered}</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="progress flex-grow-1" style="width:100px">
+                                        <div class="progress-bar bg-success" style="width:${(wo.quantity_good/wo.quantity_ordered*100)||0}%"></div>
+                                    </div>
+                                    <small>${wo.quantity_good||0}/${wo.quantity_ordered}</small>
+                                </div>
+                            </td>
+                            <td>${wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}</td>
+                            <td><span class="badge bg-${wo.priority <= 3 ? 'danger' : wo.priority <= 6 ? 'warning' : 'secondary'}">${wo.priority}</span></td>
+                            <td><span class="badge status-${wo.status}">${wo.status}</span></td>
+                            <td>
+                                ${wo.status === 'created' ? `<button class="btn btn-outline-primary btn-action" onclick="releaseWO('${wo.id}')">Release</button>` : ''}
+                                ${wo.status === 'released' ? `<button class="btn btn-outline-success btn-action" onclick="startWO('${wo.id}')">Start</button>` : ''}
+                                ${wo.status === 'in_progress' ? `<button class="btn btn-outline-success btn-action" onclick="completeWO('${wo.id}')">Complete</button>` : ''}
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No work orders found</td></tr>';
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        async function loadLaborData() {
+            try {
+                const res = await fetch('/api/labor/who-is-working');
+                const data = await res.json();
+                const div = document.getElementById('whoIsWorking');
+                if (data.working?.length) {
+                    div.innerHTML = data.working.map(w => `
+                        <div class="labor-entry">
+                            <strong>${w.operator_name}</strong> <span class="badge bg-success ms-2">Working</span>
+                            <br><small class="text-muted">Since ${new Date(w.clock_in_time).toLocaleTimeString()} - ${w.labor_type}</small>
+                            <button class="btn btn-outline-danger btn-sm float-end" onclick="clockOut('${w.operator_id}')">Clock Out</button>
+                        </div>
+                    `).join('');
+                } else {
+                    div.innerHTML = '<p class="text-muted">No operators currently working</p>';
+                }
+            } catch(e) {}
+
+            try {
+                const res = await fetch('/api/labor/entries?limit=10');
+                const data = await res.json();
+                const tbody = document.getElementById('timeEntriesTable');
+                if (data.entries?.length) {
+                    tbody.innerHTML = data.entries.map(e => `
+                        <tr>
+                            <td>${e.operator_id.slice(0,8)}...</td>
+                            <td>${e.labor_type}</td>
+                            <td>${new Date(e.clock_in_time).toLocaleTimeString()}</td>
+                            <td>${e.total_hours ? e.total_hours.toFixed(1) + 'h' : '-'}</td>
+                            <td><span class="badge bg-${e.status === 'active' ? 'success' : 'secondary'}">${e.status}</span></td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) {}
+        }
+
+        async function loadDispatchQueue() {
+            try {
+                const res = await fetch('/api/dispatching/queue');
+                const data = await res.json();
+                const tbody = document.getElementById('dispatchQueueTable');
+                if (data.queue?.length) {
+                    tbody.innerHTML = data.queue.map((j, i) => `
+                        <tr>
+                            <td>${i+1}</td>
+                            <td>${j.job_id}</td>
+                            <td>${j.work_order_id}</td>
+                            <td>${j.work_center}</td>
+                            <td>${j.processing_time_min} min</td>
+                            <td>${j.due_date ? new Date(j.due_date).toLocaleDateString() : '-'}</td>
+                            <td>${j.priority}</td>
+                            <td>
+                                <button class="btn btn-outline-primary btn-action" onclick="dispatchJob('${j.work_center}')">Dispatch</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Queue is empty</td></tr>';
+                }
+            } catch(e) {}
+        }
+
+        async function rankQueue() {
+            const rule = document.getElementById('dispatchRule').value;
+            try {
+                const res = await fetch(`/api/dispatching/rank?work_center=DEFAULT&rule=${rule}&top_n=20`);
+                const data = await res.json();
+                if (data.ranked_jobs) {
+                    const tbody = document.getElementById('dispatchQueueTable');
+                    tbody.innerHTML = data.ranked_jobs.map((j, i) => `
+                        <tr>
+                            <td><strong>${i+1}</strong></td>
+                            <td>${j.job_id}</td>
+                            <td>${j.work_order_id}</td>
+                            <td>${j.work_center}</td>
+                            <td>${j.processing_time_min} min</td>
+                            <td>${j.due_date ? new Date(j.due_date).toLocaleDateString() : '-'}</td>
+                            <td>${j.priority}</td>
+                            <td><span class="badge bg-info">${j.score?.toFixed(2) || '-'}</span></td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) { alert('Error ranking queue'); }
+        }
+
+        async function createWorkOrder() {
+            const wo = {
+                part_number: document.getElementById('woPartNumber').value,
+                part_name: document.getElementById('woPartName').value,
+                quantity: parseInt(document.getElementById('woQuantity').value),
+                priority: parseInt(document.getElementById('woPriority').value)
+            };
+            const dueDate = document.getElementById('woDueDate').value;
+            if (dueDate) wo.due_date = new Date(dueDate).toISOString();
+
+            try {
+                const res = await fetch('/api/workorders/', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(wo)
+                });
+                if (res.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('newWorkOrderModal')).hide();
+                    loadData();
+                } else {
+                    alert('Error creating work order');
+                }
+            } catch(e) { alert('Error: ' + e); }
+        }
+
+        async function releaseWO(id) {
+            await fetch(`/api/workorders/${id}/release`, {method: 'POST'});
+            loadWorkOrders();
+        }
+        async function startWO(id) {
+            await fetch(`/api/workorders/${id}/start`, {method: 'POST'});
+            loadWorkOrders();
+        }
+        async function completeWO(id) {
+            await fetch(`/api/workorders/${id}/complete`, {method: 'POST'});
+            loadWorkOrders();
+        }
+
+        async function clockIn() {
+            const data = {
+                badge_number: document.getElementById('ciBadge').value,
+                labor_type: document.getElementById('ciLaborType').value,
+                work_order_id: document.getElementById('ciWorkOrder').value || undefined
+            };
+            try {
+                const res = await fetch('/api/labor/clock-in', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                if (res.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('clockInModal')).hide();
+                    loadLaborData();
+                } else {
+                    const err = await res.json();
+                    alert('Error: ' + (err.error || 'Clock in failed'));
+                }
+            } catch(e) { alert('Error: ' + e); }
+        }
+
+        async function clockOut(operatorId) {
+            await fetch('/api/labor/clock-out', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({operator_id: operatorId})
+            });
+            loadLaborData();
+        }
+
+        async function dispatchJob(workCenter) {
+            const rule = document.getElementById('dispatchRule').value;
+            await fetch('/api/dispatching/dispatch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({work_center: workCenter, machine_id: 'MACHINE-1', rule: rule})
+            });
+            loadDispatchQueue();
+        }
+
+        loadData();
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>

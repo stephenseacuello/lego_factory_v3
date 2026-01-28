@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+{% block title %}CRM Dashboard - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item">CRM</li>
+<li class="breadcrumb-item active">Dashboard</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-people me-2"></i>CRM Dashboard</h2>
+    <div>
+        <button class="btn btn-primary" onclick="showNewActivityModal()">
+            <i class="bi bi-plus-lg me-1"></i>Log Activity
+        </button>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <h6 class="text-muted">Total Customers</h6>
+                <h3 class="mb-0" id="totalCustomers">0</h3>
+                <small class="text-success"><i class="bi bi-arrow-up"></i> Active accounts</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card success">
+            <div class="card-body">
+                <h6 class="text-muted">Total Contacts</h6>
+                <h3 class="mb-0" id="totalContacts">0</h3>
+                <small class="text-muted">Across all customers</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning">
+            <div class="card-body">
+                <h6 class="text-muted">Open Activities</h6>
+                <h3 class="mb-0" id="openActivities">0</h3>
+                <small class="text-muted">Follow-ups due</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card danger">
+            <div class="card-body">
+                <h6 class="text-muted">This Month</h6>
+                <h3 class="mb-0" id="monthlyActivities">0</h3>
+                <small class="text-muted">Activities logged</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Recent Activities -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clock-history me-2"></i>Recent Activities</span>
+                <a href="{{ url_for('crm_web.activities') }}" class="btn btn-sm btn-outline-primary">View All</a>
+            </div>
+            <div class="card-body">
+                <div id="recentActivities">
+                    <div class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm me-2"></div>
+                        Loading activities...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Customers -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-trophy me-2"></i>Top Customers
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Customer</th>
+                                <th>Contact</th>
+                                <th class="text-end">Orders</th>
+                                <th class="text-end">Revenue</th>
+                                <th>Last Activity</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topCustomersTable">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-3">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Breakdown & Quick Actions -->
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-pie-chart me-2"></i>Activity Breakdown
+            </div>
+            <div class="card-body">
+                <canvas id="activityChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Upcoming Follow-ups -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-calendar-event me-2"></i>Upcoming Follow-ups
+            </div>
+            <div class="card-body">
+                <div id="upcomingFollowups">
+                    <div class="text-center text-muted py-3">
+                        <i class="bi bi-check-circle text-success" style="font-size: 1.5rem;"></i>
+                        <p class="mb-0 mt-2 small">No pending follow-ups</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-lightning me-2"></i>Quick Actions
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('crm_web.customers') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-building me-2"></i>View All Customers
+                    </a>
+                    <a href="{{ url_for('crm_web.contacts') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-person-lines-fill me-2"></i>View All Contacts
+                    </a>
+                    <button class="btn btn-outline-info btn-sm" onclick="showNewActivityModal()">
+                        <i class="bi bi-journal-plus me-2"></i>Log New Activity
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Activity Modal -->
+<div class="modal fade" id="newActivityModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-journal-plus me-2"></i>Log Activity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="activityForm">
+                    <div class="mb-3">
+                        <label class="form-label">Activity Type</label>
+                        <select class="form-select" id="activityType" required>
+                            <option value="">Select type...</option>
+                            <option value="call">Phone Call</option>
+                            <option value="email">Email</option>
+                            <option value="meeting">Meeting</option>
+                            <option value="note">Note</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Customer</label>
+                        <select class="form-select" id="activityCustomer" required>
+                            <option value="">Select customer...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Subject</label>
+                        <input type="text" class="form-control" id="activitySubject" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="activityDescription" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Follow-up Date (optional)</label>
+                        <input type="date" class="form-control" id="activityDueDate">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveActivity()">Save Activity</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let activityChart = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initChart();
+    loadDashboardData();
+});
+
+function initChart() {
+    const ctx = document.getElementById('activityChart').getContext('2d');
+    activityChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Calls', 'Emails', 'Meetings', 'Notes'],
+            datasets: [{
+                data: [0, 0, 0, 0],
+                backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#6c757d'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+async function loadDashboardData() {
+    try {
+        const response = await fetch('/api/crm/dashboard');
+        const data = await response.json();
+
+        if (data.error) {
+            showDemoData();
+            return;
+        }
+
+        updateStats(data.stats || {});
+        updateRecentActivities(data.recent_activities || []);
+        updateTopCustomers(data.top_customers || []);
+        updateFollowups(data.upcoming_followups || []);
+        updateChart(data.activity_breakdown || {});
+
+    } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        showDemoData();
+    }
+}
+
+function showDemoData() {
+    updateStats({ total_customers: 12, total_contacts: 34, open_activities: 5, monthly_activities: 28 });
+
+    updateRecentActivities([
+        { id: 1, activity_type: 'call', subject: 'Quarterly review call', customer_name: 'Acme Corp', activity_date: new Date().toISOString() },
+        { id: 2, activity_type: 'email', subject: 'Quote follow-up', customer_name: 'BuildRight Inc', activity_date: new Date(Date.now() - 86400000).toISOString() },
+        { id: 3, activity_type: 'meeting', subject: 'Product demo', customer_name: 'Tech Solutions', activity_date: new Date(Date.now() - 172800000).toISOString() }
+    ]);
+
+    updateTopCustomers([
+        { name: 'Acme Corp', contact_name: 'John Smith', orders: 24, revenue: 45000, last_activity: 'Today' },
+        { name: 'BuildRight Inc', contact_name: 'Jane Doe', orders: 18, revenue: 32000, last_activity: 'Yesterday' },
+        { name: 'Tech Solutions', contact_name: 'Bob Wilson', orders: 12, revenue: 28000, last_activity: '3 days ago' }
+    ]);
+
+    updateFollowups([
+        { subject: 'Follow up on quote', customer_name: 'Acme Corp', due_date: new Date(Date.now() + 86400000).toISOString() },
+        { subject: 'Check order status', customer_name: 'BuildRight Inc', due_date: new Date(Date.now() + 172800000).toISOString() }
+    ]);
+
+    updateChart({ call: 35, email: 45, meeting: 15, note: 5 });
+}
+
+function updateStats(stats) {
+    document.getElementById('totalCustomers').textContent = stats.total_customers || 0;
+    document.getElementById('totalContacts').textContent = stats.total_contacts || 0;
+    document.getElementById('openActivities').textContent = stats.open_activities || 0;
+    document.getElementById('monthlyActivities').textContent = stats.monthly_activities || 0;
+}
+
+function updateRecentActivities(activities) {
+    const container = document.getElementById('recentActivities');
+
+    if (!activities || activities.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-4">No recent activities</div>';
+        return;
+    }
+
+    const icons = { call: 'telephone', email: 'envelope', meeting: 'calendar-event', note: 'journal-text' };
+    const colors = { call: 'primary', email: 'success', meeting: 'warning', note: 'secondary' };
+
+    container.innerHTML = activities.map(a => {
+        const icon = icons[a.activity_type] || 'circle';
+        const color = colors[a.activity_type] || 'secondary';
+        const date = new Date(a.activity_date).toLocaleDateString();
+
+        return `
+            <div class="d-flex align-items-start mb-3 pb-3 border-bottom">
+                <div class="bg-${color} bg-opacity-10 rounded p-2 me-3">
+                    <i class="bi bi-${icon} text-${color}"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">${a.subject}</h6>
+                    <small class="text-muted">${a.customer_name} - ${date}</small>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateTopCustomers(customers) {
+    const tbody = document.getElementById('topCustomersTable');
+
+    if (!customers || customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No customer data</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = customers.map(c => `
+        <tr>
+            <td><strong>${c.name}</strong></td>
+            <td>${c.contact_name || '-'}</td>
+            <td class="text-end">${c.orders}</td>
+            <td class="text-end">$${(c.revenue || 0).toLocaleString()}</td>
+            <td><small class="text-muted">${c.last_activity}</small></td>
+        </tr>
+    `).join('');
+}
+
+function updateFollowups(followups) {
+    const container = document.getElementById('upcomingFollowups');
+
+    if (!followups || followups.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-3">
+                <i class="bi bi-check-circle text-success" style="font-size: 1.5rem;"></i>
+                <p class="mb-0 mt-2 small">No pending follow-ups</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = followups.map(f => {
+        const dueDate = new Date(f.due_date).toLocaleDateString();
+        return `
+            <div class="d-flex align-items-center mb-2 p-2 bg-light rounded">
+                <i class="bi bi-calendar-check text-warning me-2"></i>
+                <div class="flex-grow-1">
+                    <small class="d-block">${f.subject}</small>
+                    <small class="text-muted">${f.customer_name} - ${dueDate}</small>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateChart(breakdown) {
+    if (activityChart) {
+        activityChart.data.datasets[0].data = [
+            breakdown.call || 0,
+            breakdown.email || 0,
+            breakdown.meeting || 0,
+            breakdown.note || 0
+        ];
+        activityChart.update();
+    }
+}
+
+function showNewActivityModal() {
+    loadCustomersForSelect();
+    const modal = new bootstrap.Modal(document.getElementById('newActivityModal'));
+    modal.show();
+}
+
+async function loadCustomersForSelect() {
+    try {
+        const response = await fetch('/api/crm/customers?limit=100');
+        const data = await response.json();
+        const select = document.getElementById('activityCustomer');
+
+        select.innerHTML = '<option value="">Select customer...</option>';
+        (data.customers || []).forEach(c => {
+            select.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+    } catch (error) {
+        console.error('Error loading customers:', error);
+    }
+}
+
+async function saveActivity() {
+    const data = {
+        activity_type: document.getElementById('activityType').value,
+        partner_id: document.getElementById('activityCustomer').value,
+        subject: document.getElementById('activitySubject').value,
+        description: document.getElementById('activityDescription').value,
+        due_date: document.getElementById('activityDueDate').value || null
+    };
+
+    try {
+        const response = await fetch('/api/crm/activities', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('newActivityModal')).hide();
+            loadDashboardData();
+        } else {
+            alert('Failed to save activity');
+        }
+    } catch (error) {
+        console.error('Error saving activity:', error);
+        alert('Failed to save activity');
+    }
+}
+</script>
+{% endblock %}

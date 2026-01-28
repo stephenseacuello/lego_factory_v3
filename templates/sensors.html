@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensor Dashboard - CNC SCADA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/sensors.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation Bar -->
+        <nav style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 10px 15px; background: rgba(0,0,0,0.3); border-radius: 6px;">
+            <a href="/" style="color: #a0aec0; text-decoration: none;">&larr; Main Dashboard</a>
+            <div style="display: flex; gap: 10px;">
+                <a href="/digital-twin" style="color: #d69e2e; text-decoration: none; padding: 4px 10px; background: rgba(214,158,46,0.15); border-radius: 4px; font-size: 0.85rem;">Digital Twin</a>
+                <a href="/scheduling" style="color: #d69e2e; text-decoration: none; padding: 4px 10px; background: rgba(214,158,46,0.15); border-radius: 4px; font-size: 0.85rem;">Scheduling</a>
+                <a href="/sensors" style="color: #fff; text-decoration: none; padding: 4px 10px; background: #2c5282; border-radius: 4px; font-size: 0.85rem;">Sensors</a>
+                <a href="/mcp" style="color: #d69e2e; text-decoration: none; padding: 4px 10px; background: rgba(214,158,46,0.15); border-radius: 4px; font-size: 0.85rem;">MCP</a>
+            </div>
+        </nav>
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Back to Control Panel</a>
+                    <h1><i class="fas fa-microchip"></i> SENSOR DASHBOARD</h1>
+                    <p>Real-Time Sensor Monitoring | Arduino Nano 33 BLE Sense | 18 Modalities</p>
+                </div>
+                <div class="header-right">
+                    <div class="health-summary">
+                        <div class="health-item online">
+                            <span class="health-count" id="health-online">0</span>
+                            <span class="health-label">Online</span>
+                        </div>
+                        <div class="health-item pending">
+                            <span class="health-count" id="health-pending">0</span>
+                            <span class="health-label">Pending</span>
+                        </div>
+                        <div class="health-item offline">
+                            <span class="health-count" id="health-offline">0</span>
+                            <span class="health-label">Offline</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-settings" onclick="openAdminPanel()">
+                        <i class="fas fa-cog"></i> Admin
+                    </button>
+                    <button class="btn" id="history-mode-btn" onclick="toggleHistoryMode()">
+                        <i class="fas fa-history"></i> History
+                    </button>
+                </div>
+            </div>
+            <!-- Live/History Mode Indicator -->
+            <div class="mode-indicator">
+                <span id="live-indicator" class="mode-badge live active">
+                    <i class="fas fa-circle pulse"></i> LIVE
+                </span>
+                <span id="history-indicator" class="mode-badge history">
+                    <i class="fas fa-clock"></i> HISTORY
+                </span>
+            </div>
+        </div>
+
+        <!-- Category Cards Grid -->
+        <div class="categories-grid" id="categories-container">
+            <!-- IMU Category -->
+            <div class="category-card" data-category="IMU">
+                <div class="category-header">
+                    <div class="category-title">
+                        <i class="fas fa-compass"></i>
+                        <span>IMU (9 Axes)</span>
+                    </div>
+                    <span class="category-badge">0 sensors</span>
+                </div>
+                <div class="sensor-grid" id="sensors-imu">
+                    <div class="sensor-placeholder">No sensors detected</div>
+                </div>
+            </div>
+
+            <!-- Environmental Category -->
+            <div class="category-card" data-category="Environmental">
+                <div class="category-header">
+                    <div class="category-title">
+                        <i class="fas fa-thermometer-half"></i>
+                        <span>Environmental</span>
+                    </div>
+                    <span class="category-badge">0 sensors</span>
+                </div>
+                <div class="sensor-grid" id="sensors-environmental">
+                    <div class="sensor-placeholder">No sensors detected</div>
+                </div>
+            </div>
+
+            <!-- Proximity Category -->
+            <div class="category-card" data-category="Proximity">
+                <div class="category-header">
+                    <div class="category-title">
+                        <i class="fas fa-hand-point-up"></i>
+                        <span>Proximity</span>
+                    </div>
+                    <span class="category-badge">0 sensors</span>
+                </div>
+                <div class="sensor-grid" id="sensors-proximity">
+                    <div class="sensor-placeholder">No sensors detected</div>
+                </div>
+            </div>
+
+            <!-- Color Category -->
+            <div class="category-card" data-category="Color">
+                <div class="category-header">
+                    <div class="category-title">
+                        <i class="fas fa-palette"></i>
+                        <span>Color (RGBA)</span>
+                    </div>
+                    <span class="category-badge">0 sensors</span>
+                </div>
+                <div class="sensor-grid" id="sensors-color">
+                    <div class="sensor-placeholder">No sensors detected</div>
+                </div>
+            </div>
+
+            <!-- Audio Category -->
+            <div class="category-card" data-category="Audio">
+                <div class="category-header">
+                    <div class="category-title">
+                        <i class="fas fa-volume-up"></i>
+                        <span>Audio</span>
+                    </div>
+                    <span class="category-badge">0 sensors</span>
+                </div>
+                <div class="sensor-grid" id="sensors-audio">
+                    <div class="sensor-placeholder">No sensors detected</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Panel (hidden by default) -->
+        <div id="history-panel" class="history-panel" style="display: none;">
+            <div class="history-sidebar">
+                <div class="history-header">
+                    <h3><i class="fas fa-folder-open"></i> Recorded Sessions</h3>
+                    <button class="btn btn-sm" onclick="loadSessions()">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="session-list" id="session-list">
+                    <div class="loading">Loading sessions...</div>
+                </div>
+            </div>
+
+            <div class="history-main">
+                <!-- Playback Controls -->
+                <div class="playback-controls" id="playback-controls">
+                    <div class="playback-info">
+                        <span class="session-name" id="current-session-name">No session loaded</span>
+                        <span class="playback-time" id="playback-time">--:--:-- / --:--:--</span>
+                    </div>
+                    <div class="playback-slider-container">
+                        <input type="range" id="playback-slider" class="playback-slider"
+                               min="0" max="100" value="0" oninput="onSliderChange(this.value)">
+                    </div>
+                    <div class="playback-buttons">
+                        <button class="btn playback-btn" id="play-btn" onclick="playSession()">
+                            <i class="fas fa-play"></i>
+                        </button>
+                        <button class="btn playback-btn" id="pause-btn-history" onclick="pausePlayback()" disabled>
+                            <i class="fas fa-pause"></i>
+                        </button>
+                        <button class="btn playback-btn" id="stop-btn" onclick="stopPlayback()">
+                            <i class="fas fa-stop"></i>
+                        </button>
+                        <div class="speed-controls">
+                            <button class="btn speed-btn" onclick="setPlaybackSpeed(0.5)">0.5x</button>
+                            <button class="btn speed-btn active" onclick="setPlaybackSpeed(1)">1x</button>
+                            <button class="btn speed-btn" onclick="setPlaybackSpeed(2)">2x</button>
+                            <button class="btn speed-btn" onclick="setPlaybackSpeed(5)">5x</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Sensor Display -->
+                <div class="history-sensors" id="history-sensors">
+                    <div class="sensor-placeholder">Select a session to view sensor data</div>
+                </div>
+
+                <!-- Analytics Panel -->
+                <div class="analytics-panel" id="analytics-panel" style="display: none;">
+                    <div class="section-header">
+                        <h3><i class="fas fa-chart-bar"></i> Session Analytics</h3>
+                        <button class="btn" onclick="toggleAnalyticsPanel()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="analytics-content" id="analytics-content">
+                        <div class="loading">Loading analytics...</div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="history-actions">
+                    <button class="btn" id="analytics-btn" onclick="loadSessionAnalytics()" disabled>
+                        <i class="fas fa-chart-pie"></i> Analytics
+                    </button>
+                    <button class="btn" id="compare-btn" onclick="openCompareModal()">
+                        <i class="fas fa-columns"></i> Compare Sessions
+                    </button>
+                    <button class="btn" onclick="exportSession()" id="export-btn" disabled>
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Waveform Charts Section -->
+        <div class="charts-section">
+            <div class="section-header">
+                <h2><i class="fas fa-chart-line"></i> Real-Time Waveforms</h2>
+                <div class="chart-controls">
+                    <select id="chart-category" onchange="updateChartCategory()">
+                        <option value="IMU">IMU Accelerometer</option>
+                        <option value="Gyroscope">IMU Gyroscope</option>
+                        <option value="Magnetometer">IMU Magnetometer</option>
+                        <option value="Environmental">Environmental</option>
+                        <option value="Audio">Audio RMS</option>
+                    </select>
+                    <button class="btn" onclick="clearCharts()"><i class="fas fa-eraser"></i> Clear</button>
+                    <button class="btn" onclick="pauseCharts()" id="pause-btn"><i class="fas fa-pause"></i> Pause</button>
+                </div>
+            </div>
+            <div id="waveform-chart" class="chart-container"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Sensor Dashboard v1.0 | <a href="/">Main Control Panel</a> | <a href="http://localhost:3000" target="_blank">Grafana</a></p>
+        </div>
+    </div>
+
+    <!-- Admin Panel Modal -->
+    <div id="admin-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-cog"></i> Sensor Administration</h3>
+                <button class="btn-close" onclick="closeAdminPanel()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="admin-tabs">
+                    <button class="tab-btn active" onclick="showAdminTab('pending')">
+                        Pending Approval <span class="tab-badge" id="pending-count">0</span>
+                    </button>
+                    <button class="tab-btn" onclick="showAdminTab('approved')">Approved</button>
+                    <button class="tab-btn" onclick="showAdminTab('disabled')">Disabled</button>
+                </div>
+                <div class="admin-tab-content" id="admin-tab-content">
+                    <div class="sensor-list" id="admin-sensor-list">
+                        <div class="loading">Loading sensors...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compare Sessions Modal -->
+    <div id="compare-modal" class="modal">
+        <div class="modal-content modal-wide">
+            <div class="modal-header">
+                <h3><i class="fas fa-columns"></i> Compare Sessions</h3>
+                <button class="btn-close" onclick="closeCompareModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="compare-selection">
+                    <p>Select 2-4 sessions to compare:</p>
+                    <div class="compare-session-list" id="compare-session-list">
+                        <div class="loading">Loading sessions...</div>
+                    </div>
+                    <div class="compare-options">
+                        <label>
+                            <input type="checkbox" id="compare-overlay" checked>
+                            Overlay on same chart
+                        </label>
+                        <label>
+                            Modalities to compare:
+                            <select id="compare-modalities" multiple>
+                                <option value="Ax" selected>Ax (Accel X)</option>
+                                <option value="Ay">Ay (Accel Y)</option>
+                                <option value="Az">Az (Accel Z)</option>
+                                <option value="Temperature">Temperature</option>
+                                <option value="Pressure">Pressure</option>
+                                <option value="RMS">Audio RMS</option>
+                            </select>
+                        </label>
+                    </div>
+                    <button class="btn btn-settings" onclick="runComparison()">
+                        <i class="fas fa-play"></i> Compare
+                    </button>
+                </div>
+                <div class="compare-results" id="compare-results" style="display: none;">
+                    <div class="compare-charts" id="compare-charts"></div>
+                    <div class="compare-stats" id="compare-stats"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="/static/js/sensor-dashboard.js"></script>
+</body>
+</html>

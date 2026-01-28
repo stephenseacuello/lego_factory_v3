@@ -1,0 +1,757 @@
+{% extends "base.html" %}
+
+{% block title %}Materials - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Materials</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-box-seam me-2"></i>Material Inventory</h2>
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="materials.refresh()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="materials.showAddModal()">
+            <i class="bi bi-plus-lg"></i> Add Material Lot
+        </button>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-muted mb-1">Total Lots</h6>
+                        <h2 class="mb-0" id="totalLots">--</h2>
+                    </div>
+                    <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                        <i class="bi bi-boxes"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-muted mb-1">Available</h6>
+                        <h2 class="mb-0" id="availableLots">--</h2>
+                    </div>
+                    <div class="stat-icon bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-check-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-muted mb-1">Low Stock</h6>
+                        <h2 class="mb-0" id="lowStockLots">--</h2>
+                    </div>
+                    <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-muted mb-1">Expired / Quarantine</h6>
+                        <h2 class="mb-0" id="problemLots">--</h2>
+                    </div>
+                    <div class="stat-icon bg-danger bg-opacity-10 text-danger">
+                        <i class="bi bi-x-circle"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Material Type</label>
+                <select class="form-select" id="filterType" onchange="materials.applyFilters()">
+                    <option value="">All Types</option>
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="filterStatus" onchange="materials.applyFilters()">
+                    <option value="">All Statuses</option>
+                    <option value="available">Available</option>
+                    <option value="reserved">Reserved</option>
+                    <option value="in_use">In Use</option>
+                    <option value="quarantine">Quarantine</option>
+                    <option value="consumed">Consumed</option>
+                    <option value="expired">Expired</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Location</label>
+                <select class="form-select" id="filterLocation" onchange="materials.applyFilters()">
+                    <option value="">All Locations</option>
+                    <!-- Populated dynamically -->
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Search</label>
+                <input type="text" class="form-control" id="searchText" placeholder="Lot#, name, supplier..."
+                       onkeyup="materials.applyFilters()">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="lowStockOnly" onchange="materials.applyFilters()">
+                    <label class="form-check-label" for="lowStockOnly">Low Stock Only</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Material Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Lot Number</th>
+                        <th>Material</th>
+                        <th>Color</th>
+                        <th class="text-end">Available</th>
+                        <th class="text-end">Reserved</th>
+                        <th>Location</th>
+                        <th>Expiry</th>
+                        <th>Status</th>
+                        <th class="text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="materialsTable">
+                    <!-- Populated dynamically -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer d-flex justify-content-between align-items-center">
+        <span id="resultCount" class="text-muted">Showing 0 of 0 lots</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination">
+                <!-- Populated dynamically -->
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Add Material Modal -->
+<div class="modal fade" id="addMaterialModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Material Lot</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addMaterialForm" onsubmit="materials.createLot(event)">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Lot Number *</label>
+                            <input type="text" class="form-control" name="lot_number" required
+                                   placeholder="e.g., PLA-2026-001">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Material Type *</label>
+                            <input type="text" class="form-control" name="material_type" required
+                                   placeholder="e.g., PLA, ABS, ALU-6061">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Material Name</label>
+                            <input type="text" class="form-control" name="material_name"
+                                   placeholder="e.g., Bambu PLA Basic">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Category</label>
+                            <select class="form-select" name="material_category">
+                                <option value="">Select...</option>
+                                <option value="filament">Filament</option>
+                                <option value="resin">Resin</option>
+                                <option value="metal">Metal</option>
+                                <option value="sheet">Sheet</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Color</label>
+                            <input type="text" class="form-control" name="color" placeholder="e.g., Black">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Quantity Received *</label>
+                            <input type="number" class="form-control" name="quantity_received" required
+                                   step="0.01" min="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Unit</label>
+                            <select class="form-select" name="unit_of_measure">
+                                <option value="g">Grams (g)</option>
+                                <option value="kg">Kilograms (kg)</option>
+                                <option value="mm">Millimeters (mm)</option>
+                                <option value="m">Meters (m)</option>
+                                <option value="pcs">Pieces (pcs)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Location</label>
+                            <input type="text" class="form-control" name="location"
+                                   placeholder="e.g., Shelf A-1">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Bin Number</label>
+                            <input type="text" class="form-control" name="bin_number" placeholder="e.g., BIN-001">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Supplier</label>
+                            <input type="text" class="form-control" name="supplier" placeholder="e.g., Bambu Lab">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Supplier Lot</label>
+                            <input type="text" class="form-control" name="supplier_lot">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Received Date</label>
+                            <input type="date" class="form-control" name="received_date">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Expiry Date</label>
+                            <input type="date" class="form-control" name="expiry_date">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Cost per Unit</label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" class="form-control" name="cost_per_unit"
+                                       step="0.0001" min="0">
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" name="notes" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Lot</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Reserve Material Modal -->
+<div class="modal fade" id="reserveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Reserve Material</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="reserveForm" onsubmit="materials.reserveMaterial(event)">
+                <div class="modal-body">
+                    <input type="hidden" name="lot_id" id="reserveLotId">
+                    <div class="mb-3">
+                        <label class="form-label">Lot</label>
+                        <input type="text" class="form-control" id="reserveLotInfo" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Available Quantity</label>
+                        <input type="text" class="form-control" id="reserveAvailable" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Job ID *</label>
+                        <input type="text" class="form-control" name="job_id" required placeholder="e.g., JOB-001">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantity to Reserve *</label>
+                        <input type="number" class="form-control" name="quantity" required
+                               step="0.01" min="0.01" id="reserveQuantity">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Work Order ID</label>
+                        <input type="text" class="form-control" name="work_order_id" placeholder="e.g., WO-001">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Reserve</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Lot Detail Modal -->
+<div class="modal fade" id="lotDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><span id="detailLotNumber">Lot Details</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="lotDetailContent">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const materials = {
+    lots: [],
+    filteredLots: [],
+    currentPage: 1,
+    pageSize: 20,
+    materialTypes: new Set(),
+    locations: new Set(),
+
+    init() {
+        this.loadData();
+    },
+
+    async loadData() {
+        try {
+            LoadingSpinner.show();
+            const response = await fetch('/api/mes/materials');
+            const data = await response.json();
+
+            this.lots = data.lots || [];
+            this.filteredLots = [...this.lots];
+
+            // Extract unique types and locations
+            this.materialTypes.clear();
+            this.locations.clear();
+            this.lots.forEach(lot => {
+                if (lot.material_type) this.materialTypes.add(lot.material_type);
+                if (lot.location) this.locations.add(lot.location);
+            });
+
+            this.populateFilterOptions();
+            this.updateStatCards();
+            this.renderTable();
+        } catch (error) {
+            console.error('Error loading materials:', error);
+            showToast('Error loading material data', 'error');
+        } finally {
+            LoadingSpinner.hide();
+        }
+    },
+
+    refresh() {
+        this.loadData();
+    },
+
+    populateFilterOptions() {
+        const typeSelect = document.getElementById('filterType');
+        const locationSelect = document.getElementById('filterLocation');
+
+        // Keep first option, add others
+        typeSelect.innerHTML = '<option value="">All Types</option>' +
+            Array.from(this.materialTypes).sort().map(t =>
+                `<option value="${t}">${t}</option>`
+            ).join('');
+
+        locationSelect.innerHTML = '<option value="">All Locations</option>' +
+            Array.from(this.locations).sort().map(l =>
+                `<option value="${l}">${l}</option>`
+            ).join('');
+    },
+
+    updateStatCards() {
+        const total = this.lots.length;
+        const available = this.lots.filter(l => l.status === 'available').length;
+        const lowStock = this.lots.filter(l => l.is_low_stock).length;
+        const problem = this.lots.filter(l =>
+            l.status === 'expired' || l.status === 'quarantine'
+        ).length;
+
+        document.getElementById('totalLots').textContent = total;
+        document.getElementById('availableLots').textContent = available;
+        document.getElementById('lowStockLots').textContent = lowStock;
+        document.getElementById('problemLots').textContent = problem;
+    },
+
+    applyFilters() {
+        const typeFilter = document.getElementById('filterType').value;
+        const statusFilter = document.getElementById('filterStatus').value;
+        const locationFilter = document.getElementById('filterLocation').value;
+        const searchText = document.getElementById('searchText').value.toLowerCase();
+        const lowStockOnly = document.getElementById('lowStockOnly').checked;
+
+        this.filteredLots = this.lots.filter(lot => {
+            if (typeFilter && lot.material_type !== typeFilter) return false;
+            if (statusFilter && lot.status !== statusFilter) return false;
+            if (locationFilter && lot.location !== locationFilter) return false;
+            if (lowStockOnly && !lot.is_low_stock) return false;
+            if (searchText) {
+                const searchFields = [
+                    lot.lot_number,
+                    lot.material_type,
+                    lot.material_name,
+                    lot.supplier,
+                    lot.color
+                ].filter(Boolean).join(' ').toLowerCase();
+                if (!searchFields.includes(searchText)) return false;
+            }
+            return true;
+        });
+
+        this.currentPage = 1;
+        this.renderTable();
+    },
+
+    renderTable() {
+        const tbody = document.getElementById('materialsTable');
+        const start = (this.currentPage - 1) * this.pageSize;
+        const end = start + this.pageSize;
+        const pageLots = this.filteredLots.slice(start, end);
+
+        if (pageLots.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-5">
+                        <i class="bi bi-inbox fs-1 mb-3 d-block"></i>
+                        No materials found
+                    </td>
+                </tr>
+            `;
+        } else {
+            tbody.innerHTML = pageLots.map(lot => `
+                <tr class="${lot.is_low_stock ? 'table-warning' : ''} ${lot.status === 'expired' || lot.status === 'quarantine' ? 'table-danger' : ''}">
+                    <td>
+                        <a href="#" onclick="materials.showDetail('${lot.id}'); return false;"
+                           class="fw-medium text-decoration-none">
+                            ${lot.lot_number}
+                        </a>
+                    </td>
+                    <td>
+                        <div>${lot.material_type}</div>
+                        <small class="text-muted">${lot.material_name || ''}</small>
+                    </td>
+                    <td>
+                        ${lot.color ? `
+                            <span class="d-flex align-items-center">
+                                ${lot.color_hex ? `<span class="me-2" style="width:14px;height:14px;border-radius:3px;background:${lot.color_hex};border:1px solid #ccc;"></span>` : ''}
+                                ${lot.color}
+                            </span>
+                        ` : '-'}
+                    </td>
+                    <td class="text-end">
+                        <span class="${lot.is_low_stock ? 'text-warning fw-bold' : ''}">
+                            ${lot.quantity_available.toFixed(1)}
+                        </span>
+                        <small class="text-muted">${lot.unit_of_measure || 'g'}</small>
+                    </td>
+                    <td class="text-end">
+                        ${lot.quantity_reserved > 0 ? `
+                            <span class="text-info">${lot.quantity_reserved.toFixed(1)}</span>
+                        ` : '-'}
+                    </td>
+                    <td>${lot.location || '-'}</td>
+                    <td>
+                        ${lot.expiry_date ? `
+                            <span class="${this.isExpiringSoon(lot.expiry_date) ? 'text-warning' : ''}">
+                                ${new Date(lot.expiry_date).toLocaleDateString()}
+                            </span>
+                        ` : '-'}
+                    </td>
+                    <td>
+                        <span class="badge ${this.getStatusBadge(lot.status)}">
+                            ${lot.status}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-primary" onclick="materials.showReserveModal('${lot.id}')"
+                                    ${lot.status !== 'available' ? 'disabled' : ''} title="Reserve">
+                                <i class="bi bi-bookmark-plus"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="materials.showDetail('${lot.id}')"
+                                    title="Details">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Update count
+        document.getElementById('resultCount').textContent =
+            `Showing ${start + 1}-${Math.min(end, this.filteredLots.length)} of ${this.filteredLots.length} lots`;
+
+        // Update pagination
+        this.renderPagination();
+    },
+
+    renderPagination() {
+        const totalPages = Math.ceil(this.filteredLots.length / this.pageSize);
+        const pagination = document.getElementById('pagination');
+
+        if (totalPages <= 1) {
+            pagination.innerHTML = '';
+            return;
+        }
+
+        let html = '';
+
+        // Previous
+        html += `
+            <li class="page-item ${this.currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="materials.goToPage(${this.currentPage - 1}); return false;">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+        `;
+
+        // Page numbers
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages ||
+                (i >= this.currentPage - 2 && i <= this.currentPage + 2)) {
+                html += `
+                    <li class="page-item ${i === this.currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" onclick="materials.goToPage(${i}); return false;">${i}</a>
+                    </li>
+                `;
+            } else if (i === this.currentPage - 3 || i === this.currentPage + 3) {
+                html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+            }
+        }
+
+        // Next
+        html += `
+            <li class="page-item ${this.currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="materials.goToPage(${this.currentPage + 1}); return false;">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        `;
+
+        pagination.innerHTML = html;
+    },
+
+    goToPage(page) {
+        const totalPages = Math.ceil(this.filteredLots.length / this.pageSize);
+        if (page >= 1 && page <= totalPages) {
+            this.currentPage = page;
+            this.renderTable();
+        }
+    },
+
+    showAddModal() {
+        document.getElementById('addMaterialForm').reset();
+        document.querySelector('[name="received_date"]').value = new Date().toISOString().split('T')[0];
+        new bootstrap.Modal(document.getElementById('addMaterialModal')).show();
+    },
+
+    async createLot(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+
+        const payload = {
+            lot_number: formData.get('lot_number'),
+            material_type: formData.get('material_type'),
+            material_name: formData.get('material_name') || null,
+            material_category: formData.get('material_category') || null,
+            color: formData.get('color') || null,
+            quantity_received: parseFloat(formData.get('quantity_received')),
+            unit_of_measure: formData.get('unit_of_measure'),
+            location: formData.get('location') || null,
+            bin_number: formData.get('bin_number') || null,
+            supplier: formData.get('supplier') || null,
+            supplier_lot: formData.get('supplier_lot') || null,
+            received_date: formData.get('received_date') || null,
+            expiry_date: formData.get('expiry_date') || null,
+            cost_per_unit: formData.get('cost_per_unit') ? parseFloat(formData.get('cost_per_unit')) : null,
+            notes: formData.get('notes') || null,
+        };
+
+        try {
+            const response = await fetch('/api/mes/materials', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('addMaterialModal')).hide();
+                showToast('Material lot created successfully', 'success');
+                this.loadData();
+            } else {
+                const error = await response.json();
+                showToast(error.error || 'Failed to create lot', 'error');
+            }
+        } catch (error) {
+            console.error('Error creating lot:', error);
+            showToast('Error creating material lot', 'error');
+        }
+    },
+
+    showReserveModal(lotId) {
+        const lot = this.lots.find(l => l.id === lotId);
+        if (!lot) return;
+
+        document.getElementById('reserveLotId').value = lotId;
+        document.getElementById('reserveLotInfo').value = `${lot.lot_number} - ${lot.material_type}`;
+        document.getElementById('reserveAvailable').value =
+            `${lot.quantity_available.toFixed(2)} ${lot.unit_of_measure || 'g'}`;
+        document.getElementById('reserveQuantity').max = lot.quantity_available;
+        document.getElementById('reserveQuantity').value = '';
+        document.querySelector('#reserveForm [name="job_id"]').value = '';
+        document.querySelector('#reserveForm [name="work_order_id"]').value = '';
+
+        new bootstrap.Modal(document.getElementById('reserveModal')).show();
+    },
+
+    async reserveMaterial(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+        const lotId = formData.get('lot_id');
+
+        const payload = {
+            job_id: formData.get('job_id'),
+            quantity: parseFloat(formData.get('quantity')),
+            work_order_id: formData.get('work_order_id') || null,
+        };
+
+        try {
+            const response = await fetch(`/api/mes/materials/${lotId}/reserve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('reserveModal')).hide();
+                showToast('Material reserved successfully', 'success');
+                this.loadData();
+            } else {
+                const error = await response.json();
+                showToast(error.error || 'Failed to reserve material', 'error');
+            }
+        } catch (error) {
+            console.error('Error reserving material:', error);
+            showToast('Error reserving material', 'error');
+        }
+    },
+
+    showDetail(lotId) {
+        const lot = this.lots.find(l => l.id === lotId);
+        if (!lot) return;
+
+        document.getElementById('detailLotNumber').textContent = lot.lot_number;
+        document.getElementById('lotDetailContent').innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Material Information</h6>
+                    <table class="table table-sm">
+                        <tr><td class="text-muted">Type</td><td>${lot.material_type}</td></tr>
+                        <tr><td class="text-muted">Name</td><td>${lot.material_name || '-'}</td></tr>
+                        <tr><td class="text-muted">Category</td><td>${lot.material_category || '-'}</td></tr>
+                        <tr><td class="text-muted">Color</td><td>${lot.color || '-'}</td></tr>
+                        <tr><td class="text-muted">Status</td><td><span class="badge ${this.getStatusBadge(lot.status)}">${lot.status}</span></td></tr>
+                    </table>
+
+                    <h6 class="mt-4">Quantities</h6>
+                    <table class="table table-sm">
+                        <tr><td class="text-muted">Received</td><td>${lot.quantity_received} ${lot.unit_of_measure}</td></tr>
+                        <tr><td class="text-muted">Available</td><td class="${lot.is_low_stock ? 'text-warning fw-bold' : ''}">${lot.quantity_available} ${lot.unit_of_measure}</td></tr>
+                        <tr><td class="text-muted">Reserved</td><td>${lot.quantity_reserved} ${lot.unit_of_measure}</td></tr>
+                        <tr><td class="text-muted">Consumed</td><td>${lot.quantity_consumed} ${lot.unit_of_measure}</td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>Location & Supplier</h6>
+                    <table class="table table-sm">
+                        <tr><td class="text-muted">Location</td><td>${lot.location || '-'}</td></tr>
+                        <tr><td class="text-muted">Supplier</td><td>${lot.supplier || '-'}</td></tr>
+                        <tr><td class="text-muted">Supplier Lot</td><td>${lot.supplier_lot || '-'}</td></tr>
+                        <tr><td class="text-muted">Cost/Unit</td><td>${lot.cost_per_unit ? '$' + lot.cost_per_unit.toFixed(4) : '-'}</td></tr>
+                    </table>
+
+                    <h6 class="mt-4">Dates</h6>
+                    <table class="table table-sm">
+                        <tr><td class="text-muted">Received</td><td>${lot.received_date ? new Date(lot.received_date).toLocaleDateString() : '-'}</td></tr>
+                        <tr><td class="text-muted">Expiry</td><td class="${this.isExpiringSoon(lot.expiry_date) ? 'text-warning' : ''}">${lot.expiry_date ? new Date(lot.expiry_date).toLocaleDateString() : '-'}</td></tr>
+                        <tr><td class="text-muted">Created</td><td>${lot.created_at ? new Date(lot.created_at).toLocaleDateString() : '-'}</td></tr>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        new bootstrap.Modal(document.getElementById('lotDetailModal')).show();
+    },
+
+    getStatusBadge(status) {
+        const badges = {
+            'available': 'bg-success',
+            'reserved': 'bg-info',
+            'in_use': 'bg-primary',
+            'quarantine': 'bg-warning text-dark',
+            'consumed': 'bg-secondary',
+            'expired': 'bg-danger',
+        };
+        return badges[status] || 'bg-secondary';
+    },
+
+    isExpiringSoon(expiryDate) {
+        if (!expiryDate) return false;
+        const expiry = new Date(expiryDate);
+        const now = new Date();
+        const daysUntilExpiry = (expiry - now) / (1000 * 60 * 60 * 24);
+        return daysUntilExpiry <= 30 && daysUntilExpiry > 0;
+    }
+};
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    materials.init();
+});
+</script>
+
+<style>
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+</style>
+{% endblock %}

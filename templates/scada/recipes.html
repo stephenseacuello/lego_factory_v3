@@ -1,0 +1,836 @@
+{% extends "base.html" %}
+{% block title %}Recipes - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">SCADA</a></li>
+<li class="breadcrumb-item active">Recipes</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-code me-2"></i>Recipe Management</h2>
+    <div class="btn-group">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createRecipeModal">
+            <i class="bi bi-plus-circle"></i> New Recipe
+        </button>
+        <button class="btn btn-outline-secondary" onclick="recipeManager.refresh()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Filter Controls -->
+<div class="card mb-4">
+    <div class="card-body py-2">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-3">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" placeholder="Search recipes..." id="searchInput" oninput="recipeManager.filterRecipes()">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterType" onchange="recipeManager.filterRecipes()">
+                    <option value="">All Types</option>
+                    <option value="machining">Machining</option>
+                    <option value="assembly">Assembly</option>
+                    <option value="printing">3D Printing</option>
+                    <option value="inspection">Inspection</option>
+                    <option value="molding">Injection Molding</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterStatus" onchange="recipeManager.filterRecipes()">
+                    <option value="">All Statuses</option>
+                    <option value="draft">Draft</option>
+                    <option value="pending_approval">Pending Approval</option>
+                    <option value="approved">Approved</option>
+                    <option value="obsolete">Obsolete</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterProduct" onchange="recipeManager.filterRecipes()">
+                    <option value="">All Products</option>
+                </select>
+            </div>
+            <div class="col-auto ms-auto">
+                <span class="text-muted" id="recipeCount">0 recipes</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recipe Cards Grid -->
+<div class="row g-4" id="recipeGrid">
+    <!-- Populated by JavaScript -->
+</div>
+
+<!-- Create Recipe Modal -->
+<div class="modal fade" id="createRecipeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="createRecipeForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Master Recipe</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Recipe ID <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="recipe_id" required placeholder="e.g., RCP-BRICK-2X4-001">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" name="name" required placeholder="e.g., 2x4 Red Brick Production">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Recipe Type <span class="text-danger">*</span></label>
+                            <select class="form-select" name="recipe_type" required>
+                                <option value="printing">3D Printing</option>
+                                <option value="machining">Machining</option>
+                                <option value="assembly">Assembly</option>
+                                <option value="molding">Injection Molding</option>
+                                <option value="inspection">Inspection</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Version</label>
+                            <input type="text" class="form-control" name="version" value="1.0" placeholder="e.g., 1.0">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" name="description" rows="2" placeholder="Recipe description..."></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Product</label>
+                            <select class="form-select" name="product_id" id="productSelect">
+                                <option value="">Select product...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Equipment Requirements</label>
+                            <input type="text" class="form-control" name="equipment" placeholder="e.g., Prusa MK4, Bambu X1C">
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <h6 class="mb-3">Recipe Parameters</h6>
+                    <div id="parametersContainer">
+                        <div class="row g-2 mb-2 parameter-row">
+                            <div class="col-md-4">
+                                <input type="text" class="form-control form-control-sm" placeholder="Parameter name" name="param_name[]">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control form-control-sm" placeholder="Value" name="param_value[]">
+                            </div>
+                            <div class="col-md-2">
+                                <input type="text" class="form-control form-control-sm" placeholder="Unit" name="param_unit[]">
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select form-select-sm" name="param_type[]">
+                                    <option value="number">Number</option>
+                                    <option value="string">Text</option>
+                                    <option value="boolean">Boolean</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1">
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.parameter-row').remove()">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="recipeManager.addParameterRow()">
+                        <i class="bi bi-plus"></i> Add Parameter
+                    </button>
+
+                    <hr class="my-4">
+
+                    <h6 class="mb-3">G-code / Program Content (Optional)</h6>
+                    <textarea class="form-control font-monospace" name="gcode_content" rows="6" placeholder="; G-code or program content..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle me-1"></i>Create Recipe
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Recipe Detail Modal -->
+<div class="modal fade" id="recipeDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recipeDetailTitle">Recipe Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="recipeDetailBody">
+                <!-- Populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning" id="approveRecipeBtn" style="display: none;">
+                    <i class="bi bi-check-circle"></i> Approve
+                </button>
+                <button type="button" class="btn btn-primary" id="editRecipeBtn">
+                    <i class="bi bi-pencil"></i> Edit
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .recipe-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        cursor: pointer;
+    }
+
+    .recipe-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    }
+
+    .recipe-type-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+    }
+
+    .recipe-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: white;
+    }
+
+    .recipe-icon.printing { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .recipe-icon.machining { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .recipe-icon.assembly { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .recipe-icon.molding { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+    .recipe-icon.inspection { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+
+    .status-badge {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .param-table {
+        font-size: 0.85rem;
+    }
+
+    .param-table th {
+        font-weight: 500;
+        width: 40%;
+    }
+
+    .gcode-preview {
+        max-height: 300px;
+        overflow-y: auto;
+        background: #1e1e1e;
+        color: #d4d4d4;
+        padding: 1rem;
+        border-radius: 4px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.85rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #6c757d;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/api_client.js"></script>
+
+<script>
+/**
+ * Recipe Management Controller
+ */
+class RecipeManager {
+    constructor() {
+        this.recipes = [];
+        this.filteredRecipes = [];
+        this.currentRecipe = null;
+
+        this.init();
+    }
+
+    async init() {
+        await this.loadRecipes();
+        await this.loadProducts();
+        this.setupEventListeners();
+    }
+
+    setupEventListeners() {
+        document.getElementById('createRecipeForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createRecipe();
+        });
+    }
+
+    /**
+     * Load recipes from API
+     */
+    async loadRecipes() {
+        try {
+            const response = await fetch('/api/scada/recipes/master');
+            if (response.ok) {
+                const data = await response.json();
+                this.recipes = data.recipes || data.data || [];
+            } else {
+                this.loadDemoRecipes();
+            }
+        } catch (error) {
+            console.error('Failed to load recipes:', error);
+            this.loadDemoRecipes();
+        }
+
+        this.filteredRecipes = [...this.recipes];
+        this.renderRecipes();
+    }
+
+    loadDemoRecipes() {
+        this.recipes = [
+            {
+                recipe_id: 'RCP-BRICK-2X4-001',
+                name: '2x4 Brick Production - Standard',
+                description: 'Standard production recipe for 2x4 LEGO bricks with optimal layer settings.',
+                recipe_type: 'printing',
+                version: '2.1',
+                status: 'approved',
+                product_id: 'BRICK-2X4',
+                product_name: '2x4 Brick',
+                created_at: '2024-01-15T10:00:00Z',
+                approved_at: '2024-01-16T14:30:00Z',
+                approved_by: 'John Smith',
+                parameters: {
+                    layer_height: { value: 0.2, unit: 'mm', type: 'number' },
+                    infill_percentage: { value: 20, unit: '%', type: 'number' },
+                    print_speed: { value: 60, unit: 'mm/s', type: 'number' },
+                    extruder_temp: { value: 210, unit: '°C', type: 'number' },
+                    bed_temp: { value: 60, unit: '°C', type: 'number' },
+                    material: { value: 'ABS', unit: '', type: 'string' }
+                },
+                equipment_requirements: { machines: ['Prusa MK4', 'Bambu X1C'] }
+            },
+            {
+                recipe_id: 'RCP-GEAR-24T-001',
+                name: 'Gear 24T - High Precision',
+                description: 'High precision recipe for 24-tooth gear with tight tolerances.',
+                recipe_type: 'machining',
+                version: '1.5',
+                status: 'approved',
+                product_id: 'GEAR-24T',
+                product_name: 'Gear 24T',
+                created_at: '2024-01-10T08:00:00Z',
+                approved_at: '2024-01-12T09:15:00Z',
+                approved_by: 'Jane Doe',
+                parameters: {
+                    spindle_speed: { value: 8000, unit: 'RPM', type: 'number' },
+                    feed_rate: { value: 500, unit: 'mm/min', type: 'number' },
+                    depth_of_cut: { value: 0.5, unit: 'mm', type: 'number' },
+                    coolant: { value: 'flood', unit: '', type: 'string' },
+                    tool_diameter: { value: 6, unit: 'mm', type: 'number' }
+                },
+                equipment_requirements: { machines: ['Haas VF-2', 'Haas VF-3'] }
+            },
+            {
+                recipe_id: 'RCP-MINIFIG-HEAD-001',
+                name: 'Minifig Head - Yellow',
+                description: 'Injection molding recipe for standard yellow minifigure head.',
+                recipe_type: 'molding',
+                version: '3.0',
+                status: 'approved',
+                product_id: 'MINIFIG-HEAD',
+                product_name: 'Minifig Head',
+                created_at: '2024-01-05T12:00:00Z',
+                approved_at: '2024-01-06T16:00:00Z',
+                approved_by: 'Bob Wilson',
+                parameters: {
+                    melt_temp: { value: 230, unit: '°C', type: 'number' },
+                    mold_temp: { value: 45, unit: '°C', type: 'number' },
+                    injection_pressure: { value: 80, unit: 'MPa', type: 'number' },
+                    cooling_time: { value: 12, unit: 's', type: 'number' },
+                    cycle_time: { value: 25, unit: 's', type: 'number' }
+                },
+                equipment_requirements: { machines: ['Injection Molder #1'] }
+            },
+            {
+                recipe_id: 'RCP-BRICK-1X2-001',
+                name: '1x2 Brick Production - Draft',
+                description: 'New recipe for 1x2 brick production, pending approval.',
+                recipe_type: 'printing',
+                version: '1.0',
+                status: 'pending_approval',
+                product_id: 'BRICK-1X2',
+                product_name: '1x2 Brick',
+                created_at: '2024-01-20T14:00:00Z',
+                parameters: {
+                    layer_height: { value: 0.15, unit: 'mm', type: 'number' },
+                    infill_percentage: { value: 25, unit: '%', type: 'number' },
+                    print_speed: { value: 50, unit: 'mm/s', type: 'number' }
+                },
+                equipment_requirements: { machines: ['Voron 2.4'] }
+            },
+            {
+                recipe_id: 'RCP-BASEPLATE-32-001',
+                name: 'Baseplate 32x32 Assembly',
+                description: 'Assembly recipe for 32x32 stud baseplates.',
+                recipe_type: 'assembly',
+                version: '1.2',
+                status: 'draft',
+                product_id: 'BASEPLATE-32',
+                product_name: 'Baseplate 32x32',
+                created_at: '2024-01-22T09:00:00Z',
+                parameters: {
+                    assembly_steps: { value: 5, unit: 'steps', type: 'number' },
+                    quality_checks: { value: 3, unit: 'checks', type: 'number' }
+                },
+                equipment_requirements: { machines: ['Assembly Station #1'] }
+            },
+            {
+                recipe_id: 'RCP-QC-BRICK-001',
+                name: 'Brick Visual Inspection',
+                description: 'Quality inspection recipe for brick visual defect detection.',
+                recipe_type: 'inspection',
+                version: '2.0',
+                status: 'approved',
+                product_id: 'QC-BRICK',
+                product_name: 'Brick QC',
+                created_at: '2024-01-08T11:00:00Z',
+                approved_at: '2024-01-09T10:00:00Z',
+                approved_by: 'QA Team',
+                parameters: {
+                    camera_resolution: { value: '4K', unit: '', type: 'string' },
+                    inspection_time: { value: 2, unit: 's', type: 'number' },
+                    defect_threshold: { value: 0.5, unit: '%', type: 'number' }
+                },
+                equipment_requirements: { machines: ['Vision System #1'] }
+            }
+        ];
+    }
+
+    /**
+     * Load products for dropdown
+     */
+    async loadProducts() {
+        try {
+            const response = await fetch('/api/erp/items?type=product');
+            if (response.ok) {
+                const data = await response.json();
+                const products = data.items || data.data || [];
+                this.populateProductDropdown(products);
+            }
+        } catch (error) {
+            console.log('Using default products');
+        }
+
+        // Add demo products
+        const demoProducts = [
+            { id: 'BRICK-2X4', name: '2x4 Brick' },
+            { id: 'BRICK-2X2', name: '2x2 Brick' },
+            { id: 'BRICK-1X2', name: '1x2 Brick' },
+            { id: 'GEAR-24T', name: 'Gear 24T' },
+            { id: 'MINIFIG-HEAD', name: 'Minifig Head' },
+            { id: 'BASEPLATE-32', name: 'Baseplate 32x32' }
+        ];
+        this.populateProductDropdown(demoProducts);
+    }
+
+    populateProductDropdown(products) {
+        const selects = document.querySelectorAll('#productSelect, #filterProduct');
+        selects.forEach(select => {
+            const existing = new Set(Array.from(select.options).map(o => o.value));
+            products.forEach(p => {
+                if (!existing.has(p.id || p.item_id)) {
+                    const option = document.createElement('option');
+                    option.value = p.id || p.item_id;
+                    option.textContent = p.name || p.description;
+                    select.appendChild(option);
+                }
+            });
+        });
+    }
+
+    /**
+     * Render recipe cards
+     */
+    renderRecipes() {
+        const grid = document.getElementById('recipeGrid');
+        const countEl = document.getElementById('recipeCount');
+
+        countEl.textContent = `${this.filteredRecipes.length} recipe${this.filteredRecipes.length !== 1 ? 's' : ''}`;
+
+        if (this.filteredRecipes.length === 0) {
+            grid.innerHTML = `
+                <div class="col-12">
+                    <div class="empty-state">
+                        <i class="bi bi-file-code"></i>
+                        <h5>No Recipes Found</h5>
+                        <p>Create a new recipe or adjust your filters.</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        grid.innerHTML = this.filteredRecipes.map(recipe => {
+            const statusColors = {
+                draft: 'secondary',
+                pending_approval: 'warning',
+                approved: 'success',
+                obsolete: 'danger'
+            };
+
+            const typeIcons = {
+                printing: 'bi-printer',
+                machining: 'bi-gear',
+                assembly: 'bi-tools',
+                molding: 'bi-box',
+                inspection: 'bi-eye'
+            };
+
+            const params = recipe.parameters || {};
+            const paramCount = Object.keys(params).length;
+
+            return `
+                <div class="col-md-6 col-lg-4">
+                    <div class="card recipe-card h-100" onclick="recipeManager.showRecipeDetail('${recipe.recipe_id}')">
+                        <div class="card-body">
+                            <span class="badge bg-${statusColors[recipe.status] || 'secondary'} status-badge recipe-type-badge">
+                                ${(recipe.status || 'draft').replace('_', ' ')}
+                            </span>
+
+                            <div class="d-flex align-items-start gap-3 mb-3">
+                                <div class="recipe-icon ${recipe.recipe_type || 'printing'}">
+                                    <i class="bi ${typeIcons[recipe.recipe_type] || 'bi-file-code'}"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">${recipe.name}</h6>
+                                    <small class="text-muted">${recipe.recipe_id}</small>
+                                </div>
+                            </div>
+
+                            <p class="text-muted small mb-3" style="min-height: 40px;">
+                                ${recipe.description || 'No description available.'}
+                            </p>
+
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <span class="badge bg-light text-dark">
+                                    <i class="bi bi-tag me-1"></i>${recipe.recipe_type || 'N/A'}
+                                </span>
+                                <span class="badge bg-light text-dark">
+                                    <i class="bi bi-hash me-1"></i>v${recipe.version || '1.0'}
+                                </span>
+                                <span class="badge bg-light text-dark">
+                                    <i class="bi bi-sliders me-1"></i>${paramCount} params
+                                </span>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center text-muted small">
+                                <span><i class="bi bi-calendar me-1"></i>${new Date(recipe.created_at).toLocaleDateString()}</span>
+                                ${recipe.product_name ? `<span><i class="bi bi-box me-1"></i>${recipe.product_name}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Filter recipes
+     */
+    filterRecipes() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const type = document.getElementById('filterType').value;
+        const status = document.getElementById('filterStatus').value;
+        const product = document.getElementById('filterProduct').value;
+
+        this.filteredRecipes = this.recipes.filter(r => {
+            if (search && !r.name.toLowerCase().includes(search) &&
+                !r.recipe_id.toLowerCase().includes(search) &&
+                !(r.description || '').toLowerCase().includes(search)) {
+                return false;
+            }
+            if (type && r.recipe_type !== type) return false;
+            if (status && r.status !== status) return false;
+            if (product && r.product_id !== product) return false;
+            return true;
+        });
+
+        this.renderRecipes();
+    }
+
+    /**
+     * Show recipe detail modal
+     */
+    showRecipeDetail(recipeId) {
+        const recipe = this.recipes.find(r => r.recipe_id === recipeId);
+        if (!recipe) return;
+
+        this.currentRecipe = recipe;
+
+        document.getElementById('recipeDetailTitle').textContent = recipe.name;
+
+        const statusColors = {
+            draft: 'secondary',
+            pending_approval: 'warning',
+            approved: 'success',
+            obsolete: 'danger'
+        };
+
+        const params = recipe.parameters || {};
+        const paramRows = Object.entries(params).map(([key, val]) => {
+            const value = typeof val === 'object' ? val.value : val;
+            const unit = typeof val === 'object' ? val.unit : '';
+            return `
+                <tr>
+                    <th>${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</th>
+                    <td>${value} ${unit}</td>
+                </tr>
+            `;
+        }).join('');
+
+        const equipment = recipe.equipment_requirements?.machines || [];
+
+        document.getElementById('recipeDetailBody').innerHTML = `
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">General Information</h6>
+                    <table class="table table-sm param-table">
+                        <tr><th>Recipe ID</th><td><code>${recipe.recipe_id}</code></td></tr>
+                        <tr><th>Type</th><td>${recipe.recipe_type || 'N/A'}</td></tr>
+                        <tr><th>Version</th><td>${recipe.version || '1.0'}</td></tr>
+                        <tr>
+                            <th>Status</th>
+                            <td><span class="badge bg-${statusColors[recipe.status]}">${(recipe.status || 'draft').replace('_', ' ')}</span></td>
+                        </tr>
+                        <tr><th>Product</th><td>${recipe.product_name || recipe.product_id || 'N/A'}</td></tr>
+                        <tr><th>Created</th><td>${new Date(recipe.created_at).toLocaleString()}</td></tr>
+                        ${recipe.approved_at ? `<tr><th>Approved</th><td>${new Date(recipe.approved_at).toLocaleString()}</td></tr>` : ''}
+                        ${recipe.approved_by ? `<tr><th>Approved By</th><td>${recipe.approved_by}</td></tr>` : ''}
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6 class="text-muted mb-2">Parameters</h6>
+                    ${paramRows ? `<table class="table table-sm param-table">${paramRows}</table>` : '<p class="text-muted">No parameters defined.</p>'}
+                </div>
+            </div>
+
+            ${equipment.length > 0 ? `
+            <hr>
+            <h6 class="text-muted mb-2">Equipment Requirements</h6>
+            <div class="d-flex flex-wrap gap-2">
+                ${equipment.map(e => `<span class="badge bg-info">${e}</span>`).join('')}
+            </div>
+            ` : ''}
+
+            ${recipe.description ? `
+            <hr>
+            <h6 class="text-muted mb-2">Description</h6>
+            <p>${recipe.description}</p>
+            ` : ''}
+
+            ${recipe.gcode_content ? `
+            <hr>
+            <h6 class="text-muted mb-2">G-code Preview</h6>
+            <pre class="gcode-preview">${this.escapeHtml(recipe.gcode_content.substring(0, 2000))}${recipe.gcode_content.length > 2000 ? '\n...(truncated)' : ''}</pre>
+            ` : ''}
+        `;
+
+        // Show/hide approve button based on status
+        const approveBtn = document.getElementById('approveRecipeBtn');
+        if (recipe.status === 'pending_approval' || recipe.status === 'draft') {
+            approveBtn.style.display = 'inline-block';
+            approveBtn.onclick = () => this.approveRecipe(recipe.recipe_id);
+        } else {
+            approveBtn.style.display = 'none';
+        }
+
+        new bootstrap.Modal(document.getElementById('recipeDetailModal')).show();
+    }
+
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Create new recipe
+     */
+    async createRecipe() {
+        const form = document.getElementById('createRecipeForm');
+        const formData = new FormData(form);
+
+        const data = {
+            recipe_id: formData.get('recipe_id'),
+            name: formData.get('name'),
+            description: formData.get('description'),
+            recipe_type: formData.get('recipe_type'),
+            version: formData.get('version') || '1.0',
+            product_id: formData.get('product_id'),
+            gcode_content: formData.get('gcode_content'),
+            parameters: {},
+            equipment_requirements: {
+                machines: formData.get('equipment')?.split(',').map(s => s.trim()).filter(s => s) || []
+            }
+        };
+
+        // Collect parameters
+        const paramNames = formData.getAll('param_name[]');
+        const paramValues = formData.getAll('param_value[]');
+        const paramUnits = formData.getAll('param_unit[]');
+        const paramTypes = formData.getAll('param_type[]');
+
+        paramNames.forEach((name, idx) => {
+            if (name.trim()) {
+                let value = paramValues[idx];
+                if (paramTypes[idx] === 'number') {
+                    value = parseFloat(value) || 0;
+                } else if (paramTypes[idx] === 'boolean') {
+                    value = value.toLowerCase() === 'true';
+                }
+
+                data.parameters[name.trim()] = {
+                    value: value,
+                    unit: paramUnits[idx] || '',
+                    type: paramTypes[idx]
+                };
+            }
+        });
+
+        try {
+            const response = await fetch('/api/scada/recipes/master', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                alert('Recipe created successfully!');
+                bootstrap.Modal.getInstance(document.getElementById('createRecipeModal')).hide();
+                form.reset();
+                await this.loadRecipes();
+            } else {
+                throw new Error('Failed to create recipe');
+            }
+        } catch (error) {
+            console.error('Error creating recipe:', error);
+            // For demo, add locally
+            data.status = 'draft';
+            data.created_at = new Date().toISOString();
+            this.recipes.unshift(data);
+            this.filteredRecipes = [...this.recipes];
+            this.renderRecipes();
+            bootstrap.Modal.getInstance(document.getElementById('createRecipeModal')).hide();
+            form.reset();
+            alert('Recipe created (demo mode)');
+        }
+    }
+
+    /**
+     * Approve recipe
+     */
+    async approveRecipe(recipeId) {
+        if (!confirm('Are you sure you want to approve this recipe?')) return;
+
+        try {
+            const response = await fetch(`/api/scada/recipes/master/${recipeId}/approve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: 'current_user' })
+            });
+
+            if (response.ok) {
+                alert('Recipe approved successfully!');
+                bootstrap.Modal.getInstance(document.getElementById('recipeDetailModal')).hide();
+                await this.loadRecipes();
+            } else {
+                throw new Error('Failed to approve');
+            }
+        } catch (error) {
+            // Demo mode - update locally
+            const recipe = this.recipes.find(r => r.recipe_id === recipeId);
+            if (recipe) {
+                recipe.status = 'approved';
+                recipe.approved_at = new Date().toISOString();
+                recipe.approved_by = 'Demo User';
+                this.filteredRecipes = [...this.recipes];
+                this.renderRecipes();
+            }
+            bootstrap.Modal.getInstance(document.getElementById('recipeDetailModal')).hide();
+            alert('Recipe approved (demo mode)');
+        }
+    }
+
+    /**
+     * Add parameter row in create form
+     */
+    addParameterRow() {
+        const container = document.getElementById('parametersContainer');
+        const row = document.createElement('div');
+        row.className = 'row g-2 mb-2 parameter-row';
+        row.innerHTML = `
+            <div class="col-md-4">
+                <input type="text" class="form-control form-control-sm" placeholder="Parameter name" name="param_name[]">
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control form-control-sm" placeholder="Value" name="param_value[]">
+            </div>
+            <div class="col-md-2">
+                <input type="text" class="form-control form-control-sm" placeholder="Unit" name="param_unit[]">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select form-select-sm" name="param_type[]">
+                    <option value="number">Number</option>
+                    <option value="string">Text</option>
+                    <option value="boolean">Boolean</option>
+                </select>
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="this.closest('.parameter-row').remove()">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+
+    /**
+     * Refresh data
+     */
+    async refresh() {
+        await this.loadRecipes();
+    }
+}
+
+// Initialize
+const recipeManager = new RecipeManager();
+</script>
+{% endblock %}

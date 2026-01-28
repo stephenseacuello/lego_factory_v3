@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anomaly Detection - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --primary: #3b82f6; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: var(--primary); box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25); }
+        .btn-primary { background: var(--primary); border-color: var(--primary); }
+        .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.1); vertical-align: middle; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-icon { width: 48px; height: 48px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+        .alert-card { background: var(--card-bg); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); padding: 1rem; margin-bottom: 0.75rem; transition: all 0.2s; }
+        .alert-card:hover { border-color: var(--primary); }
+        .alert-card.critical { border-left: 4px solid #ef4444; }
+        .alert-card.warning { border-left: 4px solid #f59e0b; }
+        .alert-card.info { border-left: 4px solid #3b82f6; }
+        .severity-critical { color: #ef4444; }
+        .severity-warning { color: #f59e0b; }
+        .severity-info { color: #60a5fa; }
+        .timeline-chart { background: #1e293b; border-radius: 8px; height: 150px; position: relative; padding: 1rem; }
+        .timeline-line { position: absolute; bottom: 30px; left: 20px; right: 20px; height: 2px; background: rgba(255,255,255,0.1); }
+        .timeline-point { position: absolute; bottom: 26px; width: 10px; height: 10px; border-radius: 50%; transform: translateX(-50%); }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Anomaly Detection</a>
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-danger pulse"><i class="bi bi-exclamation-triangle me-1"></i>3 Active Alerts</span>
+                <select class="form-select form-select-sm" style="width:150px">
+                    <option>Last 24 Hours</option>
+                    <option>Last 7 Days</option>
+                    <option>Last 30 Days</option>
+                </select>
+                <button class="btn btn-outline-light btn-sm" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-danger bg-opacity-25 text-danger me-3">
+                            <i class="bi bi-exclamation-octagon"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Critical Alerts</div>
+                            <h4 class="mb-0 text-danger">2</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-warning bg-opacity-25 text-warning me-3">
+                            <i class="bi bi-exclamation-triangle"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Warnings</div>
+                            <h4 class="mb-0 text-warning">7</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-success bg-opacity-25 text-success me-3">
+                            <i class="bi bi-shield-check"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Resolved Today</div>
+                            <h4 class="mb-0">15</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="stat-card">
+                    <div class="d-flex align-items-center">
+                        <div class="stat-icon bg-info bg-opacity-25 text-info me-3">
+                            <i class="bi bi-activity"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small">Detection Rate</div>
+                            <h4 class="mb-0">99.2%</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Real-time Alerts -->
+            <div class="col-lg-8">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-bell me-2"></i>Real-time Anomaly Alerts</span>
+                        <div>
+                            <button class="btn btn-outline-light btn-sm me-1">
+                                <i class="bi bi-check2-all me-1"></i>Acknowledge All
+                            </button>
+                            <button class="btn btn-outline-light btn-sm">
+                                <i class="bi bi-filter me-1"></i>Filter
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <!-- Critical Alert -->
+                        <div class="alert-card critical">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="d-flex">
+                                    <i class="bi bi-exclamation-octagon-fill severity-critical me-3" style="font-size: 1.5rem;"></i>
+                                    <div>
+                                        <h6 class="mb-1">Temperature Anomaly - Injection Mold #3</h6>
+                                        <p class="mb-2 text-muted small">Temperature reading 287C exceeds safe threshold of 260C. Potential overheating detected.</p>
+                                        <div class="d-flex gap-3 small">
+                                            <span><i class="bi bi-geo-alt me-1"></i>Zone A - Machine IM-003</span>
+                                            <span><i class="bi bi-clock me-1"></i>2 min ago</span>
+                                            <span class="severity-critical"><i class="bi bi-graph-up me-1"></i>Deviation: +27C</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-warning"><i class="bi bi-check"></i></button>
+                                    <button class="btn btn-sm btn-outline-light"><i class="bi bi-three-dots"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Critical Alert 2 -->
+                        <div class="alert-card critical">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="d-flex">
+                                    <i class="bi bi-exclamation-octagon-fill severity-critical me-3" style="font-size: 1.5rem;"></i>
+                                    <div>
+                                        <h6 class="mb-1">Vibration Pattern Anomaly - Conveyor C2</h6>
+                                        <p class="mb-2 text-muted small">Unusual vibration frequency detected. Possible bearing failure imminent.</p>
+                                        <div class="d-flex gap-3 small">
+                                            <span><i class="bi bi-geo-alt me-1"></i>Zone B - Conveyor C2</span>
+                                            <span><i class="bi bi-clock me-1"></i>8 min ago</span>
+                                            <span class="severity-critical"><i class="bi bi-soundwave me-1"></i>Frequency: 142Hz (Normal: 45Hz)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-warning"><i class="bi bi-check"></i></button>
+                                    <button class="btn btn-sm btn-outline-light"><i class="bi bi-three-dots"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Warning Alert -->
+                        <div class="alert-card warning">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="d-flex">
+                                    <i class="bi bi-exclamation-triangle-fill severity-warning me-3" style="font-size: 1.5rem;"></i>
+                                    <div>
+                                        <h6 class="mb-1">Pressure Drift - Hydraulic System</h6>
+                                        <p class="mb-2 text-muted small">Gradual pressure decline detected over past 4 hours. Investigate potential leak.</p>
+                                        <div class="d-flex gap-3 small">
+                                            <span><i class="bi bi-geo-alt me-1"></i>Zone A - Press HP-001</span>
+                                            <span><i class="bi bi-clock me-1"></i>15 min ago</span>
+                                            <span class="severity-warning"><i class="bi bi-graph-down me-1"></i>-12% from baseline</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-warning"><i class="bi bi-check"></i></button>
+                                    <button class="btn btn-sm btn-outline-light"><i class="bi bi-three-dots"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Info Alert -->
+                        <div class="alert-card info">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="d-flex">
+                                    <i class="bi bi-info-circle-fill severity-info me-3" style="font-size: 1.5rem;"></i>
+                                    <div>
+                                        <h6 class="mb-1">Cycle Time Variation - Assembly Line 2</h6>
+                                        <p class="mb-2 text-muted small">Slight increase in cycle time variance detected. Within acceptable limits but trending.</p>
+                                        <div class="d-flex gap-3 small">
+                                            <span><i class="bi bi-geo-alt me-1"></i>Zone C - Line AL-002</span>
+                                            <span><i class="bi bi-clock me-1"></i>32 min ago</span>
+                                            <span class="severity-info"><i class="bi bi-clock-history me-1"></i>+8% variance</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-warning"><i class="bi bi-check"></i></button>
+                                    <button class="btn btn-sm btn-outline-light"><i class="bi bi-three-dots"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Anomaly Timeline -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-graph-up me-2"></i>Anomaly Timeline (24h)
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline-chart">
+                            <div class="timeline-line"></div>
+                            <div class="timeline-point bg-info" style="left: 10%;"></div>
+                            <div class="timeline-point bg-warning" style="left: 25%;"></div>
+                            <div class="timeline-point bg-warning" style="left: 35%;"></div>
+                            <div class="timeline-point bg-info" style="left: 45%;"></div>
+                            <div class="timeline-point bg-danger" style="left: 60%;"></div>
+                            <div class="timeline-point bg-warning" style="left: 75%;"></div>
+                            <div class="timeline-point bg-danger pulse" style="left: 95%;"></div>
+                        </div>
+                        <div class="d-flex justify-content-between text-muted small mt-2">
+                            <span>12:00 AM</span>
+                            <span>6:00 AM</span>
+                            <span>12:00 PM</span>
+                            <span>6:00 PM</span>
+                            <span>Now</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-bar-chart me-2"></i>Anomaly Categories
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Temperature</span>
+                                <span>12 events</span>
+                            </div>
+                            <div class="progress" style="height: 8px; background: #1e293b;">
+                                <div class="progress-bar bg-danger" style="width: 40%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Vibration</span>
+                                <span>8 events</span>
+                            </div>
+                            <div class="progress" style="height: 8px; background: #1e293b;">
+                                <div class="progress-bar bg-warning" style="width: 27%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Pressure</span>
+                                <span>5 events</span>
+                            </div>
+                            <div class="progress" style="height: 8px; background: #1e293b;">
+                                <div class="progress-bar bg-info" style="width: 17%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Cycle Time</span>
+                                <span>5 events</span>
+                            </div>
+                            <div class="progress" style="height: 8px; background: #1e293b;">
+                                <div class="progress-bar bg-primary" style="width: 17%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-cpu me-2"></i>Detection Model Status
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span>Model Version</span>
+                            <span class="badge bg-success">v2.0.0</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Precision</span>
+                            <strong>96.8%</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Recall</span>
+                            <strong>94.2%</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">F1 Score</span>
+                            <strong>95.5%</strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Last Retrained</span>
+                            <strong>3 days ago</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-clock-history me-2"></i>Recent History
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush" style="background: transparent;">
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>Resolved</span>
+                                    <small class="text-muted">1h ago</small>
+                                </div>
+                                <small class="text-muted">Motor current spike - IM-002</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>Resolved</span>
+                                    <small class="text-muted">2h ago</small>
+                                </div>
+                                <small class="text-muted">Coolant flow anomaly - CNC-005</small>
+                            </div>
+                            <div class="list-group-item" style="background: transparent; color: #e2e8f0; border-color: rgba(255,255,255,0.1);">
+                                <div class="d-flex justify-content-between">
+                                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>Resolved</span>
+                                    <small class="text-muted">4h ago</small>
+                                </div>
+                                <small class="text-muted">Humidity deviation - Storage B</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function refreshData() {
+            console.log('Refreshing anomaly data...');
+        }
+    </script>
+</body>
+</html>

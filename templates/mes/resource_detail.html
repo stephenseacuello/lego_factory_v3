@@ -1,0 +1,685 @@
+{% extends "base.html" %}
+
+{% block title %}{{ machine_id }} - Resource Detail - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('mes_web.resources') }}">Resources</a></li>
+<li class="breadcrumb-item active">{{ machine_id }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="mb-1">
+            <i class="bi bi-gear me-2"></i>
+            <span id="machineName">{{ machine_id }}</span>
+        </h2>
+        <span class="text-muted" id="machineId">{{ machine_id }}</span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge fs-6" id="statusBadge">--</span>
+        <button class="btn btn-outline-secondary btn-sm" onclick="resourceDetail.refresh()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        <button class="btn btn-outline-primary btn-sm" onclick="resourceDetail.showStatusModal()">
+            <i class="bi bi-pencil"></i> Update Status
+        </button>
+    </div>
+</div>
+
+<!-- Status Overview -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Current Job</h6>
+                <div id="currentJob">
+                    <span class="text-muted">No active job</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Material Loaded</h6>
+                <div id="currentMaterial">
+                    <span class="text-muted">None</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Connection</h6>
+                <div id="connectionStatus">
+                    <span class="text-muted">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h6 class="text-muted mb-2">Alarms</h6>
+                <div id="alarmStatus">
+                    <span class="text-success"><i class="bi bi-check-circle me-1"></i>Clear</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Utilization Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted">Utilization (1hr)</span>
+                    <span class="fs-4 fw-bold" id="util1hr">--</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-info" id="util1hrBar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted">Utilization (8hr)</span>
+                    <span class="fs-4 fw-bold" id="util8hr">--</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-info" id="util8hrBar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="text-muted">Utilization (24hr)</span>
+                    <span class="fs-4 fw-bold" id="util24hr">--</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-info" id="util24hrBar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row g-4">
+    <!-- Sensor Data Chart -->
+    <div class="col-lg-8">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-graph-up me-2"></i>Sensor Data</span>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" id="sensorSelect" style="width: 200px;">
+                        <option value="">Select sensor...</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="timeRange" style="width: 120px;">
+                        <option value="1">1 Hour</option>
+                        <option value="4">4 Hours</option>
+                        <option value="8" selected>8 Hours</option>
+                        <option value="24">24 Hours</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <canvas id="sensorChart" height="300"></canvas>
+                <div id="noSensorData" class="text-center text-muted py-5" style="display: none;">
+                    <i class="bi bi-graph-up fs-1 mb-3 d-block"></i>
+                    Select a sensor to view data
+                </div>
+            </div>
+        </div>
+
+        <!-- Status History Timeline -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history me-2"></i>Status History (24hr)
+            </div>
+            <div class="card-body">
+                <canvas id="statusChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="col-lg-4">
+        <!-- Tool Inventory -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-tools me-2"></i>Installed Tools
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="toolList">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Events -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-activity me-2"></i>Recent Events
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="eventList" style="max-height: 400px; overflow-y: auto;">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Update Status Modal -->
+<div class="modal fade" id="statusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Machine Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="statusForm" onsubmit="resourceDetail.updateStatus(event)">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" name="status" required>
+                            <option value="idle">Idle</option>
+                            <option value="running">Running</option>
+                            <option value="down">Down</option>
+                            <option value="setup">Setup</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="offline">Offline</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Job ID (optional)</label>
+                        <input type="text" class="form-control" name="job_id" placeholder="e.g., JOB-001">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Alarm Code (if down)</label>
+                        <input type="text" class="form-control" name="alarm_code" placeholder="e.g., E-100">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Alarm Message</label>
+                        <textarea class="form-control" name="alarm_message" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Status</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script>
+const resourceDetail = {
+    machineId: '{{ machine_id }}',
+    status: null,
+    tools: [],
+    events: [],
+    readings: {},
+    sensorChart: null,
+    statusChart: null,
+    socket: null,
+
+    init() {
+        this.loadData();
+        this.initCharts();
+        this.initWebSocket();
+        this.setupEventListeners();
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => this.loadData(), 30000);
+    },
+
+    initWebSocket() {
+        if (typeof LegoFactorySocket !== 'undefined') {
+            this.socket = new LegoFactorySocket('/dashboard');
+
+            this.socket.on('resource_update', (data) => {
+                if (data.machine_id === this.machineId) {
+                    this.handleResourceUpdate(data);
+                }
+            });
+
+            this.socket.on('machine_event', (data) => {
+                if (data.machine_id === this.machineId) {
+                    this.events.unshift(data);
+                    this.renderEvents();
+                }
+            });
+
+            this.socket.connect();
+        }
+    },
+
+    setupEventListeners() {
+        document.getElementById('sensorSelect').addEventListener('change', (e) => {
+            if (e.target.value) {
+                this.loadSensorData(e.target.value);
+            }
+        });
+
+        document.getElementById('timeRange').addEventListener('change', () => {
+            const sensor = document.getElementById('sensorSelect').value;
+            if (sensor) {
+                this.loadSensorData(sensor);
+            }
+        });
+    },
+
+    async loadData() {
+        try {
+            LoadingSpinner.show();
+            const response = await fetch(`/api/mes/resources/${this.machineId}`);
+            const data = await response.json();
+
+            this.status = data.status;
+            this.tools = data.tools || [];
+            this.events = data.recent_events || [];
+            this.readings = data.latest_readings || {};
+
+            this.renderStatus();
+            this.renderTools();
+            this.renderEvents();
+            this.populateSensorSelect();
+        } catch (error) {
+            console.error('Error loading resource detail:', error);
+            showToast('Error loading machine data', 'error');
+        } finally {
+            LoadingSpinner.hide();
+        }
+    },
+
+    refresh() {
+        this.loadData();
+    },
+
+    initCharts() {
+        // Sensor Chart
+        const sensorCtx = document.getElementById('sensorChart').getContext('2d');
+        this.sensorChart = new Chart(sensorCtx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Sensor Value',
+                    data: [],
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    fill: true,
+                    tension: 0.3,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        type: 'time',
+                        time: {
+                            displayFormats: {
+                                hour: 'HH:mm',
+                                minute: 'HH:mm'
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+
+        // Status Timeline Chart
+        const statusCtx = document.getElementById('statusChart').getContext('2d');
+        this.statusChart = new Chart(statusCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    data: [],
+                    backgroundColor: [],
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        display: false
+                    },
+                    y: {
+                        stacked: true,
+                        display: false
+                    }
+                }
+            }
+        });
+
+        // Show placeholder initially
+        document.getElementById('sensorChart').style.display = 'none';
+        document.getElementById('noSensorData').style.display = 'block';
+    },
+
+    renderStatus() {
+        const s = this.status;
+        if (!s) return;
+
+        // Machine name
+        document.getElementById('machineName').textContent = s.machine_name || this.machineId;
+
+        // Status badge
+        const badge = document.getElementById('statusBadge');
+        badge.textContent = s.status || 'unknown';
+        badge.className = `badge fs-6 ${this.getStatusBadge(s.status)}`;
+
+        // Current job
+        const jobDiv = document.getElementById('currentJob');
+        if (s.current_job_id) {
+            jobDiv.innerHTML = `
+                <div class="fw-bold">${s.current_job_id}</div>
+                <small class="text-muted">${s.current_operation_name || ''}</small>
+                ${s.job_progress_pct ? `
+                    <div class="progress mt-2" style="height: 6px;">
+                        <div class="progress-bar bg-primary" style="width: ${s.job_progress_pct}%"></div>
+                    </div>
+                    <small class="text-muted">${s.job_progress_pct.toFixed(0)}% complete</small>
+                ` : ''}
+            `;
+        } else {
+            jobDiv.innerHTML = '<span class="text-muted">No active job</span>';
+        }
+
+        // Material
+        const matDiv = document.getElementById('currentMaterial');
+        if (s.current_material_type) {
+            matDiv.innerHTML = `
+                <div class="fw-bold">${s.current_material_type}</div>
+                <small class="text-muted">Lot: ${s.current_material_lot || 'N/A'}</small>
+            `;
+        } else {
+            matDiv.innerHTML = '<span class="text-muted">None loaded</span>';
+        }
+
+        // Connection
+        const connDiv = document.getElementById('connectionStatus');
+        connDiv.innerHTML = s.is_connected
+            ? '<span class="text-success"><i class="bi bi-wifi me-1"></i>Connected</span>'
+            : '<span class="text-danger"><i class="bi bi-wifi-off me-1"></i>Disconnected</span>';
+
+        // Alarms
+        const alarmDiv = document.getElementById('alarmStatus');
+        if (s.has_alarm) {
+            alarmDiv.innerHTML = `
+                <span class="text-danger">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    ${s.alarm_code || 'ALARM'}
+                </span>
+                <small class="text-muted d-block">${s.alarm_message || ''}</small>
+            `;
+        } else {
+            alarmDiv.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>Clear</span>';
+        }
+
+        // Utilization
+        this.updateUtilization('1hr', s.utilization_1hr);
+        this.updateUtilization('8hr', s.utilization_8hr);
+        this.updateUtilization('24hr', s.utilization_24hr);
+    },
+
+    updateUtilization(period, value) {
+        const pct = value || 0;
+        document.getElementById(`util${period}`).textContent = `${pct.toFixed(1)}%`;
+        document.getElementById(`util${period}Bar`).style.width = `${pct}%`;
+    },
+
+    renderTools() {
+        const container = document.getElementById('toolList');
+
+        if (this.tools.length === 0) {
+            container.innerHTML = `
+                <div class="list-group-item text-center text-muted py-4">
+                    No tools installed
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = this.tools.map(tool => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <div class="fw-medium">${tool.tool_name || tool.tool_id}</div>
+                        <small class="text-muted">${tool.tool_type}</small>
+                    </div>
+                    <span class="badge ${tool.status === 'available' ? 'bg-success' :
+                        tool.status === 'worn' ? 'bg-warning text-dark' :
+                        tool.status === 'broken' ? 'bg-danger' : 'bg-secondary'}">
+                        ${tool.status}
+                    </span>
+                </div>
+                <div class="d-flex justify-content-between align-items-center small mb-1">
+                    <span>Wear</span>
+                    <span class="${tool.wear_percent > 80 ? 'text-danger' :
+                        tool.wear_percent > 50 ? 'text-warning' : 'text-success'}">
+                        ${(tool.wear_percent || 0).toFixed(0)}%
+                    </span>
+                </div>
+                <div class="progress" style="height: 6px;">
+                    <div class="progress-bar ${tool.wear_percent > 80 ? 'bg-danger' :
+                        tool.wear_percent > 50 ? 'bg-warning' : 'bg-success'}"
+                         style="width: ${tool.wear_percent || 0}%"></div>
+                </div>
+                ${tool.remaining_life_mins ? `
+                    <small class="text-muted mt-1 d-block">
+                        ~${Math.round(tool.remaining_life_mins)} min remaining
+                    </small>
+                ` : ''}
+            </div>
+        `).join('');
+    },
+
+    renderEvents() {
+        const container = document.getElementById('eventList');
+
+        if (this.events.length === 0) {
+            container.innerHTML = `
+                <div class="list-group-item text-center text-muted py-4">
+                    No recent events
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = this.events.slice(0, 30).map(event => `
+            <div class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        ${this.getEventIcon(event.event_type, event.severity)}
+                        <span class="ms-2">${event.description || event.event_type}</span>
+                    </div>
+                    <small class="text-muted">${this.formatTime(event.timestamp)}</small>
+                </div>
+                ${event.event_code ? `<small class="text-muted ms-4">Code: ${event.event_code}</small>` : ''}
+            </div>
+        `).join('');
+    },
+
+    populateSensorSelect() {
+        const select = document.getElementById('sensorSelect');
+        const currentValue = select.value;
+
+        // Get tags from latest readings
+        const tags = Object.keys(this.readings);
+
+        select.innerHTML = '<option value="">Select sensor...</option>' +
+            tags.map(tag => `<option value="${tag}">${tag}</option>`).join('');
+
+        // Restore selection
+        if (currentValue && tags.includes(currentValue)) {
+            select.value = currentValue;
+        }
+    },
+
+    async loadSensorData(tagName) {
+        const hours = document.getElementById('timeRange').value;
+
+        try {
+            const response = await fetch(
+                `/api/mes/data/sensor/${this.machineId}/${tagName}?hours=${hours}&aggregate=1%20minute`
+            );
+            const data = await response.json();
+
+            // Show chart, hide placeholder
+            document.getElementById('sensorChart').style.display = 'block';
+            document.getElementById('noSensorData').style.display = 'none';
+
+            // Update chart
+            const readings = (data.data || []).map(r => ({
+                x: new Date(r.timestamp),
+                y: r.avg !== undefined ? r.avg : r.value
+            }));
+
+            this.sensorChart.data.datasets[0].data = readings;
+            this.sensorChart.data.datasets[0].label = tagName;
+
+            // Get unit from latest readings
+            const unit = this.readings[tagName]?.unit || '';
+            if (unit) {
+                this.sensorChart.options.scales.y.title = {
+                    display: true,
+                    text: unit
+                };
+            }
+
+            this.sensorChart.update();
+        } catch (error) {
+            console.error('Error loading sensor data:', error);
+            showToast('Error loading sensor data', 'error');
+        }
+    },
+
+    handleResourceUpdate(data) {
+        this.status = { ...this.status, ...data };
+        this.renderStatus();
+    },
+
+    showStatusModal() {
+        const modal = new bootstrap.Modal(document.getElementById('statusModal'));
+        if (this.status) {
+            document.querySelector('[name="status"]').value = this.status.status || 'idle';
+            document.querySelector('[name="job_id"]').value = this.status.current_job_id || '';
+            document.querySelector('[name="alarm_code"]').value = this.status.alarm_code || '';
+            document.querySelector('[name="alarm_message"]').value = this.status.alarm_message || '';
+        }
+        modal.show();
+    },
+
+    async updateStatus(event) {
+        event.preventDefault();
+        const form = event.target;
+        const formData = new FormData(form);
+
+        const payload = {
+            status: formData.get('status'),
+            job_id: formData.get('job_id') || null,
+            alarm_code: formData.get('alarm_code') || null,
+            alarm_message: formData.get('alarm_message') || null,
+        };
+
+        try {
+            const response = await fetch(`/api/mes/resources/${this.machineId}/status`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                bootstrap.Modal.getInstance(document.getElementById('statusModal')).hide();
+                showToast('Status updated successfully', 'success');
+                this.loadData();
+            } else {
+                const error = await response.json();
+                showToast(error.error || 'Failed to update status', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating status:', error);
+            showToast('Error updating status', 'error');
+        }
+    },
+
+    getStatusBadge(status) {
+        const badges = {
+            'running': 'bg-success',
+            'idle': 'bg-info',
+            'down': 'bg-danger',
+            'setup': 'bg-warning text-dark',
+            'maintenance': 'bg-secondary',
+            'offline': 'bg-dark',
+        };
+        return badges[status] || 'bg-secondary';
+    },
+
+    getEventIcon(eventType, severity) {
+        if (severity === 'critical' || severity === 'error') {
+            return '<i class="bi bi-exclamation-octagon text-danger"></i>';
+        }
+
+        const icons = {
+            'state_change': '<i class="bi bi-arrow-repeat text-info"></i>',
+            'alarm_raised': '<i class="bi bi-exclamation-triangle text-danger"></i>',
+            'alarm_cleared': '<i class="bi bi-check-circle text-success"></i>',
+            'job_started': '<i class="bi bi-play-circle text-success"></i>',
+            'job_completed': '<i class="bi bi-check-circle text-success"></i>',
+            'job_failed': '<i class="bi bi-x-circle text-danger"></i>',
+            'material_loaded': '<i class="bi bi-box-arrow-in-down text-primary"></i>',
+            'tool_changed': '<i class="bi bi-tools text-warning"></i>',
+            'maintenance_started': '<i class="bi bi-wrench text-secondary"></i>',
+            'maintenance_completed': '<i class="bi bi-wrench-adjustable text-success"></i>',
+            'connection_lost': '<i class="bi bi-wifi-off text-danger"></i>',
+            'connection_restored': '<i class="bi bi-wifi text-success"></i>',
+        };
+
+        return icons[eventType] || '<i class="bi bi-info-circle text-muted"></i>';
+    },
+
+    formatTime(ts) {
+        if (!ts) return '--';
+        const date = new Date(ts);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+};
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    resourceDetail.init();
+});
+</script>
+{% endblock %}

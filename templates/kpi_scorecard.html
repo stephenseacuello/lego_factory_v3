@@ -1,0 +1,665 @@
+{% extends "base.html" %}
+{% block title %}KPI Scorecard - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #10b981;
+        --accent-red: #ef4444;
+        --accent-yellow: #f59e0b;
+        --accent-purple: #8b5cf6;
+        --accent-cyan: #06b6d4;
+    }
+
+    .scorecard-container {
+        padding: 1.5rem;
+        background: var(--bg-dark);
+        min-height: calc(100vh - 60px);
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i { color: var(--accent-purple); }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .period-selector {
+        display: flex;
+        background: var(--bg-card);
+        border-radius: 0.5rem;
+        overflow: hidden;
+        border: 1px solid var(--border-color);
+    }
+
+    .period-btn {
+        padding: 0.5rem 1rem;
+        background: transparent;
+        color: var(--text-secondary);
+        border: none;
+        cursor: pointer;
+        font-size: 0.875rem;
+    }
+
+    .period-btn.active {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: none;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    /* Overall Score */
+    .score-banner {
+        background: linear-gradient(135deg, #1e3a5f 0%, #1e293b 100%);
+        border-radius: 1rem;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 2rem;
+        align-items: center;
+        border: 1px solid var(--border-color);
+    }
+
+    .overall-score {
+        position: relative;
+        width: 180px;
+        height: 180px;
+    }
+
+    .score-ring {
+        transform: rotate(-90deg);
+    }
+
+    .score-ring-bg {
+        fill: none;
+        stroke: var(--bg-dark);
+        stroke-width: 12;
+    }
+
+    .score-ring-fill {
+        fill: none;
+        stroke-width: 12;
+        stroke-linecap: round;
+        transition: stroke-dasharray 1s;
+    }
+
+    .score-center {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+    }
+
+    .score-value {
+        font-size: 3rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .score-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .score-details {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+    }
+
+    .detail-item {
+        text-align: center;
+    }
+
+    .detail-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .detail-label {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    .detail-trend {
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    .detail-trend.up { color: var(--accent-green); }
+    .detail-trend.down { color: var(--accent-red); }
+
+    .score-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    /* KPI Categories */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-category {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .category-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .category-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .category-score {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .category-score.green { color: var(--accent-green); }
+    .category-score.yellow { color: var(--accent-yellow); }
+    .category-score.red { color: var(--accent-red); }
+
+    .category-body { padding: 1rem; }
+
+    /* KPI Item */
+    .kpi-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-item:last-child { margin-bottom: 0; }
+
+    .kpi-indicator {
+        width: 8px;
+        height: 40px;
+        border-radius: 4px;
+    }
+
+    .kpi-indicator.green { background: var(--accent-green); }
+    .kpi-indicator.yellow { background: var(--accent-yellow); }
+    .kpi-indicator.red { background: var(--accent-red); }
+
+    .kpi-info { flex: 1; }
+
+    .kpi-name {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .kpi-target {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+    }
+
+    .kpi-actual {
+        text-align: right;
+    }
+
+    .kpi-value {
+        font-size: 1.125rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .kpi-variance {
+        font-size: 0.75rem;
+    }
+
+    .kpi-variance.positive { color: var(--accent-green); }
+    .kpi-variance.negative { color: var(--accent-red); }
+
+    /* Trend Charts */
+    .trends-section {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+
+    .card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .card-body { padding: 1.25rem; }
+
+    .chart-container {
+        height: 200px;
+        position: relative;
+    }
+
+    /* Action Items */
+    .action-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .action-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+        border-left: 3px solid;
+    }
+
+    .action-item.critical { border-left-color: var(--accent-red); }
+    .action-item.warning { border-left-color: var(--accent-yellow); }
+    .action-item.info { border-left-color: var(--accent-blue); }
+
+    .action-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .action-icon.critical { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .action-icon.warning { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+    .action-icon.info { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+
+    .action-content { flex: 1; }
+
+    .action-title {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    .action-desc {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+    }
+
+    @media (max-width: 1200px) {
+        .score-banner { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+        .kpi-grid { grid-template-columns: 1fr; }
+        .trends-section { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scorecard-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-chart-line"></i>
+            KPI Scorecard
+        </h1>
+        <div class="header-actions">
+            <div class="period-selector">
+                <button class="period-btn">Daily</button>
+                <button class="period-btn active">Weekly</button>
+                <button class="period-btn">Monthly</button>
+                <button class="period-btn">YTD</button>
+            </div>
+            <button class="btn btn-primary" onclick="exportScorecard()">
+                <i class="fas fa-file-pdf"></i>
+                Export PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- Overall Score Banner -->
+    <div class="score-banner">
+        <div class="overall-score">
+            <svg class="score-ring" width="180" height="180" viewBox="0 0 180 180">
+                <circle class="score-ring-bg" cx="90" cy="90" r="78"/>
+                <circle class="score-ring-fill" cx="90" cy="90" r="78"
+                    stroke="#10b981" stroke-dasharray="408 490"/>
+            </svg>
+            <div class="score-center">
+                <div class="score-value">83</div>
+                <div class="score-label">Overall Score</div>
+            </div>
+        </div>
+
+        <div class="score-details">
+            <div class="detail-item">
+                <div class="detail-value" style="color: var(--accent-green);">78.5%</div>
+                <div class="detail-label">OEE</div>
+                <div class="detail-trend up"><i class="fas fa-arrow-up"></i> +2.3%</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-value" style="color: var(--accent-yellow);">96.8%</div>
+                <div class="detail-label">Quality</div>
+                <div class="detail-trend down"><i class="fas fa-arrow-down"></i> -0.4%</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-value" style="color: var(--accent-green);">92.1%</div>
+                <div class="detail-label">On-Time Delivery</div>
+                <div class="detail-trend up"><i class="fas fa-arrow-up"></i> +1.5%</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-value" style="color: var(--accent-green);">24.8%</div>
+                <div class="detail-label">Profit Margin</div>
+                <div class="detail-trend up"><i class="fas fa-arrow-up"></i> +3.2%</div>
+            </div>
+        </div>
+
+        <div class="score-actions">
+            <button class="btn btn-secondary">
+                <i class="fas fa-cog"></i>
+                Configure KPIs
+            </button>
+            <button class="btn btn-secondary">
+                <i class="fas fa-history"></i>
+                View History
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Categories -->
+    <div class="kpi-grid">
+        <!-- Production KPIs -->
+        <div class="kpi-category">
+            <div class="category-header">
+                <span class="category-title">
+                    <i class="fas fa-industry"></i>
+                    Production
+                </span>
+                <span class="category-score green">86</span>
+            </div>
+            <div class="category-body" id="production-kpis">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Quality KPIs -->
+        <div class="kpi-category">
+            <div class="category-header">
+                <span class="category-title">
+                    <i class="fas fa-check-circle"></i>
+                    Quality
+                </span>
+                <span class="category-score yellow">78</span>
+            </div>
+            <div class="category-body" id="quality-kpis">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Delivery KPIs -->
+        <div class="kpi-category">
+            <div class="category-header">
+                <span class="category-title">
+                    <i class="fas fa-truck"></i>
+                    Delivery
+                </span>
+                <span class="category-score green">91</span>
+            </div>
+            <div class="category-body" id="delivery-kpis">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Safety KPIs -->
+        <div class="kpi-category">
+            <div class="category-header">
+                <span class="category-title">
+                    <i class="fas fa-shield-alt"></i>
+                    Safety
+                </span>
+                <span class="category-score green">94</span>
+            </div>
+            <div class="category-body" id="safety-kpis">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Cost KPIs -->
+        <div class="kpi-category">
+            <div class="category-header">
+                <span class="category-title">
+                    <i class="fas fa-dollar-sign"></i>
+                    Cost
+                </span>
+                <span class="category-score yellow">72</span>
+            </div>
+            <div class="category-body" id="cost-kpis">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- People KPIs -->
+        <div class="kpi-category">
+            <div class="category-header">
+                <span class="category-title">
+                    <i class="fas fa-users"></i>
+                    People
+                </span>
+                <span class="category-score green">85</span>
+            </div>
+            <div class="category-body" id="people-kpis">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Trends and Actions -->
+    <div class="trends-section">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Score Trend (12 Weeks)</span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="scoreTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">Action Items</span>
+            </div>
+            <div class="card-body">
+                <div class="action-list">
+                    <div class="action-item critical">
+                        <div class="action-icon critical"><i class="fas fa-exclamation"></i></div>
+                        <div class="action-content">
+                            <div class="action-title">Scrap rate exceeds target</div>
+                            <div class="action-desc">Current: 3.2% | Target: 2.8%</div>
+                        </div>
+                    </div>
+                    <div class="action-item warning">
+                        <div class="action-icon warning"><i class="fas fa-clock"></i></div>
+                        <div class="action-content">
+                            <div class="action-title">Setup time trending up</div>
+                            <div class="action-desc">+12% increase this week</div>
+                        </div>
+                    </div>
+                    <div class="action-item info">
+                        <div class="action-icon info"><i class="fas fa-info"></i></div>
+                        <div class="action-content">
+                            <div class="action-title">Training compliance review due</div>
+                            <div class="action-desc">5 certifications expiring soon</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const kpiData = {
+        production: [
+            { name: 'OEE', target: '80%', actual: '78.5%', variance: -1.9, status: 'yellow' },
+            { name: 'Machine Utilization', target: '85%', actual: '82.3%', variance: -3.2, status: 'yellow' },
+            { name: 'Output Volume', target: '1,200', actual: '1,245', variance: 3.8, status: 'green' },
+        ],
+        quality: [
+            { name: 'First Pass Yield', target: '98%', actual: '96.8%', variance: -1.2, status: 'yellow' },
+            { name: 'Scrap Rate', target: '2.8%', actual: '3.2%', variance: 14.3, status: 'red' },
+            { name: 'Customer Returns', target: '0.5%', actual: '0.3%', variance: -40, status: 'green' },
+        ],
+        delivery: [
+            { name: 'On-Time Delivery', target: '95%', actual: '92.1%', variance: -3.1, status: 'yellow' },
+            { name: 'Lead Time', target: '5 days', actual: '4.8 days', variance: -4, status: 'green' },
+            { name: 'Order Fulfillment', target: '98%', actual: '99.2%', variance: 1.2, status: 'green' },
+        ],
+        safety: [
+            { name: 'Incident Rate', target: '0', actual: '0', variance: 0, status: 'green' },
+            { name: 'Near Misses', target: '<5', actual: '3', variance: 0, status: 'green' },
+            { name: 'Training Compliance', target: '100%', actual: '92%', variance: -8, status: 'yellow' },
+        ],
+        cost: [
+            { name: 'Labor Cost/Unit', target: '$12.50', actual: '$13.20', variance: 5.6, status: 'yellow' },
+            { name: 'Material Variance', target: '±2%', actual: '+3.5%', variance: 75, status: 'red' },
+            { name: 'Overhead Rate', target: '150%', actual: '148%', variance: -1.3, status: 'green' },
+        ],
+        people: [
+            { name: 'Attendance', target: '98%', actual: '97.5%', variance: -0.5, status: 'green' },
+            { name: 'Overtime Hours', target: '<10%', actual: '8.5%', variance: 0, status: 'green' },
+            { name: 'Skill Coverage', target: '100%', actual: '95%', variance: -5, status: 'yellow' },
+        ]
+    };
+
+    function renderKPIs(category, containerId) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = kpiData[category].map(kpi => `
+            <div class="kpi-item">
+                <div class="kpi-indicator ${kpi.status}"></div>
+                <div class="kpi-info">
+                    <div class="kpi-name">${kpi.name}</div>
+                    <div class="kpi-target">Target: ${kpi.target}</div>
+                </div>
+                <div class="kpi-actual">
+                    <div class="kpi-value">${kpi.actual}</div>
+                    <div class="kpi-variance ${kpi.variance >= 0 ? 'positive' : 'negative'}">
+                        ${kpi.variance >= 0 ? '+' : ''}${kpi.variance}%
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function initChart() {
+        new Chart(document.getElementById('scoreTrendChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: ['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12'],
+                datasets: [{
+                    label: 'Score',
+                    data: [78, 80, 79, 82, 81, 83, 82, 84, 83, 85, 82, 83],
+                    borderColor: '#8b5cf6',
+                    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' }, min: 60, max: 100 }
+                }
+            }
+        });
+    }
+
+    document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    function exportScorecard() { alert('Generating PDF scorecard...'); }
+
+    renderKPIs('production', 'production-kpis');
+    renderKPIs('quality', 'quality-kpis');
+    renderKPIs('delivery', 'delivery-kpis');
+    renderKPIs('safety', 'safety-kpis');
+    renderKPIs('cost', 'cost-kpis');
+    renderKPIs('people', 'people-kpis');
+    initChart();
+</script>
+{% endblock %}

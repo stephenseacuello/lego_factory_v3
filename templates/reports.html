@@ -1,0 +1,960 @@
+{% extends "base.html" %}
+{% block title %}Report Center - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent: #3b82f6;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --purple: #8b5cf6;
+    }
+
+    body {
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .reports-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i { color: var(--accent); }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-primary); }
+    .btn-outline:hover { background: var(--bg-card); }
+    .btn-success { background: var(--success); color: white; }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0;
+    }
+
+    .tab {
+        padding: 0.75rem 1.5rem;
+        cursor: pointer;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+        margin-bottom: -1px;
+    }
+
+    .tab:hover { color: var(--text-primary); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Cards */
+    .card {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-body { padding: 1.5rem; }
+
+    /* Report Templates Grid */
+    .templates-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .template-card {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        padding: 1.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .template-card:hover {
+        border-color: var(--accent);
+        transform: translateY(-2px);
+    }
+
+    .template-card.selected {
+        border-color: var(--accent);
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .template-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .template-icon.oee { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .template-icon.downtime { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .template-icon.production { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+    .template-icon.quality { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+    .template-icon.maintenance { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .template-icon.custom { background: rgba(148, 163, 184, 0.2); color: var(--text-secondary); }
+
+    .template-name {
+        font-weight: 600;
+        font-size: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .template-description {
+        font-size: 0.813rem;
+        color: var(--text-secondary);
+        margin-bottom: 1rem;
+        line-height: 1.5;
+    }
+
+    .template-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .template-meta span {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .template-badge {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        font-size: 0.625rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--accent);
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    /* Report Builder */
+    .builder-grid {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 1.5rem;
+    }
+
+    .form-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-section-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+
+    .form-label {
+        display: block;
+        font-size: 0.813rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+    }
+
+    .form-control, .form-select {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent);
+        outline: none;
+    }
+
+    /* Checkbox Group */
+    .checkbox-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .checkbox-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .checkbox-item:hover { border-color: var(--accent); }
+
+    .checkbox-item.selected {
+        border-color: var(--accent);
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .checkbox-item input { display: none; }
+
+    .checkbox-item .checkmark {
+        width: 18px;
+        height: 18px;
+        border: 2px solid var(--border-color);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .checkbox-item.selected .checkmark {
+        background: var(--accent);
+        border-color: var(--accent);
+    }
+
+    .checkbox-item.selected .checkmark i { display: block; color: white; font-size: 0.625rem; }
+    .checkbox-item .checkmark i { display: none; }
+
+    /* Preview Panel */
+    .preview-panel {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        position: sticky;
+        top: 2rem;
+    }
+
+    .preview-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+    }
+
+    .preview-body { padding: 1.5rem; }
+
+    .preview-item {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+        font-size: 0.875rem;
+    }
+
+    .preview-label { color: var(--text-secondary); }
+    .preview-value { font-weight: 500; }
+
+    .format-options {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+    }
+
+    .format-btn {
+        flex: 1;
+        padding: 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        background: transparent;
+        color: var(--text-primary);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .format-btn:hover { border-color: var(--accent); }
+    .format-btn.selected { border-color: var(--accent); background: rgba(59, 130, 246, 0.1); }
+    .format-btn i { font-size: 1.25rem; }
+    .format-btn span { font-size: 0.75rem; }
+
+    /* Report History Table */
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .history-table th, .history-table td {
+        padding: 0.875rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .history-table th {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .history-table td { font-size: 0.875rem; }
+    .history-table tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+    .report-type-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .report-type-badge.oee { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .report-type-badge.downtime { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .report-type-badge.production { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+    .report-type-badge.quality { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+
+    /* Scheduled Reports */
+    .schedule-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 0.75rem;
+        margin-bottom: 0.75rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .schedule-info { display: flex; align-items: center; gap: 1rem; }
+
+    .schedule-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .schedule-name { font-weight: 500; font-size: 0.875rem; }
+    .schedule-meta { font-size: 0.75rem; color: var(--text-secondary); }
+
+    .schedule-status {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+    }
+
+    .schedule-status.active { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .schedule-status.paused { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+
+    .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+    }
+
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: var(--border-color);
+        transition: 0.3s;
+        border-radius: 24px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+    }
+
+    input:checked + .toggle-slider { background-color: var(--success); }
+    input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+    /* Responsive */
+    @media (max-width: 1000px) {
+        .builder-grid { grid-template-columns: 1fr; }
+        .preview-panel { position: static; }
+    }
+
+    @media (max-width: 768px) {
+        .form-row { grid-template-columns: 1fr; }
+        .templates-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="reports-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-file-alt"></i>
+            Report Center
+        </h1>
+        <a href="/portal" class="btn btn-primary">
+            <i class="fas fa-arrow-left"></i> Portal
+        </a>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <div class="tab active" data-tab="generate">Generate Report</div>
+        <div class="tab" data-tab="history">Report History</div>
+        <div class="tab" data-tab="scheduled">Scheduled Reports</div>
+    </div>
+
+    <!-- Generate Report Tab -->
+    <div class="tab-content active" id="generate">
+        <h3 style="margin-bottom: 1.5rem; font-size: 1.125rem;">Select Report Template</h3>
+        <div class="templates-grid" style="margin-bottom: 2rem;">
+            <div class="template-card selected" data-template="oee">
+                <div class="template-icon oee"><i class="fas fa-tachometer-alt"></i></div>
+                <div class="template-name">OEE Report</div>
+                <div class="template-description">Overall Equipment Effectiveness analysis including availability, performance, and quality metrics.</div>
+                <div class="template-meta">
+                    <span><i class="fas fa-clock"></i> ~2 min</span>
+                    <span><i class="fas fa-file"></i> 4 pages</span>
+                </div>
+            </div>
+
+            <div class="template-card" data-template="downtime">
+                <div class="template-icon downtime"><i class="fas fa-clock"></i></div>
+                <div class="template-name">Downtime Analysis</div>
+                <div class="template-description">Comprehensive downtime report with Pareto analysis, root causes, and trend data.</div>
+                <div class="template-meta">
+                    <span><i class="fas fa-clock"></i> ~3 min</span>
+                    <span><i class="fas fa-file"></i> 6 pages</span>
+                </div>
+            </div>
+
+            <div class="template-card" data-template="production">
+                <div class="template-icon production"><i class="fas fa-industry"></i></div>
+                <div class="template-name">Production Summary</div>
+                <div class="template-description">Daily/weekly/monthly production output, cycle times, and parts count summary.</div>
+                <div class="template-meta">
+                    <span><i class="fas fa-clock"></i> ~1 min</span>
+                    <span><i class="fas fa-file"></i> 3 pages</span>
+                </div>
+                <span class="template-badge">Popular</span>
+            </div>
+
+            <div class="template-card" data-template="quality">
+                <div class="template-icon quality"><i class="fas fa-check-circle"></i></div>
+                <div class="template-name">Quality Report</div>
+                <div class="template-description">SPC charts, defect analysis, inspection results, and quality KPIs.</div>
+                <div class="template-meta">
+                    <span><i class="fas fa-clock"></i> ~2 min</span>
+                    <span><i class="fas fa-file"></i> 5 pages</span>
+                </div>
+            </div>
+
+            <div class="template-card" data-template="maintenance">
+                <div class="template-icon maintenance"><i class="fas fa-wrench"></i></div>
+                <div class="template-name">Maintenance Report</div>
+                <div class="template-description">Preventive maintenance schedule, work orders, and equipment health status.</div>
+                <div class="template-meta">
+                    <span><i class="fas fa-clock"></i> ~2 min</span>
+                    <span><i class="fas fa-file"></i> 4 pages</span>
+                </div>
+            </div>
+
+            <div class="template-card" data-template="custom">
+                <div class="template-icon custom"><i class="fas fa-plus"></i></div>
+                <div class="template-name">Custom Report</div>
+                <div class="template-description">Build a custom report by selecting specific metrics and data sources.</div>
+                <div class="template-meta">
+                    <span><i class="fas fa-clock"></i> Variable</span>
+                    <span><i class="fas fa-file"></i> Custom</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Builder -->
+        <div class="builder-grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title"><i class="fas fa-cog"></i> Report Configuration</span>
+                </div>
+                <div class="card-body">
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-calendar"></i> Date Range</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Start Date</label>
+                                <input type="date" class="form-control" id="startDate">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">End Date</label>
+                                <input type="date" class="form-control" id="endDate">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Quick Select</label>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button class="btn btn-outline" onclick="setDateRange('today')">Today</button>
+                                <button class="btn btn-outline" onclick="setDateRange('week')">This Week</button>
+                                <button class="btn btn-outline" onclick="setDateRange('month')">This Month</button>
+                                <button class="btn btn-outline" onclick="setDateRange('quarter')">This Quarter</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-cogs"></i> Equipment Selection</div>
+                        <div class="checkbox-group">
+                            <label class="checkbox-item selected">
+                                <input type="checkbox" checked>
+                                <span class="checkmark"><i class="fas fa-check"></i></span>
+                                CNC-001
+                            </label>
+                            <label class="checkbox-item selected">
+                                <input type="checkbox" checked>
+                                <span class="checkmark"><i class="fas fa-check"></i></span>
+                                CNC-002
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox">
+                                <span class="checkmark"><i class="fas fa-check"></i></span>
+                                CNC-003
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox">
+                                <span class="checkmark"><i class="fas fa-check"></i></span>
+                                CNC-004
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-chart-bar"></i> Include Sections</div>
+                        <div class="checkbox-group">
+                            <label class="checkbox-item selected">
+                                <input type="checkbox" checked>
+                                <span class="checkmark"><i class="fas fa-check"></i></span>
+                                Executive Summary
+                            </label>
+                            <label class="checkbox-item selected">
+                                <input type="checkbox" checked>
+                                <span class="checkmark"><i class="fas fa-check"></i></span>
+                                Charts & Graphs
+                            </label>
+                            <label class="checkbox-item selected">
+                                <input type="checkbox" checked>
+                                <span class="checkmark"><i class="fas fa-check"></i></span>
+                                Data Tables
+                            </label>
+                            <label class="checkbox-item">
+                                <input type="checkbox">
+                                <span class="checkmark"><i class="fas fa-check"></i></span>
+                                Raw Data Export
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-section" style="margin-bottom: 0;">
+                        <div class="form-section-title"><i class="fas fa-envelope"></i> Delivery Options</div>
+                        <div class="form-group">
+                            <label class="form-label">Email Recipients (optional)</label>
+                            <input type="text" class="form-control" placeholder="email1@company.com, email2@company.com">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview Panel -->
+            <div class="preview-panel">
+                <div class="preview-header">
+                    <i class="fas fa-eye"></i> Report Preview
+                </div>
+                <div class="preview-body">
+                    <div class="preview-item">
+                        <span class="preview-label">Template</span>
+                        <span class="preview-value" id="previewTemplate">OEE Report</span>
+                    </div>
+                    <div class="preview-item">
+                        <span class="preview-label">Date Range</span>
+                        <span class="preview-value" id="previewDates">Dec 1 - Dec 31, 2024</span>
+                    </div>
+                    <div class="preview-item">
+                        <span class="preview-label">Equipment</span>
+                        <span class="preview-value" id="previewEquipment">2 machines</span>
+                    </div>
+                    <div class="preview-item">
+                        <span class="preview-label">Est. Pages</span>
+                        <span class="preview-value">4 pages</span>
+                    </div>
+                    <div class="preview-item">
+                        <span class="preview-label">Est. Time</span>
+                        <span class="preview-value">~2 minutes</span>
+                    </div>
+
+                    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+                        <div class="form-label" style="margin-bottom: 0.75rem;">Export Format</div>
+                        <div class="format-options">
+                            <button class="format-btn selected" data-format="pdf">
+                                <i class="fas fa-file-pdf" style="color: var(--danger);"></i>
+                                <span>PDF</span>
+                            </button>
+                            <button class="format-btn" data-format="excel">
+                                <i class="fas fa-file-excel" style="color: var(--success);"></i>
+                                <span>Excel</span>
+                            </button>
+                            <button class="format-btn" data-format="csv">
+                                <i class="fas fa-file-csv" style="color: var(--accent);"></i>
+                                <span>CSV</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success" style="width: 100%; margin-top: 1.5rem; padding: 0.75rem;" onclick="generateReport()">
+                        <i class="fas fa-download"></i> Generate Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report History Tab -->
+    <div class="tab-content" id="history">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-history"></i> Recent Reports</span>
+                <input type="text" class="form-control" placeholder="Search reports..." style="width: 250px;">
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>Report Name</th>
+                            <th>Type</th>
+                            <th>Date Range</th>
+                            <th>Generated</th>
+                            <th>Generated By</th>
+                            <th>Format</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Weekly OEE Summary</strong></td>
+                            <td><span class="report-type-badge oee">OEE</span></td>
+                            <td>Dec 23 - Dec 29, 2024</td>
+                            <td>Dec 30, 2024 09:15</td>
+                            <td>John Doe</td>
+                            <td><i class="fas fa-file-pdf" style="color: var(--danger);"></i> PDF</td>
+                            <td>
+                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Monthly Downtime Analysis</strong></td>
+                            <td><span class="report-type-badge downtime">Downtime</span></td>
+                            <td>Dec 1 - Dec 31, 2024</td>
+                            <td>Dec 28, 2024 14:30</td>
+                            <td>Jane Smith</td>
+                            <td><i class="fas fa-file-excel" style="color: var(--success);"></i> Excel</td>
+                            <td>
+                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>CNC-001 Production Report</strong></td>
+                            <td><span class="report-type-badge production">Production</span></td>
+                            <td>Dec 20 - Dec 27, 2024</td>
+                            <td>Dec 27, 2024 17:00</td>
+                            <td>John Doe</td>
+                            <td><i class="fas fa-file-pdf" style="color: var(--danger);"></i> PDF</td>
+                            <td>
+                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Quality Inspection Results</strong></td>
+                            <td><span class="report-type-badge quality">Quality</span></td>
+                            <td>Dec 15 - Dec 22, 2024</td>
+                            <td>Dec 23, 2024 10:45</td>
+                            <td>Quality Team</td>
+                            <td><i class="fas fa-file-pdf" style="color: var(--danger);"></i> PDF</td>
+                            <td>
+                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Equipment Performance Data</strong></td>
+                            <td><span class="report-type-badge oee">OEE</span></td>
+                            <td>Dec 1 - Dec 15, 2024</td>
+                            <td>Dec 16, 2024 08:00</td>
+                            <td>System</td>
+                            <td><i class="fas fa-file-csv" style="color: var(--accent);"></i> CSV</td>
+                            <td>
+                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduled Reports Tab -->
+    <div class="tab-content" id="scheduled">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 style="font-size: 1.125rem;">Scheduled Reports</h3>
+            <button class="btn btn-primary"><i class="fas fa-plus"></i> New Schedule</button>
+        </div>
+
+        <div class="schedule-card">
+            <div class="schedule-info">
+                <div class="schedule-icon" style="background: rgba(16, 185, 129, 0.2); color: var(--success);">
+                    <i class="fas fa-tachometer-alt"></i>
+                </div>
+                <div>
+                    <div class="schedule-name">Weekly OEE Summary</div>
+                    <div class="schedule-meta">Every Monday at 8:00 AM • PDF • All machines</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span class="schedule-status active">Active</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="schedule-card">
+            <div class="schedule-info">
+                <div class="schedule-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--danger);">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div>
+                    <div class="schedule-name">Monthly Downtime Analysis</div>
+                    <div class="schedule-meta">1st of each month at 6:00 AM • Excel • All machines</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span class="schedule-status active">Active</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="schedule-card">
+            <div class="schedule-info">
+                <div class="schedule-icon" style="background: rgba(59, 130, 246, 0.2); color: var(--accent);">
+                    <i class="fas fa-industry"></i>
+                </div>
+                <div>
+                    <div class="schedule-name">Daily Production Summary</div>
+                    <div class="schedule-meta">Daily at 11:59 PM • PDF • CNC-001, CNC-002</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span class="schedule-status paused">Paused</span>
+                <label class="toggle-switch">
+                    <input type="checkbox">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="schedule-card">
+            <div class="schedule-info">
+                <div class="schedule-icon" style="background: rgba(139, 92, 246, 0.2); color: var(--purple);">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <div>
+                    <div class="schedule-name">Quarterly Quality Review</div>
+                    <div class="schedule-meta">1st of Jan, Apr, Jul, Oct at 9:00 AM • PDF</div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <span class="schedule-status active">Active</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" checked>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Tab navigation
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+            document.getElementById(this.dataset.tab).classList.add('active');
+        });
+    });
+
+    // Template selection
+    document.querySelectorAll('.template-card').forEach(card => {
+        card.addEventListener('click', function() {
+            document.querySelectorAll('.template-card').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+            document.getElementById('previewTemplate').textContent = this.querySelector('.template-name').textContent;
+        });
+    });
+
+    // Checkbox items
+    document.querySelectorAll('.checkbox-item').forEach(item => {
+        item.addEventListener('click', function() {
+            this.classList.toggle('selected');
+            const checkbox = this.querySelector('input');
+            checkbox.checked = !checkbox.checked;
+            updatePreview();
+        });
+    });
+
+    // Format buttons
+    document.querySelectorAll('.format-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('selected'));
+            this.classList.add('selected');
+        });
+    });
+
+    // Set date range
+    function setDateRange(range) {
+        const today = new Date();
+        let startDate, endDate;
+
+        switch(range) {
+            case 'today':
+                startDate = endDate = today;
+                break;
+            case 'week':
+                startDate = new Date(today.setDate(today.getDate() - today.getDay()));
+                endDate = new Date();
+                break;
+            case 'month':
+                startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+                endDate = new Date();
+                break;
+            case 'quarter':
+                const quarter = Math.floor(today.getMonth() / 3);
+                startDate = new Date(today.getFullYear(), quarter * 3, 1);
+                endDate = new Date();
+                break;
+        }
+
+        document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+        document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+        updatePreview();
+    }
+
+    // Update preview
+    function updatePreview() {
+        const selectedEquipment = document.querySelectorAll('.checkbox-group .checkbox-item.selected').length;
+        document.getElementById('previewEquipment').textContent = selectedEquipment + ' machines';
+    }
+
+    // Generate report
+    function generateReport() {
+        const template = document.querySelector('.template-card.selected .template-name').textContent;
+        const format = document.querySelector('.format-btn.selected').dataset.format;
+        alert(`Generating ${template} in ${format.toUpperCase()} format...`);
+    }
+
+    // Set default dates
+    const today = new Date();
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    document.getElementById('startDate').value = firstOfMonth.toISOString().split('T')[0];
+    document.getElementById('endDate').value = today.toISOString().split('T')[0];
+</script>
+{% endblock %}

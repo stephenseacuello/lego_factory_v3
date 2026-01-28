@@ -1,0 +1,33 @@
+# LEGO Factory v3 - Slicer Service Docker Compose
+version: '3.8'
+
+services:
+  slicer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lego-slicer
+    restart: unless-stopped
+    ports:
+      - "8766:8766"
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+      - ./profiles:/app/profiles
+    environment:
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8766/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M

@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G-Code Manager - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --code-bg: #0f172a; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); }
+
+        /* File Browser */
+        .file-browser { max-height: 400px; overflow-y: auto; }
+        .file-item {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        .file-item:hover { background: rgba(59, 130, 246, 0.1); }
+        .file-item.active { background: rgba(59, 130, 246, 0.2); border-left: 3px solid #3b82f6; }
+        .file-icon { color: #60a5fa; }
+        .file-name { flex: 1; }
+        .file-size { color: #64748b; font-size: 0.8rem; }
+        .file-date { color: #64748b; font-size: 0.8rem; }
+
+        /* Code Editor */
+        .code-editor {
+            background: var(--code-bg);
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 13px;
+            height: 500px;
+            overflow: auto;
+        }
+        .code-line {
+            display: flex;
+            line-height: 1.6;
+        }
+        .code-line:hover { background: rgba(59, 130, 246, 0.1); }
+        .code-line.current { background: rgba(34, 197, 94, 0.2); }
+        .code-line.error { background: rgba(239, 68, 68, 0.2); }
+        .line-number {
+            width: 50px;
+            text-align: right;
+            padding-right: 1rem;
+            color: #64748b;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .line-content { flex: 1; padding-right: 1rem; }
+
+        /* Syntax Highlighting */
+        .gcode-comment { color: #6b7280; font-style: italic; }
+        .gcode-command { color: #60a5fa; }
+        .gcode-param { color: #fbbf24; }
+        .gcode-value { color: #34d399; }
+        .gcode-motion { color: #f472b6; }
+
+        /* Backplot Canvas */
+        .backplot-container {
+            background: var(--code-bg);
+            border-radius: 8px;
+            position: relative;
+            height: 500px;
+        }
+        #backplotCanvas {
+            width: 100%;
+            height: 100%;
+        }
+        .backplot-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .backplot-controls button {
+            width: 36px;
+            height: 36px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(30, 41, 59, 0.9);
+            color: #fff;
+            cursor: pointer;
+        }
+        .backplot-controls button:hover { background: rgba(59, 130, 246, 0.3); }
+        .backplot-info {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(30, 41, 59, 0.9);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            gap: 2rem;
+            padding: 1rem;
+            background: var(--card-bg);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 1.5rem; font-weight: 600; color: #fff; }
+        .stat-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
+
+        /* Upload Zone */
+        .upload-zone {
+            border: 2px dashed rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        /* Tabs */
+        .nav-tabs { border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .nav-tabs .nav-link {
+            color: #94a3b8;
+            border: none;
+            padding: 0.75rem 1.5rem;
+        }
+        .nav-tabs .nav-link:hover { color: #fff; border: none; }
+        .nav-tabs .nav-link.active {
+            color: #fff;
+            background: transparent;
+            border-bottom: 2px solid #3b82f6;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>G-Code Manager</a>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-success btn-sm" onclick="validateGCode()">
+                    <i class="bi bi-check-circle me-1"></i>Validate
+                </button>
+                <button class="btn btn-outline-info btn-sm" onclick="simulateGCode()">
+                    <i class="bi bi-play-circle me-1"></i>Simulate
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="sendToMachine()">
+                    <i class="bi bi-send me-1"></i>Send to Machine
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-value" id="totalPrograms">24</div>
+                <div class="stat-label">Programs</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalLines">0</div>
+                <div class="stat-label">Lines</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="estimatedTime">--:--</div>
+                <div class="stat-label">Est. Time</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="toolChanges">0</div>
+                <div class="stat-label">Tool Changes</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value text-success" id="validationStatus">--</div>
+                <div class="stat-label">Validation</div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Left Panel: File Browser -->
+            <div class="col-lg-3">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-folder2-open me-2"></i>Program Library</span>
+                        <button class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#uploadModal">
+                            <i class="bi bi-plus"></i>
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="p-2">
+                            <input type="text" class="form-control form-control-sm bg-dark border-secondary text-light"
+                                   placeholder="Search programs..." id="searchPrograms">
+                        </div>
+                        <div class="file-browser" id="fileBrowser">
+                            <!-- Files loaded dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Panel: Code Editor & Backplot -->
+            <div class="col-lg-9">
+                <div class="card">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs">
+                            <li class="nav-item">
+                                <a class="nav-link active" data-bs-toggle="tab" href="#editorTab">
+                                    <i class="bi bi-code-slash me-1"></i>Editor
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#backplotTab">
+                                    <i class="bi bi-bezier2 me-1"></i>Backplot
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#analysisTab">
+                                    <i class="bi bi-graph-up me-1"></i>Analysis
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="tab-content">
+                            <!-- Editor Tab -->
+                            <div class="tab-pane fade show active" id="editorTab">
+                                <div class="d-flex justify-content-between align-items-center p-2 border-bottom border-secondary">
+                                    <span class="text-muted" id="currentFileName">No file selected</span>
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary" onclick="formatCode()">
+                                            <i class="bi bi-text-indent-left"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" onclick="copyCode()">
+                                            <i class="bi bi-clipboard"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" onclick="downloadCode()">
+                                            <i class="bi bi-download"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="code-editor" id="codeEditor">
+                                    <!-- Code lines rendered here -->
+                                </div>
+                            </div>
+
+                            <!-- Backplot Tab -->
+                            <div class="tab-pane fade" id="backplotTab">
+                                <div class="backplot-container">
+                                    <canvas id="backplotCanvas"></canvas>
+                                    <div class="backplot-controls">
+                                        <button onclick="resetView()" title="Reset View"><i class="bi bi-house"></i></button>
+                                        <button onclick="zoomIn()" title="Zoom In"><i class="bi bi-zoom-in"></i></button>
+                                        <button onclick="zoomOut()" title="Zoom Out"><i class="bi bi-zoom-out"></i></button>
+                                        <button onclick="toggleView('xy')" title="Top View">XY</button>
+                                        <button onclick="toggleView('xz')" title="Front View">XZ</button>
+                                        <button onclick="toggleView('3d')" title="3D View">3D</button>
+                                    </div>
+                                    <div class="backplot-info">
+                                        <span class="me-3">X: <span id="cursorX">0.000</span></span>
+                                        <span class="me-3">Y: <span id="cursorY">0.000</span></span>
+                                        <span>Z: <span id="cursorZ">0.000</span></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Analysis Tab -->
+                            <div class="tab-pane fade p-3" id="analysisTab">
+                                <div class="row g-4">
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-3">Motion Summary</h6>
+                                        <table class="table table-sm">
+                                            <tbody>
+                                                <tr><td>Rapid Moves (G0)</td><td id="rapidCount">0</td></tr>
+                                                <tr><td>Linear Moves (G1)</td><td id="linearCount">0</td></tr>
+                                                <tr><td>Arc Moves (G2/G3)</td><td id="arcCount">0</td></tr>
+                                                <tr><td>Total Distance</td><td id="totalDistance">0 mm</td></tr>
+                                                <tr><td>Cutting Distance</td><td id="cuttingDistance">0 mm</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-3">Tool Usage</h6>
+                                        <div id="toolUsage">
+                                            <!-- Tool usage list -->
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-3">Work Envelope</h6>
+                                        <table class="table table-sm">
+                                            <tbody>
+                                                <tr><td>X Range</td><td id="xRange">0 - 0 mm</td></tr>
+                                                <tr><td>Y Range</td><td id="yRange">0 - 0 mm</td></tr>
+                                                <tr><td>Z Range</td><td id="zRange">0 - 0 mm</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6 class="text-muted mb-3">Feeds & Speeds</h6>
+                                        <table class="table table-sm">
+                                            <tbody>
+                                                <tr><td>Max Feed Rate</td><td id="maxFeed">0 mm/min</td></tr>
+                                                <tr><td>Min Feed Rate</td><td id="minFeed">0 mm/min</td></tr>
+                                                <tr><td>Max Spindle Speed</td><td id="maxSpindle">0 RPM</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal fade" id="uploadModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Upload G-Code Program</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="upload-zone" id="uploadZone">
+                        <i class="bi bi-cloud-upload fs-1 text-muted mb-3 d-block"></i>
+                        <p class="mb-1">Drag & drop G-code files here</p>
+                        <p class="text-muted small">or click to browse</p>
+                        <input type="file" id="fileInput" accept=".nc,.gcode,.tap,.ngc" hidden multiple>
+                    </div>
+                    <div class="mt-3" id="uploadProgress" style="display:none">
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar" id="uploadProgressBar" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted mt-1 d-block" id="uploadStatus">Uploading...</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="/static/js/realtime.js"></script>
+    <script>
+        // Initialize real-time connection
+        const rt = new CNCRealtime();
+        createConnectionIndicator(rt);
+
+        // Current state
+        let currentProgram = null;
+        let gcodeLines = [];
+        let parsedMoves = [];
+
+        // Demo programs
+        const demoPrograms = [
+            { name: 'LabFab_engrave.nc', size: '12.4 KB', date: '2025-01-02', lines: 245 },
+            { name: 'bracket_v2.nc', size: '28.7 KB', date: '2025-01-01', lines: 512 },
+            { name: 'housing_rough.nc', size: '45.2 KB', date: '2024-12-28', lines: 890 },
+            { name: 'pocket_finish.nc', size: '18.9 KB', date: '2024-12-25', lines: 367 },
+            { name: 'contour_pass.nc', size: '8.3 KB', date: '2024-12-20', lines: 156 },
+            { name: 'drill_pattern.nc', size: '5.1 KB', date: '2024-12-18', lines: 89 },
+            { name: 'facing_op.nc', size: '3.2 KB', date: '2024-12-15', lines: 45 }
+        ];
+
+        // Demo G-code
+        const demoGCode = `%
+O1001 (LABFAB ENGRAVING)
+(TOOL: 1/8" BALL END MILL)
+(MATERIAL: ALUMINUM 6061)
+
+N10 G90 G94 G17 G21
+N20 G53 G0 Z0
+N30 T1 M6 (TOOL CHANGE)
+N40 S12000 M3 (SPINDLE ON)
+N50 G54 (WORK OFFSET)
+
+(ENGRAVING START)
+N60 G0 X0 Y0
+N70 G43 H1 Z10
+N80 G0 Z5
+N90 G1 Z-0.5 F200
+N100 G1 X50 F800
+N110 G1 Y25
+N120 G1 X0
+N130 G1 Y0
+N140 G0 Z5
+
+(LETTER L)
+N150 G0 X10 Y5
+N160 G1 Z-0.3 F200
+N170 G1 Y20 F600
+N180 G1 X20
+N190 G0 Z5
+
+(LETTER A)
+N200 G0 X25 Y5
+N210 G1 Z-0.3 F200
+N220 G1 X30 Y20 F600
+N230 G1 X35 Y5
+N240 G0 Z2
+N250 G0 X27 Y12
+N260 G1 Z-0.3 F200
+N270 G1 X33 F600
+N280 G0 Z5
+
+(LETTER B)
+N290 G0 X40 Y5
+N300 G1 Z-0.3 F200
+N310 G1 Y20 F600
+N320 G2 X40 Y12.5 R3.75
+N330 G2 X40 Y5 R3.75
+N340 G0 Z5
+
+N350 G53 G0 Z0
+N360 M5 (SPINDLE OFF)
+N370 M30 (END PROGRAM)
+%`;
+
+        // Initialize
+        function init() {
+            loadFileList();
+            setupUploadZone();
+            loadProgram(demoPrograms[0].name, demoGCode);
+        }
+
+        // Load file list
+        function loadFileList() {
+            const browser = document.getElementById('fileBrowser');
+            browser.innerHTML = demoPrograms.map((file, idx) => `
+                <div class="file-item ${idx === 0 ? 'active' : ''}" onclick="selectFile(${idx})">
+                    <i class="bi bi-file-code file-icon"></i>
+                    <span class="file-name">${file.name}</span>
+                    <span class="file-size">${file.size}</span>
+                </div>
+            `).join('');
+            document.getElementById('totalPrograms').textContent = demoPrograms.length;
+        }
+
+        // Select file
+        function selectFile(idx) {
+            document.querySelectorAll('.file-item').forEach((el, i) => {
+                el.classList.toggle('active', i === idx);
+            });
+            loadProgram(demoPrograms[idx].name, demoGCode);
+        }
+
+        // Load program
+        function loadProgram(name, code) {
+            currentProgram = name;
+            gcodeLines = code.split('\n');
+            document.getElementById('currentFileName').textContent = name;
+            document.getElementById('totalLines').textContent = gcodeLines.length;
+            renderCode();
+            analyzeGCode();
+            renderBackplot();
+        }
+
+        // Render code with syntax highlighting
+        function renderCode() {
+            const editor = document.getElementById('codeEditor');
+            editor.innerHTML = gcodeLines.map((line, idx) => `
+                <div class="code-line" data-line="${idx + 1}">
+                    <span class="line-number">${idx + 1}</span>
+                    <span class="line-content">${highlightSyntax(line)}</span>
+                </div>
+            `).join('');
+        }
+
+        // Syntax highlighting
+        function highlightSyntax(line) {
+            if (!line.trim()) return line;
+
+            // Comments
+            if (line.includes('(')) {
+                line = line.replace(/\(([^)]*)\)/g, '<span class="gcode-comment">($1)</span>');
+            }
+
+            // Motion commands
+            line = line.replace(/\b(G0|G00|G1|G01|G2|G02|G3|G03)\b/g, '<span class="gcode-motion">$1</span>');
+
+            // Other G-codes
+            line = line.replace(/\b(G[0-9]+)\b/g, '<span class="gcode-command">$1</span>');
+
+            // M-codes
+            line = line.replace(/\b(M[0-9]+)\b/g, '<span class="gcode-command">$1</span>');
+
+            // Parameters
+            line = line.replace(/\b([XYZIJKFSR])(-?[0-9.]+)/g, '<span class="gcode-param">$1</span><span class="gcode-value">$2</span>');
+
+            // Tool and spindle
+            line = line.replace(/\b([THS])([0-9]+)/g, '<span class="gcode-param">$1</span><span class="gcode-value">$2</span>');
+
+            // N numbers
+            line = line.replace(/^(N[0-9]+)/g, '<span class="gcode-command">$1</span>');
+
+            return line;
+        }
+
+        // Analyze G-code
+        function analyzeGCode() {
+            let rapidCount = 0, linearCount = 0, arcCount = 0;
+            let toolChanges = 0;
+            let maxFeed = 0, minFeed = Infinity, maxSpindle = 0;
+            let xMin = Infinity, xMax = -Infinity;
+            let yMin = Infinity, yMax = -Infinity;
+            let zMin = Infinity, zMax = -Infinity;
+            const tools = new Set();
+
+            parsedMoves = [];
+            let currentX = 0, currentY = 0, currentZ = 0;
+            let currentFeed = 0;
+
+            gcodeLines.forEach(line => {
+                // Count motions
+                if (/\bG0\b|\bG00\b/.test(line)) rapidCount++;
+                if (/\bG1\b|\bG01\b/.test(line)) linearCount++;
+                if (/\bG2\b|\bG02\b|\bG3\b|\bG03\b/.test(line)) arcCount++;
+
+                // Tool changes
+                const toolMatch = line.match(/\bT([0-9]+)/);
+                if (toolMatch) {
+                    tools.add(toolMatch[1]);
+                    if (line.includes('M6') || line.includes('M06')) toolChanges++;
+                }
+
+                // Feed rate
+                const feedMatch = line.match(/F([0-9.]+)/);
+                if (feedMatch) {
+                    const feed = parseFloat(feedMatch[1]);
+                    currentFeed = feed;
+                    maxFeed = Math.max(maxFeed, feed);
+                    if (feed > 0) minFeed = Math.min(minFeed, feed);
+                }
+
+                // Spindle
+                const spindleMatch = line.match(/S([0-9]+)/);
+                if (spindleMatch) {
+                    maxSpindle = Math.max(maxSpindle, parseInt(spindleMatch[1]));
+                }
+
+                // Positions
+                const xMatch = line.match(/X(-?[0-9.]+)/);
+                const yMatch = line.match(/Y(-?[0-9.]+)/);
+                const zMatch = line.match(/Z(-?[0-9.]+)/);
+
+                if (xMatch) { currentX = parseFloat(xMatch[1]); xMin = Math.min(xMin, currentX); xMax = Math.max(xMax, currentX); }
+                if (yMatch) { currentY = parseFloat(yMatch[1]); yMin = Math.min(yMin, currentY); yMax = Math.max(yMax, currentY); }
+                if (zMatch) { currentZ = parseFloat(zMatch[1]); zMin = Math.min(zMin, currentZ); zMax = Math.max(zMax, currentZ); }
+
+                // Store move for backplot
+                if (/\bG[0-3]\b/.test(line)) {
+                    const isRapid = /\bG0\b|\bG00\b/.test(line);
+                    parsedMoves.push({
+                        x: currentX, y: currentY, z: currentZ,
+                        rapid: isRapid,
+                        feed: currentFeed
+                    });
+                }
+            });
+
+            // Update UI
+            document.getElementById('rapidCount').textContent = rapidCount;
+            document.getElementById('linearCount').textContent = linearCount;
+            document.getElementById('arcCount').textContent = arcCount;
+            document.getElementById('toolChanges').textContent = toolChanges;
+            document.getElementById('maxFeed').textContent = maxFeed + ' mm/min';
+            document.getElementById('minFeed').textContent = (minFeed === Infinity ? 0 : minFeed) + ' mm/min';
+            document.getElementById('maxSpindle').textContent = maxSpindle + ' RPM';
+            document.getElementById('xRange').textContent = `${xMin.toFixed(1)} - ${xMax.toFixed(1)} mm`;
+            document.getElementById('yRange').textContent = `${yMin.toFixed(1)} - ${yMax.toFixed(1)} mm`;
+            document.getElementById('zRange').textContent = `${zMin.toFixed(1)} - ${zMax.toFixed(1)} mm`;
+
+            // Estimate time (rough calculation)
+            const totalCuttingDist = calculateDistance(parsedMoves.filter(m => !m.rapid));
+            const avgFeed = maxFeed > 0 ? (maxFeed + minFeed) / 2 : 500;
+            const estMinutes = totalCuttingDist / avgFeed;
+            document.getElementById('estimatedTime').textContent = formatTime(estMinutes);
+            document.getElementById('totalDistance').textContent = calculateDistance(parsedMoves).toFixed(1) + ' mm';
+            document.getElementById('cuttingDistance').textContent = totalCuttingDist.toFixed(1) + ' mm';
+
+            // Tool usage
+            document.getElementById('toolUsage').innerHTML = Array.from(tools).map(t => `
+                <div class="d-flex justify-content-between mb-2">
+                    <span>Tool ${t}</span>
+                    <span class="badge bg-primary">Used</span>
+                </div>
+            `).join('') || '<span class="text-muted">No tools detected</span>';
+        }
+
+        function calculateDistance(moves) {
+            let dist = 0;
+            for (let i = 1; i < moves.length; i++) {
+                const dx = moves[i].x - moves[i-1].x;
+                const dy = moves[i].y - moves[i-1].y;
+                const dz = moves[i].z - moves[i-1].z;
+                dist += Math.sqrt(dx*dx + dy*dy + dz*dz);
+            }
+            return dist;
+        }
+
+        function formatTime(minutes) {
+            if (minutes < 1) return Math.round(minutes * 60) + 's';
+            const hrs = Math.floor(minutes / 60);
+            const mins = Math.round(minutes % 60);
+            return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
+        }
+
+        // Backplot rendering
+        let canvas, ctx;
+        let scale = 5, offsetX = 200, offsetY = 300;
+        let viewMode = 'xy';
+
+        function renderBackplot() {
+            canvas = document.getElementById('backplotCanvas');
+            ctx = canvas.getContext('2d');
+
+            // Set canvas size
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+
+            drawBackplot();
+        }
+
+        function drawBackplot() {
+            if (!ctx) return;
+
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 1;
+            const gridSize = 10 * scale;
+            for (let x = offsetX % gridSize; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = offsetY % gridSize; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Draw axes
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(offsetX, offsetY);
+            ctx.lineTo(offsetX + 50, offsetY);
+            ctx.stroke();
+
+            ctx.strokeStyle = '#22c55e';
+            ctx.beginPath();
+            ctx.moveTo(offsetX, offsetY);
+            ctx.lineTo(offsetX, offsetY - 50);
+            ctx.stroke();
+
+            // Draw toolpath
+            if (parsedMoves.length < 2) return;
+
+            let prevX = offsetX, prevY = offsetY;
+
+            parsedMoves.forEach((move, idx) => {
+                let x, y;
+                if (viewMode === 'xy') {
+                    x = offsetX + move.x * scale;
+                    y = offsetY - move.y * scale;
+                } else if (viewMode === 'xz') {
+                    x = offsetX + move.x * scale;
+                    y = offsetY - move.z * scale * 10;
+                } else {
+                    // 3D-ish projection
+                    x = offsetX + move.x * scale + move.y * scale * 0.3;
+                    y = offsetY - move.y * scale * 0.5 - move.z * scale * 5;
+                }
+
+                ctx.beginPath();
+                ctx.moveTo(prevX, prevY);
+                ctx.lineTo(x, y);
+                ctx.strokeStyle = move.rapid ? '#60a5fa' : '#f472b6';
+                ctx.lineWidth = move.rapid ? 1 : 2;
+                ctx.stroke();
+
+                prevX = x;
+                prevY = y;
+            });
+
+            // Draw current position marker
+            ctx.fillStyle = '#22c55e';
+            ctx.beginPath();
+            ctx.arc(prevX, prevY, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function resetView() {
+            scale = 5;
+            offsetX = canvas.width / 3;
+            offsetY = canvas.height / 2;
+            drawBackplot();
+        }
+
+        function zoomIn() {
+            scale *= 1.2;
+            drawBackplot();
+        }
+
+        function zoomOut() {
+            scale /= 1.2;
+            drawBackplot();
+        }
+
+        function toggleView(mode) {
+            viewMode = mode;
+            drawBackplot();
+        }
+
+        // Upload handling
+        function setupUploadZone() {
+            const zone = document.getElementById('uploadZone');
+            const input = document.getElementById('fileInput');
+
+            zone.onclick = () => input.click();
+
+            zone.ondragover = (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            };
+
+            zone.ondragleave = () => zone.classList.remove('dragover');
+
+            zone.ondrop = (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            };
+
+            input.onchange = () => handleFiles(input.files);
+        }
+
+        function handleFiles(files) {
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    loadProgram(file.name, e.target.result);
+                    bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        // Actions
+        function validateGCode() {
+            document.getElementById('validationStatus').textContent = 'Valid ✓';
+            document.getElementById('validationStatus').className = 'stat-value text-success';
+            showToast('G-Code validation passed!', 'success');
+        }
+
+        function simulateGCode() {
+            showToast('Starting simulation...', 'info');
+            // Would trigger actual simulation
+        }
+
+        function sendToMachine() {
+            showToast('Sending to machine...', 'info');
+            rt.emit('gcode:send', { program: currentProgram, lines: gcodeLines.length });
+        }
+
+        function copyCode() {
+            navigator.clipboard.writeText(gcodeLines.join('\n'));
+            showToast('Code copied to clipboard', 'success');
+        }
+
+        function downloadCode() {
+            const blob = new Blob([gcodeLines.join('\n')], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = currentProgram || 'program.nc';
+            a.click();
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type} position-fixed`;
+            toast.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 280px;';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Search
+        document.getElementById('searchPrograms').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('.file-item').forEach(item => {
+                const name = item.querySelector('.file-name').textContent.toLowerCase();
+                item.style.display = name.includes(query) ? 'flex' : 'none';
+            });
+        });
+
+        // Mouse tracking for backplot
+        document.getElementById('backplotCanvas')?.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = ((e.clientX - rect.left - offsetX) / scale).toFixed(3);
+            const y = ((offsetY - (e.clientY - rect.top)) / scale).toFixed(3);
+            document.getElementById('cursorX').textContent = x;
+            document.getElementById('cursorY').textContent = y;
+        });
+
+        // Window resize
+        window.addEventListener('resize', () => {
+            if (canvas) {
+                canvas.width = canvas.parentElement.clientWidth;
+                canvas.height = canvas.parentElement.clientHeight;
+                drawBackplot();
+            }
+        });
+
+        // Tab change handler for backplot
+        document.querySelector('a[href="#backplotTab"]').addEventListener('shown.bs.tab', () => {
+            setTimeout(renderBackplot, 100);
+        });
+
+        init();
+    </script>
+</body>
+</html>

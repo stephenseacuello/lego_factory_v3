@@ -1,0 +1,786 @@
+{% extends "base.html" %}
+
+{% block title %}Operator Workstation - LEGO Factory v3{% endblock %}
+
+{% block extra_css %}
+<style>
+.operator-header {
+    background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.current-job-card {
+    border-left: 4px solid var(--lego-blue);
+}
+
+.current-job-card.running {
+    border-left-color: var(--lego-green);
+    animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+    0%, 100% { border-left-color: var(--lego-green); }
+    50% { border-left-color: #81c784; }
+}
+
+.document-item {
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    background: #f8f9fa;
+    transition: all 0.2s;
+}
+
+.document-item:hover {
+    background: #e9ecef;
+}
+
+.document-item.unread {
+    background: #fff3cd;
+    border-left: 3px solid #ffc107;
+}
+
+.document-item.acknowledged {
+    background: #d4edda;
+    border-left: 3px solid #28a745;
+}
+
+.inspection-field {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.inspection-field.pass {
+    border-color: #28a745;
+    background: #f8fff8;
+}
+
+.inspection-field.fail {
+    border-color: #dc3545;
+    background: #fff8f8;
+}
+
+.queue-item {
+    border-left: 3px solid #6c757d;
+    padding: 0.5rem 1rem;
+    margin-bottom: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 0 0.25rem 0.25rem 0;
+}
+
+.queue-item.priority-high {
+    border-left-color: #dc3545;
+}
+
+.queue-item.priority-medium {
+    border-left-color: #ffc107;
+}
+
+.progress-ring {
+    width: 120px;
+    height: 120px;
+}
+
+.shift-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Operator Header -->
+    <div class="operator-header">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h4 class="mb-1"><i class="bi bi-person-badge me-2"></i>Operator Workstation</h4>
+                <p class="mb-0 opacity-75">
+                    <span id="worker-name">Loading...</span>
+                    <span class="shift-badge badge bg-light text-dark ms-2" id="current-shift">Day Shift</span>
+                </p>
+            </div>
+            <div class="col-md-6 text-end">
+                <div class="d-flex justify-content-end align-items-center gap-3">
+                    <div>
+                        <small class="text-light opacity-75">Assigned Machine</small>
+                        <div class="fw-bold" id="assigned-machine">--</div>
+                    </div>
+                    <div>
+                        <small class="text-light opacity-75">Shift Progress</small>
+                        <div class="fw-bold" id="shift-progress">-- / 8 hrs</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Left Column: Current Job & Documents -->
+        <div class="col-md-8">
+            <!-- Current Job -->
+            <div class="card current-job-card mb-4" id="current-job-card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-play-circle me-2"></i>Current Job</h5>
+                    <span class="badge bg-primary" id="job-status">No Active Job</span>
+                </div>
+                <div class="card-body">
+                    <div class="row" id="current-job-content">
+                        <div class="col-12 text-center py-4 text-muted">
+                            <i class="bi bi-inbox fs-1"></i>
+                            <p class="mt-2">No job currently assigned</p>
+                            <button class="btn btn-primary" onclick="requestNextJob()">
+                                <i class="bi bi-arrow-down-circle me-1"></i> Request Next Job
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Required Documents -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Required Documents</h5>
+                    <span class="badge bg-warning text-dark" id="unread-count">0 unread</span>
+                </div>
+                <div class="card-body" id="documents-list">
+                    <p class="text-muted text-center">No documents required for current operation</p>
+                </div>
+            </div>
+
+            <!-- Inspection Section (shown when needed) -->
+            <div class="card mb-4" id="inspection-section" style="display: none;">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-clipboard-check me-2"></i>Quality Inspection</h5>
+                </div>
+                <div class="card-body">
+                    <div id="inspection-fields">
+                        <!-- Inspection fields loaded dynamically -->
+                    </div>
+                    <div class="d-flex justify-content-end gap-2 mt-3">
+                        <button class="btn btn-outline-secondary" onclick="skipInspection()">Skip</button>
+                        <button class="btn btn-success" onclick="submitInspection()">
+                            <i class="bi bi-check-lg me-1"></i> Submit Inspection
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Queue & Actions -->
+        <div class="col-md-4">
+            <!-- Quick Actions -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success" onclick="completeJob()" id="btn-complete" disabled>
+                            <i class="bi bi-check-circle me-1"></i> Complete Job
+                        </button>
+                        <button class="btn btn-warning" onclick="pauseJob()" id="btn-pause" disabled>
+                            <i class="bi bi-pause-circle me-1"></i> Pause Job
+                        </button>
+                        <button class="btn btn-danger" onclick="reportIssue()" id="btn-issue">
+                            <i class="bi bi-exclamation-triangle me-1"></i> Report Issue
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="callSupervisor()">
+                            <i class="bi bi-telephone me-1"></i> Call Supervisor
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Job Queue -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Next Up</h6>
+                    <span class="badge bg-secondary" id="queue-count">0</span>
+                </div>
+                <div class="card-body p-2" id="job-queue" style="max-height: 300px; overflow-y: auto;">
+                    <p class="text-muted text-center small py-3">No jobs in queue</p>
+                </div>
+            </div>
+
+            <!-- Today's Stats -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Today's Performance</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <h4 class="mb-0 text-primary" id="stat-completed">0</h4>
+                            <small class="text-muted">Completed</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="mb-0 text-success" id="stat-good">0</h4>
+                            <small class="text-muted">Good</small>
+                        </div>
+                        <div class="col-4">
+                            <h4 class="mb-0 text-danger" id="stat-defects">0</h4>
+                            <small class="text-muted">Defects</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between">
+                        <span>Efficiency</span>
+                        <strong id="stat-efficiency">--%</strong>
+                    </div>
+                    <div class="progress mt-2" style="height: 8px;">
+                        <div class="progress-bar bg-success" id="efficiency-bar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Document Viewer Modal -->
+<div class="modal fade" id="documentViewerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="doc-title">Document</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="doc-content" style="min-height: 400px;">
+                    <!-- Document content loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="acknowledgeDocument()">
+                    <i class="bi bi-check-lg me-1"></i> I have read and understood
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Issue Modal -->
+<div class="modal fade" id="reportIssueModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Report Issue</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="issue-form">
+                    <div class="mb-3">
+                        <label class="form-label">Issue Type</label>
+                        <select class="form-select" id="issue-type" required>
+                            <option value="">Select type</option>
+                            <option value="machine_problem">Machine Problem</option>
+                            <option value="material_issue">Material Issue</option>
+                            <option value="quality_defect">Quality Defect</option>
+                            <option value="safety_concern">Safety Concern</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" id="issue-description" rows="3" required></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Severity</label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="severity" id="sev-low" value="low">
+                            <label class="btn btn-outline-success" for="sev-low">Low</label>
+                            <input type="radio" class="btn-check" name="severity" id="sev-medium" value="medium" checked>
+                            <label class="btn btn-outline-warning" for="sev-medium">Medium</label>
+                            <input type="radio" class="btn-check" name="severity" id="sev-high" value="high">
+                            <label class="btn btn-outline-danger" for="sev-high">High</label>
+                        </div>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="stop-production">
+                        <label class="form-check-label" for="stop-production">Stop production (critical issue)</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="submitIssue()">Submit Issue</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentWorkerId = null;
+let currentJobId = null;
+let currentDocumentId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Get worker ID from URL or default
+    const urlParams = new URLSearchParams(window.location.search);
+    currentWorkerId = urlParams.get('worker_id') || 'W001';
+
+    loadWorkerInfo();
+    loadCurrentJob();
+    loadJobQueue();
+    loadTodayStats();
+    initWebSocket();
+});
+
+async function loadWorkerInfo() {
+    try {
+        const response = await fetch(`/api/mes/labor/workers/${currentWorkerId}`);
+        const worker = await response.json();
+        displayWorkerInfo(worker);
+    } catch (error) {
+        console.error('Failed to load worker info:', error);
+        displaySampleWorkerInfo();
+    }
+}
+
+function displaySampleWorkerInfo() {
+    document.getElementById('worker-name').textContent = 'John Smith (W001)';
+    document.getElementById('assigned-machine').textContent = 'bambu-ps1';
+    document.getElementById('current-shift').textContent = 'Day Shift';
+
+    const now = new Date();
+    const shiftStart = 6;  // 6 AM
+    const hoursWorked = Math.max(0, now.getHours() - shiftStart);
+    document.getElementById('shift-progress').textContent = `${hoursWorked} / 8 hrs`;
+}
+
+function displayWorkerInfo(worker) {
+    document.getElementById('worker-name').textContent = `${worker.name} (${worker.id})`;
+    document.getElementById('assigned-machine').textContent = worker.assigned_machine || '--';
+    document.getElementById('current-shift').textContent = worker.shift_name || worker.shift;
+}
+
+async function loadCurrentJob() {
+    try {
+        const response = await fetch(`/api/mes/operator/${currentWorkerId}/current-job`);
+        const job = await response.json();
+        displayCurrentJob(job);
+    } catch (error) {
+        console.error('Failed to load current job:', error);
+        displaySampleCurrentJob();
+    }
+}
+
+function displaySampleCurrentJob() {
+    const sampleJob = {
+        id: 'JOB-2024-001-01',
+        work_order: 'WO-2024-001',
+        product_name: '2x4 Red Brick',
+        product_id: 'BRICK-2x4-RED',
+        operation: 'FDM Print',
+        quantity: 50,
+        completed: 32,
+        machine_id: 'bambu-ps1',
+        status: 'running',
+        start_time: new Date(Date.now() - 2 * 3600000).toISOString(),
+        estimated_completion: new Date(Date.now() + 1 * 3600000).toISOString(),
+        recipe_parameters: {
+            'Layer Height': '0.2mm',
+            'Infill': '20%',
+            'Print Speed': '60 mm/s',
+            'Nozzle Temp': '215°C',
+            'Bed Temp': '60°C',
+        },
+    };
+    displayCurrentJob(sampleJob);
+}
+
+function displayCurrentJob(job) {
+    const card = document.getElementById('current-job-card');
+    const content = document.getElementById('current-job-content');
+    const statusBadge = document.getElementById('job-status');
+
+    if (!job || !job.id) {
+        card.classList.remove('running');
+        statusBadge.className = 'badge bg-secondary';
+        statusBadge.textContent = 'No Active Job';
+        content.innerHTML = `
+            <div class="col-12 text-center py-4 text-muted">
+                <i class="bi bi-inbox fs-1"></i>
+                <p class="mt-2">No job currently assigned</p>
+                <button class="btn btn-primary" onclick="requestNextJob()">
+                    <i class="bi bi-arrow-down-circle me-1"></i> Request Next Job
+                </button>
+            </div>
+        `;
+        document.getElementById('btn-complete').disabled = true;
+        document.getElementById('btn-pause').disabled = true;
+        return;
+    }
+
+    currentJobId = job.id;
+    card.classList.add('running');
+
+    if (job.status === 'running') {
+        statusBadge.className = 'badge bg-success';
+        statusBadge.textContent = 'Running';
+    } else if (job.status === 'paused') {
+        statusBadge.className = 'badge bg-warning text-dark';
+        statusBadge.textContent = 'Paused';
+    }
+
+    const progress = job.quantity > 0 ? (job.completed / job.quantity * 100) : 0;
+
+    content.innerHTML = `
+        <div class="col-md-8">
+            <div class="row mb-3">
+                <div class="col-6">
+                    <small class="text-muted">Work Order</small>
+                    <div class="fw-bold">${job.work_order}</div>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted">Job ID</small>
+                    <div class="fw-bold">${job.id}</div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <small class="text-muted">Product</small>
+                <div class="fw-bold fs-5">${job.product_name}</div>
+                <small class="text-muted">${job.product_id}</small>
+            </div>
+            <div class="row mb-3">
+                <div class="col-6">
+                    <small class="text-muted">Operation</small>
+                    <div class="fw-bold">${job.operation}</div>
+                </div>
+                <div class="col-6">
+                    <small class="text-muted">Machine</small>
+                    <div class="fw-bold">${job.machine_id}</div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <small class="text-muted">Progress</small>
+                    <small>${job.completed} / ${job.quantity}</small>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                         style="width: ${progress}%">${progress.toFixed(0)}%</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-light">
+                <div class="card-header py-2">
+                    <small class="fw-bold">Recipe Parameters</small>
+                </div>
+                <div class="card-body p-2">
+                    <table class="table table-sm mb-0">
+                        ${Object.entries(job.recipe_parameters || {}).map(([k, v]) =>
+                            `<tr><td class="text-muted">${k}</td><td class="text-end fw-bold">${v}</td></tr>`
+                        ).join('')}
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('btn-complete').disabled = false;
+    document.getElementById('btn-pause').disabled = false;
+
+    // Load documents for this job
+    loadDocuments(job.operation);
+}
+
+function loadDocuments(operationType) {
+    const sampleDocs = [
+        { id: 'doc-1', title: 'SOP-001: FDM Printing Procedure', type: 'SOP', acknowledged: true },
+        { id: 'doc-2', title: 'WI-003: Bambu Printer Operation', type: 'Work Instruction', acknowledged: false },
+        { id: 'doc-3', title: 'QCP-002: In-Process Inspection', type: 'Quality Control Plan', acknowledged: true },
+    ];
+
+    const container = document.getElementById('documents-list');
+    const unreadCount = sampleDocs.filter(d => !d.acknowledged).length;
+    document.getElementById('unread-count').textContent = `${unreadCount} unread`;
+
+    if (sampleDocs.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">No documents required for current operation</p>';
+        return;
+    }
+
+    container.innerHTML = sampleDocs.map(doc => `
+        <div class="document-item ${doc.acknowledged ? 'acknowledged' : 'unread'}" onclick="viewDocument('${doc.id}')">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="bi ${doc.acknowledged ? 'bi-check-circle text-success' : 'bi-exclamation-circle text-warning'} me-2"></i>
+                    <strong>${doc.title}</strong>
+                </div>
+                <span class="badge bg-light text-dark">${doc.type}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+function viewDocument(docId) {
+    currentDocumentId = docId;
+    document.getElementById('doc-title').textContent = 'SOP-001: FDM Printing Procedure';
+    document.getElementById('doc-content').innerHTML = `
+        <h4>1. Purpose</h4>
+        <p>This procedure describes the steps for operating FDM 3D printers safely and effectively.</p>
+
+        <h4>2. Safety Requirements</h4>
+        <ul>
+            <li>Ensure proper ventilation is active</li>
+            <li>Wear safety glasses when operating</li>
+            <li>Do not touch hot end or heated bed</li>
+            <li>Keep work area clean and free of debris</li>
+        </ul>
+
+        <h4>3. Procedure</h4>
+        <ol>
+            <li>Verify printer is in ready state (green indicator)</li>
+            <li>Load correct filament for job (check work order)</li>
+            <li>Verify bed is clean and level</li>
+            <li>Load G-code file from job queue</li>
+            <li>Start print and monitor first layer adhesion</li>
+            <li>Document start time and initial quality check</li>
+        </ol>
+
+        <h4>4. Quality Checks</h4>
+        <ul>
+            <li>First layer: Full adhesion, no warping</li>
+            <li>Layer consistency: Even extrusion</li>
+            <li>Final: Dimensional accuracy per spec</li>
+        </ul>
+    `;
+
+    new bootstrap.Modal(document.getElementById('documentViewerModal')).show();
+}
+
+function acknowledgeDocument() {
+    if (!currentDocumentId) return;
+
+    // Would call API to record acknowledgment
+    console.log('Acknowledging document:', currentDocumentId);
+
+    bootstrap.Modal.getInstance(document.getElementById('documentViewerModal')).hide();
+    loadDocuments();  // Refresh list
+}
+
+function loadJobQueue() {
+    const sampleQueue = [
+        { id: 'JOB-2024-001-02', work_order: 'WO-2024-001', product: '2x4 Red Brick', operation: 'FDM Print', qty: 50, priority: 'high' },
+        { id: 'JOB-2024-002-01', work_order: 'WO-2024-002', product: '2x2 Blue Brick', operation: 'FDM Print', qty: 100, priority: 'medium' },
+        { id: 'JOB-2024-003-01', work_order: 'WO-2024-003', product: '1x4 Yellow Plate', operation: 'FDM Print', qty: 75, priority: 'low' },
+    ];
+
+    const container = document.getElementById('job-queue');
+    document.getElementById('queue-count').textContent = sampleQueue.length;
+
+    if (sampleQueue.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center small py-3">No jobs in queue</p>';
+        return;
+    }
+
+    container.innerHTML = sampleQueue.map(job => `
+        <div class="queue-item priority-${job.priority}">
+            <div class="d-flex justify-content-between">
+                <strong>${job.product}</strong>
+                <span class="badge ${job.priority === 'high' ? 'bg-danger' : job.priority === 'medium' ? 'bg-warning text-dark' : 'bg-secondary'}">
+                    ${job.priority}
+                </span>
+            </div>
+            <small class="text-muted">${job.work_order} | ${job.operation} | Qty: ${job.qty}</small>
+        </div>
+    `).join('');
+}
+
+function loadTodayStats() {
+    // Sample stats
+    document.getElementById('stat-completed').textContent = '7';
+    document.getElementById('stat-good').textContent = '340';
+    document.getElementById('stat-defects').textContent = '3';
+    document.getElementById('stat-efficiency').textContent = '97.2%';
+    document.getElementById('efficiency-bar').style.width = '97.2%';
+}
+
+async function requestNextJob() {
+    try {
+        const response = await fetch(`/api/mes/dispatch/auto/${currentWorkerId}`, {
+            method: 'POST',
+        });
+        if (response.ok) {
+            loadCurrentJob();
+            loadJobQueue();
+        }
+    } catch (error) {
+        console.error('Failed to request next job:', error);
+        // For demo, just load sample
+        displaySampleCurrentJob();
+    }
+}
+
+async function completeJob() {
+    if (!currentJobId) return;
+
+    // Show inspection if required
+    showInspection();
+}
+
+function showInspection() {
+    document.getElementById('inspection-section').style.display = 'block';
+
+    const fields = [
+        { id: 'dim-1', name: 'Length', nominal: 31.8, tolerance: 0.2 },
+        { id: 'dim-2', name: 'Width', nominal: 15.8, tolerance: 0.15 },
+        { id: 'dim-3', name: 'Height', nominal: 9.6, tolerance: 0.2 },
+        { id: 'dim-4', name: 'Stud Height', nominal: 1.8, tolerance: 0.1 },
+    ];
+
+    document.getElementById('inspection-fields').innerHTML = fields.map(f => `
+        <div class="inspection-field" id="field-${f.id}">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <strong>${f.name}</strong>
+                    <div class="small text-muted">${f.nominal} ± ${f.tolerance} mm</div>
+                </div>
+                <div class="col-md-4">
+                    <input type="number" step="0.01" class="form-control" id="value-${f.id}"
+                           placeholder="Measured value" onchange="checkInspectionValue('${f.id}', ${f.nominal}, ${f.tolerance})">
+                </div>
+                <div class="col-md-4 text-end">
+                    <span id="result-${f.id}" class="badge bg-secondary">--</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    // Scroll to inspection
+    document.getElementById('inspection-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+function checkInspectionValue(fieldId, nominal, tolerance) {
+    const value = parseFloat(document.getElementById(`value-${fieldId}`).value);
+    const result = document.getElementById(`result-${fieldId}`);
+    const field = document.getElementById(`field-${fieldId}`);
+
+    if (isNaN(value)) {
+        result.className = 'badge bg-secondary';
+        result.textContent = '--';
+        field.classList.remove('pass', 'fail');
+        return;
+    }
+
+    const deviation = Math.abs(value - nominal);
+    if (deviation <= tolerance) {
+        result.className = 'badge bg-success';
+        result.textContent = 'PASS';
+        field.classList.add('pass');
+        field.classList.remove('fail');
+    } else {
+        result.className = 'badge bg-danger';
+        result.textContent = 'FAIL';
+        field.classList.add('fail');
+        field.classList.remove('pass');
+    }
+}
+
+async function submitInspection() {
+    // Collect measurements and submit
+    console.log('Submitting inspection...');
+
+    // Hide inspection section
+    document.getElementById('inspection-section').style.display = 'none';
+
+    // Complete the job
+    try {
+        const response = await fetch(`/api/mes/jobs/${currentJobId}/complete`, {
+            method: 'POST',
+        });
+    } catch (error) {
+        console.error('Failed to complete job:', error);
+    }
+
+    // Refresh
+    currentJobId = null;
+    loadCurrentJob();
+    loadJobQueue();
+    loadTodayStats();
+}
+
+function skipInspection() {
+    document.getElementById('inspection-section').style.display = 'none';
+}
+
+async function pauseJob() {
+    if (!currentJobId) return;
+
+    try {
+        const response = await fetch(`/api/mes/jobs/${currentJobId}/pause`, {
+            method: 'POST',
+        });
+        loadCurrentJob();
+    } catch (error) {
+        console.error('Failed to pause job:', error);
+    }
+}
+
+function reportIssue() {
+    new bootstrap.Modal(document.getElementById('reportIssueModal')).show();
+}
+
+async function submitIssue() {
+    const data = {
+        type: document.getElementById('issue-type').value,
+        description: document.getElementById('issue-description').value,
+        severity: document.querySelector('input[name="severity"]:checked').value,
+        stop_production: document.getElementById('stop-production').checked,
+        job_id: currentJobId,
+        worker_id: currentWorkerId,
+    };
+
+    try {
+        const response = await fetch('/api/mes/issues', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+
+        bootstrap.Modal.getInstance(document.getElementById('reportIssueModal')).hide();
+        document.getElementById('issue-form').reset();
+
+        alert('Issue reported successfully');
+    } catch (error) {
+        console.error('Failed to submit issue:', error);
+        bootstrap.Modal.getInstance(document.getElementById('reportIssueModal')).hide();
+        alert('Issue reported (demo mode)');
+    }
+}
+
+function callSupervisor() {
+    alert('Calling supervisor... (In production, this would trigger a notification)');
+}
+
+function initWebSocket() {
+    if (typeof LegoFactorySocket !== 'undefined') {
+        const socket = new LegoFactorySocket('/mes');
+
+        socket.on('job_update', function(data) {
+            if (data.worker_id === currentWorkerId || data.job_id === currentJobId) {
+                loadCurrentJob();
+            }
+        });
+
+        socket.on('job_assigned', function(data) {
+            if (data.worker_id === currentWorkerId) {
+                loadCurrentJob();
+                loadJobQueue();
+            }
+        });
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,660 @@
+{% extends "base.html" %}
+{% block title %}Batch/Lot Tracking - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #10b981;
+        --accent-red: #ef4444;
+        --accent-yellow: #f59e0b;
+        --accent-purple: #8b5cf6;
+        --accent-cyan: #06b6d4;
+    }
+
+    .tracking-container {
+        padding: 1.5rem;
+        background: var(--bg-dark);
+        min-height: calc(100vh - 60px);
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i { color: var(--accent-cyan); }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+        border: none;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    /* Search Bar */
+    .search-section {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .search-row {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-end;
+    }
+
+    .search-group {
+        flex: 1;
+    }
+
+    .search-group label {
+        display: block;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    /* Stats Row */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .stat-icon.blue { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .stat-icon.green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+    .stat-icon.yellow { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+    .stat-icon.purple { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+
+    .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Main Grid */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 1.5rem;
+    }
+
+    .card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-body { padding: 1.25rem; }
+
+    /* Batch Table */
+    .batch-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .batch-table th,
+    .batch-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .batch-table th {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    .batch-table td {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .batch-table tr:hover { background: var(--bg-dark); }
+
+    .batch-link {
+        color: var(--accent-blue);
+        text-decoration: none;
+        font-weight: 500;
+    }
+
+    .batch-link:hover { text-decoration: underline; }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-active { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+    .status-quarantine { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .status-released { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .status-rejected { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+
+    /* Batch Detail */
+    .batch-detail {
+        display: none;
+    }
+
+    .batch-detail.active { display: block; }
+
+    .detail-header {
+        padding: 1.25rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .detail-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .detail-meta {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .detail-meta span {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .detail-meta span strong {
+        color: var(--text-primary);
+    }
+
+    /* Timeline */
+    .timeline {
+        position: relative;
+        padding-left: 1.5rem;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border-color);
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-bottom: 1.25rem;
+    }
+
+    .timeline-item:last-child { padding-bottom: 0; }
+
+    .timeline-dot {
+        position: absolute;
+        left: -1.5rem;
+        top: 0;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--accent-blue);
+        transform: translateX(-5px);
+    }
+
+    .timeline-dot.green { background: var(--accent-green); }
+    .timeline-dot.yellow { background: var(--accent-yellow); }
+    .timeline-dot.red { background: var(--accent-red); }
+
+    .timeline-content h4 {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .timeline-content p {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+    }
+
+    /* Genealogy Tree */
+    .genealogy-tree {
+        padding: 1rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+    }
+
+    .tree-node {
+        padding: 0.75rem;
+        background: var(--bg-card);
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid var(--accent-blue);
+    }
+
+    .tree-node.material { border-left-color: var(--accent-green); }
+    .tree-node.component { border-left-color: var(--accent-purple); }
+    .tree-node.assembly { border-left-color: var(--accent-yellow); }
+
+    .tree-node h4 {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .tree-node span {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+    }
+
+    .tree-children {
+        margin-left: 1.5rem;
+        padding-left: 1rem;
+        border-left: 2px dashed var(--border-color);
+    }
+
+    /* QR Code */
+    .qr-section {
+        text-align: center;
+        padding: 1rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+    }
+
+    .qr-code {
+        width: 120px;
+        height: 120px;
+        background: white;
+        border-radius: 0.5rem;
+        margin: 0 auto 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .qr-code i {
+        font-size: 4rem;
+        color: #1e293b;
+    }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+        padding: 0 1.25rem;
+    }
+
+    .tab {
+        padding: 0.75rem 1rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        font-size: 0.875rem;
+    }
+
+    .tab.active {
+        color: var(--accent-blue);
+        border-bottom-color: var(--accent-blue);
+    }
+
+    @media (max-width: 1200px) {
+        .main-grid { grid-template-columns: 1fr; }
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tracking-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-barcode"></i>
+            Batch/Lot Tracking
+        </h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="scanBarcode()">
+                <i class="fas fa-qrcode"></i>
+                Scan
+            </button>
+            <button class="btn btn-primary" onclick="createBatch()">
+                <i class="fas fa-plus"></i>
+                New Batch
+            </button>
+        </div>
+    </div>
+
+    <!-- Search Section -->
+    <div class="search-section">
+        <div class="search-row">
+            <div class="search-group">
+                <label>Batch/Lot Number</label>
+                <input type="text" class="search-input" id="batch-search" placeholder="Enter batch or lot number...">
+            </div>
+            <div class="search-group">
+                <label>Part Number</label>
+                <input type="text" class="search-input" placeholder="Part number...">
+            </div>
+            <div class="search-group">
+                <label>Date Range</label>
+                <input type="date" class="search-input">
+            </div>
+            <div class="search-group">
+                <label>Status</label>
+                <select class="search-input">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="released">Released</option>
+                    <option value="quarantine">Quarantine</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+            </div>
+            <button class="btn btn-primary">
+                <i class="fas fa-search"></i>
+                Search
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-icon blue">
+                <i class="fas fa-boxes"></i>
+            </div>
+            <div class="stat-value">847</div>
+            <div class="stat-label">Active Batches</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon green">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="stat-value">12,450</div>
+            <div class="stat-label">Parts Released (MTD)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon yellow">
+                <i class="fas fa-pause-circle"></i>
+            </div>
+            <div class="stat-value">23</div>
+            <div class="stat-label">In Quarantine</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon purple">
+                <i class="fas fa-history"></i>
+            </div>
+            <div class="stat-value">99.2%</div>
+            <div class="stat-label">Traceability Rate</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-grid">
+        <!-- Batch List -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fas fa-list"></i>
+                    Batch Registry
+                </span>
+            </div>
+            <div class="tabs">
+                <span class="tab active" data-tab="all">All Batches</span>
+                <span class="tab" data-tab="active">Active</span>
+                <span class="tab" data-tab="quarantine">Quarantine</span>
+                <span class="tab" data-tab="released">Released</span>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <table class="batch-table">
+                    <thead>
+                        <tr>
+                            <th>Batch/Lot #</th>
+                            <th>Part Number</th>
+                            <th>Quantity</th>
+                            <th>Created</th>
+                            <th>Status</th>
+                            <th>Location</th>
+                        </tr>
+                    </thead>
+                    <tbody id="batch-body">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Batch Detail Panel -->
+        <div class="right-column">
+            <div class="card batch-detail active" id="batch-detail">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-info-circle"></i>
+                        Batch Details
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="detail-header">
+                        <div class="detail-title" id="detail-batch-id">LOT-2024-00847</div>
+                        <div class="detail-meta">
+                            <span>Part: <strong>PN-12345-A</strong></span>
+                            <span>Qty: <strong>250</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- QR Code -->
+                    <div class="qr-section" style="margin-bottom: 1rem;">
+                        <div class="qr-code">
+                            <i class="fas fa-qrcode"></i>
+                        </div>
+                        <button class="btn btn-secondary" style="margin: 0 auto;">
+                            <i class="fas fa-print"></i>
+                            Print Label
+                        </button>
+                    </div>
+
+                    <!-- History Timeline -->
+                    <h4 style="color: var(--text-primary); margin-bottom: 1rem; font-size: 0.875rem;">
+                        <i class="fas fa-clock"></i> History
+                    </h4>
+                    <div class="timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-dot green"></div>
+                            <div class="timeline-content">
+                                <h4>Released to Stock</h4>
+                                <p>Jan 8, 2024 • 2:45 PM • J. Smith</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <h4>QC Inspection Passed</h4>
+                                <p>Jan 8, 2024 • 11:30 AM • M. Johnson</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <h4>Machining Complete</h4>
+                                <p>Jan 7, 2024 • 4:15 PM • CNC-003</p>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-content">
+                                <h4>Batch Created</h4>
+                                <p>Jan 5, 2024 • 8:00 AM • System</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Genealogy -->
+                    <h4 style="color: var(--text-primary); margin: 1.5rem 0 1rem; font-size: 0.875rem;">
+                        <i class="fas fa-sitemap"></i> Genealogy
+                    </h4>
+                    <div class="genealogy-tree">
+                        <div class="tree-node assembly">
+                            <h4>LOT-2024-00847</h4>
+                            <span>Final Assembly • 250 pcs</span>
+                        </div>
+                        <div class="tree-children">
+                            <div class="tree-node component">
+                                <h4>LOT-2024-00812</h4>
+                                <span>Housing • 250 pcs</span>
+                            </div>
+                            <div class="tree-node material">
+                                <h4>MAT-AL6061-0234</h4>
+                                <span>Aluminum 6061-T6 • Heat: H2024-156</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const batches = [
+        { id: 'LOT-2024-00847', part: 'PN-12345-A', qty: 250, created: '2024-01-05', status: 'released', location: 'WH-A-12' },
+        { id: 'LOT-2024-00846', part: 'PN-67890-B', qty: 100, created: '2024-01-05', status: 'active', location: 'CNC-003' },
+        { id: 'LOT-2024-00845', part: 'PN-11223-C', qty: 500, created: '2024-01-04', status: 'quarantine', location: 'QC-Hold' },
+        { id: 'LOT-2024-00844', part: 'PN-44556-A', qty: 75, created: '2024-01-04', status: 'released', location: 'WH-B-03' },
+        { id: 'LOT-2024-00843', part: 'PN-78901-D', qty: 200, created: '2024-01-03', status: 'active', location: 'CNC-001' },
+        { id: 'LOT-2024-00842', part: 'PN-23456-B', qty: 150, created: '2024-01-03', status: 'rejected', location: 'Scrap' },
+        { id: 'LOT-2024-00841', part: 'PN-12345-A', qty: 250, created: '2024-01-02', status: 'released', location: 'WH-A-14' },
+    ];
+
+    function renderBatches() {
+        const tbody = document.getElementById('batch-body');
+        tbody.innerHTML = batches.map(b => `
+            <tr onclick="selectBatch('${b.id}')" style="cursor: pointer;">
+                <td><a class="batch-link">${b.id}</a></td>
+                <td>${b.part}</td>
+                <td>${b.qty}</td>
+                <td>${b.created}</td>
+                <td><span class="status-badge status-${b.status}">${b.status}</span></td>
+                <td>${b.location}</td>
+            </tr>
+        `).join('');
+    }
+
+    function selectBatch(id) {
+        document.getElementById('detail-batch-id').textContent = id;
+        document.querySelectorAll('.batch-table tr').forEach(row => {
+            row.style.background = row.querySelector('.batch-link')?.textContent === id ? 'var(--bg-dark)' : '';
+        });
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    function scanBarcode() { alert('Opening barcode scanner...'); }
+    function createBatch() { alert('Opening new batch form...'); }
+
+    renderBatches();
+</script>
+{% endblock %}

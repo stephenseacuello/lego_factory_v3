@@ -1,0 +1,882 @@
+{% extends "base.html" %}
+
+{% block title %}Machines - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">SCADA</a></li>
+<li class="breadcrumb-item active">Machines</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-cpu me-2"></i>Machine Control</h2>
+    <div class="btn-group">
+        <button class="btn btn-outline-secondary" onclick="machineDashboard.scanPorts()">
+            <i class="bi bi-search"></i> Scan Ports
+        </button>
+        <button class="btn btn-outline-secondary" onclick="machineDashboard.refresh()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Machine Status Summary -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <h6 class="text-muted">Total Machines</h6>
+                <h2 id="totalMachines">0</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card success">
+            <div class="card-body">
+                <h6 class="text-muted">Connected</h6>
+                <h2 id="connectedCount">0</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card danger" id="alarmCard" style="display: none;">
+            <div class="card-body">
+                <h6 class="text-muted"><i class="bi bi-exclamation-triangle me-1"></i>In Alarm</h6>
+                <h2 id="alarmCount">0</h2>
+            </div>
+        </div>
+        <div class="card stat-card warning" id="idleCard">
+            <div class="card-body">
+                <h6 class="text-muted">Idle</h6>
+                <h2 id="idleCount">0</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card" style="border-left-color: #6c757d;">
+            <div class="card-body">
+                <h6 class="text-muted">Disconnected</h6>
+                <h2 id="disconnectedCount">0</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Machine Cards Grid -->
+<div class="row g-4" id="machineCardsContainer">
+    <!-- Machine cards populated by JavaScript -->
+</div>
+
+<!-- Jog Panel Modal -->
+<div class="modal fade" id="jogModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-arrows-move me-2"></i>Jog Control - <span id="jogMachineName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="jogMachineId">
+
+                <!-- Position Display -->
+                <div class="bg-dark text-light p-3 rounded font-monospace mb-3 text-center">
+                    <div class="row">
+                        <div class="col-4">X: <span class="text-warning fs-5" id="jog-pos-x">0.000</span></div>
+                        <div class="col-4">Y: <span class="text-warning fs-5" id="jog-pos-y">0.000</span></div>
+                        <div class="col-4">Z: <span class="text-warning fs-5" id="jog-pos-z">0.000</span></div>
+                    </div>
+                </div>
+
+                <!-- Jog Buttons -->
+                <div class="row g-2 text-center mb-3">
+                    <div class="col-4"></div>
+                    <div class="col-4"><button class="btn btn-primary w-100" onclick="machineDashboard.jog('Y', 1)"><i class="bi bi-arrow-up"></i> Y+</button></div>
+                    <div class="col-4"><button class="btn btn-info w-100" onclick="machineDashboard.jog('Z', 1)"><i class="bi bi-arrow-up"></i> Z+</button></div>
+
+                    <div class="col-4"><button class="btn btn-primary w-100" onclick="machineDashboard.jog('X', -1)"><i class="bi bi-arrow-left"></i> X-</button></div>
+                    <div class="col-4"><button class="btn btn-secondary w-100" onclick="machineDashboard.homeAll()"><i class="bi bi-house"></i></button></div>
+                    <div class="col-4"><button class="btn btn-primary w-100" onclick="machineDashboard.jog('X', 1)">X+ <i class="bi bi-arrow-right"></i></button></div>
+
+                    <div class="col-4"></div>
+                    <div class="col-4"><button class="btn btn-primary w-100" onclick="machineDashboard.jog('Y', -1)"><i class="bi bi-arrow-down"></i> Y-</button></div>
+                    <div class="col-4"><button class="btn btn-info w-100" onclick="machineDashboard.jog('Z', -1)"><i class="bi bi-arrow-down"></i> Z-</button></div>
+                </div>
+
+                <!-- Step Size -->
+                <div class="mb-3">
+                    <label class="form-label">Step Size</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="stepSize" id="step01" value="0.1">
+                        <label class="btn btn-outline-secondary" for="step01">0.1mm</label>
+                        <input type="radio" class="btn-check" name="stepSize" id="step1" value="1" checked>
+                        <label class="btn btn-outline-secondary" for="step1">1mm</label>
+                        <input type="radio" class="btn-check" name="stepSize" id="step10" value="10">
+                        <label class="btn btn-outline-secondary" for="step10">10mm</label>
+                        <input type="radio" class="btn-check" name="stepSize" id="step100" value="100">
+                        <label class="btn btn-outline-secondary" for="step100">100mm</label>
+                    </div>
+                </div>
+
+                <!-- Feed Rate -->
+                <div class="mb-3">
+                    <label class="form-label">Feed Rate: <span id="feedValue">500</span> mm/min</label>
+                    <input type="range" class="form-range" id="feedRate" min="100" max="3000" value="500" oninput="document.getElementById('feedValue').textContent=this.value">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-warning" onclick="machineDashboard.zeroAll()"><i class="bi bi-bullseye"></i> Zero All</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Serial Ports Modal -->
+<div class="modal fade" id="portsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-plug me-2"></i>Available Serial Ports</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="portsList">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Machine Metrics Modal -->
+<div class="modal fade" id="metricsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-graph-up me-2"></i>Machine Metrics - <span id="metricsMachineName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="metricsMachineId">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4 class="mb-0" id="metricsSpindleRpm">--</h4>
+                                <small class="text-muted">Spindle RPM</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4 class="mb-0" id="metricsFeedRate">--</h4>
+                                <small class="text-muted">Feed Rate</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h4 class="mb-0" id="metricsTemperature">--</h4>
+                                <small class="text-muted">Temperature</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="height: 300px;">
+                    <canvas id="metricsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .machine-card {
+        transition: all 0.3s;
+    }
+
+    .machine-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .machine-card.alarm {
+        animation: alarm-pulse 1.5s infinite;
+    }
+
+    @keyframes alarm-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.4); }
+        50% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+    }
+
+    .position-display {
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+
+    .position-display .axis {
+        display: inline-block;
+        min-width: 80px;
+    }
+
+    .status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 8px;
+    }
+
+    .status-running { background-color: var(--lego-green); }
+    .status-idle { background-color: #6c757d; }
+    .status-alarm { background-color: var(--lego-red); animation: blink 1s infinite; }
+    .status-homing { background-color: var(--lego-blue); animation: blink 0.5s infinite; }
+    .status-disconnected { background-color: #adb5bd; }
+    .status-hold { background-color: var(--lego-yellow); }
+
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Dashboard JS files -->
+<script src="/static/js/api_client.js"></script>
+<script src="/static/js/dashboard_common.js"></script>
+<script src="/static/js/socket_handlers.js"></script>
+
+<script>
+/**
+ * Machine Dashboard Controller
+ */
+class MachineDashboard {
+    constructor() {
+        this.machines = [];
+        this.activeAlarms = [];
+        this.machineAlarms = {}; // Map of machine_id -> alarm count
+        this.currentJogMachine = null;
+        this.metricsChart = null;
+        this.positionUpdateIntervals = {};
+
+        // Initialize socket handler
+        this.socketHandler = new MachineSocketHandler(socketManager, {
+            onStatusUpdate: (data) => this.handleStatusUpdate(data),
+            onPositionUpdate: (data) => this.handlePositionUpdate(data),
+            onConnectionChange: (machineId, connected) => this.handleConnectionChange(machineId, connected),
+            onStateChange: (data) => this.handleStateChange(data),
+        });
+
+        this.init();
+    }
+
+    async init() {
+        await this.loadAlarms();
+        await this.loadMachines();
+        showConnectionIndicator();
+
+        // Start position polling for connected machines
+        this.startPositionPolling();
+    }
+
+    /**
+     * Load active alarms and map to machines
+     */
+    async loadAlarms() {
+        try {
+            const response = await fetch('/api/scada/alarms/active');
+            if (response.ok) {
+                const data = await response.json();
+                this.activeAlarms = data.alarms || [];
+
+                // Map alarms to machines
+                this.machineAlarms = {};
+                this.activeAlarms.forEach(alarm => {
+                    const machineId = alarm.machine_id || alarm.source;
+                    if (machineId) {
+                        this.machineAlarms[machineId] = (this.machineAlarms[machineId] || 0) + 1;
+                    }
+                });
+            }
+        } catch (error) {
+            console.log('Could not load alarms:', error);
+            this.activeAlarms = [];
+            this.machineAlarms = {};
+        }
+    }
+
+    /**
+     * Load machines from API
+     */
+    async loadMachines() {
+        const container = document.getElementById('machineCardsContainer');
+        LoadingSpinner.show(container, 'Loading machines...');
+
+        try {
+            const response = await scadaApi.getMachines();
+            this.machines = response.machines || response.data || [];
+
+            this.renderMachines();
+            this.updateSummary();
+
+            // Subscribe to machine updates
+            this.machines.forEach(m => {
+                this.socketHandler.subscribeMachine(m.id || m.machine_id);
+            });
+
+        } catch (error) {
+            console.error('Failed to load machines:', error);
+            Toast.apiError(error);
+
+            // Show empty state
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="bi bi-cpu display-1 text-muted"></i>
+                            <h4 class="mt-3">No Machines Configured</h4>
+                            <p class="text-muted">Add your machines to <code>config/machines.json</code></p>
+                            <p class="text-muted small">Supported controllers: GRBL, grblHAL, TinyG, Marlin</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } finally {
+            LoadingSpinner.hide(container);
+        }
+    }
+
+    /**
+     * Render machine cards
+     */
+    renderMachines() {
+        const container = document.getElementById('machineCardsContainer');
+
+        if (this.machines.length === 0) {
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="bi bi-cpu display-1 text-muted"></i>
+                            <h4 class="mt-3">No Machines Configured</h4>
+                            <p class="text-muted">Add your machines to <code>config/machines.json</code></p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = this.machines.map(machine => this.renderMachineCard(machine)).join('');
+    }
+
+    /**
+     * Render individual machine card
+     */
+    renderMachineCard(machine) {
+        const machineId = machine.id || machine.machine_id;
+        const isConnected = machine.connected;
+        const isAlarm = machine.status === 'alarm';
+        const alarmCount = this.machineAlarms[machineId] || 0;
+        const hasActiveAlarms = alarmCount > 0;
+
+        const typeIcons = {
+            cnc_mill: 'gear-wide-connected',
+            cnc_lathe: 'gear-wide-connected',
+            laser_cutter: 'lightning',
+            printer_3d: 'printer',
+            robot_arm: 'robot',
+            conveyor: 'arrow-left-right',
+            default: 'cpu',
+        };
+
+        const statusBadges = {
+            disconnected: '<span class="badge bg-secondary">Disconnected</span>',
+            idle: '<span class="badge bg-success">Idle</span>',
+            running: '<span class="badge bg-primary">Running</span>',
+            alarm: '<span class="badge bg-danger">ALARM</span>',
+            hold: '<span class="badge bg-warning text-dark">Hold</span>',
+            homing: '<span class="badge bg-info">Homing</span>',
+        };
+
+        const icon = typeIcons[machine.machine_type] || typeIcons.default;
+        let statusBadge = statusBadges[machine.status] || `<span class="badge bg-info">${machine.status}</span>`;
+
+        // Add alarm badge if machine has active alarms
+        const alarmBadge = hasActiveAlarms ? `<span class="badge bg-danger ms-1" title="${alarmCount} active alarm(s)"><i class="bi bi-exclamation-triangle-fill"></i> ${alarmCount}</span>` : '';
+
+        const workEnvelope = machine.work_envelope || { x: 0, y: 0, z: 0 };
+        const showAlarmStyle = isAlarm || hasActiveAlarms;
+
+        return `
+            <div class="col-md-6 col-lg-4">
+                <div class="card h-100 machine-card ${showAlarmStyle ? 'alarm border-danger' : ''}" data-machine-id="${machineId}">
+                    <div class="card-header d-flex justify-content-between align-items-center ${showAlarmStyle ? 'bg-danger text-white' : ''}">
+                        <span>
+                            <i class="bi bi-${icon} me-2"></i>
+                            ${machine.name}
+                        </span>
+                        <span>${statusBadge}${alarmBadge}</span>
+                    </div>
+                    <div class="card-body">
+                        ${hasActiveAlarms ? `<div class="alert alert-danger py-1 px-2 small mb-2"><i class="bi bi-exclamation-triangle-fill me-1"></i>${alarmCount} active alarm(s) - <a href="/scada/alarms" class="alert-link">View</a></div>` : ''}
+                        <p class="text-muted small mb-3">${machine.description || ''}</p>
+
+                        <table class="table table-sm table-borderless mb-3">
+                            <tr>
+                                <td class="text-muted" style="width: 40%">Controller</td>
+                                <td><code>${(machine.controller_type || 'unknown').toUpperCase()}</code></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Type</td>
+                                <td>${(machine.machine_type || '').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Location</td>
+                                <td>${machine.area || '-'} / ${machine.cell || '-'}</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Port</td>
+                                <td><code class="small">${machine.port || '-'}</code></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Work Envelope</td>
+                                <td>${workEnvelope.x}x${workEnvelope.y}x${workEnvelope.z} mm</td>
+                            </tr>
+                        </table>
+
+                        ${isConnected ? `
+                            <div class="bg-dark text-light p-2 rounded font-monospace small mb-3 position-display">
+                                <div class="row text-center">
+                                    <div class="col-4">X: <span class="text-warning" id="pos-x-${machineId}">0.000</span></div>
+                                    <div class="col-4">Y: <span class="text-warning" id="pos-y-${machineId}">0.000</span></div>
+                                    <div class="col-4">Z: <span class="text-warning" id="pos-z-${machineId}">0.000</span></div>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="card-footer">
+                        ${isConnected ? `
+                            <div class="btn-group btn-group-sm w-100">
+                                <button class="btn btn-outline-danger" onclick="machineDashboard.disconnectMachine('${machineId}')">
+                                    <i class="bi bi-plug"></i> Disconnect
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="machineDashboard.showJogPanel('${machineId}', '${machine.name}')">
+                                    <i class="bi bi-arrows-move"></i> Jog
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="machineDashboard.homeMachine('${machineId}')">
+                                    <i class="bi bi-house"></i> Home
+                                </button>
+                                <button class="btn btn-outline-info" onclick="machineDashboard.showMetrics('${machineId}', '${machine.name}')">
+                                    <i class="bi bi-graph-up"></i>
+                                </button>
+                            </div>
+                        ` : `
+                            <div class="btn-group btn-group-sm w-100">
+                                <button class="btn btn-success" onclick="machineDashboard.connectMachine('${machineId}')" id="connect-btn-${machineId}">
+                                    <i class="bi bi-plug"></i> Connect
+                                </button>
+                                <button class="btn btn-outline-primary" disabled>
+                                    <i class="bi bi-arrows-move"></i> Jog
+                                </button>
+                                <button class="btn btn-outline-secondary" disabled>
+                                    <i class="bi bi-house"></i> Home
+                                </button>
+                                <button class="btn btn-outline-info" disabled>
+                                    <i class="bi bi-graph-up"></i>
+                                </button>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Update summary cards
+     */
+    updateSummary() {
+        const total = this.machines.length;
+        const connected = this.machines.filter(m => m.connected).length;
+        const idle = this.machines.filter(m => m.status === 'idle').length;
+        const disconnected = this.machines.filter(m => !m.connected || m.status === 'disconnected').length;
+
+        // Count machines with active alarms
+        const machinesWithAlarms = Object.keys(this.machineAlarms).length;
+        const totalAlarms = this.activeAlarms.length;
+
+        document.getElementById('totalMachines').textContent = total;
+        document.getElementById('connectedCount').textContent = connected;
+        document.getElementById('idleCount').textContent = idle;
+        document.getElementById('disconnectedCount').textContent = disconnected;
+
+        // Show/hide alarm card based on active alarms
+        const alarmCard = document.getElementById('alarmCard');
+        const idleCard = document.getElementById('idleCard');
+        const alarmCountEl = document.getElementById('alarmCount');
+
+        if (totalAlarms > 0) {
+            alarmCard.style.display = 'block';
+            idleCard.style.display = 'none';
+            alarmCountEl.textContent = machinesWithAlarms;
+            alarmCountEl.title = `${totalAlarms} total alarm(s) on ${machinesWithAlarms} machine(s)`;
+        } else {
+            alarmCard.style.display = 'none';
+            idleCard.style.display = 'block';
+        }
+    }
+
+    /**
+     * Connect to a machine
+     */
+    async connectMachine(machineId) {
+        const btn = document.getElementById(`connect-btn-${machineId}`);
+        if (!btn) return;
+
+        const restore = LoadingSpinner.button(btn, 'Connecting...');
+
+        try {
+            await scadaApi.connectMachine(machineId);
+            Toast.success('Machine connected');
+            await this.loadMachines();
+        } catch (error) {
+            console.error('Failed to connect machine:', error);
+            Toast.apiError(error);
+            restore();
+        }
+    }
+
+    /**
+     * Disconnect from a machine
+     */
+    async disconnectMachine(machineId) {
+        try {
+            await scadaApi.disconnectMachine(machineId);
+            Toast.info('Machine disconnected');
+            await this.loadMachines();
+        } catch (error) {
+            console.error('Failed to disconnect machine:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Home machine
+     */
+    async homeMachine(machineId) {
+        const confirmed = await DashboardUtils.confirm(
+            'Home all axes? The machine will move!',
+            { title: 'Home Machine', confirmText: 'Home', confirmVariant: 'warning' }
+        );
+
+        if (!confirmed) return;
+
+        try {
+            await scadaApi.homeMachine(machineId);
+            Toast.info('Homing started');
+        } catch (error) {
+            console.error('Failed to home machine:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Show jog panel
+     */
+    showJogPanel(machineId, machineName) {
+        this.currentJogMachine = machineId;
+        document.getElementById('jogMachineId').value = machineId;
+        document.getElementById('jogMachineName').textContent = machineName;
+
+        // Update position display
+        const machine = this.machines.find(m => (m.id || m.machine_id) === machineId);
+        if (machine && machine.position) {
+            document.getElementById('jog-pos-x').textContent = (machine.position.x || 0).toFixed(3);
+            document.getElementById('jog-pos-y').textContent = (machine.position.y || 0).toFixed(3);
+            document.getElementById('jog-pos-z').textContent = (machine.position.z || 0).toFixed(3);
+        }
+
+        new bootstrap.Modal(document.getElementById('jogModal')).show();
+    }
+
+    /**
+     * Jog machine
+     */
+    async jog(axis, direction) {
+        const machineId = document.getElementById('jogMachineId').value;
+        const stepSize = document.querySelector('input[name="stepSize"]:checked').value;
+        const feedRate = document.getElementById('feedRate').value;
+        const distance = parseFloat(stepSize) * direction;
+
+        try {
+            await scadaApi.jogMachine(machineId, axis, distance, parseInt(feedRate));
+        } catch (error) {
+            console.error('Failed to jog machine:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Home all axes from jog modal
+     */
+    async homeAll() {
+        const machineId = document.getElementById('jogMachineId').value;
+
+        const confirmed = await DashboardUtils.confirm('Home all axes?');
+        if (!confirmed) return;
+
+        try {
+            await scadaApi.homeMachine(machineId);
+            Toast.info('Homing started');
+        } catch (error) {
+            console.error('Failed to home machine:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Zero all axes
+     */
+    async zeroAll() {
+        const machineId = document.getElementById('jogMachineId').value;
+
+        const confirmed = await DashboardUtils.confirm('Zero work coordinates at current position?');
+        if (!confirmed) return;
+
+        try {
+            await scadaApi.post(`/machines/${machineId}/zero`);
+            Toast.success('Coordinates zeroed');
+        } catch (error) {
+            console.error('Failed to zero coordinates:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Scan serial ports
+     */
+    async scanPorts() {
+        const portsList = document.getElementById('portsList');
+        portsList.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm"></div> Scanning...</div>';
+
+        new bootstrap.Modal(document.getElementById('portsModal')).show();
+
+        try {
+            const response = await scadaApi.getSerialPorts();
+            const ports = response.ports || [];
+
+            if (ports.length === 0) {
+                portsList.innerHTML = '<div class="text-center text-muted py-3">No serial ports found</div>';
+                return;
+            }
+
+            portsList.innerHTML = ports.map(port => `
+                <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong><code>${port.device}</code></strong>
+                            <p class="mb-0 small text-muted">${port.description || 'Unknown device'}</p>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="DashboardUtils.copyToClipboard('${port.device}')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+        } catch (error) {
+            console.error('Failed to scan ports:', error);
+            portsList.innerHTML = '<div class="text-center text-danger py-3">Failed to scan ports</div>';
+        }
+    }
+
+    /**
+     * Show machine metrics
+     */
+    async showMetrics(machineId, machineName) {
+        document.getElementById('metricsMachineId').value = machineId;
+        document.getElementById('metricsMachineName').textContent = machineName;
+
+        new bootstrap.Modal(document.getElementById('metricsModal')).show();
+
+        // Initialize metrics chart if needed
+        if (!this.metricsChart) {
+            const ctx = document.getElementById('metricsChart').getContext('2d');
+            this.metricsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Spindle RPM',
+                            data: [],
+                            borderColor: ChartHelpers.colors.primary,
+                            yAxisID: 'y',
+                        },
+                        {
+                            label: 'Temperature',
+                            data: [],
+                            borderColor: ChartHelpers.colors.danger,
+                            yAxisID: 'y1',
+                        },
+                    ],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: 'RPM' },
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: 'Celsius' },
+                            grid: { drawOnChartArea: false },
+                        },
+                    },
+                },
+            });
+        }
+
+        // Load metrics data
+        await this.loadMetrics(machineId);
+    }
+
+    /**
+     * Load machine metrics
+     */
+    async loadMetrics(machineId) {
+        try {
+            const response = await scadaApi.getMachineStatus(machineId);
+            const status = response.status || response;
+
+            document.getElementById('metricsSpindleRpm').textContent = status.spindle_rpm || '--';
+            document.getElementById('metricsFeedRate').textContent = `${status.feed_rate || '--'} mm/min`;
+            document.getElementById('metricsTemperature').textContent = `${status.temperature || '--'}C`;
+
+            // Update chart with historical data if available
+            if (status.history) {
+                this.metricsChart.data.labels = status.history.map(h => h.time);
+                this.metricsChart.data.datasets[0].data = status.history.map(h => h.spindle_rpm);
+                this.metricsChart.data.datasets[1].data = status.history.map(h => h.temperature);
+                this.metricsChart.update();
+            }
+
+        } catch (error) {
+            console.error('Failed to load metrics:', error);
+        }
+    }
+
+    /**
+     * Refresh machines
+     */
+    async refresh() {
+        await this.loadMachines();
+        Toast.success('Machines refreshed');
+    }
+
+    /**
+     * Start position polling for connected machines
+     */
+    startPositionPolling() {
+        // Position updates come via WebSocket, but we can poll as backup
+        setInterval(async () => {
+            for (const machine of this.machines) {
+                if (machine.connected) {
+                    try {
+                        const response = await scadaApi.getMachineStatus(machine.id || machine.machine_id);
+                        if (response.position) {
+                            this.updateMachinePosition(machine.id || machine.machine_id, response.position);
+                        }
+                    } catch (error) {
+                        // Silently ignore polling errors
+                    }
+                }
+            }
+        }, 5000);
+    }
+
+    /**
+     * Update machine position display
+     */
+    updateMachinePosition(machineId, position) {
+        const xEl = document.getElementById(`pos-x-${machineId}`);
+        const yEl = document.getElementById(`pos-y-${machineId}`);
+        const zEl = document.getElementById(`pos-z-${machineId}`);
+
+        if (xEl) xEl.textContent = (position.x || 0).toFixed(3);
+        if (yEl) yEl.textContent = (position.y || 0).toFixed(3);
+        if (zEl) zEl.textContent = (position.z || 0).toFixed(3);
+
+        // Update jog modal if open for this machine
+        if (this.currentJogMachine === machineId) {
+            document.getElementById('jog-pos-x').textContent = (position.x || 0).toFixed(3);
+            document.getElementById('jog-pos-y').textContent = (position.y || 0).toFixed(3);
+            document.getElementById('jog-pos-z').textContent = (position.z || 0).toFixed(3);
+        }
+    }
+
+    // WebSocket event handlers
+
+    handleStatusUpdate(data) {
+        const machineId = data.machine_id;
+        const machine = this.machines.find(m => (m.id || m.machine_id) === machineId);
+
+        if (machine) {
+            machine.status = data.status || machine.status;
+            machine.connected = data.connected !== undefined ? data.connected : machine.connected;
+
+            if (data.position) {
+                machine.position = data.position;
+                this.updateMachinePosition(machineId, data.position);
+            }
+
+            // Re-render if status changed
+            const card = document.querySelector(`[data-machine-id="${machineId}"]`);
+            if (card) {
+                card.outerHTML = this.renderMachineCard(machine);
+            }
+
+            this.updateSummary();
+        }
+    }
+
+    handlePositionUpdate(data) {
+        if (data.machine_id && data.position) {
+            this.updateMachinePosition(data.machine_id, data.position);
+        }
+    }
+
+    handleConnectionChange(machineId, connected) {
+        const machine = this.machines.find(m => (m.id || m.machine_id) === machineId);
+        if (machine) {
+            machine.connected = connected;
+            machine.status = connected ? 'idle' : 'disconnected';
+            this.loadMachines(); // Reload to update UI
+        }
+
+        Toast.info(`Machine ${connected ? 'connected' : 'disconnected'}`);
+    }
+
+    handleStateChange(data) {
+        this.handleStatusUpdate(data);
+    }
+}
+
+// Initialize dashboard
+const machineDashboard = new MachineDashboard();
+</script>
+{% endblock %}

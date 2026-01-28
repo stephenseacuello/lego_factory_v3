@@ -1,0 +1,924 @@
+{% extends "base.html" %}
+{% block title %}Alarm Configuration - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #22c55e;
+        --accent-yellow: #eab308;
+        --accent-red: #ef4444;
+        --accent-purple: #a855f7;
+        --accent-orange: #f97316;
+    }
+
+    .alarm-container {
+        padding: 24px;
+        background: var(--bg-dark);
+        min-height: 100vh;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
+    .btn-danger { background: var(--accent-red); color: white; }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+
+    /* Stats */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+
+    .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 24px;
+        background: var(--bg-card);
+        padding: 6px;
+        border-radius: 10px;
+        width: fit-content;
+    }
+
+    .tab {
+        padding: 10px 20px;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-radius: 6px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .tab.active {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Alarm Rules Table */
+    .rules-section {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .rules-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .rules-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .rules-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .rules-table th,
+    .rules-table td {
+        padding: 14px 20px;
+        text-align: left;
+    }
+
+    .rules-table th {
+        background: var(--bg-dark);
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+    }
+
+    .rules-table td {
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .rules-table tr:hover td {
+        background: rgba(59, 130, 246, 0.05);
+    }
+
+    .severity-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .severity-badge.critical { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .severity-badge.warning { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+    .severity-badge.info { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+
+    /* Toggle Switch */
+    .toggle {
+        position: relative;
+        width: 44px;
+        height: 24px;
+    }
+
+    .toggle input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--border-color);
+        border-radius: 24px;
+        transition: 0.3s;
+    }
+
+    .toggle-slider::before {
+        content: '';
+        position: absolute;
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background: white;
+        border-radius: 50%;
+        transition: 0.3s;
+    }
+
+    .toggle input:checked + .toggle-slider {
+        background: var(--accent-green);
+    }
+
+    .toggle input:checked + .toggle-slider::before {
+        transform: translateX(20px);
+    }
+
+    /* Threshold Cards */
+    .threshold-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+    }
+
+    .threshold-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .threshold-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .threshold-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .threshold-body {
+        padding: 20px;
+    }
+
+    .threshold-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .threshold-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .threshold-label {
+        width: 100px;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .threshold-input {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .threshold-input input {
+        width: 80px;
+        padding: 8px 12px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-primary);
+        text-align: center;
+    }
+
+    .threshold-input input:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .threshold-unit {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .threshold-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+
+    /* Notification Channels */
+    .channel-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+    }
+
+    .channel-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .channel-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+
+    .channel-info {
+        flex: 1;
+    }
+
+    .channel-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .channel-desc {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .channel-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+    }
+
+    .channel-status.connected { color: var(--accent-green); }
+    .channel-status.disconnected { color: var(--text-secondary); }
+
+    /* Escalation Timeline */
+    .escalation-section {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .escalation-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 20px;
+    }
+
+    .escalation-timeline {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        position: relative;
+    }
+
+    .escalation-step {
+        flex: 1;
+        text-align: center;
+        position: relative;
+    }
+
+    .escalation-step::after {
+        content: '';
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        right: -50%;
+        height: 2px;
+        background: var(--border-color);
+        z-index: 0;
+    }
+
+    .escalation-step:last-child::after {
+        display: none;
+    }
+
+    .step-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 12px;
+        font-weight: 600;
+        position: relative;
+        z-index: 1;
+    }
+
+    .step-label {
+        font-size: 13px;
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    .step-time {
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .modal-overlay.show { display: flex; }
+
+    .modal-content {
+        background: var(--bg-card);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 600px;
+        max-height: 85vh;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 24px;
+        cursor: pointer;
+    }
+
+    .modal-body {
+        padding: 24px;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+    }
+
+    .form-input,
+    .form-select {
+        width: 100%;
+        padding: 10px 14px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    @media (max-width: 1024px) {
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="alarm-container">
+    <div class="page-header">
+        <h1 class="page-title">Alarm Configuration</h1>
+        <div>
+            <button class="btn btn-secondary" style="margin-right: 12px;">Test Notifications</button>
+            <button class="btn btn-primary" onclick="openRuleModal()">+ Create Rule</button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2);">📋</div>
+            <div>
+                <div class="stat-value">24</div>
+                <div class="stat-label">Active Rules</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2);">🔔</div>
+            <div>
+                <div class="stat-value">3</div>
+                <div class="stat-label">Active Alarms</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(34, 197, 94, 0.2);">✓</div>
+            <div>
+                <div class="stat-value">156</div>
+                <div class="stat-label">Resolved Today</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(234, 179, 8, 0.2);">⏱</div>
+            <div>
+                <div class="stat-value">4.2m</div>
+                <div class="stat-label">Avg Response Time</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+        <button class="tab active" data-tab="rules">Alarm Rules</button>
+        <button class="tab" data-tab="thresholds">Thresholds</button>
+        <button class="tab" data-tab="notifications">Notifications</button>
+        <button class="tab" data-tab="escalation">Escalation</button>
+    </div>
+
+    <!-- Rules Tab -->
+    <div class="tab-content active" id="rules">
+        <div class="rules-section">
+            <div class="rules-header">
+                <h3 class="rules-title">Alarm Rules</h3>
+                <input type="text" class="form-input" style="width: 250px;" placeholder="Search rules...">
+            </div>
+            <table class="rules-table">
+                <thead>
+                    <tr>
+                        <th>Rule Name</th>
+                        <th>Condition</th>
+                        <th>Severity</th>
+                        <th>Scope</th>
+                        <th>Triggered (24h)</th>
+                        <th>Enabled</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="rulesTable">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Thresholds Tab -->
+    <div class="tab-content" id="thresholds">
+        <div class="threshold-grid" id="thresholdGrid">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Notifications Tab -->
+    <div class="tab-content" id="notifications">
+        <div class="channel-grid" id="channelGrid">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Escalation Tab -->
+    <div class="tab-content" id="escalation">
+        <div class="escalation-section">
+            <h3 class="escalation-title">Critical Alarm Escalation Path</h3>
+            <div class="escalation-timeline">
+                <div class="escalation-step">
+                    <div class="step-circle" style="background: rgba(59, 130, 246, 0.2); color: var(--accent-blue);">1</div>
+                    <div class="step-label">Operator Alert</div>
+                    <div class="step-time">Immediate</div>
+                </div>
+                <div class="escalation-step">
+                    <div class="step-circle" style="background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow);">2</div>
+                    <div class="step-label">Supervisor Notify</div>
+                    <div class="step-time">After 5 min</div>
+                </div>
+                <div class="escalation-step">
+                    <div class="step-circle" style="background: rgba(249, 115, 22, 0.2); color: var(--accent-orange);">3</div>
+                    <div class="step-label">Maintenance Call</div>
+                    <div class="step-time">After 15 min</div>
+                </div>
+                <div class="escalation-step">
+                    <div class="step-circle" style="background: rgba(239, 68, 68, 0.2); color: var(--accent-red);">4</div>
+                    <div class="step-label">Manager Alert</div>
+                    <div class="step-time">After 30 min</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="escalation-section" style="margin-top: 20px;">
+            <h3 class="escalation-title">Warning Alarm Escalation Path</h3>
+            <div class="escalation-timeline">
+                <div class="escalation-step">
+                    <div class="step-circle" style="background: rgba(59, 130, 246, 0.2); color: var(--accent-blue);">1</div>
+                    <div class="step-label">Dashboard Alert</div>
+                    <div class="step-time">Immediate</div>
+                </div>
+                <div class="escalation-step">
+                    <div class="step-circle" style="background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow);">2</div>
+                    <div class="step-label">Email Notification</div>
+                    <div class="step-time">After 10 min</div>
+                </div>
+                <div class="escalation-step">
+                    <div class="step-circle" style="background: rgba(249, 115, 22, 0.2); color: var(--accent-orange);">3</div>
+                    <div class="step-label">Supervisor Notify</div>
+                    <div class="step-time">After 30 min</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Rule Modal -->
+<div class="modal-overlay" id="ruleModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Create Alarm Rule</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Rule Name</label>
+                <input type="text" class="form-input" placeholder="e.g., High Spindle Temperature">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Metric</label>
+                    <select class="form-select">
+                        <option>Spindle Temperature</option>
+                        <option>Spindle Load</option>
+                        <option>Vibration Level</option>
+                        <option>Coolant Level</option>
+                        <option>Power Consumption</option>
+                        <option>Cycle Time</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Condition</label>
+                    <select class="form-select">
+                        <option>Greater than</option>
+                        <option>Less than</option>
+                        <option>Equals</option>
+                        <option>Not equals</option>
+                        <option>Rate of change</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Threshold Value</label>
+                    <input type="number" class="form-input" placeholder="85">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Duration</label>
+                    <select class="form-select">
+                        <option>Immediate</option>
+                        <option>For 1 minute</option>
+                        <option>For 5 minutes</option>
+                        <option>For 15 minutes</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Severity</label>
+                    <select class="form-select">
+                        <option value="critical">Critical</option>
+                        <option value="warning">Warning</option>
+                        <option value="info">Info</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Apply To</label>
+                    <select class="form-select">
+                        <option>All Machines</option>
+                        <option>CNC Mills Only</option>
+                        <option>CNC Lathes Only</option>
+                        <option>Specific Machine...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notification Channels</label>
+                <div style="display: flex; gap: 16px; margin-top: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" checked> Dashboard
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" checked> Email
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox"> SMS
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox"> Slack
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveRule()">Create Rule</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const rules = [
+        { name: 'High Spindle Temperature', condition: 'Temp > 85°C for 2min', severity: 'critical', scope: 'All Mills', triggered: 2, enabled: true },
+        { name: 'Low Coolant Level', condition: 'Level < 20%', severity: 'warning', scope: 'All Machines', triggered: 5, enabled: true },
+        { name: 'Excessive Vibration', condition: 'Vibration > 4.5 mm/s', severity: 'critical', scope: 'CNC-001, CNC-005', triggered: 1, enabled: true },
+        { name: 'High Power Draw', condition: 'Power > 90% rated', severity: 'warning', scope: 'All Machines', triggered: 8, enabled: true },
+        { name: 'Cycle Time Variance', condition: 'Cycle > 120% standard', severity: 'info', scope: 'All Machines', triggered: 12, enabled: true },
+        { name: 'Spindle Load Critical', condition: 'Load > 95%', severity: 'critical', scope: 'All Machines', triggered: 0, enabled: true },
+        { name: 'Tool Life Warning', condition: 'Life < 10%', severity: 'warning', scope: 'All Machines', triggered: 3, enabled: false },
+        { name: 'Air Pressure Low', condition: 'Pressure < 5 bar', severity: 'critical', scope: 'All Machines', triggered: 0, enabled: true }
+    ];
+
+    const thresholds = [
+        { name: 'Spindle Temperature', warning: 75, critical: 85, unit: '°C', current: 68 },
+        { name: 'Spindle Load', warning: 80, critical: 95, unit: '%', current: 62 },
+        { name: 'Vibration Level', warning: 3.5, critical: 4.5, unit: 'mm/s', current: 2.1 },
+        { name: 'Coolant Level', warning: 30, critical: 20, unit: '%', current: 75 },
+        { name: 'Power Consumption', warning: 85, critical: 95, unit: '%', current: 72 },
+        { name: 'Axis Position Error', warning: 0.01, critical: 0.02, unit: 'mm', current: 0.005 }
+    ];
+
+    const channels = [
+        { name: 'Dashboard Alerts', desc: 'In-app notifications', icon: '🖥️', connected: true, color: 'var(--accent-blue)' },
+        { name: 'Email', desc: 'ops-team@company.com', icon: '📧', connected: true, color: 'var(--accent-green)' },
+        { name: 'SMS', desc: '+1 (555) 123-4567', icon: '📱', connected: true, color: 'var(--accent-purple)' },
+        { name: 'Slack', desc: '#cnc-alerts channel', icon: '💬', connected: true, color: 'var(--accent-yellow)' },
+        { name: 'PagerDuty', desc: 'Critical alerts only', icon: '🚨', connected: false, color: 'var(--accent-red)' },
+        { name: 'Webhooks', desc: 'Custom integrations', icon: '🔗', connected: true, color: 'var(--accent-cyan)' }
+    ];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        renderRules();
+        renderThresholds();
+        renderChannels();
+        setupTabs();
+    });
+
+    function setupTabs() {
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                document.getElementById(this.dataset.tab).classList.add('active');
+            });
+        });
+    }
+
+    function renderRules() {
+        document.getElementById('rulesTable').innerHTML = rules.map((r, i) => `
+            <tr>
+                <td style="font-weight: 500;">${r.name}</td>
+                <td style="color: var(--text-secondary);">${r.condition}</td>
+                <td><span class="severity-badge ${r.severity}">${r.severity}</span></td>
+                <td>${r.scope}</td>
+                <td>${r.triggered}</td>
+                <td>
+                    <label class="toggle">
+                        <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="toggleRule(${i})">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </td>
+                <td>
+                    <button class="btn btn-secondary btn-sm" onclick="editRule(${i})">Edit</button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteRule(${i})">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderThresholds() {
+        document.getElementById('thresholdGrid').innerHTML = thresholds.map(t => {
+            const warningPct = (t.current / t.warning) * 100;
+            let status = 'good';
+            let statusColor = 'var(--accent-green)';
+            if (t.current >= t.critical) { status = 'critical'; statusColor = 'var(--accent-red)'; }
+            else if (t.current >= t.warning) { status = 'warning'; statusColor = 'var(--accent-yellow)'; }
+
+            return `
+                <div class="threshold-card">
+                    <div class="threshold-header">
+                        <span class="threshold-name">${t.name}</span>
+                        <span class="threshold-indicator" style="background: ${statusColor}"></span>
+                    </div>
+                    <div class="threshold-body">
+                        <div class="threshold-item">
+                            <span class="threshold-label">Warning</span>
+                            <div class="threshold-input">
+                                <input type="number" value="${t.warning}" step="0.1">
+                                <span class="threshold-unit">${t.unit}</span>
+                            </div>
+                        </div>
+                        <div class="threshold-item">
+                            <span class="threshold-label">Critical</span>
+                            <div class="threshold-input">
+                                <input type="number" value="${t.critical}" step="0.1">
+                                <span class="threshold-unit">${t.unit}</span>
+                            </div>
+                        </div>
+                        <div class="threshold-item">
+                            <span class="threshold-label">Current</span>
+                            <div class="threshold-input">
+                                <span style="font-weight: 600; color: ${statusColor}">${t.current} ${t.unit}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderChannels() {
+        document.getElementById('channelGrid').innerHTML = channels.map(c => `
+            <div class="channel-card">
+                <div class="channel-icon" style="background: ${c.color}20; color: ${c.color}">${c.icon}</div>
+                <div class="channel-info">
+                    <div class="channel-name">${c.name}</div>
+                    <div class="channel-desc">${c.desc}</div>
+                </div>
+                <div class="channel-status ${c.connected ? 'connected' : 'disconnected'}">
+                    <span style="width: 8px; height: 8px; border-radius: 50%; background: currentColor;"></span>
+                    ${c.connected ? 'Connected' : 'Disconnected'}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function toggleRule(index) {
+        rules[index].enabled = !rules[index].enabled;
+    }
+
+    function editRule(index) {
+        alert(`Edit rule: ${rules[index].name}`);
+    }
+
+    function deleteRule(index) {
+        if (confirm(`Delete rule "${rules[index].name}"?`)) {
+            rules.splice(index, 1);
+            renderRules();
+        }
+    }
+
+    function openRuleModal() {
+        document.getElementById('ruleModal').classList.add('show');
+    }
+
+    function closeModal() {
+        document.getElementById('ruleModal').classList.remove('show');
+    }
+
+    function saveRule() {
+        alert('Rule created successfully!');
+        closeModal();
+    }
+
+    document.getElementById('ruleModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+</script>
+{% endblock %}

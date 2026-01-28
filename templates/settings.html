@@ -1,0 +1,1139 @@
+{% extends "base.html" %}
+{% block title %}Settings - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-input: #0f172a;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent: #3b82f6;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+    }
+
+    body {
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .settings-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i { color: var(--accent); }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-primary); }
+    .btn-outline:hover { background: var(--bg-card); }
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+
+    /* Layout */
+    .settings-layout {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        gap: 2rem;
+    }
+
+    /* Sidebar Navigation */
+    .settings-nav {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        padding: 1rem;
+        height: fit-content;
+        position: sticky;
+        top: 2rem;
+    }
+
+    .nav-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .nav-section:last-child { margin-bottom: 0; }
+
+    .nav-section-title {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.75rem;
+        padding: 0 0.75rem;
+    }
+
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .nav-item:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+    .nav-item.active { background: rgba(59,130,246,0.15); color: var(--accent); }
+    .nav-item i { width: 18px; text-align: center; }
+
+    /* Settings Panels */
+    .settings-content {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .settings-panel {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        display: none;
+    }
+
+    .settings-panel.active { display: block; }
+
+    .panel-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .panel-title {
+        font-size: 1.125rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .panel-description {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .panel-body { padding: 1.5rem; }
+
+    /* Form Elements */
+    .form-section {
+        margin-bottom: 2rem;
+        padding-bottom: 2rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+    .form-section-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+
+    .form-label {
+        display: block;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+    }
+
+    .form-control, .form-select {
+        width: 100%;
+        padding: 0.625rem 0.875rem;
+        background: var(--bg-input);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        transition: border-color 0.2s;
+    }
+
+    .form-control:focus, .form-select:focus {
+        border-color: var(--accent);
+        outline: none;
+    }
+
+    .form-control:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .form-hint {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+    }
+
+    /* Toggle Switch */
+    .toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: rgba(255,255,255,0.02);
+        border-radius: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .toggle-info { flex: 1; }
+    .toggle-label { font-size: 0.875rem; font-weight: 500; margin-bottom: 0.25rem; }
+    .toggle-description { font-size: 0.75rem; color: var(--text-secondary); }
+
+    .toggle-switch {
+        position: relative;
+        width: 48px;
+        height: 26px;
+        flex-shrink: 0;
+    }
+
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: var(--border-color);
+        transition: 0.3s;
+        border-radius: 26px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 20px;
+        width: 20px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+    }
+
+    input:checked + .toggle-slider { background-color: var(--success); }
+    input:checked + .toggle-slider:before { transform: translateX(22px); }
+
+    /* Profile Avatar */
+    .avatar-section {
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .avatar {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent), #8b5cf6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .avatar-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    /* Threshold Slider */
+    .threshold-item {
+        margin-bottom: 1.5rem;
+    }
+
+    .threshold-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .threshold-label { font-size: 0.875rem; }
+    .threshold-value { font-size: 0.875rem; font-weight: 600; color: var(--accent); }
+
+    .threshold-slider {
+        width: 100%;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--border-color);
+        appearance: none;
+        outline: none;
+    }
+
+    .threshold-slider::-webkit-slider-thumb {
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        border: 2px solid white;
+    }
+
+    /* API Keys Table */
+    .api-keys-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .api-keys-table th, .api-keys-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .api-keys-table th {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .api-keys-table td { font-size: 0.875rem; }
+
+    .key-value {
+        font-family: monospace;
+        background: var(--bg-dark);
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.813rem;
+    }
+
+    .key-status {
+        padding: 0.125rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+    }
+
+    .key-status.active { background: rgba(16,185,129,0.2); color: var(--success); }
+    .key-status.expired { background: rgba(239,68,68,0.2); color: var(--danger); }
+
+    /* Sessions */
+    .session-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: rgba(255,255,255,0.02);
+        border-radius: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .session-info { display: flex; align-items: center; gap: 1rem; }
+
+    .session-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        background: rgba(59,130,246,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--accent);
+    }
+
+    .session-device { font-weight: 500; font-size: 0.875rem; }
+    .session-meta { font-size: 0.75rem; color: var(--text-secondary); }
+
+    .session-current {
+        font-size: 0.75rem;
+        background: rgba(16,185,129,0.2);
+        color: var(--success);
+        padding: 0.25rem 0.5rem;
+        border-radius: 9999px;
+    }
+
+    /* Theme Cards */
+    .theme-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .theme-card {
+        border: 2px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-align: center;
+    }
+
+    .theme-card:hover { border-color: var(--accent); }
+    .theme-card.selected { border-color: var(--accent); background: rgba(59,130,246,0.1); }
+
+    .theme-preview {
+        height: 60px;
+        border-radius: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .theme-preview.dark { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    .theme-preview.light { background: linear-gradient(135deg, #f1f5f9, #e2e8f0); }
+    .theme-preview.system { background: linear-gradient(135deg, #0f172a 50%, #f1f5f9 50%); }
+
+    .theme-name { font-size: 0.875rem; font-weight: 500; }
+
+    /* Danger Zone */
+    .danger-zone {
+        border: 1px solid rgba(239,68,68,0.3);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        background: rgba(239,68,68,0.05);
+    }
+
+    .danger-zone-title {
+        color: var(--danger);
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .danger-zone-description {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 1rem;
+    }
+
+    /* Save Bar */
+    .save-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--bg-card);
+        border-top: 1px solid var(--border-color);
+        padding: 1rem 2rem;
+        display: none;
+        justify-content: flex-end;
+        gap: 1rem;
+        z-index: 100;
+    }
+
+    .save-bar.show { display: flex; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+        .settings-layout { grid-template-columns: 1fr; }
+        .settings-nav { position: static; }
+        .form-row { grid-template-columns: 1fr; }
+        .theme-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="settings-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-cog"></i>
+            Settings
+        </h1>
+        <a href="/portal" class="btn btn-primary">
+            <i class="fas fa-arrow-left"></i> Back to Portal
+        </a>
+    </div>
+
+    <div class="settings-layout">
+        <!-- Sidebar Navigation -->
+        <nav class="settings-nav">
+            <div class="nav-section">
+                <div class="nav-section-title">Account</div>
+                <div class="nav-item active" data-panel="profile">
+                    <i class="fas fa-user"></i> Profile
+                </div>
+                <div class="nav-item" data-panel="security">
+                    <i class="fas fa-shield-alt"></i> Security
+                </div>
+                <div class="nav-item" data-panel="sessions">
+                    <i class="fas fa-laptop"></i> Sessions
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Preferences</div>
+                <div class="nav-item" data-panel="notifications">
+                    <i class="fas fa-bell"></i> Notifications
+                </div>
+                <div class="nav-item" data-panel="display">
+                    <i class="fas fa-palette"></i> Display
+                </div>
+                <div class="nav-item" data-panel="thresholds">
+                    <i class="fas fa-sliders-h"></i> Thresholds
+                </div>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Developer</div>
+                <div class="nav-item" data-panel="api">
+                    <i class="fas fa-key"></i> API Keys
+                </div>
+                <div class="nav-item" data-panel="integrations">
+                    <i class="fas fa-plug"></i> Integrations
+                </div>
+            </div>
+        </nav>
+
+        <!-- Settings Content -->
+        <div class="settings-content">
+            <!-- Profile Panel -->
+            <div class="settings-panel active" id="profile">
+                <div class="panel-header">
+                    <div class="panel-title">Profile Settings</div>
+                    <div class="panel-description">Manage your personal information and preferences</div>
+                </div>
+                <div class="panel-body">
+                    <div class="avatar-section">
+                        <div class="avatar" id="userAvatar">JD</div>
+                        <div>
+                            <div style="font-weight: 600; margin-bottom: 0.25rem;">John Doe</div>
+                            <div style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Operator</div>
+                            <div class="avatar-actions">
+                                <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.375rem 0.75rem;">
+                                    <i class="fas fa-camera"></i> Change Photo
+                                </button>
+                                <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.375rem 0.75rem;">
+                                    <i class="fas fa-trash"></i> Remove
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-user"></i> Personal Information</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">First Name</label>
+                                <input type="text" class="form-control" value="John">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Last Name</label>
+                                <input type="text" class="form-control" value="Doe">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Email Address</label>
+                                <input type="email" class="form-control" value="john.doe@company.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone Number</label>
+                                <input type="tel" class="form-control" value="+1 (555) 123-4567">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-building"></i> Work Information</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Department</label>
+                                <select class="form-select">
+                                    <option>Manufacturing</option>
+                                    <option selected>Operations</option>
+                                    <option>Maintenance</option>
+                                    <option>Quality</option>
+                                    <option>Engineering</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Role</label>
+                                <select class="form-select">
+                                    <option selected>Operator</option>
+                                    <option>Supervisor</option>
+                                    <option>Manager</option>
+                                    <option>Administrator</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Employee ID</label>
+                            <input type="text" class="form-control" value="EMP-2024-0042" disabled>
+                            <div class="form-hint">Contact IT to update your employee ID</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Panel -->
+            <div class="settings-panel" id="security">
+                <div class="panel-header">
+                    <div class="panel-title">Security Settings</div>
+                    <div class="panel-description">Manage your password and security preferences</div>
+                </div>
+                <div class="panel-body">
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-lock"></i> Change Password</div>
+                        <div class="form-group">
+                            <label class="form-label">Current Password</label>
+                            <input type="password" class="form-control" placeholder="Enter current password">
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">New Password</label>
+                                <input type="password" class="form-control" placeholder="Enter new password">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Confirm Password</label>
+                                <input type="password" class="form-control" placeholder="Confirm new password">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary">Update Password</button>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-mobile-alt"></i> Two-Factor Authentication</div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Enable 2FA</div>
+                                <div class="toggle-description">Add an extra layer of security to your account</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="danger-zone">
+                        <div class="danger-zone-title">Danger Zone</div>
+                        <div class="danger-zone-description">Once you delete your account, there is no going back. Please be certain.</div>
+                        <button class="btn btn-danger"><i class="fas fa-trash"></i> Delete Account</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sessions Panel -->
+            <div class="settings-panel" id="sessions">
+                <div class="panel-header">
+                    <div class="panel-title">Active Sessions</div>
+                    <div class="panel-description">Manage your active login sessions across devices</div>
+                </div>
+                <div class="panel-body">
+                    <div class="session-item">
+                        <div class="session-info">
+                            <div class="session-icon"><i class="fas fa-desktop"></i></div>
+                            <div>
+                                <div class="session-device">Chrome on Windows</div>
+                                <div class="session-meta">192.168.1.100 • Active now</div>
+                            </div>
+                        </div>
+                        <span class="session-current">Current Session</span>
+                    </div>
+                    <div class="session-item">
+                        <div class="session-info">
+                            <div class="session-icon"><i class="fas fa-mobile-alt"></i></div>
+                            <div>
+                                <div class="session-device">Safari on iPhone</div>
+                                <div class="session-meta">192.168.1.105 • 2 hours ago</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">Revoke</button>
+                    </div>
+                    <div class="session-item">
+                        <div class="session-info">
+                            <div class="session-icon"><i class="fas fa-tablet-alt"></i></div>
+                            <div>
+                                <div class="session-device">Firefox on Linux</div>
+                                <div class="session-meta">10.0.0.50 • 1 day ago</div>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">Revoke</button>
+                    </div>
+
+                    <button class="btn btn-danger" style="margin-top: 1rem;">
+                        <i class="fas fa-sign-out-alt"></i> Sign Out All Other Sessions
+                    </button>
+                </div>
+            </div>
+
+            <!-- Notifications Panel -->
+            <div class="settings-panel" id="notifications">
+                <div class="panel-header">
+                    <div class="panel-title">Notification Preferences</div>
+                    <div class="panel-description">Control how and when you receive notifications</div>
+                </div>
+                <div class="panel-body">
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-bell"></i> Alert Notifications</div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Critical Alerts</div>
+                                <div class="toggle-description">E-stop, limit switches, major failures</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Warning Alerts</div>
+                                <div class="toggle-description">Temperature warnings, tool life, vibration</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Info Notifications</div>
+                                <div class="toggle-description">Program complete, maintenance reminders</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-envelope"></i> Delivery Methods</div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Email Notifications</div>
+                                <div class="toggle-description">Receive alerts via email</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">SMS Notifications</div>
+                                <div class="toggle-description">Critical alerts sent to your phone</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Browser Push</div>
+                                <div class="toggle-description">Desktop notifications in browser</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-clock"></i> Quiet Hours</div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Enable Quiet Hours</div>
+                                <div class="toggle-description">Pause non-critical notifications during set hours</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="quietHoursToggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="form-row" id="quietHoursTime" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">From</label>
+                                <input type="time" class="form-control" value="22:00">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">To</label>
+                                <input type="time" class="form-control" value="07:00">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Display Panel -->
+            <div class="settings-panel" id="display">
+                <div class="panel-header">
+                    <div class="panel-title">Display Settings</div>
+                    <div class="panel-description">Customize the appearance of the interface</div>
+                </div>
+                <div class="panel-body">
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-moon"></i> Theme</div>
+                        <div class="theme-grid">
+                            <div class="theme-card selected" data-theme="dark">
+                                <div class="theme-preview dark"></div>
+                                <div class="theme-name">Dark</div>
+                            </div>
+                            <div class="theme-card" data-theme="light">
+                                <div class="theme-preview light"></div>
+                                <div class="theme-name">Light</div>
+                            </div>
+                            <div class="theme-card" data-theme="system">
+                                <div class="theme-preview system"></div>
+                                <div class="theme-name">System</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-text-height"></i> Text Size</div>
+                        <div class="form-group">
+                            <input type="range" class="threshold-slider" min="12" max="20" value="14" id="textSize">
+                            <div class="form-hint">Current: <span id="textSizeValue">14px</span></div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-tachometer-alt"></i> Dashboard</div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Auto-refresh Dashboards</div>
+                                <div class="toggle-description">Automatically update data every 5 seconds</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Show Animations</div>
+                                <div class="toggle-description">Enable chart and transition animations</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-row">
+                            <div class="toggle-info">
+                                <div class="toggle-label">Compact Mode</div>
+                                <div class="toggle-description">Reduce spacing for more content</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Thresholds Panel -->
+            <div class="settings-panel" id="thresholds">
+                <div class="panel-header">
+                    <div class="panel-title">Alert Thresholds</div>
+                    <div class="panel-description">Configure when alerts should be triggered</div>
+                </div>
+                <div class="panel-body">
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-thermometer-half"></i> Temperature</div>
+                        <div class="threshold-item">
+                            <div class="threshold-header">
+                                <span class="threshold-label">Warning Threshold</span>
+                                <span class="threshold-value" id="tempWarnValue">75°C</span>
+                            </div>
+                            <input type="range" class="threshold-slider" min="50" max="100" value="75" id="tempWarn">
+                        </div>
+                        <div class="threshold-item">
+                            <div class="threshold-header">
+                                <span class="threshold-label">Critical Threshold</span>
+                                <span class="threshold-value" id="tempCritValue">85°C</span>
+                            </div>
+                            <input type="range" class="threshold-slider" min="50" max="100" value="85" id="tempCrit">
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-wave-square"></i> Vibration</div>
+                        <div class="threshold-item">
+                            <div class="threshold-header">
+                                <span class="threshold-label">Warning Threshold (RMS)</span>
+                                <span class="threshold-value" id="vibWarnValue">2.0g</span>
+                            </div>
+                            <input type="range" class="threshold-slider" min="0.5" max="5" step="0.1" value="2.0" id="vibWarn">
+                        </div>
+                        <div class="threshold-item">
+                            <div class="threshold-header">
+                                <span class="threshold-label">Critical Threshold (RMS)</span>
+                                <span class="threshold-value" id="vibCritValue">3.5g</span>
+                            </div>
+                            <input type="range" class="threshold-slider" min="0.5" max="5" step="0.1" value="3.5" id="vibCrit">
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <div class="form-section-title"><i class="fas fa-tools"></i> Tool Life</div>
+                        <div class="threshold-item">
+                            <div class="threshold-header">
+                                <span class="threshold-label">Warning at % of life</span>
+                                <span class="threshold-value" id="toolWarnValue">80%</span>
+                            </div>
+                            <input type="range" class="threshold-slider" min="50" max="100" value="80" id="toolWarn">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Keys Panel -->
+            <div class="settings-panel" id="api">
+                <div class="panel-header">
+                    <div class="panel-title">API Keys</div>
+                    <div class="panel-description">Manage API keys for external integrations</div>
+                </div>
+                <div class="panel-body">
+                    <div style="margin-bottom: 1.5rem;">
+                        <button class="btn btn-primary"><i class="fas fa-plus"></i> Generate New Key</button>
+                    </div>
+                    <table class="api-keys-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Key</th>
+                                <th>Created</th>
+                                <th>Last Used</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Production API</td>
+                                <td><span class="key-value">sk_live_****...4f2a</span></td>
+                                <td>Dec 1, 2024</td>
+                                <td>2 hours ago</td>
+                                <td><span class="key-status active">Active</span></td>
+                                <td><button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">Revoke</button></td>
+                            </tr>
+                            <tr>
+                                <td>MQTT Bridge</td>
+                                <td><span class="key-value">sk_mqtt_****...8e1b</span></td>
+                                <td>Nov 15, 2024</td>
+                                <td>Active now</td>
+                                <td><span class="key-status active">Active</span></td>
+                                <td><button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">Revoke</button></td>
+                            </tr>
+                            <tr>
+                                <td>Test Environment</td>
+                                <td><span class="key-value">sk_test_****...3c9d</span></td>
+                                <td>Oct 20, 2024</td>
+                                <td>30 days ago</td>
+                                <td><span class="key-status expired">Expired</span></td>
+                                <td><button class="btn btn-outline" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;">Delete</button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Integrations Panel -->
+            <div class="settings-panel" id="integrations">
+                <div class="panel-header">
+                    <div class="panel-title">Integrations</div>
+                    <div class="panel-description">Connect with external services and platforms</div>
+                </div>
+                <div class="panel-body">
+                    <div class="toggle-row">
+                        <div class="toggle-info" style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="width: 40px; height: 40px; background: #e74c3c; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-database" style="color: white;"></i>
+                            </div>
+                            <div>
+                                <div class="toggle-label">InfluxDB</div>
+                                <div class="toggle-description">Time-series database for sensor data</div>
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info" style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="width: 40px; height: 40px; background: #660066; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-broadcast-tower" style="color: white;"></i>
+                            </div>
+                            <div>
+                                <div class="toggle-label">MQTT Broker</div>
+                                <div class="toggle-description">Real-time message streaming</div>
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info" style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="width: 40px; height: 40px; background: #b7410e; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-project-diagram" style="color: white;"></i>
+                            </div>
+                            <div>
+                                <div class="toggle-label">Node-RED</div>
+                                <div class="toggle-description">Flow-based automation</div>
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info" style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="width: 40px; height: 40px; background: #f46800; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-chart-line" style="color: white;"></i>
+                            </div>
+                            <div>
+                                <div class="toggle-label">Grafana</div>
+                                <div class="toggle-description">Metrics visualization and dashboards</div>
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div class="toggle-info" style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="width: 40px; height: 40px; background: #00a4de; border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-industry" style="color: white;"></i>
+                            </div>
+                            <div>
+                                <div class="toggle-label">Ignition SCADA</div>
+                                <div class="toggle-description">Industrial HMI/SCADA platform</div>
+                            </div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Save Bar -->
+<div class="save-bar" id="saveBar">
+    <button class="btn btn-outline" onclick="discardChanges()">Discard Changes</button>
+    <button class="btn btn-success" onclick="saveChanges()"><i class="fas fa-check"></i> Save Changes</button>
+</div>
+
+<script>
+    // Navigation
+    document.querySelectorAll('.nav-item').forEach(item => {
+        item.addEventListener('click', function() {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+
+            this.classList.add('active');
+            document.getElementById(this.dataset.panel).classList.add('active');
+        });
+    });
+
+    // Theme selection
+    document.querySelectorAll('.theme-card').forEach(card => {
+        card.addEventListener('click', function() {
+            document.querySelectorAll('.theme-card').forEach(c => c.classList.remove('selected'));
+            this.classList.add('selected');
+            showSaveBar();
+        });
+    });
+
+    // Quiet hours toggle
+    document.getElementById('quietHoursToggle').addEventListener('change', function() {
+        document.getElementById('quietHoursTime').style.display = this.checked ? 'grid' : 'none';
+    });
+
+    // Text size slider
+    document.getElementById('textSize').addEventListener('input', function() {
+        document.getElementById('textSizeValue').textContent = this.value + 'px';
+        showSaveBar();
+    });
+
+    // Threshold sliders
+    const thresholds = [
+        { slider: 'tempWarn', display: 'tempWarnValue', unit: '°C' },
+        { slider: 'tempCrit', display: 'tempCritValue', unit: '°C' },
+        { slider: 'vibWarn', display: 'vibWarnValue', unit: 'g' },
+        { slider: 'vibCrit', display: 'vibCritValue', unit: 'g' },
+        { slider: 'toolWarn', display: 'toolWarnValue', unit: '%' }
+    ];
+
+    thresholds.forEach(t => {
+        const slider = document.getElementById(t.slider);
+        if (slider) {
+            slider.addEventListener('input', function() {
+                document.getElementById(t.display).textContent = this.value + t.unit;
+                showSaveBar();
+            });
+        }
+    });
+
+    // Track changes
+    document.querySelectorAll('.form-control, .form-select, .toggle-switch input').forEach(el => {
+        el.addEventListener('change', showSaveBar);
+    });
+
+    function showSaveBar() {
+        document.getElementById('saveBar').classList.add('show');
+    }
+
+    function discardChanges() {
+        if (confirm('Discard all unsaved changes?')) {
+            location.reload();
+        }
+    }
+
+    function saveChanges() {
+        // In a real implementation, this would save to the backend
+        document.getElementById('saveBar').classList.remove('show');
+        alert('Settings saved successfully!');
+    }
+</script>
+{% endblock %}

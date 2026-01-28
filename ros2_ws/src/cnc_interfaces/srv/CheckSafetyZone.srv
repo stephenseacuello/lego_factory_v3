@@ -1,0 +1,55 @@
+# CheckSafetyZone.srv - Check work envelope for safety hazards
+# CRITICAL: Use before any motion command
+
+# Request
+string zone                     # "work_envelope", "spindle_area", "fixture_zone", "tool_change", "all"
+string machine_id
+string camera_id                # Camera to use (default: safety camera)
+bool continuous_monitoring      # Start continuous monitoring vs single check
+---
+# Response
+bool success
+string message
+
+# Safety status
+bool zone_clear                 # True if no hazards detected
+uint8 SAFETY_OK = 0
+uint8 SAFETY_WARNING = 1
+uint8 SAFETY_CRITICAL = 2
+uint8 SAFETY_EMERGENCY = 3
+uint8 safety_level
+
+# Detected hazards
+VisionDetection[] hazards
+string[] hazard_types           # "hand", "person", "tool", "debris", "unknown_object"
+
+# Specific checks
+bool hands_detected
+bool person_detected
+bool ppe_compliant              # PPE detected if person present
+bool obstruction_detected
+
+# Nearest hazard
+float32 nearest_hazard_distance_mm
+string nearest_hazard_type
+float32 nearest_hazard_x
+float32 nearest_hazard_y
+
+# Zone details
+string[] zones_checked
+string[] zones_clear
+string[] zones_violated
+
+# Recommendations
+bool safe_to_proceed            # Motion can proceed
+bool estop_recommended
+bool pause_recommended
+string recommended_action
+
+# Evidence
+string image_path
+string annotated_image_path
+float32 inference_time_ms
+
+# For continuous monitoring
+string monitoring_session_id    # Session ID if continuous monitoring started

@@ -1,0 +1,247 @@
+# LEGO MCP Supervision Tree Configuration
+# OTP-style fault-tolerant supervision for Industry 4.0/5.0
+# ISA-95 Compliant Architecture
+#
+# Restart Strategies:
+#   ONE_FOR_ONE  - Only restart the failed child (independent nodes)
+#   ONE_FOR_ALL  - Restart ALL children on ANY failure (tightly coupled)
+#   REST_FOR_ONE - Restart failed + all started after it (ordered deps)
+#
+# Restart Types:
+#   PERMANENT  - Always restart on failure
+#   TEMPORARY  - Never restart (one-shot tasks)
+#   TRANSIENT  - Restart only on abnormal termination
+
+supervision_tree:
+  # Global supervisor settings
+  max_restarts: 5
+  restart_window_sec: 60
+  heartbeat_timeout_ms: 500
+  health_check_interval_sec: 1.0
+
+  # Root Supervisor - Top level, restarts everything on catastrophic failure
+  root_supervisor:
+    strategy: ONE_FOR_ALL
+    max_restarts: 3
+    restart_window_sec: 300
+
+    children:
+      # =================================================================
+      # SAFETY SUPERVISOR (ISA-95 Level 1 - Control)
+      # Strategy: ONE_FOR_ALL - Safety is tightly coupled, all or nothing
+      # =================================================================
+      - supervisor_id: safety_supervisor
+        strategy: ONE_FOR_ALL
+        max_restarts: 5
+        restart_window_sec: 60
+        children:
+          - child_id: safety_node
+            node_name: safety_node
+            package: lego_mcp_safety
+            executable: safety_node
+            restart_type: PERMANENT
+            lifecycle_managed: true
+            shutdown_timeout: 2.0
+            parameters:
+              estop_pin: 17
+              watchdog_pin: 27
+              watchdog_timeout_ms: 100
+              safety_zone_radius: 0.5
+
+          - child_id: watchdog_node
+            node_name: watchdog_node
+            package: lego_mcp_safety
+            executable: watchdog_node
+            restart_type: PERMANENT
+            lifecycle_managed: false
+            dependencies:
+              - safety_node
+            parameters:
+              check_interval_ms: 50
+              timeout_ms: 200
+
+      # =================================================================
+      # EQUIPMENT SUPERVISOR (ISA-95 Level 0 - Field)
+      # Strategy: ONE_FOR_ONE - Equipment is independent, isolate failures
+      # =================================================================
+      - supervisor_id: equipment_supervisor
+        strategy: ONE_FOR_ONE
+        max_restarts: 10
+        restart_window_sec: 120
+        children:
+          - child_id: grbl_node
+            node_name: grbl_node
+            package: grbl_ros2
+            executable: grbl_node_lifecycle
+            restart_type: PERMANENT
+            lifecycle_managed: true
+            shutdown_timeout: 5.0
+            start_delay: 1.0
+            parameters:
+              serial_port: /dev/ttyUSB0
+              baud_rate: 115200
+              status_poll_rate: 10.0
+
+          - child_id: formlabs_node
+            node_name: formlabs_node
+            package: formlabs_ros2
+            executable: formlabs_node_lifecycle
+            restart_type: PERMANENT
+            lifecycle_managed: true
+            shutdown_timeout: 10.0
+            start_delay: 1.0
+            parameters:
+              api_url: "http://localhost:9000"
+              poll_interval_sec: 5.0
+
+          - child_id: bambu_node
+            node_name: bambu_node
+            package: bambu_ros2
+            executable: bambu_node_lifecycle
+            restart_type: TRANSIENT
+            lifecycle_managed: true
+            shutdown_timeout: 5.0
+            start_delay: 1.0
+            parameters:
+              mqtt_host: "192.168.1.100"
+              mqtt_port: 8883
+              serial_number: ""
+              access_code: ""
+
+      # =================================================================
+      # ROBOTICS SUPERVISOR (ISA-95 Level 2 - Supervisory)
+      # Strategy: REST_FOR_ONE - Ordered dependencies (MoveIt -> Arms)
+      # =================================================================
+      - supervisor_id: robotics_supervisor
+        strategy: REST_FOR_ONE
+        max_restarts: 5
+        restart_window_sec: 120
+        children:
+          - child_id: moveit_node
+            node_name: moveit_node
+            package: lego_mcp_moveit_config
+            executable: moveit_node
+            restart_type: PERMANENT
+            lifecycle_managed: false
+            shutdown_timeout: 10.0
+            parameters:
+              planning_group: manipulator
+              planning_time: 5.0
+
+          - child_id: ned2_node
+            node_name: ned2_node
+            package: niryo_robot_ros2
+            executable: ned2_driver
+            restart_type: PERMANENT
+            lifecycle_managed: true
+            dependencies:
+              - moveit_node
+            start_delay: 2.0
+            parameters:
+              robot_ip: "192.168.1.50"
+              tool: gripper_1
+
+          - child_id: xarm_node
+            node_name: xarm_node
+            package: xarm_ros2
+            executable: xarm_driver
+            restart_type: TRANSIENT
+            lifecycle_managed: true
+            dependencies:
+              - moveit_node
+            start_delay: 2.0
+            parameters:
+              robot_ip: "192.168.1.51"
+              dof: 6
+
+      # =================================================================
+      # AGV SUPERVISOR (ISA-95 Level 2 - Supervisory)
+      # Strategy: ONE_FOR_ONE - AGVs are independent mobile units
+      # =================================================================
+      - supervisor_id: agv_supervisor
+        strategy: ONE_FOR_ONE
+        max_restarts: 10
+        restart_window_sec: 180
+        children:
+          - child_id: agv_fleet_node
+            node_name: agv_fleet_manager
+            package: lego_mcp_agv
+            executable: fleet_manager
+            restart_type: PERMANENT
+            lifecycle_managed: true
+            shutdown_timeout: 10.0
+            parameters:
+              fleet_size: 4
+              map_frame: map
+              update_rate: 10.0
+
+          - child_id: alvik_1
+            node_name: alvik_1
+            package: lego_mcp_microros
+            executable: alvik_agent
+            restart_type: TRANSIENT
+            lifecycle_managed: false
+            dependencies:
+              - agv_fleet_node
+            parameters:
+              agent_id: 1
+              serial_port: /dev/ttyACM0
+
+          - child_id: alvik_2
+            node_name: alvik_2
+            package: lego_mcp_microros
+            executable: alvik_agent
+            restart_type: TRANSIENT
+            lifecycle_managed: false
+            dependencies:
+              - agv_fleet_node
+            parameters:
+              agent_id: 2
+              serial_port: /dev/ttyACM1
+
+      # =================================================================
+      # ORCHESTRATOR (ISA-95 Level 2 - Supervisory)
+      # Top-level coordination - depends on all equipment being ready
+      # =================================================================
+      - supervisor_id: orchestrator_supervisor
+        strategy: ONE_FOR_ONE
+        max_restarts: 5
+        restart_window_sec: 120
+        children:
+          - child_id: orchestrator_node
+            node_name: orchestrator
+            package: lego_mcp_orchestrator
+            executable: orchestrator_lifecycle
+            restart_type: PERMANENT
+            lifecycle_managed: true
+            shutdown_timeout: 15.0
+            start_delay: 5.0
+            dependencies:
+              - safety_node
+              - grbl_node
+            parameters:
+              job_queue_size: 100
+              max_concurrent_jobs: 5
+
+
+# Checkpoint Configuration
+checkpoint:
+  enabled: true
+  storage_path: /var/lego_mcp/checkpoints
+  interval_sec: 60
+  max_checkpoints: 100
+  compression: true
+
+# Heartbeat Configuration
+heartbeat:
+  enabled: true
+  interval_ms: 100
+  timeout_ms: 500
+  missed_threshold: 3
+
+# Recovery Configuration
+recovery:
+  auto_recovery: true
+  escalation_enabled: true
+  escalation_threshold: 3
+  cooldown_sec: 30

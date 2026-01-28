@@ -1,0 +1,700 @@
+{% extends "base.html" %}
+{% block title %}Audit Log - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent: #3b82f6;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --purple: #8b5cf6;
+        --cyan: #06b6d4;
+    }
+
+    body {
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .audit-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i { color: var(--purple); }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-primary); }
+    .btn-outline:hover { background: var(--bg-card); }
+
+    /* Stats Cards */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
+
+    .stat-value { font-size: 1.75rem; font-weight: 700; }
+    .stat-label { font-size: 0.813rem; color: var(--text-secondary); }
+    .stat-trend { font-size: 0.75rem; margin-top: 0.5rem; }
+
+    /* Filters */
+    .filters-card {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .filters-row {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        align-items: flex-end;
+    }
+
+    .filter-group { flex: 1; min-width: 150px; }
+    .filter-label { display: block; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+
+    .form-control, .form-select {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .filter-chips {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .filter-chip {
+        padding: 0.375rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--text-secondary);
+    }
+
+    .filter-chip:hover, .filter-chip.active { border-color: var(--accent); color: var(--accent); }
+
+    /* Log Table */
+    .card {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .log-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .log-table th, .log-table td {
+        padding: 0.875rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .log-table th {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        font-weight: 600;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .log-table td { font-size: 0.875rem; }
+    .log-table tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+    .log-table tbody tr { cursor: pointer; }
+
+    /* Timestamp */
+    .timestamp {
+        font-family: 'SF Mono', Consolas, monospace;
+        font-size: 0.813rem;
+        color: var(--text-secondary);
+    }
+
+    /* Event Type Badge */
+    .event-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.25rem 0.625rem;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .event-badge.auth { background: rgba(59, 130, 246, 0.2); color: var(--accent); }
+    .event-badge.system { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+    .event-badge.security { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .event-badge.machine { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+    .event-badge.config { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .event-badge.data { background: rgba(6, 182, 212, 0.2); color: var(--cyan); }
+
+    /* Action Badge */
+    .action-badge {
+        padding: 0.125rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* User Info */
+    .user-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .user-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, var(--accent), var(--purple));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.625rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .user-name { font-weight: 500; }
+    .user-role { font-size: 0.75rem; color: var(--text-secondary); }
+
+    /* IP Address */
+    .ip-address {
+        font-family: 'SF Mono', Consolas, monospace;
+        font-size: 0.813rem;
+        color: var(--text-secondary);
+    }
+
+    /* Status */
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 0.5rem;
+    }
+
+    .status-dot.success { background: var(--success); }
+    .status-dot.failure { background: var(--danger); }
+    .status-dot.warning { background: var(--warning); }
+
+    /* Pagination */
+    .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .pagination-info { font-size: 0.875rem; color: var(--text-secondary); }
+
+    .pagination-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .page-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--text-primary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .page-btn:hover { background: var(--bg-dark); border-color: var(--accent); }
+    .page-btn.active { background: var(--accent); border-color: var(--accent); }
+    .page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Detail Modal */
+    .modal-backdrop {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 999;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-backdrop.show { display: flex; }
+
+    .modal-content {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        width: 90%;
+        max-width: 600px;
+        border: 1px solid var(--border-color);
+        max-height: 80vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        padding: 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title { font-size: 1.125rem; font-weight: 600; }
+    .modal-close { background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; }
+    .modal-body { padding: 1.25rem; }
+
+    .detail-row {
+        display: flex;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .detail-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+    .detail-label {
+        width: 120px;
+        font-size: 0.813rem;
+        color: var(--text-secondary);
+        flex-shrink: 0;
+    }
+
+    .detail-value { font-size: 0.875rem; }
+
+    .json-block {
+        background: var(--bg-dark);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        font-family: 'SF Mono', Consolas, monospace;
+        font-size: 0.813rem;
+        overflow-x: auto;
+        white-space: pre;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 768px) {
+        .stats-row { grid-template-columns: 1fr; }
+        .filters-row { flex-direction: column; }
+        .filter-group { width: 100%; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="audit-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-clipboard-list"></i>
+            Audit Log
+        </h1>
+        <div style="display: flex; gap: 1rem;">
+            <button class="btn btn-outline" onclick="exportLogs()">
+                <i class="fas fa-download"></i> Export
+            </button>
+            <a href="/portal" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> Portal
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2); color: var(--accent);">
+                <i class="fas fa-list"></i>
+            </div>
+            <div class="stat-value">2,847</div>
+            <div class="stat-label">Total Events Today</div>
+            <div class="stat-trend" style="color: var(--text-secondary);">Normal activity level</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--danger);">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="stat-value">12</div>
+            <div class="stat-label">Security Events</div>
+            <div class="stat-trend" style="color: var(--warning);">3 failed logins</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(16, 185, 129, 0.2); color: var(--success);">
+                <i class="fas fa-user-check"></i>
+            </div>
+            <div class="stat-value">8</div>
+            <div class="stat-label">Active Users</div>
+            <div class="stat-trend" style="color: var(--success);">All sessions valid</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(139, 92, 246, 0.2); color: var(--purple);">
+                <i class="fas fa-cog"></i>
+            </div>
+            <div class="stat-value">45</div>
+            <div class="stat-label">Config Changes</div>
+            <div class="stat-trend" style="color: var(--text-secondary);">This week</div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-card">
+        <div class="filters-row">
+            <div class="filter-group">
+                <label class="filter-label">Date Range</label>
+                <div style="display: flex; gap: 0.5rem;">
+                    <input type="date" class="form-control" id="dateFrom">
+                    <input type="date" class="form-control" id="dateTo">
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">Event Type</label>
+                <select class="form-select" id="eventType">
+                    <option value="">All Types</option>
+                    <option value="auth">Authentication</option>
+                    <option value="security">Security</option>
+                    <option value="system">System</option>
+                    <option value="machine">Machine</option>
+                    <option value="config">Configuration</option>
+                    <option value="data">Data</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">User</label>
+                <select class="form-select" id="userFilter">
+                    <option value="">All Users</option>
+                    <option value="john.doe">John Doe</option>
+                    <option value="jane.smith">Jane Smith</option>
+                    <option value="system">System</option>
+                    <option value="admin">Administrator</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">Status</label>
+                <div class="filter-chips">
+                    <button class="filter-chip active" data-status="all">All</button>
+                    <button class="filter-chip" data-status="success">Success</button>
+                    <button class="filter-chip" data-status="failure">Failure</button>
+                </div>
+            </div>
+
+            <div class="filter-group" style="flex: 0; min-width: auto;">
+                <label class="filter-label">&nbsp;</label>
+                <button class="btn btn-outline" onclick="clearFilters()">
+                    <i class="fas fa-times"></i> Clear
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Table -->
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title"><i class="fas fa-stream"></i> Event Log</span>
+            <span style="font-size: 0.813rem; color: var(--text-secondary);">
+                Showing <span id="showingCount">50</span> of <span id="totalCount">2,847</span> events
+            </span>
+        </div>
+
+        <table class="log-table">
+            <thead>
+                <tr>
+                    <th style="width: 160px;">Timestamp</th>
+                    <th style="width: 120px;">Event Type</th>
+                    <th style="width: 140px;">Action</th>
+                    <th>Description</th>
+                    <th style="width: 160px;">User</th>
+                    <th style="width: 120px;">IP Address</th>
+                    <th style="width: 80px;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="logTable">
+                <!-- Logs will be rendered here -->
+            </tbody>
+        </table>
+
+        <div class="pagination">
+            <div class="pagination-info">
+                Page <select class="form-select" style="width: 70px; display: inline-block;" id="pageSelect">
+                    <option>1</option>
+                    <option>2</option>
+                    <option>3</option>
+                    <option>4</option>
+                    <option>5</option>
+                </select> of 57
+            </div>
+            <div class="pagination-buttons">
+                <button class="page-btn" disabled><i class="fas fa-chevron-left"></i></button>
+                <button class="page-btn active">1</button>
+                <button class="page-btn">2</button>
+                <button class="page-btn">3</button>
+                <button class="page-btn">...</button>
+                <button class="page-btn">57</button>
+                <button class="page-btn"><i class="fas fa-chevron-right"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-backdrop" id="detailModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="modal-title">Event Details</span>
+            <button class="modal-close" onclick="hideModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <!-- Details will be rendered here -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // Sample log data
+    const logs = [
+        { timestamp: '2024-12-31 14:32:15', type: 'auth', action: 'LOGIN', description: 'User successfully logged in', user: { name: 'John Doe', initials: 'JD', role: 'Operator' }, ip: '192.168.1.100', status: 'success', details: { browser: 'Chrome 120', os: 'Windows 11', location: 'Shop Floor Terminal 1' } },
+        { timestamp: '2024-12-31 14:30:42', type: 'security', action: 'LOGIN_FAILED', description: 'Failed login attempt - invalid password', user: { name: 'Unknown', initials: '??', role: '' }, ip: '10.0.0.45', status: 'failure', details: { attempts: 3, username: 'admin', blocked: false } },
+        { timestamp: '2024-12-31 14:28:10', type: 'machine', action: 'STATUS_CHANGE', description: 'CNC-001 status changed from Idle to Running', user: { name: 'System', initials: 'SY', role: 'Automated' }, ip: '127.0.0.1', status: 'success', details: { machine: 'CNC-001', from: 'Idle', to: 'Running', program: 'Part_A_v3.nc' } },
+        { timestamp: '2024-12-31 14:25:33', type: 'config', action: 'SETTING_UPDATE', description: 'Temperature threshold updated from 75°C to 80°C', user: { name: 'Jane Smith', initials: 'JS', role: 'Supervisor' }, ip: '192.168.1.105', status: 'success', details: { setting: 'temp_warning_threshold', oldValue: 75, newValue: 80, category: 'Alerts' } },
+        { timestamp: '2024-12-31 14:22:18', type: 'data', action: 'EXPORT', description: 'OEE report exported to PDF', user: { name: 'John Doe', initials: 'JD', role: 'Operator' }, ip: '192.168.1.100', status: 'success', details: { reportType: 'OEE', format: 'PDF', dateRange: 'Dec 1-31, 2024', fileSize: '2.4 MB' } },
+        { timestamp: '2024-12-31 14:18:55', type: 'system', action: 'SERVICE_START', description: 'MQTT broker service started', user: { name: 'System', initials: 'SY', role: 'Automated' }, ip: '127.0.0.1', status: 'success', details: { service: 'mqtt_broker', port: 1883, pid: 4521 } },
+        { timestamp: '2024-12-31 14:15:22', type: 'auth', action: 'LOGOUT', description: 'User logged out', user: { name: 'Mike Wilson', initials: 'MW', role: 'Maintenance' }, ip: '192.168.1.108', status: 'success', details: { sessionDuration: '4h 32m', pagesVisited: 47 } },
+        { timestamp: '2024-12-31 14:12:08', type: 'security', action: 'PERMISSION_DENIED', description: 'Access denied to Admin Settings', user: { name: 'John Doe', initials: 'JD', role: 'Operator' }, ip: '192.168.1.100', status: 'failure', details: { resource: '/admin/settings', requiredRole: 'Admin', userRole: 'Operator' } },
+        { timestamp: '2024-12-31 14:08:45', type: 'machine', action: 'ALARM', description: 'Temperature warning on CNC-002 spindle', user: { name: 'System', initials: 'SY', role: 'Automated' }, ip: '127.0.0.1', status: 'warning', details: { machine: 'CNC-002', alarm: 'TEMP_WARNING', value: 78, threshold: 75 } },
+        { timestamp: '2024-12-31 14:05:30', type: 'data', action: 'BACKUP', description: 'Automated database backup completed', user: { name: 'System', initials: 'SY', role: 'Automated' }, ip: '127.0.0.1', status: 'success', details: { database: 'cnc_scada', size: '1.2 GB', duration: '45s', destination: '/backups/daily/' } }
+    ];
+
+    // Render logs
+    function renderLogs() {
+        const tbody = document.getElementById('logTable');
+        tbody.innerHTML = logs.map(log => `
+            <tr onclick="showDetail(${logs.indexOf(log)})">
+                <td class="timestamp">${log.timestamp}</td>
+                <td><span class="event-badge ${log.type}"><i class="fas fa-${getTypeIcon(log.type)}"></i> ${formatType(log.type)}</span></td>
+                <td><span class="action-badge">${log.action}</span></td>
+                <td>${log.description}</td>
+                <td>
+                    <div class="user-info">
+                        <div class="user-avatar">${log.user.initials}</div>
+                        <div>
+                            <div class="user-name">${log.user.name}</div>
+                            ${log.user.role ? `<div class="user-role">${log.user.role}</div>` : ''}
+                        </div>
+                    </div>
+                </td>
+                <td class="ip-address">${log.ip}</td>
+                <td><span class="status-dot ${log.status}"></span>${capitalize(log.status)}</td>
+            </tr>
+        `).join('');
+    }
+
+    // Show detail modal
+    function showDetail(index) {
+        const log = logs[index];
+        const modal = document.getElementById('detailModal');
+        const body = document.getElementById('modalBody');
+
+        body.innerHTML = `
+            <div class="detail-row">
+                <div class="detail-label">Timestamp</div>
+                <div class="detail-value">${log.timestamp}</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Event Type</div>
+                <div class="detail-value"><span class="event-badge ${log.type}"><i class="fas fa-${getTypeIcon(log.type)}"></i> ${formatType(log.type)}</span></div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Action</div>
+                <div class="detail-value"><span class="action-badge">${log.action}</span></div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Description</div>
+                <div class="detail-value">${log.description}</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">User</div>
+                <div class="detail-value">
+                    <div class="user-info">
+                        <div class="user-avatar">${log.user.initials}</div>
+                        <div>
+                            <div class="user-name">${log.user.name}</div>
+                            ${log.user.role ? `<div class="user-role">${log.user.role}</div>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">IP Address</div>
+                <div class="detail-value"><code class="ip-address">${log.ip}</code></div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Status</div>
+                <div class="detail-value"><span class="status-dot ${log.status}"></span>${capitalize(log.status)}</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-label">Details</div>
+                <div class="detail-value" style="flex: 1;">
+                    <div class="json-block">${JSON.stringify(log.details, null, 2)}</div>
+                </div>
+            </div>
+        `;
+
+        modal.classList.add('show');
+    }
+
+    function hideModal() {
+        document.getElementById('detailModal').classList.remove('show');
+    }
+
+    // Filter chips
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.addEventListener('click', function() {
+            document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    // Helper functions
+    function getTypeIcon(type) {
+        const icons = {
+            auth: 'key',
+            security: 'shield-alt',
+            system: 'server',
+            machine: 'cog',
+            config: 'sliders-h',
+            data: 'database'
+        };
+        return icons[type] || 'circle';
+    }
+
+    function formatType(type) {
+        const labels = {
+            auth: 'Auth',
+            security: 'Security',
+            system: 'System',
+            machine: 'Machine',
+            config: 'Config',
+            data: 'Data'
+        };
+        return labels[type] || type;
+    }
+
+    function capitalize(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function clearFilters() {
+        document.getElementById('dateFrom').value = '';
+        document.getElementById('dateTo').value = '';
+        document.getElementById('eventType').value = '';
+        document.getElementById('userFilter').value = '';
+        document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        document.querySelector('.filter-chip[data-status="all"]').classList.add('active');
+    }
+
+    function exportLogs() {
+        alert('Exporting audit logs to CSV...');
+    }
+
+    // Initialize
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('dateFrom').value = today;
+    document.getElementById('dateTo').value = today;
+    renderLogs();
+</script>
+{% endblock %}

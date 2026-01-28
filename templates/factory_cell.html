@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factory Cell Digital Twin - Bantam CNC Manufacturing Cell</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --bg-dark: #1e293b;
+            --bg-card: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+        }
+
+        .card-header {
+            background-color: rgba(0,0,0,0.2);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-online { background-color: var(--success-color); }
+        .status-offline { background-color: var(--danger-color); }
+        .status-busy { background-color: var(--warning-color); animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Factory Layout Visualization */
+        .factory-layout {
+            position: relative;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 400px;
+            overflow: hidden;
+        }
+
+        .factory-grid {
+            display: grid;
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+
+        .machine-icon {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .machine-icon:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(37, 99, 235, 0.5);
+        }
+
+        .machine-label {
+            font-size: 10px;
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        /* Robot colors */
+        .robot-ned2 {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            left: 10%;
+            top: 30%;
+        }
+
+        .robot-xarm {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            right: 10%;
+            top: 30%;
+        }
+
+        .machine-bantam {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            left: 50%;
+            top: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 100px;
+        }
+
+        .station-inspection {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            right: 15%;
+            bottom: 20%;
+        }
+
+        .pallet-raw {
+            background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+            left: 5%;
+            bottom: 15%;
+            width: 60px;
+            height: 60px;
+            font-size: 18px;
+        }
+
+        .pallet-finished {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            right: 5%;
+            bottom: 15%;
+            width: 60px;
+            height: 60px;
+            font-size: 18px;
+        }
+
+        /* Workflow path visualization */
+        .workflow-path {
+            position: absolute;
+            stroke: rgba(255,255,255,0.2);
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 5,5;
+        }
+
+        /* Progress bars */
+        .progress-thin {
+            height: 6px;
+            border-radius: 3px;
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        .progress-thin .progress-bar {
+            border-radius: 3px;
+        }
+
+        /* Sensor gauges */
+        .sensor-gauge {
+            text-align: center;
+            padding: 10px;
+        }
+
+        .gauge-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .gauge-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .gauge-unit {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* Robot joint display */
+        .joint-display {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .joint-bar {
+            flex: 1;
+            height: 40px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .joint-fill {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, var(--primary-color), #60a5fa);
+            transition: height 0.2s ease;
+        }
+
+        .joint-label {
+            position: absolute;
+            bottom: 2px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 8px;
+            color: var(--text-secondary);
+        }
+
+        /* Production stats */
+        .stat-card {
+            text-align: center;
+            padding: 15px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Workflow stage indicator */
+        .workflow-stages {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .workflow-stages::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .stage {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .stage-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 2px solid rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .stage.active .stage-icon {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.5);
+        }
+
+        .stage.completed .stage-icon {
+            background: var(--success-color);
+            border-color: var(--success-color);
+        }
+
+        .stage-label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            text-align: center;
+            max-width: 60px;
+        }
+
+        /* Log/Events panel */
+        .event-log {
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 11px;
+        }
+
+        .event-item {
+            padding: 4px 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .event-time {
+            color: var(--text-secondary);
+            margin-right: 8px;
+        }
+
+        .event-type {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-right: 8px;
+        }
+
+        .event-robot { background: var(--primary-color); }
+        .event-machine { background: var(--success-color); }
+        .event-inspection { background: var(--warning-color); }
+        .event-alert { background: var(--danger-color); }
+
+        /* Control buttons */
+        .control-btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .btn-pause {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+
+        /* Connection status */
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+
+        .connection-status.connected {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .connection-status.disconnected {
+            background: var(--danger-color);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status disconnected" id="connectionStatus">
+        <i class="fas fa-circle"></i> <span id="connectionText">Disconnected</span>
+    </div>
+
+    <div class="container-fluid py-4">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1 class="mb-1">
+                            <i class="fas fa-industry me-2"></i>
+                            Factory Cell Digital Twin
+                        </h1>
+                        <p class="text-secondary mb-0">Bantam CNC Manufacturing Cell | Ned2 + xArm Lite 6</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="control-btn btn-start" onclick="startProduction()">
+                            <i class="fas fa-play me-2"></i>Start
+                        </button>
+                        <button class="control-btn btn-pause" onclick="pauseProduction()">
+                            <i class="fas fa-pause me-2"></i>Pause
+                        </button>
+                        <button class="control-btn btn-stop" onclick="stopProduction()">
+                            <i class="fas fa-stop me-2"></i>Stop
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow Stage Indicator -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="workflow-stages" id="workflowStages">
+                            <div class="stage" data-stage="idle">
+                                <div class="stage-icon"><i class="fas fa-circle"></i></div>
+                                <span class="stage-label">Idle</span>
+                            </div>
+                            <div class="stage" data-stage="load">
+                                <div class="stage-icon"><i class="fas fa-box"></i></div>
+                                <span class="stage-label">Load Stock</span>
+                            </div>
+                            <div class="stage" data-stage="fixture">
+                                <div class="stage-icon"><i class="fas fa-lock"></i></div>
+                                <span class="stage-label">Fixture</span>
+                            </div>
+                            <div class="stage" data-stage="machine">
+                                <div class="stage-icon"><i class="fas fa-cog fa-spin"></i></div>
+                                <span class="stage-label">Machine</span>
+                            </div>
+                            <div class="stage" data-stage="unload">
+                                <div class="stage-icon"><i class="fas fa-hand-paper"></i></div>
+                                <span class="stage-label">Unload</span>
+                            </div>
+                            <div class="stage" data-stage="inspect">
+                                <div class="stage-icon"><i class="fas fa-search"></i></div>
+                                <span class="stage-label">Inspect</span>
+                            </div>
+                            <div class="stage" data-stage="store">
+                                <div class="stage-icon"><i class="fas fa-archive"></i></div>
+                                <span class="stage-label">Store</span>
+                            </div>
+                            <div class="stage" data-stage="complete">
+                                <div class="stage-icon"><i class="fas fa-check"></i></div>
+                                <span class="stage-label">Complete</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Factory Layout -->
+            <div class="col-lg-8">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-map me-2"></i>Factory Cell Layout</span>
+                        <span class="badge bg-primary" id="currentPartId">No part</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="factory-layout" id="factoryLayout">
+                            <div class="factory-grid"></div>
+
+                            <!-- Ned2 Robot -->
+                            <div class="machine-icon robot-ned2" id="ned2Icon" onclick="showRobotDetails('ned2')">
+                                <i class="fas fa-robot"></i>
+                                <span class="machine-label">Ned2</span>
+                            </div>
+
+                            <!-- Bantam CNC -->
+                            <div class="machine-icon machine-bantam" id="bantamIcon" onclick="showMachineDetails('bantam')">
+                                <i class="fas fa-microchip"></i>
+                                <span class="machine-label">Bantam CNC</span>
+                            </div>
+
+                            <!-- xArm Robot -->
+                            <div class="machine-icon robot-xarm" id="xarmIcon" onclick="showRobotDetails('xarm')">
+                                <i class="fas fa-robot"></i>
+                                <span class="machine-label">xArm Lite 6</span>
+                            </div>
+
+                            <!-- Inspection Station -->
+                            <div class="machine-icon station-inspection" id="inspectionIcon">
+                                <i class="fas fa-microscope"></i>
+                                <span class="machine-label">Inspect</span>
+                            </div>
+
+                            <!-- Raw Stock Pallet -->
+                            <div class="machine-icon pallet-raw" id="rawPalletIcon">
+                                <i class="fas fa-boxes"></i>
+                                <span class="machine-label">Raw</span>
+                            </div>
+
+                            <!-- Finished Pallet -->
+                            <div class="machine-icon pallet-finished" id="finishedPalletIcon">
+                                <i class="fas fa-check-circle"></i>
+                                <span class="machine-label">Done</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bantam Sensors -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-thermometer-half me-2"></i>Bantam CNC Sensors
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="sensor-gauge">
+                                    <div class="gauge-value" id="spindleTemp">--</div>
+                                    <div class="gauge-unit">°C</div>
+                                    <div class="gauge-label">Spindle Temp</div>
+                                    <div class="progress progress-thin mt-2">
+                                        <div class="progress-bar bg-info" id="spindleTempBar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="sensor-gauge">
+                                    <div class="gauge-value" id="vibrationRms">--</div>
+                                    <div class="gauge-unit">g</div>
+                                    <div class="gauge-label">Vibration RMS</div>
+                                    <div class="progress progress-thin mt-2">
+                                        <div class="progress-bar bg-warning" id="vibrationBar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="sensor-gauge">
+                                    <div class="gauge-value" id="spindleCurrent">--</div>
+                                    <div class="gauge-unit">A</div>
+                                    <div class="gauge-label">Spindle Current</div>
+                                    <div class="progress progress-thin mt-2">
+                                        <div class="progress-bar bg-success" id="currentBar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="sensor-gauge">
+                                    <div class="gauge-value" id="machiningProgress">0</div>
+                                    <div class="gauge-unit">%</div>
+                                    <div class="gauge-label">Progress</div>
+                                    <div class="progress progress-thin mt-2">
+                                        <div class="progress-bar bg-primary" id="progressBar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel -->
+            <div class="col-lg-4">
+                <!-- Production Stats -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-chart-bar me-2"></i>Production Statistics
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <div class="stat-card">
+                                    <div class="stat-value text-primary" id="partsCompleted">0</div>
+                                    <div class="stat-label">Parts Done</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-card">
+                                    <div class="stat-value text-success" id="partsPassed">0</div>
+                                    <div class="stat-label">Passed</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-card">
+                                    <div class="stat-value text-danger" id="partsFailed">0</div>
+                                    <div class="stat-label">Failed</div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="stat-card">
+                                    <div class="stat-value text-info" id="passRate">--</div>
+                                    <div class="stat-label">Pass Rate</div>
+                                </div>
+                            </div>
+                        </div>
+                        <hr class="my-3" style="border-color: rgba(255,255,255,0.1)">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary">Cycle Time</span>
+                            <span class="fw-bold" id="cycleTime">--</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <span class="text-secondary">OEE</span>
+                            <span class="fw-bold text-success" id="oeeValue">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Robot Status -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="fas fa-robot me-2"></i>Robot Status
+                    </div>
+                    <div class="card-body">
+                        <!-- Ned2 -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>
+                                    <span class="status-indicator status-online" id="ned2Status"></span>
+                                    Ned2 (Loading)
+                                </span>
+                                <span class="badge bg-secondary" id="ned2State">Idle</span>
+                            </div>
+                            <div class="joint-display" id="ned2Joints">
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J1</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J2</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J3</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J4</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J5</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J6</span></div>
+                            </div>
+                        </div>
+
+                        <!-- xArm -->
+                        <div>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span>
+                                    <span class="status-indicator status-online" id="xarmStatus"></span>
+                                    xArm Lite 6 (Unloading)
+                                </span>
+                                <span class="badge bg-secondary" id="xarmState">Idle</span>
+                            </div>
+                            <div class="joint-display" id="xarmJoints">
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J1</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J2</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J3</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J4</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J5</span></div>
+                                <div class="joint-bar"><div class="joint-fill" style="height:50%"></div><span class="joint-label">J6</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Event Log -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-list me-2"></i>Event Log</span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearLog()">Clear</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="event-log" id="eventLog">
+                            <div class="event-item">
+                                <span class="event-time">--:--:--</span>
+                                <span class="event-type event-machine">SYSTEM</span>
+                                Waiting for connection...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        let socket = null;
+        let isConnected = false;
+
+        // State
+        let productionState = {
+            isRunning: false,
+            currentStage: 'idle',
+            currentPartId: null,
+            partsCompleted: 0,
+            partsPassed: 0,
+            partsFailed: 0
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            connectWebSocket();
+        });
+
+        function connectWebSocket() {
+            socket = io({
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', function() {
+                isConnected = true;
+                updateConnectionStatus(true);
+                addLogEntry('Connected to server', 'system');
+
+                // Join factory room
+                socket.emit('factory:join', { cell_id: 'factory-cell-001' });
+            });
+
+            socket.on('disconnect', function() {
+                isConnected = false;
+                updateConnectionStatus(false);
+                addLogEntry('Disconnected from server', 'alert');
+            });
+
+            // Factory events
+            socket.on('factory:state', handleFactoryState);
+            socket.on('factory:workflow', handleWorkflowChange);
+            socket.on('factory:production_stats', handleProductionStats);
+
+            // Robot events
+            socket.on('robot:state', handleRobotState);
+            socket.on('robot:joints', handleRobotJoints);
+            socket.on('robot:gripper', handleGripperState);
+            socket.on('robot:motion_start', handleMotionStart);
+            socket.on('robot:motion_complete', handleMotionComplete);
+
+            // Bantam events
+            socket.on('bantam:sensors', handleBantamSensors);
+            socket.on('bantam:progress', handleMachiningProgress);
+            socket.on('bantam:alert', handleBantamAlert);
+
+            // Part events
+            socket.on('part:created', handlePartCreated);
+            socket.on('part:completed', handlePartCompleted);
+
+            // Inspection events
+            socket.on('inspection:started', handleInspectionStarted);
+            socket.on('inspection:result', handleInspectionResult);
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            const textEl = document.getElementById('connectionText');
+
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                textEl.textContent = 'Connected';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                textEl.textContent = 'Disconnected';
+            }
+        }
+
+        // Event handlers
+        function handleFactoryState(data) {
+            productionState.isRunning = data.is_running;
+            productionState.currentStage = data.workflow_stage;
+            updateWorkflowDisplay(data.workflow_stage);
+        }
+
+        function handleWorkflowChange(data) {
+            productionState.currentStage = data.new_stage;
+            productionState.currentPartId = data.part_id;
+            updateWorkflowDisplay(data.new_stage);
+            document.getElementById('currentPartId').textContent = data.part_id || 'No part';
+            addLogEntry(`Workflow: ${data.old_stage} → ${data.new_stage}`, 'machine');
+        }
+
+        function handleProductionStats(data) {
+            document.getElementById('partsCompleted').textContent = data.parts_completed || 0;
+            document.getElementById('partsPassed').textContent = data.parts_passed || 0;
+            document.getElementById('partsFailed').textContent = data.parts_failed || 0;
+
+            const passRate = data.parts_completed > 0
+                ? ((data.parts_passed / data.parts_completed) * 100).toFixed(1) + '%'
+                : '--';
+            document.getElementById('passRate').textContent = passRate;
+
+            if (data.avg_cycle_time) {
+                document.getElementById('cycleTime').textContent = data.avg_cycle_time.toFixed(1) + 's';
+            }
+
+            if (data.oee) {
+                document.getElementById('oeeValue').textContent = (data.oee * 100).toFixed(1) + '%';
+            }
+        }
+
+        function handleRobotState(data) {
+            const robotId = data.robot_id;
+            const statusEl = document.getElementById(robotId.includes('ned2') ? 'ned2Status' : 'xarmStatus');
+            const stateEl = document.getElementById(robotId.includes('ned2') ? 'ned2State' : 'xarmState');
+
+            statusEl.className = `status-indicator status-${data.is_connected ? 'online' : 'offline'}`;
+            stateEl.textContent = data.mode || 'Idle';
+        }
+
+        function handleRobotJoints(data) {
+            const robotId = data.robot_id;
+            const jointsContainer = document.getElementById(robotId.includes('ned2') ? 'ned2Joints' : 'xarmJoints');
+            const fills = jointsContainer.querySelectorAll('.joint-fill');
+
+            data.joints.forEach((angle, i) => {
+                if (fills[i]) {
+                    // Normalize angle to percentage (assuming -180 to 180 range)
+                    const percent = ((angle + 180) / 360) * 100;
+                    fills[i].style.height = `${Math.min(100, Math.max(0, percent))}%`;
+                }
+            });
+        }
+
+        function handleGripperState(data) {
+            const robotId = data.robot_id;
+            const icon = document.getElementById(robotId.includes('ned2') ? 'ned2Icon' : 'xarmIcon');
+
+            if (data.holding_part) {
+                icon.classList.add('status-busy');
+            } else {
+                icon.classList.remove('status-busy');
+            }
+        }
+
+        function handleMotionStart(data) {
+            addLogEntry(`${data.robot_id}: Moving to ${data.target}`, 'robot');
+        }
+
+        function handleMotionComplete(data) {
+            if (!data.success) {
+                addLogEntry(`${data.robot_id}: Motion failed - ${data.error}`, 'alert');
+            }
+        }
+
+        function handleBantamSensors(data) {
+            if (data.spindle_temp_c !== undefined) {
+                document.getElementById('spindleTemp').textContent = data.spindle_temp_c.toFixed(1);
+                document.getElementById('spindleTempBar').style.width = `${(data.spindle_temp_c / 80) * 100}%`;
+            }
+
+            if (data.vibration_rms_g !== undefined) {
+                document.getElementById('vibrationRms').textContent = data.vibration_rms_g.toFixed(2);
+                document.getElementById('vibrationBar').style.width = `${(data.vibration_rms_g / 3) * 100}%`;
+            }
+
+            if (data.spindle_current_a !== undefined) {
+                document.getElementById('spindleCurrent').textContent = data.spindle_current_a.toFixed(1);
+                document.getElementById('currentBar').style.width = `${(data.spindle_current_a / 5) * 100}%`;
+            }
+        }
+
+        function handleMachiningProgress(data) {
+            document.getElementById('machiningProgress').textContent = data.progress_percent.toFixed(0);
+            document.getElementById('progressBar').style.width = `${data.progress_percent}%`;
+
+            // Update Bantam icon
+            const bantamIcon = document.getElementById('bantamIcon');
+            if (data.progress_percent > 0 && data.progress_percent < 100) {
+                bantamIcon.classList.add('status-busy');
+            } else {
+                bantamIcon.classList.remove('status-busy');
+            }
+        }
+
+        function handleBantamAlert(data) {
+            addLogEntry(`Bantam Alert: ${data.message}`, 'alert');
+        }
+
+        function handlePartCreated(data) {
+            productionState.currentPartId = data.part_id;
+            document.getElementById('currentPartId').textContent = data.part_id;
+            addLogEntry(`Part created: ${data.part_id}`, 'machine');
+        }
+
+        function handlePartCompleted(data) {
+            productionState.partsCompleted++;
+            if (data.inspection_result === 'passed') {
+                productionState.partsPassed++;
+            } else {
+                productionState.partsFailed++;
+            }
+
+            document.getElementById('partsCompleted').textContent = productionState.partsCompleted;
+            document.getElementById('partsPassed').textContent = productionState.partsPassed;
+            document.getElementById('partsFailed').textContent = productionState.partsFailed;
+
+            const passRate = ((productionState.partsPassed / productionState.partsCompleted) * 100).toFixed(1);
+            document.getElementById('passRate').textContent = passRate + '%';
+
+            addLogEntry(`Part ${data.part_id}: ${data.inspection_result.toUpperCase()}`,
+                data.inspection_result === 'passed' ? 'machine' : 'alert');
+        }
+
+        function handleInspectionStarted(data) {
+            addLogEntry(`Inspecting ${data.part_id}`, 'inspection');
+            document.getElementById('inspectionIcon').classList.add('status-busy');
+        }
+
+        function handleInspectionResult(data) {
+            document.getElementById('inspectionIcon').classList.remove('status-busy');
+            addLogEntry(`Inspection: ${data.result} (${(data.confidence * 100).toFixed(0)}%)`, 'inspection');
+        }
+
+        // UI updates
+        function updateWorkflowDisplay(stage) {
+            const stages = document.querySelectorAll('.stage');
+            const stageOrder = ['idle', 'load', 'fixture', 'machine', 'unload', 'inspect', 'store', 'complete'];
+            const currentIndex = stageOrder.indexOf(stage);
+
+            stages.forEach((el, i) => {
+                el.classList.remove('active', 'completed');
+                if (i < currentIndex) {
+                    el.classList.add('completed');
+                } else if (i === currentIndex) {
+                    el.classList.add('active');
+                }
+            });
+        }
+
+        function addLogEntry(message, type = 'system') {
+            const log = document.getElementById('eventLog');
+            const time = new Date().toLocaleTimeString();
+
+            const entry = document.createElement('div');
+            entry.className = 'event-item';
+            entry.innerHTML = `
+                <span class="event-time">${time}</span>
+                <span class="event-type event-${type}">${type.toUpperCase()}</span>
+                ${message}
+            `;
+
+            log.insertBefore(entry, log.firstChild);
+
+            // Keep only last 50 entries
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function clearLog() {
+            document.getElementById('eventLog').innerHTML = '';
+        }
+
+        // Control functions
+        function startProduction() {
+            if (!isConnected) {
+                alert('Not connected to server');
+                return;
+            }
+
+            fetch('/api/factory/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    addLogEntry('Production started', 'system');
+                })
+                .catch(err => {
+                    addLogEntry('Failed to start production', 'alert');
+                });
+        }
+
+        function pauseProduction() {
+            fetch('/api/factory/pause', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    addLogEntry('Production paused', 'system');
+                });
+        }
+
+        function stopProduction() {
+            fetch('/api/factory/stop', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    addLogEntry('Production stopped', 'system');
+                });
+        }
+
+        function showRobotDetails(robotId) {
+            // Could open a modal with detailed robot info
+            console.log('Show details for', robotId);
+        }
+
+        function showMachineDetails(machineId) {
+            // Could open a modal with detailed machine info
+            console.log('Show details for', machineId);
+        }
+    </script>
+</body>
+</html>

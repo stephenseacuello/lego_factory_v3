@@ -1,0 +1,342 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Dashboard</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Factory Overview</h2>
+    <div class="btn-group">
+        <button class="btn btn-outline-secondary btn-sm" onclick="refreshDashboard()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#timeRangeModal">
+            <i class="bi bi-calendar"></i> Last 24 Hours
+        </button>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-1">OEE</h6>
+                        <h3 class="mb-0">{{ oee.overall|default(85.2) }}%</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-speedometer2 fs-1 text-success opacity-50"></i>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    A: {{ oee.availability|default(92.1) }}% |
+                    P: {{ oee.performance|default(94.3) }}% |
+                    Q: {{ oee.quality|default(98.1) }}%
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card {% if active_alarms > 0 %}danger{% endif %}">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-1">Active Alarms</h6>
+                        <h3 class="mb-0">{{ active_alarms|default(3) }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-bell fs-1 {% if active_alarms > 0 %}text-danger{% else %}text-muted{% endif %} opacity-50"></i>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    Critical: {{ alarm_summary.critical|default(1) }} |
+                    High: {{ alarm_summary.high|default(2) }}
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-1">Work Orders</h6>
+                        <h3 class="mb-0">{{ work_orders.in_progress|default(12) }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-clipboard-check fs-1 text-primary opacity-50"></i>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    Pending: {{ work_orders.pending|default(8) }} |
+                    Completed: {{ work_orders.completed|default(45) }}
+                </small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted mb-1">Machines</h6>
+                        <h3 class="mb-0">{{ machines.running|default(5) }}/{{ machines.total|default(8) }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="bi bi-cpu fs-1 text-warning opacity-50"></i>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    Running | Idle: {{ machines.idle|default(2) }} | Alarm: {{ machines.alarm|default(1) }}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Machine Status -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-cpu me-2"></i>Machine Status</span>
+                <a href="{{ url_for('scada_web.machines') }}" class="btn btn-sm btn-link">View All</a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Machine</th>
+                                <th>Status</th>
+                                <th>Job</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for machine in machines_list|default([
+                                {'name': 'Prusa MK4 #1', 'status': 'running', 'job': 'WO-2024-001', 'progress': 67},
+                                {'name': 'Prusa MK4 #2', 'status': 'running', 'job': 'WO-2024-002', 'progress': 23},
+                                {'name': 'Bambu X1C #1', 'status': 'idle', 'job': '-', 'progress': 0},
+                                {'name': 'Niryo Ned2', 'status': 'running', 'job': 'Pick-Place', 'progress': 100},
+                                {'name': 'xArm Lite 6', 'status': 'alarm', 'job': 'ERROR', 'progress': 0},
+                            ]) %}
+                            <tr>
+                                <td>
+                                    <span class="machine-status status-{{ machine.status }}"></span>
+                                    {{ machine.name }}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if machine.status == 'running' else 'secondary' if machine.status == 'idle' else 'danger' }}">
+                                        {{ machine.status|title }}
+                                    </span>
+                                </td>
+                                <td><small>{{ machine.job }}</small></td>
+                                <td>
+                                    {% if machine.progress > 0 %}
+                                    <div class="progress" style="height: 6px; width: 80px;">
+                                        <div class="progress-bar" style="width: {{ machine.progress }}%"></div>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Alarms -->
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bell me-2"></i>Active Alarms</span>
+                <a href="{{ url_for('scada_web.alarms') }}" class="btn btn-sm btn-link">View All</a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Priority</th>
+                                <th>Source</th>
+                                <th>Message</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alarm in alarms_list|default([
+                                {'priority': 'critical', 'source': 'xArm Lite 6', 'message': 'Joint 3 over-torque', 'time': '2 min ago'},
+                                {'priority': 'high', 'source': 'Prusa MK4 #1', 'message': 'Filament runout', 'time': '15 min ago'},
+                                {'priority': 'medium', 'source': 'Conveyor-A', 'message': 'Belt tension low', 'time': '1 hr ago'},
+                            ]) %}
+                            <tr>
+                                <td>
+                                    <span class="badge alarm-{{ alarm.priority }}">
+                                        {{ alarm.priority|upper }}
+                                    </span>
+                                </td>
+                                <td>{{ alarm.source }}</td>
+                                <td><small>{{ alarm.message }}</small></td>
+                                <td><small class="text-muted">{{ alarm.time }}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Production Chart -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-graph-up me-2"></i>Production Output (24h)
+            </div>
+            <div class="card-body">
+                <canvas id="productionChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Work Orders -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-clipboard-check me-2"></i>Recent Work Orders</span>
+                <a href="{{ url_for('mes_web.work_orders') }}" class="btn btn-sm btn-link">View All</a>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for wo in recent_work_orders|default([
+                        {'number': 'WO-2024-156', 'product': '2x4 Red Brick', 'status': 'in_progress', 'qty': 500},
+                        {'number': 'WO-2024-155', 'product': '2x2 Blue Brick', 'status': 'completed', 'qty': 1000},
+                        {'number': 'WO-2024-154', 'product': 'Custom Gear', 'status': 'completed', 'qty': 50},
+                        {'number': 'WO-2024-153', 'product': '1x4 Yellow Brick', 'status': 'pending', 'qty': 750},
+                    ]) %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ wo.number }}</strong><br>
+                            <small class="text-muted">{{ wo.product }} ({{ wo.qty }})</small>
+                        </div>
+                        <span class="badge bg-{{ 'primary' if wo.status == 'in_progress' else 'success' if wo.status == 'completed' else 'secondary' }}">
+                            {{ wo.status|replace('_', ' ')|title }}
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- LEGO Brick Production -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-bricks me-2"></i>Brick Production Today
+            </div>
+            <div class="card-body">
+                <canvas id="brickChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Digital Twin Preview -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-badge-3d me-2"></i>Digital Twin</span>
+                <a href="{{ url_for('unity_web.viewer') }}" class="btn btn-sm btn-primary">
+                    Open Full View <i class="bi bi-box-arrow-up-right"></i>
+                </a>
+            </div>
+            <div class="card-body text-center">
+                <div id="unity-preview" style="height: 200px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;">
+                    <div class="text-white">
+                        <i class="bi bi-badge-3d-fill fs-1"></i>
+                        <p class="mb-0 mt-2">Click to load 3D factory view</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Production Chart
+    const productionCtx = document.getElementById('productionChart').getContext('2d');
+    new Chart(productionCtx, {
+        type: 'line',
+        data: {
+            labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', 'Now'],
+            datasets: [{
+                label: 'Units Produced',
+                data: [120, 150, 280, 420, 580, 720, 845],
+                borderColor: '#006CB7',
+                backgroundColor: 'rgba(0, 108, 183, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+
+    // Brick Production Chart
+    const brickCtx = document.getElementById('brickChart').getContext('2d');
+    new Chart(brickCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['2x4 Bricks', '2x2 Bricks', '1x4 Bricks', 'Custom Parts', 'Other'],
+            datasets: [{
+                data: [320, 250, 180, 45, 50],
+                backgroundColor: ['#E3000B', '#006CB7', '#FFD700', '#4DB848', '#6c757d']
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right'
+                }
+            }
+        }
+    });
+
+    // Real-time updates via Socket.IO
+    socket.on('machine_update', (data) => {
+        console.log('Machine update:', data);
+        // Update machine status in table
+    });
+
+    socket.on('production_update', (data) => {
+        console.log('Production update:', data);
+        // Update production chart
+    });
+
+    function refreshDashboard() {
+        location.reload();
+    }
+</script>
+{% endblock %}

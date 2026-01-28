@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OEE Dashboard - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .oee-gauge { text-align: center; padding: 2rem; }
+        .oee-value { font-size: 4rem; font-weight: 700; }
+        .oee-label { font-size: 1rem; color: #64748b; text-transform: uppercase; }
+        .metric-card { text-align: center; padding: 1.5rem; }
+        .metric-value { font-size: 2.5rem; font-weight: 700; }
+        .metric-label { color: #64748b; font-size: 0.85rem; }
+        .metric-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); margin-top: 0.5rem; overflow: hidden; }
+        .metric-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+        .loss-item { display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .loss-name { color: #94a3b8; }
+        .loss-value { font-weight: 600; }
+        .machine-row { padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .machine-row:hover { background: rgba(59,130,246,0.1); }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.05); }
+        .world-class { color: #10b981; }
+        .good { color: #22d3ee; }
+        .warning { color: #f59e0b; }
+        .critical { color: #ef4444; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>OEE Dashboard</a>
+            <div class="d-flex align-items-center gap-2">
+                <select class="form-select form-select-sm bg-dark text-light border-secondary" id="machineSelect" onchange="loadOEE()" style="width:200px">
+                    <option value="">All Machines</option>
+                </select>
+                <button class="btn btn-outline-light btn-sm" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Main OEE Display -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body oee-gauge">
+                        <div class="oee-value" id="oeeValue">85%</div>
+                        <div class="oee-label">Overall Equipment Effectiveness</div>
+                        <div class="mt-3">
+                            <span class="badge bg-success" id="oeeStatus">World Class</span>
+                        </div>
+                        <div class="mt-4">
+                            <small class="text-muted">Target: 85% | World Class: 85%+</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div class="row g-4 h-100">
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-info" id="availValue">92%</div>
+                                <div class="metric-label">Availability</div>
+                                <div class="metric-bar"><div class="metric-bar-fill bg-info" id="availBar" style="width:92%"></div></div>
+                                <small class="text-muted mt-2 d-block">Target: 90%</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-warning" id="perfValue">95%</div>
+                                <div class="metric-label">Performance</div>
+                                <div class="metric-bar"><div class="metric-bar-fill bg-warning" id="perfBar" style="width:95%"></div></div>
+                                <small class="text-muted mt-2 d-block">Target: 95%</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card h-100">
+                            <div class="card-body metric-card">
+                                <div class="metric-value text-success" id="qualValue">99%</div>
+                                <div class="metric-label">Quality</div>
+                                <div class="metric-bar"><div class="metric-bar-fill bg-success" id="qualBar" style="width:99%"></div></div>
+                                <small class="text-muted mt-2 d-block">Target: 99.9%</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Six Big Losses -->
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header"><i class="bi bi-exclamation-triangle me-2"></i>Six Big Losses</div>
+                    <div class="card-body">
+                        <div class="loss-item">
+                            <span class="loss-name"><i class="bi bi-tools text-danger me-2"></i>Equipment Failure</span>
+                            <span class="loss-value text-danger" id="loss1">2.5%</span>
+                        </div>
+                        <div class="loss-item">
+                            <span class="loss-name"><i class="bi bi-gear text-danger me-2"></i>Setup/Adjustments</span>
+                            <span class="loss-value" id="loss2">1.8%</span>
+                        </div>
+                        <div class="loss-item">
+                            <span class="loss-name"><i class="bi bi-pause-circle text-warning me-2"></i>Idling/Minor Stops</span>
+                            <span class="loss-value" id="loss3">1.2%</span>
+                        </div>
+                        <div class="loss-item">
+                            <span class="loss-name"><i class="bi bi-speedometer text-warning me-2"></i>Reduced Speed</span>
+                            <span class="loss-value" id="loss4">2.0%</span>
+                        </div>
+                        <div class="loss-item">
+                            <span class="loss-name"><i class="bi bi-x-circle text-info me-2"></i>Process Defects</span>
+                            <span class="loss-value" id="loss5">0.8%</span>
+                        </div>
+                        <div class="loss-item" style="border:none">
+                            <span class="loss-name"><i class="bi bi-graph-down text-info me-2"></i>Reduced Yield</span>
+                            <span class="loss-value" id="loss6">0.3%</span>
+                        </div>
+                        <div class="mt-3 pt-3 border-top border-secondary">
+                            <strong>Total Loss: <span class="text-danger" id="totalLoss">8.6%</span></strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- OEE Trend Chart -->
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><i class="bi bi-graph-up me-2"></i>OEE Trend</span>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-outline-light active" onclick="setTrendPeriod('day')">Day</button>
+                            <button class="btn btn-outline-light" onclick="setTrendPeriod('week')">Week</button>
+                            <button class="btn btn-outline-light" onclick="setTrendPeriod('month')">Month</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="oeeTrendChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Downtime and Machine Status -->
+        <div class="row g-4 mt-2">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><i class="bi bi-bar-chart me-2"></i>Downtime Pareto</span>
+                        <a href="/portal/downtime" class="btn btn-outline-light btn-sm">View All</a>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="paretoChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header"><i class="bi bi-hdd-stack me-2"></i>Machine Status</div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Machine</th>
+                                        <th>Status</th>
+                                        <th>OEE</th>
+                                        <th>Avail</th>
+                                        <th>Perf</th>
+                                        <th>Qual</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="machineStatusTable">
+                                    <tr>
+                                        <td>CNC-001</td>
+                                        <td><span class="badge bg-success">Running</span></td>
+                                        <td class="world-class">87%</td>
+                                        <td>94%</td>
+                                        <td>95%</td>
+                                        <td>98%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>CNC-002</td>
+                                        <td><span class="badge bg-warning">Setup</span></td>
+                                        <td class="good">82%</td>
+                                        <td>88%</td>
+                                        <td>96%</td>
+                                        <td>97%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>CNC-003</td>
+                                        <td><span class="badge bg-danger">Down</span></td>
+                                        <td class="critical">45%</td>
+                                        <td>50%</td>
+                                        <td>92%</td>
+                                        <td>98%</td>
+                                    </tr>
+                                    <tr>
+                                        <td>CNC-004</td>
+                                        <td><span class="badge bg-success">Running</span></td>
+                                        <td class="world-class">91%</td>
+                                        <td>96%</td>
+                                        <td>97%</td>
+                                        <td>98%</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="/static/js/realtime.js"></script>
+    <script>
+        let oeeTrendChart, paretoChart;
+
+        // Initialize real-time connection
+        const rt = new OEERealtime();
+        createConnectionIndicator(rt);
+
+        // Handle real-time OEE updates
+        rt.setOEEHandler((data) => {
+            console.log('Real-time OEE update:', data);
+            const selectedMachine = document.getElementById('machineSelect').value;
+            if (!selectedMachine || data.machine_id === selectedMachine) {
+                updateOEEDisplay(data.oee, data.availability, data.performance, data.quality);
+            }
+        });
+
+        // Handle downtime events
+        rt.setDowntimeHandler((data) => {
+            console.log('Downtime event:', data);
+            loadPareto(); // Refresh pareto chart
+            // Show toast notification
+            showToast(`${data.event_type === 'started' ? '⚠️ Machine Down' : '✅ Machine Up'}: ${data.machine_id}`, data.event_type === 'started' ? 'warning' : 'success');
+        });
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type === 'warning' ? 'warning' : type === 'success' ? 'success' : 'info'} position-fixed`;
+            toast.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px; animation: fadeIn 0.3s;';
+            toast.innerHTML = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 5000);
+        }
+
+        function updateOEEDisplay(oee, avail, perf, qual) {
+            document.getElementById('oeeValue').textContent = oee.toFixed(0) + '%';
+            document.getElementById('availValue').textContent = avail.toFixed(0) + '%';
+            document.getElementById('perfValue').textContent = perf.toFixed(0) + '%';
+            document.getElementById('qualValue').textContent = qual.toFixed(0) + '%';
+
+            document.getElementById('availBar').style.width = avail + '%';
+            document.getElementById('perfBar').style.width = perf + '%';
+            document.getElementById('qualBar').style.width = qual + '%';
+
+            // Update OEE status badge
+            const statusEl = document.getElementById('oeeStatus');
+            if (oee >= 85) {
+                statusEl.className = 'badge bg-success';
+                statusEl.textContent = 'World Class';
+            } else if (oee >= 70) {
+                statusEl.className = 'badge bg-info';
+                statusEl.textContent = 'Good';
+            } else if (oee >= 50) {
+                statusEl.className = 'badge bg-warning';
+                statusEl.textContent = 'Needs Improvement';
+            } else {
+                statusEl.className = 'badge bg-danger';
+                statusEl.textContent = 'Critical';
+            }
+        }
+
+        function initCharts() {
+            // OEE Trend
+            const trendCtx = document.getElementById('oeeTrendChart').getContext('2d');
+            oeeTrendChart = new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'OEE',
+                        data: [82, 85, 84, 87, 86, 88, 85],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59,130,246,0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'Target',
+                        data: [85, 85, 85, 85, 85, 85, 85],
+                        borderColor: '#10b981',
+                        borderDash: [5, 5],
+                        fill: false,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            // Pareto Chart
+            const paretoCtx = document.getElementById('paretoChart').getContext('2d');
+            paretoChart = new Chart(paretoCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Tool Change', 'Material Wait', 'Breakdown', 'Quality Issue', 'Operator'],
+                    datasets: [{
+                        label: 'Minutes',
+                        data: [120, 85, 60, 35, 20],
+                        backgroundColor: ['#ef4444', '#f59e0b', '#eab308', '#22d3ee', '#8b5cf6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        y: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        async function loadOEE() {
+            const machineId = document.getElementById('machineSelect').value || 'CNC-001';
+            try {
+                const res = await fetch(`/api/oee/machines/${machineId}/current`);
+                if (res.ok) {
+                    const data = await res.json();
+                    const oee = data.oee;
+                    document.getElementById('oeeValue').textContent = (oee.oee || 85).toFixed(0) + '%';
+                    document.getElementById('availValue').textContent = (oee.availability || 92).toFixed(0) + '%';
+                    document.getElementById('perfValue').textContent = (oee.performance || 95).toFixed(0) + '%';
+                    document.getElementById('qualValue').textContent = (oee.quality || 99).toFixed(0) + '%';
+                }
+            } catch(e) { console.log('Using demo data'); }
+        }
+
+        async function loadPareto() {
+            try {
+                const res = await fetch('/api/downtime/analytics/pareto?top_n=5');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.pareto?.length) {
+                        paretoChart.data.labels = data.pareto.map(p => p.group);
+                        paretoChart.data.datasets[0].data = data.pareto.map(p => p.total_minutes);
+                        paretoChart.update();
+                    }
+                }
+            } catch(e) {}
+        }
+
+        function loadData() {
+            loadOEE();
+            loadPareto();
+        }
+
+        function setTrendPeriod(period) {
+            // Update chart based on period
+            console.log('Set period:', period);
+        }
+
+        initCharts();
+        loadData();
+        setInterval(loadData, 30000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+# LEGO MCP Security Policy Configuration
+# IEC 62443 Compliant Security Zones and Access Control
+# Industry 4.0/5.0 Architecture
+
+# Global security settings
+global:
+  enable_sros2: true
+  default_security_level: SL-2
+  audit_all_events: true
+  key_rotation_days: 90
+  certificate_validity_days: 365
+
+# IEC 62443 Security Zones
+security_zones:
+  zone_0_safety:
+    name: "Safety Zone"
+    description: "ISO 10218 compliant safety systems"
+    security_level: SL-4  # Highest security
+    nodes:
+      - safety_node
+      - safety_lifecycle_node
+      - watchdog_node
+    allowed_protocols:
+      - DDS_ENCRYPTED
+    allowed_topics:
+      - /lego_mcp/safety/*
+      - /lego_mcp/estop
+      - /lego_mcp/heartbeat/*
+    access_policy: DENY_ALL_EXCEPT_LISTED
+    max_latency_ms: 10  # Real-time requirement
+    redundancy: true
+
+  zone_1_control:
+    name: "Control Zone"
+    description: "Equipment control nodes"
+    security_level: SL-3
+    nodes:
+      - grbl_node
+      - formlabs_node
+      - bambu_node
+      - calibration_node
+    allowed_protocols:
+      - DDS_ENCRYPTED
+      - DDS_SIGNED
+    allowed_topics:
+      - /lego_mcp/equipment/*
+      - /lego_mcp/cnc/*
+      - /lego_mcp/printer/*
+      - /joint_states
+      - /tf
+    access_policy: ALLOW_ZONE_INTERNAL
+    max_latency_ms: 50
+
+  zone_2_supervisory:
+    name: "Supervisory Zone"
+    description: "Orchestration and supervision"
+    security_level: SL-2
+    nodes:
+      - orchestrator_node
+      - orchestrator_lifecycle_node
+      - supervisor_node
+      - agv_fleet_node
+      - vision_node
+    allowed_protocols:
+      - DDS_ENCRYPTED
+      - DDS_SIGNED
+    allowed_topics:
+      - /lego_mcp/orchestrator/*
+      - /lego_mcp/supervisor/*
+      - /lego_mcp/agv/*
+      - /lego_mcp/vision/*
+    access_policy: ALLOW_ZONE_AND_LOWER
+    max_latency_ms: 100
+
+  zone_3_mes:
+    name: "MES/SCADA Zone"
+    description: "Manufacturing execution integration"
+    security_level: SL-2
+    nodes:
+      - mcp_bridge_node
+      - digital_twin_node
+      - scheduling_node
+    allowed_protocols:
+      - DDS_SIGNED
+      - HTTPS
+      - OPC_UA_SECURE
+    allowed_topics:
+      - /lego_mcp/mes/*
+      - /lego_mcp/twin/*
+      - /lego_mcp/schedule/*
+    access_policy: ALLOW_AUTHENTICATED
+    max_latency_ms: 500
+
+  zone_4_enterprise:
+    name: "Enterprise Zone"
+    description: "Cloud and analytics services"
+    security_level: SL-1
+    nodes:
+      - cloud_connector
+      - analytics_node
+    allowed_protocols:
+      - HTTPS
+      - MQTT_TLS
+    access_policy: EXTERNAL_API_ONLY
+    max_latency_ms: 5000
+
+# Conduits (inter-zone communication)
+conduits:
+  safety_to_control:
+    source_zone: zone_0_safety
+    target_zone: zone_1_control
+    direction: BIDIRECTIONAL
+    allowed_messages:
+      - estop_command
+      - equipment_status
+    encryption: REQUIRED
+    authentication: REQUIRED
+
+  control_to_supervisory:
+    source_zone: zone_1_control
+    target_zone: zone_2_supervisory
+    direction: BIDIRECTIONAL
+    allowed_messages:
+      - equipment_status
+      - job_commands
+      - telemetry
+    encryption: REQUIRED
+    authentication: REQUIRED
+
+  supervisory_to_mes:
+    source_zone: zone_2_supervisory
+    target_zone: zone_3_mes
+    direction: BIDIRECTIONAL
+    allowed_messages:
+      - work_order_updates
+      - schedule_requests
+      - quality_data
+    encryption: RECOMMENDED
+    authentication: REQUIRED
+
+  mes_to_enterprise:
+    source_zone: zone_3_mes
+    target_zone: zone_4_enterprise
+    direction: OUTBOUND_ONLY
+    allowed_messages:
+      - analytics_data
+      - production_metrics
+    encryption: REQUIRED
+    authentication: REQUIRED
+
+# Role-Based Access Control (RBAC)
+roles:
+  operator:
+    description: "Production floor operator"
+    permissions:
+      - VIEW_EQUIPMENT_STATUS
+      - START_JOB
+      - PAUSE_JOB
+      - ACKNOWLEDGE_ALARM
+    denied_actions:
+      - MODIFY_CONFIGURATION
+      - ACCESS_SECURITY_SETTINGS
+
+  engineer:
+    description: "Manufacturing engineer"
+    permissions:
+      - VIEW_EQUIPMENT_STATUS
+      - START_JOB
+      - PAUSE_JOB
+      - STOP_JOB
+      - MODIFY_CONFIGURATION
+      - VIEW_ANALYTICS
+      - CALIBRATE_EQUIPMENT
+    denied_actions:
+      - ACCESS_SECURITY_SETTINGS
+      - RUN_CHAOS_TESTS
+
+  maintenance:
+    description: "Maintenance technician"
+    permissions:
+      - VIEW_EQUIPMENT_STATUS
+      - STOP_EQUIPMENT
+      - MAINTENANCE_MODE
+      - CALIBRATE_EQUIPMENT
+      - VIEW_DIAGNOSTICS
+
+  security_admin:
+    description: "Security administrator"
+    permissions:
+      - ACCESS_SECURITY_SETTINGS
+      - VIEW_AUDIT_LOG
+      - ROTATE_KEYS
+      - MANAGE_USERS
+      - CONFIGURE_ZONES
+
+  system_admin:
+    description: "System administrator"
+    permissions:
+      - ALL_PERMISSIONS
+    denied_actions:
+      - RUN_CHAOS_TESTS  # Even admins need explicit approval
+
+  chaos_engineer:
+    description: "Chaos engineering (test only)"
+    permissions:
+      - RUN_CHAOS_TESTS
+      - VIEW_RESILIENCE_REPORTS
+    requires_approval: true
+    allowed_environments:
+      - test
+      - staging
+
+# Audit settings
+audit:
+  enabled: true
+  log_path: /var/log/lego_mcp/security_audit.log
+  retention_days: 90
+  hash_chain: true  # Tamper-evident logging
+
+  events_to_log:
+    - AUTHENTICATION_SUCCESS
+    - AUTHENTICATION_FAILURE
+    - AUTHORIZATION_DENIED
+    - CONFIGURATION_CHANGE
+    - SECURITY_ZONE_VIOLATION
+    - KEY_ROTATION
+    - INTRUSION_DETECTED
+    - ESTOP_TRIGGERED
+    - EQUIPMENT_FAULT
+    - CHAOS_TEST_STARTED
+    - CHAOS_TEST_COMPLETED
+
+  alert_thresholds:
+    auth_failures_per_minute: 5
+    zone_violations_per_hour: 3
+    intrusion_alerts_per_day: 1
+
+# Intrusion Detection Settings
+intrusion_detection:
+  enabled: true
+
+  detectors:
+    unauthorized_node:
+      enabled: true
+      action: ALERT_AND_BLOCK
+
+    topic_flooding:
+      enabled: true
+      threshold_msgs_per_sec: 1000
+      action: THROTTLE
+
+    message_tampering:
+      enabled: true
+      action: ALERT_AND_DROP
+
+    clock_skew:
+      enabled: true
+      max_skew_ms: 100
+      action: ALERT
+
+    unusual_traffic:
+      enabled: true
+      baseline_learning_hours: 24
+      deviation_threshold: 3.0  # Standard deviations
+      action: ALERT

@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --dark-bg: #1e293b;
+            --card-bg: #334155;
+            --code-bg: #0f172a;
+        }
+        body {
+            background: #0f172a;
+            min-height: 100vh;
+            color: #e2e8f0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+        }
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background: var(--dark-bg);
+            border-right: 1px solid rgba(255,255,255,0.1);
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        .sidebar-header {
+            padding: 1rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 1rem;
+        }
+        .sidebar-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .nav-section {
+            margin-bottom: 1.5rem;
+        }
+        .nav-section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #64748b;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem 0;
+        }
+        .nav-link {
+            color: #94a3b8;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            display: block;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .nav-link:hover, .nav-link.active {
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+        }
+        .main-content {
+            margin-left: 280px;
+            padding: 2rem;
+        }
+        .endpoint-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .method-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-right: 0.5rem;
+        }
+        .method-get { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+        .method-post { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .method-put { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .method-delete { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .endpoint-path {
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 1rem;
+            color: #fff;
+        }
+        .endpoint-desc {
+            color: #94a3b8;
+            margin-top: 0.75rem;
+            line-height: 1.6;
+        }
+        .code-block {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.85rem;
+            overflow-x: auto;
+            margin-top: 1rem;
+        }
+        .param-table {
+            width: 100%;
+            margin-top: 1rem;
+        }
+        .param-table th {
+            color: #64748b;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .param-table td {
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.9rem;
+        }
+        .param-name { color: #60a5fa; font-family: monospace; }
+        .param-type { color: #a78bfa; }
+        .param-required { color: #f87171; font-size: 0.75rem; }
+        .try-it-btn {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid #3b82f6;
+            color: #60a5fa;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .try-it-btn:hover {
+            background: rgba(59, 130, 246, 0.3);
+        }
+        .response-area {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            max-height: 400px;
+            overflow: auto;
+            display: none;
+        }
+        .response-area.show { display: block; }
+        .section-header {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .search-box {
+            background: var(--code-bg);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            color: #fff;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        .tag {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            margin-left: 0.5rem;
+        }
+        .tag-auth { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .tag-realtime { background: rgba(34, 211, 238, 0.2); color: #22d3ee; }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-title">
+                <i class="bi bi-book me-2"></i>API Docs
+            </div>
+            <div class="text-muted small">Flask CNC SCADA v1.0</div>
+        </div>
+
+        <input type="text" class="search-box" id="searchBox" placeholder="Search endpoints...">
+
+        <nav>
+            <div class="nav-section">
+                <div class="nav-section-title">Overview</div>
+                <a href="#introduction" class="nav-link active">Introduction</a>
+                <a href="#authentication" class="nav-link">Authentication</a>
+                <a href="#errors" class="nav-link">Error Handling</a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Machine Control</div>
+                <a href="#tinyg" class="nav-link">TinyG Controller</a>
+                <a href="#mcc" class="nav-link">MCC Controller</a>
+                <a href="#gcode" class="nav-link">G-Code Management</a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">MES Operations</div>
+                <a href="#workorders" class="nav-link">Work Orders</a>
+                <a href="#labor" class="nav-link">Labor Tracking</a>
+                <a href="#dispatching" class="nav-link">Dispatching</a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Quality</div>
+                <a href="#genealogy" class="nav-link">Genealogy</a>
+                <a href="#spc" class="nav-link">SPC</a>
+                <a href="#traceability" class="nav-link">Traceability</a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Analytics</div>
+                <a href="#oee" class="nav-link">OEE</a>
+                <a href="#downtime" class="nav-link">Downtime</a>
+                <a href="#analytics" class="nav-link">Predictive</a>
+            </div>
+
+            <div class="nav-section">
+                <div class="nav-section-title">Integration</div>
+                <a href="#sensors" class="nav-link">Sensors</a>
+                <a href="#mqtt" class="nav-link">MQTT</a>
+                <a href="#mcp" class="nav-link">MCP</a>
+            </div>
+        </nav>
+
+        <div class="mt-4 pt-3 border-top border-secondary">
+            <a href="/portal" class="nav-link"><i class="bi bi-arrow-left me-2"></i>Back to Portal</a>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <!-- Introduction -->
+        <section id="introduction" class="mb-5">
+            <h2 class="section-header">Introduction</h2>
+            <div class="endpoint-card">
+                <p>Welcome to the Flask CNC SCADA API documentation. This API provides comprehensive access to manufacturing execution, machine control, quality management, and analytics capabilities.</p>
+
+                <h5 class="mt-4 mb-3">Base URL</h5>
+                <div class="code-block">
+                    <code>http://localhost:5000/api</code>
+                </div>
+
+                <h5 class="mt-4 mb-3">Response Format</h5>
+                <p class="text-muted">All responses are returned in JSON format with consistent structure:</p>
+                <div class="code-block">
+<pre>{
+  "success": true,
+  "data": { ... },
+  "message": "Operation completed successfully",
+  "timestamp": "2025-01-03T12:00:00Z"
+}</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Authentication -->
+        <section id="authentication" class="mb-5">
+            <h2 class="section-header">Authentication</h2>
+            <div class="endpoint-card">
+                <p>API endpoints support optional JWT authentication. Include the token in the Authorization header:</p>
+                <div class="code-block">
+                    <code>Authorization: Bearer &lt;your-jwt-token&gt;</code>
+                </div>
+
+                <div class="endpoint-card mt-4" style="background: var(--code-bg);">
+                    <div class="d-flex align-items-center">
+                        <span class="method-badge method-post">POST</span>
+                        <span class="endpoint-path">/api/auth/login</span>
+                    </div>
+                    <p class="endpoint-desc">Authenticate user and receive JWT token</p>
+                    <table class="param-table">
+                        <thead>
+                            <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="param-name">username</span></td>
+                                <td><span class="param-type">string</span></td>
+                                <td>User's username <span class="param-required">required</span></td>
+                            </tr>
+                            <tr>
+                                <td><span class="param-name">password</span></td>
+                                <td><span class="param-type">string</span></td>
+                                <td>User's password <span class="param-required">required</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TinyG Controller -->
+        <section id="tinyg" class="mb-5">
+            <h2 class="section-header">TinyG Controller</h2>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/tinyg/status</span>
+                        <span class="tag tag-realtime">Real-time</span>
+                    </div>
+                    <button class="try-it-btn" onclick="tryEndpoint('/api/tinyg/status', 'GET', this)">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">Get current TinyG controller status including position, state, and configuration.</p>
+                <div class="response-area" id="resp-tinyg-status"></div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-post">POST</span>
+                        <span class="endpoint-path">/api/tinyg/command</span>
+                    </div>
+                    <button class="try-it-btn" onclick="showCommandModal('tinyg')">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">Send a G-code or JSON command to the TinyG controller.</p>
+                <table class="param-table">
+                    <thead>
+                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="param-name">command</span></td>
+                            <td><span class="param-type">string</span></td>
+                            <td>G-code command (e.g., "G0 X10 Y20") <span class="param-required">required</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/tinyg/home</span>
+                </div>
+                <p class="endpoint-desc">Execute homing cycle on specified axes.</p>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/tinyg/feedhold</span>
+                </div>
+                <p class="endpoint-desc">Pause current motion with feedhold command.</p>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/tinyg/resume</span>
+                </div>
+                <p class="endpoint-desc">Resume motion after feedhold.</p>
+            </div>
+        </section>
+
+        <!-- Work Orders -->
+        <section id="workorders" class="mb-5">
+            <h2 class="section-header">Work Orders</h2>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/workorders/</span>
+                    </div>
+                    <button class="try-it-btn" onclick="tryEndpoint('/api/workorders/', 'GET', this)">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">List all work orders with optional filtering and pagination.</p>
+                <table class="param-table">
+                    <thead>
+                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="param-name">status</span></td>
+                            <td><span class="param-type">string</span></td>
+                            <td>Filter by status (pending, in_progress, completed)</td>
+                        </tr>
+                        <tr>
+                            <td><span class="param-name">limit</span></td>
+                            <td><span class="param-type">integer</span></td>
+                            <td>Number of results (default: 50)</td>
+                        </tr>
+                        <tr>
+                            <td><span class="param-name">offset</span></td>
+                            <td><span class="param-type">integer</span></td>
+                            <td>Pagination offset (default: 0)</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div class="response-area"></div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/workorders/</span>
+                </div>
+                <p class="endpoint-desc">Create a new work order.</p>
+                <div class="code-block">
+<pre>{
+  "wo_number": "WO-2025-001",
+  "part_number": "PART-001",
+  "quantity_ordered": 100,
+  "priority": "high",
+  "due_date": "2025-01-15"
+}</pre>
+                </div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/api/workorders/{wo_id}</span>
+                </div>
+                <p class="endpoint-desc">Get details of a specific work order.</p>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-put">PUT</span>
+                    <span class="endpoint-path">/api/workorders/{wo_id}/status</span>
+                </div>
+                <p class="endpoint-desc">Update work order status.</p>
+            </div>
+        </section>
+
+        <!-- Labor Tracking -->
+        <section id="labor" class="mb-5">
+            <h2 class="section-header">Labor Tracking</h2>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/labor/who-is-working</span>
+                    </div>
+                    <button class="try-it-btn" onclick="tryEndpoint('/api/labor/who-is-working', 'GET', this)">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">Get list of operators currently clocked in and working.</p>
+                <div class="response-area"></div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/labor/clock-in</span>
+                </div>
+                <p class="endpoint-desc">Clock an operator into a work order operation.</p>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/labor/clock-out</span>
+                </div>
+                <p class="endpoint-desc">Clock an operator out of their current operation.</p>
+            </div>
+        </section>
+
+        <!-- OEE -->
+        <section id="oee" class="mb-5">
+            <h2 class="section-header">OEE Metrics</h2>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/oee/current</span>
+                        <span class="tag tag-realtime">Real-time</span>
+                    </div>
+                    <button class="try-it-btn" onclick="tryEndpoint('/api/oee/current', 'GET', this)">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">Get current OEE metrics for all machines.</p>
+                <div class="response-area"></div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/api/oee/machine/{machine_id}</span>
+                </div>
+                <p class="endpoint-desc">Get OEE metrics for a specific machine.</p>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/api/oee/trends</span>
+                </div>
+                <p class="endpoint-desc">Get OEE trend data over time.</p>
+                <table class="param-table">
+                    <thead>
+                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="param-name">period</span></td>
+                            <td><span class="param-type">string</span></td>
+                            <td>Time period (hourly, daily, weekly, monthly)</td>
+                        </tr>
+                        <tr>
+                            <td><span class="param-name">days</span></td>
+                            <td><span class="param-type">integer</span></td>
+                            <td>Number of days to include (default: 7)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Downtime -->
+        <section id="downtime" class="mb-5">
+            <h2 class="section-header">Downtime Tracking</h2>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/downtime/machines/down</span>
+                        <span class="tag tag-realtime">Real-time</span>
+                    </div>
+                    <button class="try-it-btn" onclick="tryEndpoint('/api/downtime/machines/down', 'GET', this)">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">Get list of machines currently down.</p>
+                <div class="response-area"></div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/downtime/events</span>
+                </div>
+                <p class="endpoint-desc">Record a new downtime event.</p>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/api/downtime/pareto</span>
+                </div>
+                <p class="endpoint-desc">Get Pareto analysis of downtime reasons.</p>
+            </div>
+        </section>
+
+        <!-- Sensors -->
+        <section id="sensors" class="mb-5">
+            <h2 class="section-header">Sensors</h2>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/sensors/status</span>
+                        <span class="tag tag-realtime">Real-time</span>
+                    </div>
+                    <button class="try-it-btn" onclick="tryEndpoint('/api/sensors/status', 'GET', this)">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">Get current status of all connected sensors.</p>
+                <div class="response-area"></div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/api/sensors/data</span>
+                </div>
+                <p class="endpoint-desc">Get latest sensor readings.</p>
+            </div>
+        </section>
+
+        <!-- Genealogy -->
+        <section id="genealogy" class="mb-5">
+            <h2 class="section-header">Genealogy & Traceability</h2>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/genealogy/analytics/summary</span>
+                    </div>
+                    <button class="try-it-btn" onclick="tryEndpoint('/api/genealogy/analytics/summary', 'GET', this)">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">Get genealogy analytics summary.</p>
+                <div class="response-area"></div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/api/genealogy/serial/{serial_number}</span>
+                </div>
+                <p class="endpoint-desc">Trace component history by serial number.</p>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/genealogy/record</span>
+                </div>
+                <p class="endpoint-desc">Record a genealogy relationship.</p>
+            </div>
+        </section>
+
+        <!-- Dispatching -->
+        <section id="dispatching" class="mb-5">
+            <h2 class="section-header">Dispatching</h2>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/dispatching/queue</span>
+                    </div>
+                    <button class="try-it-btn" onclick="tryEndpoint('/api/dispatching/queue', 'GET', this)">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">Get current job dispatch queue.</p>
+                <div class="response-area"></div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/dispatching/dispatch</span>
+                </div>
+                <p class="endpoint-desc">Dispatch a job to a machine/operator.</p>
+            </div>
+        </section>
+
+        <!-- MCP -->
+        <section id="mcp" class="mb-5">
+            <h2 class="section-header">MCP Integration</h2>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <span class="method-badge method-get">GET</span>
+                        <span class="endpoint-path">/api/mcp/tools</span>
+                    </div>
+                    <button class="try-it-btn" onclick="tryEndpoint('/api/mcp/tools', 'GET', this)">
+                        <i class="bi bi-play-fill me-1"></i>Try it
+                    </button>
+                </div>
+                <p class="endpoint-desc">List available MCP tools.</p>
+                <div class="response-area"></div>
+            </div>
+
+            <div class="endpoint-card">
+                <div class="d-flex align-items-center">
+                    <span class="method-badge method-post">POST</span>
+                    <span class="endpoint-path">/api/mcp/execute</span>
+                </div>
+                <p class="endpoint-desc">Execute an MCP tool.</p>
+            </div>
+        </section>
+
+        <!-- Error Handling -->
+        <section id="errors" class="mb-5">
+            <h2 class="section-header">Error Handling</h2>
+            <div class="endpoint-card">
+                <p>All API errors follow a consistent format:</p>
+                <div class="code-block">
+<pre>{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid parameter: quantity must be positive",
+    "details": { ... }
+  },
+  "timestamp": "2025-01-03T12:00:00Z"
+}</pre>
+                </div>
+
+                <h5 class="mt-4 mb-3">HTTP Status Codes</h5>
+                <table class="param-table">
+                    <thead>
+                        <tr><th>Code</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>200</td><td>Success</td></tr>
+                        <tr><td>201</td><td>Created</td></tr>
+                        <tr><td>400</td><td>Bad Request - Invalid parameters</td></tr>
+                        <tr><td>401</td><td>Unauthorized - Authentication required</td></tr>
+                        <tr><td>404</td><td>Not Found - Resource doesn't exist</td></tr>
+                        <tr><td>500</td><td>Server Error - Internal error</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Try endpoint functionality
+        async function tryEndpoint(url, method, btn) {
+            const card = btn.closest('.endpoint-card');
+            let responseArea = card.querySelector('.response-area');
+
+            if (!responseArea) {
+                responseArea = document.createElement('div');
+                responseArea.className = 'response-area';
+                card.appendChild(responseArea);
+            }
+
+            responseArea.classList.add('show');
+            responseArea.innerHTML = '<span class="text-muted">Loading...</span>';
+
+            try {
+                const response = await fetch(url, { method });
+                const data = await response.json();
+                responseArea.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                responseArea.innerHTML = `<pre class="text-danger">Error: ${error.message}</pre>`;
+            }
+        }
+
+        // Search functionality
+        document.getElementById('searchBox').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('.endpoint-card').forEach(card => {
+                const text = card.textContent.toLowerCase();
+                card.style.display = text.includes(query) ? 'block' : 'none';
+            });
+        });
+
+        // Active nav link
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function() {
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // Scroll spy
+        window.addEventListener('scroll', function() {
+            const sections = document.querySelectorAll('section[id]');
+            let current = '';
+
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 100;
+                if (scrollY >= sectionTop) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPC Dashboard - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-label { color: #64748b; font-size: 0.85rem; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.05); }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: #3b82f6; }
+        .alert-ooc { background: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #f87171; }
+        .alert-warning-custom { background: rgba(245,158,11,0.2); border: 1px solid #f59e0b; color: #fbbf24; }
+        .nav-pills .nav-link { color: #94a3b8; border-radius: 8px; }
+        .nav-pills .nav-link.active { background: #3b82f6; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>SPC Dashboard</a>
+            <button class="btn btn-outline-light btn-sm" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-success" id="statCpk">1.45</div>
+                    <div class="stat-label">Overall Cpk</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-info" id="statCharts">24</div>
+                    <div class="stat-label">Active Charts</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-danger" id="statOOC">3</div>
+                    <div class="stat-label">Out of Control</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-warning" id="statWarning">5</div>
+                    <div class="stat-label">Warning Zone</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-primary" id="statSamples">1,847</div>
+                    <div class="stat-label">Samples Today</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value" id="statYield">98.7%</div>
+                    <div class="stat-label">First Pass Yield</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Out of Control Alerts -->
+        <div class="row mb-4" id="oocAlerts">
+            <div class="col-12">
+                <div class="alert alert-ooc d-flex align-items-center">
+                    <i class="bi bi-exclamation-octagon-fill me-3 fs-4"></i>
+                    <div>
+                        <strong>OUT OF CONTROL ALERT:</strong> Brick Width - Line 3 exceeded UCL at 10:45 AM.
+                        <a href="#" class="text-info ms-2">View Chart</a>
+                        <a href="#" class="text-warning ms-2">Acknowledge</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-pills mb-4">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#xbar"><i class="bi bi-graph-up me-1"></i>X-bar R Charts</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#individuals"><i class="bi bi-graph-up-arrow me-1"></i>I-MR Charts</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#attributes"><i class="bi bi-pie-chart me-1"></i>Attribute Charts</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#capability"><i class="bi bi-speedometer2 me-1"></i>Process Capability</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- X-bar R Tab -->
+            <div class="tab-pane fade show active" id="xbar">
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-graph-up me-2"></i>X-bar Control Chart</span>
+                                <select class="form-select form-select-sm" style="width:200px" id="chartSelect">
+                                    <option>Brick Width - Line 1</option>
+                                    <option>Brick Height - Line 1</option>
+                                    <option>Brick Width - Line 2</option>
+                                    <option selected>Brick Width - Line 3</option>
+                                </select>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="xbarChart" height="250"></canvas>
+                            </div>
+                        </div>
+                        <div class="card mt-4">
+                            <div class="card-header"><i class="bi bi-graph-down me-2"></i>R Chart (Range)</div>
+                            <div class="card-body">
+                                <canvas id="rChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header"><i class="bi bi-info-circle me-2"></i>Chart Statistics</div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">UCL</span>
+                                        <strong class="text-danger">8.12 mm</strong>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Center Line (X-bar)</span>
+                                        <strong class="text-success">8.00 mm</strong>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">LCL</span>
+                                        <strong class="text-danger">7.88 mm</strong>
+                                    </div>
+                                </div>
+                                <hr class="border-secondary">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Subgroup Size</span>
+                                        <strong>5</strong>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Std Dev (within)</span>
+                                        <strong>0.018</strong>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="text-muted">Cpk</span>
+                                        <strong class="text-success">1.67</strong>
+                                    </div>
+                                </div>
+                                <hr class="border-secondary">
+                                <h6 class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Western Electric Rules</h6>
+                                <ul class="small text-muted ps-3">
+                                    <li class="text-danger">Rule 1: 1 point beyond 3 sigma</li>
+                                    <li>Rule 2: No violations</li>
+                                    <li>Rule 3: No violations</li>
+                                    <li>Rule 4: No violations</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Individuals Tab -->
+            <div class="tab-pane fade" id="individuals">
+                <div class="card">
+                    <div class="card-header"><i class="bi bi-graph-up-arrow me-2"></i>I-MR Charts - Surface Finish</div>
+                    <div class="card-body">
+                        <canvas id="imrChart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attributes Tab -->
+            <div class="tab-pane fade" id="attributes">
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-pie-chart me-2"></i>P-Chart (Defective Rate)</div>
+                            <div class="card-body">
+                                <canvas id="pChart" height="250"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-bar-chart me-2"></i>C-Chart (Defects per Unit)</div>
+                            <div class="card-body">
+                                <canvas id="cChart" height="250"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Capability Tab -->
+            <div class="tab-pane fade" id="capability">
+                <div class="card">
+                    <div class="card-header"><i class="bi bi-speedometer2 me-2"></i>Process Capability Summary</div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Characteristic</th>
+                                        <th>LSL</th>
+                                        <th>USL</th>
+                                        <th>Mean</th>
+                                        <th>Std Dev</th>
+                                        <th>Cp</th>
+                                        <th>Cpk</th>
+                                        <th>PPM</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Brick Width</td>
+                                        <td>7.85</td>
+                                        <td>8.15</td>
+                                        <td>8.00</td>
+                                        <td>0.018</td>
+                                        <td>2.78</td>
+                                        <td>2.67</td>
+                                        <td>0.02</td>
+                                        <td><span class="badge bg-success">Six Sigma</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Brick Height</td>
+                                        <td>9.55</td>
+                                        <td>9.65</td>
+                                        <td>9.60</td>
+                                        <td>0.012</td>
+                                        <td>1.39</td>
+                                        <td>1.33</td>
+                                        <td>32</td>
+                                        <td><span class="badge bg-success">Capable</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Stud Diameter</td>
+                                        <td>4.78</td>
+                                        <td>4.82</td>
+                                        <td>4.81</td>
+                                        <td>0.008</td>
+                                        <td>1.67</td>
+                                        <td>1.25</td>
+                                        <td>88</td>
+                                        <td><span class="badge bg-warning">Marginal</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Surface Finish</td>
+                                        <td>-</td>
+                                        <td>0.8</td>
+                                        <td>0.42</td>
+                                        <td>0.11</td>
+                                        <td>-</td>
+                                        <td>1.15</td>
+                                        <td>135</td>
+                                        <td><span class="badge bg-danger">Not Capable</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function initCharts() {
+            // X-bar Chart with OOC point
+            const xbarData = [8.01, 8.00, 7.99, 8.02, 7.98, 8.00, 8.01, 7.99, 8.00, 8.02,
+                             7.98, 8.01, 8.00, 7.99, 8.03, 8.00, 7.98, 8.01, 8.00, 8.14];
+
+            new Chart(document.getElementById('xbarChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 20}, (_, i) => i + 1),
+                    datasets: [{
+                        label: 'X-bar',
+                        data: xbarData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: xbarData.map(v => v > 8.12 || v < 7.88 ? '#ef4444' : 'rgba(59,130,246,0.5)'),
+                        pointBackgroundColor: xbarData.map(v => v > 8.12 || v < 7.88 ? '#ef4444' : '#3b82f6'),
+                        pointRadius: xbarData.map(v => v > 8.12 || v < 7.88 ? 8 : 4),
+                        fill: false,
+                        tension: 0.1
+                    }, {
+                        label: 'UCL',
+                        data: Array(20).fill(8.12),
+                        borderColor: '#ef4444',
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }, {
+                        label: 'CL',
+                        data: Array(20).fill(8.00),
+                        borderColor: '#10b981',
+                        pointRadius: 0,
+                        fill: false
+                    }, {
+                        label: 'LCL',
+                        data: Array(20).fill(7.88),
+                        borderColor: '#ef4444',
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            // R Chart
+            new Chart(document.getElementById('rChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 20}, (_, i) => i + 1),
+                    datasets: [{
+                        label: 'Range',
+                        data: [0.04, 0.03, 0.05, 0.04, 0.03, 0.04, 0.05, 0.03, 0.04, 0.04,
+                               0.03, 0.05, 0.04, 0.03, 0.04, 0.05, 0.03, 0.04, 0.04, 0.06],
+                        borderColor: '#8b5cf6',
+                        fill: false,
+                        tension: 0.1
+                    }, {
+                        label: 'UCL',
+                        data: Array(20).fill(0.08),
+                        borderColor: '#ef4444',
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false
+                    }, {
+                        label: 'R-bar',
+                        data: Array(20).fill(0.04),
+                        borderColor: '#10b981',
+                        pointRadius: 0,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        function loadData() {
+            console.log('Refreshing SPC data...');
+        }
+
+        initCharts();
+    </script>
+</body>
+</html>

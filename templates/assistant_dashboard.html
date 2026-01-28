@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Manufacturing Assistant - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; --chat-bg: #0f172a; }
+        body { background: var(--chat-bg); color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .main-container { flex: 1; display: flex; overflow: hidden; }
+        .sidebar { width: 280px; background: var(--dark-bg); border-right: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; }
+        .chat-container { flex: 1; display: flex; flex-direction: column; }
+        .context-panel { width: 320px; background: var(--dark-bg); border-left: 1px solid rgba(255,255,255,0.1); overflow-y: auto; }
+        .chat-messages { flex: 1; overflow-y: auto; padding: 1.5rem; }
+        .chat-input-container { padding: 1rem; background: var(--dark-bg); border-top: 1px solid rgba(255,255,255,0.1); }
+        .message { max-width: 85%; margin-bottom: 1rem; }
+        .message-user { margin-left: auto; }
+        .message-assistant { margin-right: auto; }
+        .message-content { padding: 0.75rem 1rem; border-radius: 12px; }
+        .message-user .message-content { background: #3b82f6; color: white; border-bottom-right-radius: 4px; }
+        .message-assistant .message-content { background: var(--card-bg); border-bottom-left-radius: 4px; }
+        .message-time { font-size: 0.7rem; color: #64748b; margin-top: 4px; }
+        .chat-input { display: flex; gap: 0.5rem; }
+        .chat-input textarea { flex: 1; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; border-radius: 8px; padding: 0.75rem; resize: none; }
+        .chat-input textarea:focus { outline: none; border-color: #3b82f6; }
+        .chat-input button { background: #3b82f6; border: none; color: white; padding: 0 1.25rem; border-radius: 8px; cursor: pointer; }
+        .chat-input button:hover { background: #2563eb; }
+        .chat-input button:disabled { background: #475569; cursor: not-allowed; }
+        .suggestion-chip { display: inline-block; padding: 0.5rem 1rem; background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; margin: 0.25rem; cursor: pointer; font-size: 0.85rem; transition: all 0.2s; }
+        .suggestion-chip:hover { background: rgba(59,130,246,0.2); border-color: #3b82f6; }
+        .context-card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; margin-bottom: 1rem; }
+        .context-card-header { padding: 0.75rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; font-size: 0.85rem; }
+        .context-card-body { padding: 0.75rem 1rem; font-size: 0.85rem; }
+        .context-item { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .context-item:last-child { border: none; }
+        .context-label { color: #94a3b8; }
+        .history-item { padding: 0.75rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); cursor: pointer; }
+        .history-item:hover { background: rgba(59,130,246,0.1); }
+        .history-item.active { background: rgba(59,130,246,0.2); border-left: 3px solid #3b82f6; }
+        .capability-badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: rgba(59,130,246,0.1); border-radius: 6px; margin: 0.25rem; font-size: 0.8rem; }
+        .typing-indicator { display: flex; gap: 4px; padding: 1rem; }
+        .typing-dot { width: 8px; height: 8px; background: #64748b; border-radius: 50%; animation: typing 1.4s infinite; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-8px); } }
+        .code-block { background: #0f172a; border-radius: 6px; padding: 1rem; margin: 0.5rem 0; overflow-x: auto; font-family: monospace; font-size: 0.85rem; }
+        .action-btn { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #94a3b8; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer; }
+        .action-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+        pre { margin: 0; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>AI Manufacturing Assistant</a>
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge bg-success"><i class="bi bi-circle-fill me-1" style="font-size:0.5rem"></i>Connected</span>
+                <button class="btn btn-outline-light btn-sm" onclick="clearChat()"><i class="bi bi-trash me-1"></i>Clear</button>
+                <button class="btn btn-outline-light btn-sm" onclick="exportChat()"><i class="bi bi-download me-1"></i>Export</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- Sidebar - History -->
+        <div class="sidebar">
+            <div class="p-3">
+                <button class="btn btn-primary w-100" onclick="newConversation()">
+                    <i class="bi bi-plus-circle me-2"></i>New Conversation
+                </button>
+            </div>
+            <div class="p-3 pt-0">
+                <small class="text-muted">RECENT CONVERSATIONS</small>
+            </div>
+            <div class="flex-grow-1 overflow-auto">
+                <div class="history-item active">
+                    <div class="d-flex justify-content-between">
+                        <strong>Spindle Troubleshooting</strong>
+                        <small class="text-muted">2m ago</small>
+                    </div>
+                    <small class="text-muted">CNC-004 spindle fault diagnosis...</small>
+                </div>
+                <div class="history-item">
+                    <div class="d-flex justify-content-between">
+                        <strong>G-code Optimization</strong>
+                        <small class="text-muted">1h ago</small>
+                    </div>
+                    <small class="text-muted">Optimizing feed rates for aluminum...</small>
+                </div>
+                <div class="history-item">
+                    <div class="d-flex justify-content-between">
+                        <strong>Quality Analysis</strong>
+                        <small class="text-muted">3h ago</small>
+                    </div>
+                    <small class="text-muted">SPC control chart interpretation...</small>
+                </div>
+                <div class="history-item">
+                    <div class="d-flex justify-content-between">
+                        <strong>Predictive Maintenance</strong>
+                        <small class="text-muted">Yesterday</small>
+                    </div>
+                    <small class="text-muted">Bearing replacement scheduling...</small>
+                </div>
+            </div>
+            <div class="p-3 border-top" style="border-color: rgba(255,255,255,0.1) !important">
+                <small class="text-muted">CAPABILITIES</small>
+                <div class="mt-2">
+                    <div class="capability-badge"><i class="bi bi-gear"></i> Machine Control</div>
+                    <div class="capability-badge"><i class="bi bi-file-code"></i> G-code Analysis</div>
+                    <div class="capability-badge"><i class="bi bi-graph-up"></i> Data Analytics</div>
+                    <div class="capability-badge"><i class="bi bi-tools"></i> Troubleshooting</div>
+                    <div class="capability-badge"><i class="bi bi-shield-check"></i> Quality Control</div>
+                    <div class="capability-badge"><i class="bi bi-calendar-check"></i> Scheduling</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Container -->
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <!-- Welcome message -->
+                <div class="message message-assistant">
+                    <div class="message-content">
+                        <p><strong>Hello! I'm your AI Manufacturing Assistant.</strong></p>
+                        <p>I can help you with:</p>
+                        <ul class="mb-2">
+                            <li>Machine troubleshooting and diagnostics</li>
+                            <li>G-code analysis and optimization</li>
+                            <li>Quality control and SPC interpretation</li>
+                            <li>Production scheduling and optimization</li>
+                            <li>Predictive maintenance insights</li>
+                            <li>Real-time data analysis</li>
+                        </ul>
+                        <p class="mb-0">What would you like help with today?</p>
+                    </div>
+                    <div class="message-time">Just now</div>
+                </div>
+
+                <!-- Suggestions -->
+                <div class="text-center my-4" id="suggestions">
+                    <div class="suggestion-chip" onclick="askQuestion('Why is CNC-004 showing a spindle fault?')">
+                        <i class="bi bi-exclamation-triangle me-1"></i>Diagnose CNC-004 spindle fault
+                    </div>
+                    <div class="suggestion-chip" onclick="askQuestion('What is the current OEE across all machines?')">
+                        <i class="bi bi-speedometer2 me-1"></i>Show current OEE status
+                    </div>
+                    <div class="suggestion-chip" onclick="askQuestion('Analyze the vibration data for CNC-001')">
+                        <i class="bi bi-activity me-1"></i>Analyze vibration data
+                    </div>
+                    <div class="suggestion-chip" onclick="askQuestion('Generate optimized G-code for aluminum pocketing')">
+                        <i class="bi bi-file-code me-1"></i>Optimize G-code
+                    </div>
+                    <div class="suggestion-chip" onclick="askQuestion('What maintenance is due this week?')">
+                        <i class="bi bi-calendar-check me-1"></i>Check maintenance schedule
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-container">
+                <div class="chat-input">
+                    <textarea id="messageInput" rows="1" placeholder="Ask me anything about manufacturing..." onkeydown="handleKeyDown(event)"></textarea>
+                    <button onclick="sendMessage()" id="sendBtn">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </div>
+                <div class="text-center mt-2">
+                    <small class="text-muted">Press Enter to send, Shift+Enter for new line</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Context Panel -->
+        <div class="context-panel p-3">
+            <h6 class="text-muted mb-3">CURRENT CONTEXT</h6>
+
+            <div class="context-card">
+                <div class="context-card-header"><i class="bi bi-hdd-stack me-2"></i>Active Machine</div>
+                <div class="context-card-body">
+                    <div class="context-item">
+                        <span class="context-label">Machine</span>
+                        <span>CNC-004</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">Status</span>
+                        <span class="text-danger">Down - Spindle Fault</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">Downtime</span>
+                        <span>2h 15m</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">Last Error</span>
+                        <span>E-201</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="context-card">
+                <div class="context-card-header"><i class="bi bi-graph-up me-2"></i>Live Metrics</div>
+                <div class="context-card-body">
+                    <div class="context-item">
+                        <span class="context-label">Factory OEE</span>
+                        <span class="text-success">87.2%</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">Active Jobs</span>
+                        <span>12</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">Machines Running</span>
+                        <span>3/5</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">Alerts</span>
+                        <span class="text-warning">2 active</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="context-card">
+                <div class="context-card-header"><i class="bi bi-clock-history me-2"></i>Recent Events</div>
+                <div class="context-card-body" style="max-height:200px;overflow-y:auto">
+                    <div class="small mb-2">
+                        <div class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>CNC-004 spindle fault</div>
+                        <small class="text-muted">10:30 AM</small>
+                    </div>
+                    <div class="small mb-2">
+                        <div class="text-success"><i class="bi bi-check-circle me-1"></i>WO-2024-0041 completed</div>
+                        <small class="text-muted">10:15 AM</small>
+                    </div>
+                    <div class="small mb-2">
+                        <div class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Tool life warning T3</div>
+                        <small class="text-muted">9:45 AM</small>
+                    </div>
+                    <div class="small mb-2">
+                        <div class="text-info"><i class="bi bi-arrow-repeat me-1"></i>CNC-002 tool change</div>
+                        <small class="text-muted">9:30 AM</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="context-card">
+                <div class="context-card-header"><i class="bi bi-lightbulb me-2"></i>Quick Actions</div>
+                <div class="context-card-body">
+                    <button class="btn btn-sm btn-outline-primary w-100 mb-2" onclick="askQuestion('Generate a maintenance report for this week')">
+                        <i class="bi bi-file-text me-1"></i>Generate Report
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning w-100 mb-2" onclick="askQuestion('Show all active alarms and their causes')">
+                        <i class="bi bi-bell me-1"></i>View Alarms
+                    </button>
+                    <button class="btn btn-sm btn-outline-success w-100" onclick="askQuestion('Optimize the current production schedule')">
+                        <i class="bi bi-calendar3 me-1"></i>Optimize Schedule
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        let socket;
+        let isTyping = false;
+
+        function initSocket() {
+            try {
+                socket = io();
+                socket.on('assistant_response', handleResponse);
+                socket.on('assistant_typing', showTyping);
+            } catch(e) {
+                console.log('WebSocket not available, using REST API');
+            }
+        }
+
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            // Hide suggestions
+            document.getElementById('suggestions').style.display = 'none';
+
+            // Add user message
+            addMessage(message, 'user');
+            input.value = '';
+
+            // Show typing indicator
+            showTyping();
+
+            try {
+                const response = await fetch('/api/copilot/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, context: getContext() })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    hideTyping();
+                    addMessage(data.response, 'assistant');
+                } else {
+                    hideTyping();
+                    // Demo response
+                    generateDemoResponse(message);
+                }
+            } catch(e) {
+                hideTyping();
+                generateDemoResponse(message);
+            }
+        }
+
+        function askQuestion(question) {
+            document.getElementById('messageInput').value = question;
+            sendMessage();
+        }
+
+        function addMessage(content, type) {
+            const container = document.getElementById('chatMessages');
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${type}`;
+            messageDiv.innerHTML = `
+                <div class="message-content">${formatMessage(content)}</div>
+                <div class="message-time">${time}</div>
+            `;
+
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function formatMessage(content) {
+            // Convert code blocks
+            content = content.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+                return `<div class="code-block"><pre>${escapeHtml(code.trim())}</pre></div>`;
+            });
+
+            // Convert inline code
+            content = content.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            // Convert line breaks
+            content = content.replace(/\n/g, '<br>');
+
+            return content;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showTyping() {
+            if (isTyping) return;
+            isTyping = true;
+
+            const container = document.getElementById('chatMessages');
+            const typingDiv = document.createElement('div');
+            typingDiv.id = 'typingIndicator';
+            typingDiv.className = 'message message-assistant';
+            typingDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(typingDiv);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function hideTyping() {
+            isTyping = false;
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) indicator.remove();
+        }
+
+        function getContext() {
+            return {
+                activeMachine: 'CNC-004',
+                machineStatus: 'down',
+                factoryOEE: 87.2,
+                activeJobs: 12,
+                alerts: 2
+            };
+        }
+
+        function generateDemoResponse(message) {
+            const lowerMessage = message.toLowerCase();
+            let response = '';
+
+            if (lowerMessage.includes('spindle') || lowerMessage.includes('cnc-004')) {
+                response = `Based on my analysis of **CNC-004**, I've identified the following:
+
+**Spindle Fault Diagnosis (Error E-201)**
+
+**Root Cause Analysis:**
+1. **Vibration spike detected** at 10:28 AM - 2 minutes before fault
+2. **Bearing temperature** elevated to 78°C (normal: 45-55°C)
+3. **Current draw** increased 35% above baseline
+
+**Recommended Actions:**
+1. ⚠️ **Immediate:** Check spindle bearing condition
+2. 🔧 **Inspect:** Verify lubrication system operation
+3. 📊 **Review:** Historical vibration data shows degradation trend
+
+**Predictive Insight:**
+The vibration pattern suggests outer race bearing defect (BPFO frequency elevated). Based on degradation rate, bearing replacement was due approximately 200 hours ago.
+
+\`\`\`
+Bearing Health Score: 23% (Critical)
+Estimated RUL: -200 hours (overdue)
+Confidence: 89%
+\`\`\`
+
+Would you like me to:
+- Generate a maintenance work order?
+- Show the detailed vibration analysis?
+- Check spare parts availability?`;
+            } else if (lowerMessage.includes('oee')) {
+                response = `**Current Factory OEE Status**
+
+| Machine | OEE | Availability | Performance | Quality |
+|---------|-----|--------------|-------------|---------|
+| CNC-001 | 91% | 95% | 98% | 98% |
+| CNC-002 | 88% | 92% | 96% | 99% |
+| CNC-003 | 75% | 78% | 97% | 99% |
+| CNC-004 | 45% | 48% | 94% | 98% |
+| CNC-005 | 94% | 97% | 98% | 99% |
+
+**Factory Average: 87.2%**
+
+**Key Observations:**
+- 🟢 CNC-005 is performing at world-class level
+- 🔴 CNC-004 is pulling down average (spindle fault)
+- 🟡 CNC-003 availability impacted by material wait time
+
+**Improvement Opportunities:**
+1. Resolve CNC-004 spindle issue (+8% factory OEE potential)
+2. Reduce CNC-003 material wait time (+3% potential)`;
+            } else if (lowerMessage.includes('vibration')) {
+                response = `**Vibration Analysis Report - CNC-001**
+
+**Current Readings:**
+- Overall: 2.4 mm/s RMS (ISO 10816: Good)
+- X-Axis: 1.8 mm/s
+- Y-Axis: 2.1 mm/s
+- Z-Axis: 2.9 mm/s (slightly elevated)
+
+**Frequency Spectrum Analysis:**
+\`\`\`
+1x RPM (125 Hz): 0.8 mm/s - Normal
+2x RPM (250 Hz): 0.3 mm/s - Normal
+BPFO (312 Hz): 0.15 mm/s - Normal
+BPFI (425 Hz): 0.08 mm/s - Normal
+\`\`\`
+
+**Bearing Health:**
+- Front Spindle Bearing: 92% health
+- Rear Spindle Bearing: 78% health ⚠️ (watch)
+
+**Recommendation:**
+Schedule rear bearing inspection in next planned maintenance window. Current degradation rate suggests 850 hours RUL.`;
+            } else if (lowerMessage.includes('g-code') || lowerMessage.includes('gcode')) {
+                response = `**G-code Optimization for Aluminum Pocketing**
+
+Based on your material (6061-T6 Aluminum) and tooling, here are optimized parameters:
+
+**Recommended Settings:**
+\`\`\`gcode
+(OPTIMIZED POCKETING PARAMETERS)
+S12000 M3          ; Spindle 12000 RPM
+F2500              ; Feed rate 2500 mm/min
+G43 H1 Z50.0       ; Tool length comp
+G0 X0 Y0           ; Rapid to start
+G1 Z-2.0 F500      ; Plunge at reduced feed
+G1 X100.0 F2500    ; Cutting feed
+\`\`\`
+
+**Optimization Applied:**
+- ✅ Increased spindle speed for better chip evacuation
+- ✅ Optimized feed rate for 0.05mm chip load
+- ✅ Added helical entry to reduce tool stress
+- ✅ Trochoidal toolpath for deep pockets
+
+**Estimated Improvement:**
+- Cycle time: -18% (was 45min, now 37min)
+- Tool life: +25% with reduced radial engagement
+- Surface finish: Ra 1.6 → Ra 0.8 µm`;
+            } else if (lowerMessage.includes('maintenance')) {
+                response = `**Maintenance Schedule - This Week**
+
+**Due This Week:**
+
+| Priority | Machine | Task | Due Date | Est. Duration |
+|----------|---------|------|----------|---------------|
+| 🔴 High | CNC-004 | Spindle bearing replacement | Overdue | 4 hours |
+| 🟡 Medium | CNC-002 | Coolant system service | Wed | 2 hours |
+| 🟢 Low | CNC-003 | Ball screw lubrication | Fri | 1 hour |
+| 🟢 Low | CNC-001 | Filter replacement | Fri | 30 min |
+
+**Predictive Alerts:**
+- CNC-002 rear bearing: 850 hours RUL
+- CNC-005 spindle motor: 1200 hours RUL
+
+**Spare Parts Status:**
+- ✅ SKF 6206 bearing: 2 in stock
+- ✅ Coolant filters: 5 in stock
+- ⚠️ Ball screw grease: Low stock (reorder)
+
+Would you like me to generate work orders for these tasks?`;
+            } else {
+                response = `I understand you're asking about: "${message}"
+
+Let me help you with that. Based on the current factory context:
+
+**Current Status:**
+- 3 of 5 machines running
+- 1 machine down (CNC-004 - spindle fault)
+- 1 machine idle (CNC-003 - awaiting material)
+- Factory OEE: 87.2%
+
+**How can I assist further?**
+
+I can help with:
+1. 🔧 Machine diagnostics and troubleshooting
+2. 📊 Data analysis and reporting
+3. 📝 G-code review and optimization
+4. 📅 Production scheduling
+5. 🔮 Predictive maintenance insights
+
+Please provide more details or select a specific area you'd like to explore.`;
+            }
+
+            addMessage(response, 'assistant');
+        }
+
+        function clearChat() {
+            const container = document.getElementById('chatMessages');
+            container.innerHTML = '';
+            document.getElementById('suggestions').style.display = 'block';
+
+            // Re-add welcome message
+            addMessage(`<p><strong>Hello! I'm your AI Manufacturing Assistant.</strong></p>
+<p>I can help you with machine troubleshooting, G-code optimization, quality control, scheduling, and more.</p>
+<p class="mb-0">What would you like help with today?</p>`, 'assistant');
+        }
+
+        function exportChat() {
+            alert('Chat exported to PDF');
+        }
+
+        function newConversation() {
+            clearChat();
+        }
+
+        // Initialize
+        initSocket();
+    </script>
+</body>
+</html>

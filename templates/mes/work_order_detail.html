@@ -1,0 +1,766 @@
+{% extends "base.html" %}
+{% block title %}Work Order {{ wo_number }} - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('mes_web.work_orders') }}">Work Orders</a></li>
+<li class="breadcrumb-item active">{{ wo_number }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-clipboard-check me-2"></i>Work Order: <span id="wo-number">{{ wo_number }}</span></h2>
+    <div>
+        <a href="{{ url_for('mes_web.scheduling') }}" class="btn btn-outline-info me-2" id="view-schedule-btn" style="display: none;">
+            <i class="bi bi-calendar3 me-1"></i>View in Schedule
+        </a>
+        <a href="{{ url_for('mes_web.work_orders') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to List
+        </a>
+    </div>
+</div>
+
+<!-- Loading Spinner -->
+<div id="loading-spinner" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">Loading work order details...</p>
+</div>
+
+<!-- Error Alert -->
+<div id="error-alert" class="alert alert-danger" style="display: none;">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    <span id="error-message">Failed to load work order</span>
+</div>
+
+<!-- Main Content (hidden until loaded) -->
+<div id="main-content" style="display: none;">
+    <div class="row">
+        <div class="col-md-8">
+            <!-- Work Order Details Card -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-info-circle me-2"></i>Work Order Details</span>
+                    <span id="wo-status-badge" class="badge bg-primary">Loading...</span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Work Order:</strong> <span id="detail-wo-number">-</span></p>
+                            <p><strong>Product:</strong> <span id="detail-product">-</span></p>
+                            <p><strong>Description:</strong> <span id="detail-description">-</span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Quantity:</strong> <span id="detail-quantity">-</span></p>
+                            <p><strong>Priority:</strong> <span id="detail-priority">-</span></p>
+                            <p><strong>Due Date:</strong> <span id="detail-due-date">-</span></p>
+                        </div>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="mt-3">
+                        <label class="form-label"><strong>Overall Progress</strong></label>
+                        <div class="progress" style="height: 25px;">
+                            <div id="overall-progress" class="progress-bar" role="progressbar" style="width: 0%">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Operations Card -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-list-task me-2"></i>Operations</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="refreshOperations()">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Op #</th>
+                                <th>Operation</th>
+                                <th>Machine</th>
+                                <th>Status</th>
+                                <th>Progress</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="operations-tbody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-3">Loading operations...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Jobs Card -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-cpu me-2"></i>Jobs
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Machine</th>
+                                <th>Status</th>
+                                <th>Qty Completed</th>
+                                <th>Scheduled</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobs-tbody">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-3">Loading jobs...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <!-- Timeline Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-clock-history me-2"></i>Timeline
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0" id="timeline-list">
+                        <li class="text-muted">Loading timeline...</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Actions Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="bi bi-gear me-2"></i>Actions
+                </div>
+                <div class="card-body d-grid gap-2" id="actions-container">
+                    <!-- Dynamic action buttons will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Machine Info Card -->
+            <div class="card mb-4" id="machine-card" style="display: none;">
+                <div class="card-header">
+                    <i class="bi bi-pc-display me-2"></i>Assigned Machine
+                </div>
+                <div class="card-body">
+                    <p class="mb-1"><strong id="machine-name">-</strong></p>
+                    <p class="mb-2 text-muted small" id="machine-id">-</p>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>OEE:</span>
+                        <span id="machine-oee" class="badge bg-success">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hold Reason Card (shown when on hold) -->
+            <div class="card mb-4 border-warning" id="hold-card" style="display: none;">
+                <div class="card-header bg-warning text-dark">
+                    <i class="bi bi-pause-circle me-2"></i>On Hold
+                </div>
+                <div class="card-body">
+                    <p class="mb-1"><strong>Reason:</strong></p>
+                    <p id="hold-reason" class="text-muted">-</p>
+                    <p class="mb-0"><small class="text-muted">Since: <span id="hold-timestamp">-</span></small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hold Modal -->
+<div class="modal fade" id="holdModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pause-circle me-2"></i>Put Work Order On Hold</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="hold-reason-input" class="form-label">Reason for Hold</label>
+                    <textarea class="form-control" id="hold-reason-input" rows="3" placeholder="Enter reason for putting this work order on hold..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="confirmHold()">
+                    <i class="bi bi-pause-fill me-1"></i>Put On Hold
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-x-circle me-2"></i>Cancel Work Order</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    This action cannot be undone. All progress will be lost.
+                </div>
+                <div class="mb-3">
+                    <label for="cancel-reason-input" class="form-label">Reason for Cancellation</label>
+                    <textarea class="form-control" id="cancel-reason-input" rows="3" placeholder="Enter reason for cancelling this work order..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Keep Work Order</button>
+                <button type="button" class="btn btn-danger" onclick="confirmCancel()">
+                    <i class="bi bi-x-circle me-1"></i>Cancel Work Order
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const woNumber = '{{ wo_number }}';
+let workOrder = null;
+let socket = null;
+
+// Status badge colors
+const statusColors = {
+    'draft': 'secondary',
+    'planned': 'info',
+    'released': 'primary',
+    'in_progress': 'primary',
+    'on_hold': 'warning',
+    'completed': 'success',
+    'cancelled': 'danger'
+};
+
+// Status display names
+const statusNames = {
+    'draft': 'Draft',
+    'planned': 'Planned',
+    'released': 'Released',
+    'in_progress': 'In Progress',
+    'on_hold': 'On Hold',
+    'completed': 'Completed',
+    'cancelled': 'Cancelled'
+};
+
+// Priority display
+const priorityNames = {
+    1: 'Critical',
+    2: 'High',
+    3: 'High',
+    4: 'Normal',
+    5: 'Normal',
+    6: 'Normal',
+    7: 'Low',
+    8: 'Low',
+    9: 'Low',
+    10: 'Lowest'
+};
+
+async function loadWorkOrder() {
+    try {
+        const response = await fetch(`/api/mes/work-orders/${woNumber}`);
+        if (!response.ok) {
+            throw new Error(`Work order not found (${response.status})`);
+        }
+        workOrder = await response.json();
+        renderWorkOrder();
+        document.getElementById('loading-spinner').style.display = 'none';
+        document.getElementById('main-content').style.display = 'block';
+
+        // Show schedule button if work order has jobs
+        if (workOrder.jobs && workOrder.jobs.length > 0) {
+            document.getElementById('view-schedule-btn').style.display = 'inline-block';
+        }
+    } catch (error) {
+        console.error('Error loading work order:', error);
+        document.getElementById('loading-spinner').style.display = 'none';
+        document.getElementById('error-message').textContent = error.message;
+        document.getElementById('error-alert').style.display = 'block';
+
+        // Load demo data as fallback
+        loadDemoData();
+    }
+}
+
+function loadDemoData() {
+    workOrder = {
+        work_order_id: woNumber,
+        description: 'LEGO Brick 2x4 Production Run',
+        product_id: 'brick_2x4_red',
+        quantity_ordered: 500,
+        quantity_completed: 335,
+        status: 'in_progress',
+        priority: 3,
+        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        planned_start: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        actual_start: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        operations: [
+            { operation_id: 'OP-001', sequence: 10, name: 'Slice Model', status: 'completed', machine_id: 'bantam-explorer' },
+            { operation_id: 'OP-002', sequence: 20, name: '3D Print', status: 'running', machine_id: 'bambu-ps1', progress: 67 },
+            { operation_id: 'OP-003', sequence: 30, name: 'Quality Check', status: 'pending', machine_id: null },
+            { operation_id: 'OP-004', sequence: 40, name: 'Packaging', status: 'pending', machine_id: null },
+        ],
+        jobs: [
+            { job_id: 'JOB-001', machine_id: 'bantam-explorer', status: 'completed', quantity_completed: 200, scheduled_start: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString() },
+            { job_id: 'JOB-002', machine_id: 'bambu-ps1', status: 'running', quantity_completed: 135, scheduled_start: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString() },
+        ],
+        metadata: {},
+        demo: true
+    };
+
+    document.getElementById('error-alert').innerHTML = `
+        <i class="bi bi-info-circle me-2"></i>
+        Showing demo data. Database connection unavailable.
+    `;
+    document.getElementById('error-alert').className = 'alert alert-info';
+    document.getElementById('error-alert').style.display = 'block';
+    document.getElementById('main-content').style.display = 'block';
+
+    renderWorkOrder();
+}
+
+function renderWorkOrder() {
+    if (!workOrder) return;
+
+    // Update header
+    document.getElementById('wo-number').textContent = workOrder.work_order_id;
+    document.getElementById('detail-wo-number').textContent = workOrder.work_order_id;
+
+    // Update status badge
+    const status = workOrder.status || 'draft';
+    const statusBadge = document.getElementById('wo-status-badge');
+    statusBadge.className = `badge bg-${statusColors[status] || 'secondary'}`;
+    statusBadge.textContent = statusNames[status] || status;
+
+    // Update details
+    document.getElementById('detail-product').textContent = workOrder.product_id || '-';
+    document.getElementById('detail-description').textContent = workOrder.description || '-';
+
+    const qtyOrdered = workOrder.quantity_ordered || 0;
+    const qtyCompleted = workOrder.quantity_completed || 0;
+    document.getElementById('detail-quantity').textContent = `${qtyCompleted} / ${qtyOrdered} pcs`;
+
+    document.getElementById('detail-priority').textContent = priorityNames[workOrder.priority] || 'Normal';
+    document.getElementById('detail-due-date').textContent = workOrder.due_date
+        ? new Date(workOrder.due_date).toLocaleDateString()
+        : '-';
+
+    // Update progress bar
+    const progress = qtyOrdered > 0 ? Math.round((qtyCompleted / qtyOrdered) * 100) : 0;
+    const progressBar = document.getElementById('overall-progress');
+    progressBar.style.width = `${progress}%`;
+    progressBar.textContent = `${progress}%`;
+    progressBar.className = `progress-bar ${progress >= 100 ? 'bg-success' : ''}`;
+
+    // Render operations
+    renderOperations(workOrder.operations || []);
+
+    // Render jobs
+    renderJobs(workOrder.jobs || []);
+
+    // Render timeline
+    renderTimeline();
+
+    // Render actions
+    renderActions();
+
+    // Show hold card if on hold
+    if (status === 'on_hold' && workOrder.metadata) {
+        document.getElementById('hold-card').style.display = 'block';
+        document.getElementById('hold-reason').textContent = workOrder.metadata.hold_reason || 'No reason provided';
+        document.getElementById('hold-timestamp').textContent = workOrder.metadata.hold_timestamp
+            ? new Date(workOrder.metadata.hold_timestamp).toLocaleString()
+            : '-';
+    } else {
+        document.getElementById('hold-card').style.display = 'none';
+    }
+}
+
+function renderOperations(operations) {
+    const tbody = document.getElementById('operations-tbody');
+
+    if (!operations || operations.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No operations defined</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = operations.map(op => {
+        const opStatus = op.status || 'pending';
+        const statusColor = {
+            'pending': 'secondary',
+            'running': 'primary',
+            'completed': 'success',
+            'failed': 'danger'
+        }[opStatus] || 'secondary';
+
+        const progress = op.progress || (opStatus === 'completed' ? 100 : opStatus === 'running' ? 50 : 0);
+
+        // Determine available actions
+        let actionButtons = '';
+        if (opStatus === 'pending') {
+            actionButtons = `<button class="btn btn-sm btn-success" onclick="startOperation('${op.operation_id}')" title="Start">
+                <i class="bi bi-play-fill"></i>
+            </button>`;
+        } else if (opStatus === 'running') {
+            actionButtons = `<button class="btn btn-sm btn-success" onclick="completeOperation('${op.operation_id}')" title="Complete">
+                <i class="bi bi-check-lg"></i>
+            </button>`;
+        } else {
+            actionButtons = '<span class="text-muted">-</span>';
+        }
+
+        return `
+            <tr>
+                <td>${op.sequence || '-'}</td>
+                <td>${op.name || op.operation_type || '-'}</td>
+                <td>${op.machine_id || '<span class="text-muted">Unassigned</span>'}</td>
+                <td><span class="badge bg-${statusColor}">${opStatus}</span></td>
+                <td>
+                    <div class="progress" style="height: 20px; min-width: 100px;">
+                        <div class="progress-bar ${opStatus === 'completed' ? 'bg-success' : ''}"
+                             style="width: ${progress}%">${progress}%</div>
+                    </div>
+                </td>
+                <td>${actionButtons}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderJobs(jobs) {
+    const tbody = document.getElementById('jobs-tbody');
+
+    if (!jobs || jobs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No jobs created yet</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = jobs.map(job => {
+        const jobStatus = job.status || 'pending';
+        const statusColor = {
+            'pending': 'secondary',
+            'queued': 'info',
+            'running': 'primary',
+            'completed': 'success',
+            'failed': 'danger',
+            'cancelled': 'warning'
+        }[jobStatus] || 'secondary';
+
+        return `
+            <tr>
+                <td><code>${job.job_id}</code></td>
+                <td>${job.machine_id || '-'}</td>
+                <td><span class="badge bg-${statusColor}">${jobStatus}</span></td>
+                <td>${job.quantity_completed || 0} / ${job.quantity_planned || '-'}</td>
+                <td>${job.scheduled_start ? new Date(job.scheduled_start).toLocaleString() : '-'}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderTimeline() {
+    const list = document.getElementById('timeline-list');
+    const events = [];
+
+    if (workOrder.created_at) {
+        events.push({ label: 'Created', time: workOrder.created_at, icon: 'bi-plus-circle' });
+    }
+    if (workOrder.planned_start) {
+        events.push({ label: 'Planned Start', time: workOrder.planned_start, icon: 'bi-calendar-check', muted: true });
+    }
+    if (workOrder.actual_start) {
+        events.push({ label: 'Started', time: workOrder.actual_start, icon: 'bi-play-circle' });
+    }
+    if (workOrder.actual_end) {
+        events.push({ label: 'Completed', time: workOrder.actual_end, icon: 'bi-check-circle' });
+    }
+    if (workOrder.due_date) {
+        events.push({ label: 'Due Date', time: workOrder.due_date, icon: 'bi-clock', muted: true });
+    }
+
+    if (events.length === 0) {
+        list.innerHTML = '<li class="text-muted">No timeline events</li>';
+        return;
+    }
+
+    list.innerHTML = events.map(event => `
+        <li class="mb-3 ${event.muted ? 'text-muted' : ''}">
+            <i class="bi ${event.icon} me-2"></i>
+            <strong>${event.label}</strong><br>
+            <small>${new Date(event.time).toLocaleString()}</small>
+        </li>
+    `).join('');
+}
+
+function renderActions() {
+    const container = document.getElementById('actions-container');
+    const status = workOrder.status || 'draft';
+    const buttons = [];
+
+    // Status-dependent actions
+    switch (status) {
+        case 'draft':
+            buttons.push(`<button class="btn btn-primary" onclick="releaseWorkOrder()">
+                <i class="bi bi-send me-1"></i>Release for Production
+            </button>`);
+            break;
+
+        case 'released':
+            buttons.push(`<button class="btn btn-success" onclick="startWorkOrder()">
+                <i class="bi bi-play-fill me-1"></i>Start Work Order
+            </button>`);
+            buttons.push(`<button class="btn btn-warning" onclick="showHoldModal()">
+                <i class="bi bi-pause-fill me-1"></i>Put On Hold
+            </button>`);
+            break;
+
+        case 'in_progress':
+            buttons.push(`<button class="btn btn-success" onclick="completeWorkOrder()">
+                <i class="bi bi-check-lg me-1"></i>Complete Work Order
+            </button>`);
+            buttons.push(`<button class="btn btn-warning" onclick="showHoldModal()">
+                <i class="bi bi-pause-fill me-1"></i>Put On Hold
+            </button>`);
+            break;
+
+        case 'on_hold':
+            buttons.push(`<button class="btn btn-success" onclick="resumeWorkOrder()">
+                <i class="bi bi-play-fill me-1"></i>Resume Work Order
+            </button>`);
+            break;
+    }
+
+    // Cancel button (available for most statuses)
+    if (!['completed', 'cancelled'].includes(status)) {
+        buttons.push(`<button class="btn btn-outline-danger" onclick="showCancelModal()">
+            <i class="bi bi-x-circle me-1"></i>Cancel Work Order
+        </button>`);
+    }
+
+    // Always available actions
+    buttons.push(`<button class="btn btn-outline-secondary" onclick="printTraveler()">
+        <i class="bi bi-printer me-1"></i>Print Traveler
+    </button>`);
+
+    container.innerHTML = buttons.join('');
+}
+
+// API Actions
+async function releaseWorkOrder() {
+    await callWorkOrderAction('release', 'Releasing');
+}
+
+async function startWorkOrder() {
+    await callWorkOrderAction('start', 'Starting');
+}
+
+async function completeWorkOrder() {
+    if (!confirm('Are you sure you want to mark this work order as complete?')) return;
+    await callWorkOrderAction('complete', 'Completing');
+}
+
+async function resumeWorkOrder() {
+    await callWorkOrderAction('resume', 'Resuming');
+}
+
+function showHoldModal() {
+    const modal = new bootstrap.Modal(document.getElementById('holdModal'));
+    modal.show();
+}
+
+async function confirmHold() {
+    const reason = document.getElementById('hold-reason-input').value;
+    bootstrap.Modal.getInstance(document.getElementById('holdModal')).hide();
+    await callWorkOrderAction('hold', 'Putting on hold', { reason });
+}
+
+function showCancelModal() {
+    const modal = new bootstrap.Modal(document.getElementById('cancelModal'));
+    modal.show();
+}
+
+async function confirmCancel() {
+    const reason = document.getElementById('cancel-reason-input').value;
+    bootstrap.Modal.getInstance(document.getElementById('cancelModal')).hide();
+    await callWorkOrderAction('cancel', 'Cancelling', { reason });
+}
+
+async function callWorkOrderAction(action, actionName, extraData = {}) {
+    try {
+        const response = await fetch(`/api/mes/work-orders/${woNumber}/${action}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: 'operator', ...extraData })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || `Failed to ${action} work order`);
+        }
+
+        workOrder = await response.json();
+        renderWorkOrder();
+        showToast(`${actionName} work order successful`, 'success');
+    } catch (error) {
+        console.error(`Error ${action} work order:`, error);
+        showToast(error.message, 'danger');
+    }
+}
+
+async function startOperation(operationId) {
+    try {
+        const response = await fetch(`/api/mes/operations/${operationId}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: 'operator' })
+        });
+
+        if (!response.ok) throw new Error('Failed to start operation');
+
+        await loadWorkOrder();
+        showToast('Operation started', 'success');
+    } catch (error) {
+        console.error('Error starting operation:', error);
+        showToast('Failed to start operation', 'danger');
+    }
+}
+
+async function completeOperation(operationId) {
+    try {
+        const response = await fetch(`/api/mes/operations/${operationId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: 'operator' })
+        });
+
+        if (!response.ok) throw new Error('Failed to complete operation');
+
+        await loadWorkOrder();
+        showToast('Operation completed', 'success');
+    } catch (error) {
+        console.error('Error completing operation:', error);
+        showToast('Failed to complete operation', 'danger');
+    }
+}
+
+function refreshOperations() {
+    loadWorkOrder();
+}
+
+function printTraveler() {
+    window.print();
+}
+
+function showToast(message, type = 'info') {
+    // Create toast container if it doesn't exist
+    let container = document.getElementById('toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        document.body.appendChild(container);
+    }
+
+    const toastId = 'toast-' + Date.now();
+    const toastHtml = `
+        <div id="${toastId}" class="toast align-items-center text-white bg-${type}" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('beforeend', toastHtml);
+    const toast = new bootstrap.Toast(document.getElementById(toastId));
+    toast.show();
+
+    // Remove after hidden
+    document.getElementById(toastId).addEventListener('hidden.bs.toast', function() {
+        this.remove();
+    });
+}
+
+// WebSocket for real-time updates
+function initWebSocket() {
+    if (typeof io === 'undefined') return;
+
+    try {
+        socket = io('/dashboard', { transports: ['websocket'] });
+
+        socket.on('connect', () => {
+            console.log('WebSocket connected');
+            socket.emit('join', { room: `wo:${woNumber}` });
+        });
+
+        socket.on('work_order_updated', (data) => {
+            if (data.work_order_id === woNumber) {
+                workOrder = { ...workOrder, ...data.work_order };
+                renderWorkOrder();
+            }
+        });
+
+        socket.on('work_order_status_changed', (data) => {
+            if (data.work_order_id === woNumber) {
+                workOrder = { ...workOrder, ...data.work_order };
+                renderWorkOrder();
+                showToast(`Status changed to ${statusNames[data.new_status]}`, 'info');
+            }
+        });
+
+        socket.on('operation_started', (data) => {
+            if (workOrder.operations) {
+                const idx = workOrder.operations.findIndex(op => op.operation_id === data.operation_id);
+                if (idx >= 0) {
+                    workOrder.operations[idx] = { ...workOrder.operations[idx], ...data.operation };
+                    renderOperations(workOrder.operations);
+                }
+            }
+        });
+
+        socket.on('operation_completed', (data) => {
+            if (workOrder.operations) {
+                const idx = workOrder.operations.findIndex(op => op.operation_id === data.operation_id);
+                if (idx >= 0) {
+                    workOrder.operations[idx] = { ...workOrder.operations[idx], ...data.operation };
+                    renderOperations(workOrder.operations);
+                }
+            }
+        });
+
+        socket.on('job_status_changed', (data) => {
+            if (workOrder.jobs) {
+                const idx = workOrder.jobs.findIndex(j => j.job_id === data.job_id);
+                if (idx >= 0) {
+                    workOrder.jobs[idx] = { ...workOrder.jobs[idx], ...data.job };
+                    renderJobs(workOrder.jobs);
+                }
+            }
+        });
+    } catch (error) {
+        console.log('WebSocket not available:', error);
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    loadWorkOrder();
+    initWebSocket();
+});
+</script>
+{% endblock %}

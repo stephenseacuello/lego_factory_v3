@@ -1,0 +1,775 @@
+{% extends "base.html" %}
+
+{% block title %}Part Designer - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">LEGO Design</a></li>
+<li class="breadcrumb-item active">Part Designer</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-box me-2"></i>Part Designer</h2>
+    <div class="btn-group">
+        <a href="{{ url_for('lego.catalog') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-grid-3x3-gap"></i> Browse Catalog
+        </a>
+        <button class="btn btn-primary" onclick="partDesigner.createProduct()" id="createProductBtn" disabled>
+            <i class="bi bi-plus-circle"></i> Create Product SKU
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Part Selection Panel -->
+    <div class="col-lg-4">
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-search me-2"></i>Select Part
+            </div>
+            <div class="card-body">
+                <!-- Category Filter -->
+                <div class="mb-3">
+                    <label class="form-label">Category</label>
+                    <select class="form-select" id="categoryFilter" onchange="partDesigner.filterParts()">
+                        <option value="">All Categories</option>
+                        <option value="brick">Bricks</option>
+                        <option value="plate">Plates</option>
+                        <option value="tile">Tiles</option>
+                        <option value="slope_45">Slopes 45°</option>
+                        <option value="slope_33">Slopes 33°</option>
+                        <option value="slope_inverted">Inverted Slopes</option>
+                        <option value="wedge">Wedges</option>
+                        <option value="technic">Technic</option>
+                        <option value="special">Special</option>
+                    </select>
+                </div>
+
+                <!-- Search -->
+                <div class="mb-3">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" id="partSearch"
+                           placeholder="Search by name or part #..."
+                           onkeyup="partDesigner.filterParts()">
+                </div>
+
+                <!-- Parts List -->
+                <div class="mb-3">
+                    <label class="form-label">Available Parts <span class="badge bg-secondary" id="partCount">0</span></label>
+                    <div class="list-group" id="partsList" style="max-height: 300px; overflow-y: auto;">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Material Selection -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-layers me-2"></i>Material & Color
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Material</label>
+                    <select class="form-select" id="materialSelect" onchange="partDesigner.updateMaterial()">
+                        <option value="">Select material...</option>
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Color / Finish</label>
+                    <select class="form-select" id="colorSelect" onchange="partDesigner.updateColor()">
+                        <option value="">Select color...</option>
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+
+                <div class="mb-3" id="colorPreview" style="display: none;">
+                    <label class="form-label">Preview</label>
+                    <div class="d-flex align-items-center">
+                        <div id="colorSwatch" style="width: 40px; height: 40px; border-radius: 4px; border: 1px solid #ccc;"></div>
+                        <span class="ms-2" id="colorName"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Part Preview & Details -->
+    <div class="col-lg-5">
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-eye me-2"></i>Part Preview
+            </div>
+            <div class="card-body text-center" style="min-height: 300px; background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);">
+                <div id="partPreviewPlaceholder" class="py-5">
+                    <i class="bi bi-box display-1 text-muted"></i>
+                    <p class="mt-3 text-muted">Select a part to preview</p>
+                </div>
+                <div id="partPreviewContent" style="display: none;">
+                    <div id="part3DPreview" style="height: 250px;">
+                        <!-- 3D preview or image would go here -->
+                        <img id="partThumbnail" src="" alt="Part Preview"
+                             style="max-height: 200px; max-width: 100%;"
+                             onerror="this.style.display='none'">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Part Specifications -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-rulers me-2"></i>Specifications
+            </div>
+            <div class="card-body" id="specContent">
+                <p class="text-muted text-center">Select a part to view specifications</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SKU & Manufacturing Panel -->
+    <div class="col-lg-3">
+        <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-upc-scan me-2"></i>Product SKU
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Generated SKU</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control font-monospace" id="skuPreview"
+                               value="—" readonly style="background-color: #f8f9fa;">
+                        <button class="btn btn-outline-secondary" onclick="partDesigner.copySku()" title="Copy SKU">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted">Format: PartNumber-Material-Color</small>
+                </div>
+
+                <div class="mb-3" id="skuStatus" style="display: none;">
+                    <span class="badge" id="skuStatusBadge">—</span>
+                </div>
+
+                <hr>
+
+                <div class="mb-3">
+                    <label class="form-label">Estimated Weight</label>
+                    <p class="mb-0 fs-5" id="estimatedWeight">— g</p>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Manufacturing Process</label>
+                    <p class="mb-0" id="manufacturingProcess">—</p>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Routing</label>
+                    <select class="form-select" id="routingSelect">
+                        <option value="">Auto-select...</option>
+                        <!-- Populated by JavaScript -->
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-lightning me-2"></i>Quick Actions
+            </div>
+            <div class="card-body">
+                <button class="btn btn-success w-100 mb-2" onclick="partDesigner.createWorkOrder()"
+                        id="createWOBtn" disabled>
+                    <i class="bi bi-clipboard-plus me-2"></i>Create Work Order
+                </button>
+                <button class="btn btn-outline-primary w-100 mb-2" onclick="partDesigner.exportDesign()"
+                        id="exportBtn" disabled>
+                    <i class="bi bi-download me-2"></i>Export to Fusion 360
+                </button>
+                <button class="btn btn-outline-secondary w-100" onclick="partDesigner.viewInCatalog()"
+                        id="viewCatalogBtn" disabled>
+                    <i class="bi bi-box-arrow-up-right me-2"></i>View in Catalog
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Work Order Modal -->
+<div class="modal fade" id="createWOModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Work Order</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <strong>Product:</strong> <span id="woProductSku">—</span>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" class="form-control" id="woQuantity" value="1" min="1">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" id="woPriority">
+                        <option value="8">Low</option>
+                        <option value="5" selected>Normal</option>
+                        <option value="3">High</option>
+                        <option value="1">Rush</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" class="form-control" id="woDueDate">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control" id="woNotes" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="partDesigner.submitWorkOrder()">
+                    <i class="bi bi-check-circle me-1"></i>Create Work Order
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Product Modal -->
+<div class="modal fade" id="createProductModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New Product SKU</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    This will create a new product in the catalog.
+                </div>
+                <table class="table table-sm">
+                    <tr><th>SKU</th><td id="newProductSku" class="font-monospace">—</td></tr>
+                    <tr><th>Part</th><td id="newProductPart">—</td></tr>
+                    <tr><th>Material</th><td id="newProductMaterial">—</td></tr>
+                    <tr><th>Color</th><td id="newProductColor">—</td></tr>
+                    <tr><th>Routing</th><td id="newProductRouting">—</td></tr>
+                </table>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="partDesigner.submitProduct()">
+                    <i class="bi bi-plus-circle me-1"></i>Create Product
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .part-item {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .part-item:hover {
+        background-color: rgba(0, 85, 191, 0.1);
+    }
+    .part-item.active {
+        background-color: var(--lego-blue);
+        color: white;
+        border-color: var(--lego-blue);
+    }
+    .part-item .part-number {
+        font-family: monospace;
+        font-size: 0.85rem;
+    }
+    .spec-table th {
+        width: 40%;
+        font-weight: 500;
+    }
+    .spec-table td {
+        font-family: monospace;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/api_client.js"></script>
+
+<script>
+/**
+ * Part Designer Controller
+ */
+class PartDesigner {
+    constructor() {
+        this.parts = [];
+        this.materials = [];
+        this.colors = [];
+        this.routings = [];
+        this.selectedPart = null;
+        this.selectedMaterial = null;
+        this.selectedColor = null;
+        this.existingProducts = new Set();
+
+        this.init();
+    }
+
+    async init() {
+        await Promise.all([
+            this.loadParts(),
+            this.loadMaterials(),
+            this.loadColors(),
+            this.loadRoutings(),
+            this.loadExistingProducts(),
+        ]);
+        this.renderParts();
+
+        // Set default due date to 7 days from now
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 7);
+        document.getElementById('woDueDate').value = dueDate.toISOString().split('T')[0];
+    }
+
+    async loadParts() {
+        try {
+            const response = await fetch('/api/lego/parts-catalog');
+            const data = await response.json();
+            this.parts = data.parts || [];
+        } catch (error) {
+            console.error('Failed to load parts:', error);
+            // Demo data fallback
+            this.parts = [
+                { part_number: '3001', name: 'Brick 2x4', category: 'brick', studs: { length: 4, width: 2 }, height_plates: 3 },
+                { part_number: '3020', name: 'Plate 2x4', category: 'plate', studs: { length: 4, width: 2 }, height_plates: 1 },
+                { part_number: '3040', name: 'Slope 45° 1x2', category: 'slope_45', studs: { length: 2, width: 1 }, height_plates: 3 },
+                { part_number: '3068', name: 'Tile 2x2', category: 'tile', studs: { length: 2, width: 2 }, height_plates: 1 },
+                { part_number: '3700', name: 'Technic Brick 1x2', category: 'technic', studs: { length: 2, width: 1 }, height_plates: 3 },
+            ];
+        }
+    }
+
+    async loadMaterials() {
+        try {
+            const response = await fetch('/api/lego/materials-catalog');
+            const data = await response.json();
+            this.materials = data.materials || [];
+        } catch (error) {
+            console.error('Failed to load materials:', error);
+            this.materials = [
+                { code: 'ABS', name: 'ABS Plastic', process_type: 'fdm', density_g_cm3: 1.04 },
+                { code: 'PLA', name: 'PLA Plastic', process_type: 'fdm', density_g_cm3: 1.24 },
+                { code: 'ALU', name: '6061-T6 Aluminum', process_type: 'cnc_mill', density_g_cm3: 2.70 },
+            ];
+        }
+
+        const select = document.getElementById('materialSelect');
+        this.materials.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m.code;
+            option.textContent = `${m.name} (${m.process_type?.toUpperCase() || 'N/A'})`;
+            option.dataset.processType = m.process_type || '';
+            option.dataset.density = m.density_g_cm3 || 1.0;
+            select.appendChild(option);
+        });
+    }
+
+    async loadColors() {
+        try {
+            const response = await fetch('/api/lego/colors-catalog');
+            const data = await response.json();
+            this.colors = data.colors || [];
+        } catch (error) {
+            console.error('Failed to load colors:', error);
+            this.colors = [
+                { code: 'RED', name: 'Bright Red', hex_code: '#C4281B', compatible_materials: ['ABS', 'PLA', 'PETG'] },
+                { code: 'BLU', name: 'Bright Blue', hex_code: '#0055BF', compatible_materials: ['ABS', 'PLA', 'PETG'] },
+                { code: 'RAW', name: 'Raw/Unfinished', is_metal_finish: true, compatible_materials: ['ALU', 'BRS', 'SST'] },
+            ];
+        }
+    }
+
+    async loadRoutings() {
+        try {
+            const response = await fetch('/api/lego/routings');
+            const data = await response.json();
+            this.routings = data.routings || [];
+        } catch (error) {
+            console.error('Failed to load routings:', error);
+            this.routings = [
+                { routing_id: 'FDM-STANDARD', name: 'FDM 3D Print Standard', process_type: 'fdm' },
+                { routing_id: 'CNC-STANDARD', name: 'CNC Mill Standard', process_type: 'cnc_mill' },
+            ];
+        }
+
+        const select = document.getElementById('routingSelect');
+        this.routings.forEach(r => {
+            const option = document.createElement('option');
+            option.value = r.routing_id;
+            option.textContent = `${r.name}`;
+            option.dataset.processType = r.process_type || '';
+            select.appendChild(option);
+        });
+    }
+
+    async loadExistingProducts() {
+        try {
+            const response = await fetch('/api/lego/products?limit=1000');
+            const data = await response.json();
+            const products = data.products || [];
+            products.forEach(p => this.existingProducts.add(p.sku));
+        } catch (error) {
+            console.error('Failed to load existing products:', error);
+        }
+    }
+
+    filterParts() {
+        const category = document.getElementById('categoryFilter').value;
+        const search = document.getElementById('partSearch').value.toLowerCase();
+
+        const filtered = this.parts.filter(p => {
+            if (category && p.category !== category) return false;
+            if (search) {
+                const searchStr = `${p.part_number} ${p.name}`.toLowerCase();
+                if (!searchStr.includes(search)) return false;
+            }
+            return true;
+        });
+
+        this.renderParts(filtered);
+    }
+
+    renderParts(parts = null) {
+        const list = document.getElementById('partsList');
+        const partsToRender = parts || this.parts;
+
+        document.getElementById('partCount').textContent = partsToRender.length;
+
+        if (partsToRender.length === 0) {
+            list.innerHTML = '<div class="list-group-item text-muted text-center">No parts found</div>';
+            return;
+        }
+
+        list.innerHTML = partsToRender.map(p => `
+            <a href="#" class="list-group-item list-group-item-action part-item"
+               data-part-number="${p.part_number}"
+               onclick="partDesigner.selectPart('${p.part_number}'); return false;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${p.name}</strong>
+                        <br><span class="part-number text-muted">#${p.part_number}</span>
+                    </div>
+                    <span class="badge bg-secondary">${p.studs?.length || '?'}x${p.studs?.width || '?'}</span>
+                </div>
+            </a>
+        `).join('');
+    }
+
+    selectPart(partNumber) {
+        this.selectedPart = this.parts.find(p => p.part_number === partNumber);
+        if (!this.selectedPart) return;
+
+        // Update UI
+        document.querySelectorAll('.part-item').forEach(el => el.classList.remove('active'));
+        document.querySelector(`.part-item[data-part-number="${partNumber}"]`)?.classList.add('active');
+
+        // Show preview
+        document.getElementById('partPreviewPlaceholder').style.display = 'none';
+        document.getElementById('partPreviewContent').style.display = 'block';
+
+        // Update thumbnail if available
+        const thumb = document.getElementById('partThumbnail');
+        if (this.selectedPart.thumbnail_url) {
+            thumb.src = this.selectedPart.thumbnail_url;
+            thumb.style.display = 'block';
+        } else {
+            thumb.style.display = 'none';
+        }
+
+        // Update specifications
+        this.updateSpecifications();
+        this.updateSku();
+    }
+
+    updateMaterial() {
+        const materialCode = document.getElementById('materialSelect').value;
+        this.selectedMaterial = this.materials.find(m => m.code === materialCode);
+
+        // Filter colors based on material compatibility
+        const colorSelect = document.getElementById('colorSelect');
+        colorSelect.innerHTML = '<option value="">Select color...</option>';
+
+        if (this.selectedMaterial) {
+            const compatibleColors = this.colors.filter(c =>
+                c.compatible_materials?.includes(materialCode)
+            );
+
+            compatibleColors.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.code;
+                option.textContent = c.name;
+                option.dataset.hexCode = c.hex_code || '';
+                option.dataset.isMetalFinish = c.is_metal_finish || false;
+                colorSelect.appendChild(option);
+            });
+
+            // Auto-select routing based on material process type
+            const processType = this.selectedMaterial.process_type;
+            const routingSelect = document.getElementById('routingSelect');
+            const matchingRouting = this.routings.find(r => r.process_type === processType);
+            if (matchingRouting) {
+                routingSelect.value = matchingRouting.routing_id;
+            }
+
+            // Update manufacturing process display
+            document.getElementById('manufacturingProcess').textContent =
+                processType === 'fdm' ? '3D Print (FDM)' :
+                processType === 'sla' ? '3D Print (SLA)' :
+                processType === 'cnc_mill' ? 'CNC Milling' : processType?.toUpperCase() || '—';
+        }
+
+        this.updateSku();
+        this.updateSpecifications();
+    }
+
+    updateColor() {
+        const colorCode = document.getElementById('colorSelect').value;
+        this.selectedColor = this.colors.find(c => c.code === colorCode);
+
+        const preview = document.getElementById('colorPreview');
+        const swatch = document.getElementById('colorSwatch');
+        const name = document.getElementById('colorName');
+
+        if (this.selectedColor) {
+            preview.style.display = 'block';
+            if (this.selectedColor.hex_code) {
+                swatch.style.backgroundColor = this.selectedColor.hex_code;
+            } else if (this.selectedColor.is_metal_finish) {
+                swatch.style.background = 'linear-gradient(135deg, #ccc 0%, #888 50%, #ccc 100%)';
+            }
+            name.textContent = this.selectedColor.name;
+        } else {
+            preview.style.display = 'none';
+        }
+
+        this.updateSku();
+    }
+
+    updateSku() {
+        const skuPreview = document.getElementById('skuPreview');
+        const skuStatus = document.getElementById('skuStatus');
+        const skuBadge = document.getElementById('skuStatusBadge');
+
+        if (this.selectedPart && this.selectedMaterial && this.selectedColor) {
+            const sku = `${this.selectedPart.part_number}-${this.selectedMaterial.code}-${this.selectedColor.code}`;
+            skuPreview.value = sku;
+
+            // Check if product exists
+            skuStatus.style.display = 'block';
+            if (this.existingProducts.has(sku)) {
+                skuBadge.className = 'badge bg-success';
+                skuBadge.textContent = 'Product Exists';
+                document.getElementById('createProductBtn').disabled = true;
+                document.getElementById('createWOBtn').disabled = false;
+            } else {
+                skuBadge.className = 'badge bg-warning text-dark';
+                skuBadge.textContent = 'New Product';
+                document.getElementById('createProductBtn').disabled = false;
+                document.getElementById('createWOBtn').disabled = true;
+            }
+
+            document.getElementById('exportBtn').disabled = false;
+            document.getElementById('viewCatalogBtn').disabled = false;
+        } else {
+            skuPreview.value = '—';
+            skuStatus.style.display = 'none';
+            document.getElementById('createProductBtn').disabled = true;
+            document.getElementById('createWOBtn').disabled = true;
+            document.getElementById('exportBtn').disabled = true;
+            document.getElementById('viewCatalogBtn').disabled = true;
+        }
+    }
+
+    updateSpecifications() {
+        const content = document.getElementById('specContent');
+
+        if (!this.selectedPart) {
+            content.innerHTML = '<p class="text-muted text-center">Select a part to view specifications</p>';
+            return;
+        }
+
+        const p = this.selectedPart;
+        const m = this.selectedMaterial;
+
+        // Calculate dimensions
+        const width = (p.studs?.width || 1) * 8.0 - 0.2;
+        const length = (p.studs?.length || 1) * 8.0 - 0.2;
+        const height = (p.height_plates || 3) * 3.2;
+        const volume = width * length * height * 0.3; // ~30% fill for hollow parts
+
+        // Calculate weight if material selected
+        let weight = '—';
+        if (m && m.density_g_cm3) {
+            const weightG = (volume / 1000) * m.density_g_cm3;
+            weight = weightG.toFixed(2) + ' g';
+            document.getElementById('estimatedWeight').textContent = weight;
+        } else {
+            document.getElementById('estimatedWeight').textContent = '— g';
+        }
+
+        content.innerHTML = `
+            <table class="table table-sm spec-table mb-0">
+                <tr><th>Part Number</th><td>${p.part_number}</td></tr>
+                <tr><th>Name</th><td>${p.name}</td></tr>
+                <tr><th>Category</th><td>${p.category?.replace('_', ' ').toUpperCase() || '—'}</td></tr>
+                <tr><th>Studs</th><td>${p.studs?.length || '?'} x ${p.studs?.width || '?'} (${(p.studs?.length || 0) * (p.studs?.width || 0)} total)</td></tr>
+                <tr><th>Height</th><td>${p.height_plates || '?'} plates (${height.toFixed(1)} mm)</td></tr>
+                <tr><th>Dimensions</th><td>${length.toFixed(1)} x ${width.toFixed(1)} x ${height.toFixed(1)} mm</td></tr>
+                <tr><th>Volume</th><td>~${volume.toFixed(0)} mm³</td></tr>
+                ${p.features?.has_holes ? `<tr><th>Holes</th><td>${p.features.hole_count || 'Yes'}</td></tr>` : ''}
+                ${p.features?.slope_angle ? `<tr><th>Slope Angle</th><td>${p.features.slope_angle}°</td></tr>` : ''}
+            </table>
+        `;
+    }
+
+    copySku() {
+        const sku = document.getElementById('skuPreview').value;
+        if (sku && sku !== '—') {
+            navigator.clipboard.writeText(sku);
+            // Show feedback
+            const btn = event.target.closest('button');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check"></i>';
+            setTimeout(() => btn.innerHTML = originalHtml, 1000);
+        }
+    }
+
+    createProduct() {
+        if (!this.selectedPart || !this.selectedMaterial || !this.selectedColor) return;
+
+        const sku = `${this.selectedPart.part_number}-${this.selectedMaterial.code}-${this.selectedColor.code}`;
+        const routingId = document.getElementById('routingSelect').value;
+
+        document.getElementById('newProductSku').textContent = sku;
+        document.getElementById('newProductPart').textContent = `${this.selectedPart.name} (#${this.selectedPart.part_number})`;
+        document.getElementById('newProductMaterial').textContent = this.selectedMaterial.name;
+        document.getElementById('newProductColor').textContent = this.selectedColor.name;
+        document.getElementById('newProductRouting').textContent = routingId || 'Auto-select';
+
+        new bootstrap.Modal(document.getElementById('createProductModal')).show();
+    }
+
+    async submitProduct() {
+        const sku = document.getElementById('newProductSku').textContent;
+        const routingId = document.getElementById('routingSelect').value;
+
+        try {
+            const response = await fetch('/api/lego/products', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    part_number: this.selectedPart.part_number,
+                    material_code: this.selectedMaterial.code,
+                    color_code: this.selectedColor.code,
+                    routing_id: routingId || undefined,
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to create product');
+            }
+
+            // Success
+            this.existingProducts.add(sku);
+            bootstrap.Modal.getInstance(document.getElementById('createProductModal')).hide();
+            this.updateSku();
+
+            // Show success message
+            alert(`Product ${sku} created successfully!`);
+
+        } catch (error) {
+            console.error('Failed to create product:', error);
+            alert(`Error: ${error.message}`);
+        }
+    }
+
+    createWorkOrder() {
+        if (!this.selectedPart || !this.selectedMaterial || !this.selectedColor) return;
+
+        const sku = `${this.selectedPart.part_number}-${this.selectedMaterial.code}-${this.selectedColor.code}`;
+        document.getElementById('woProductSku').textContent = sku;
+
+        new bootstrap.Modal(document.getElementById('createWOModal')).show();
+    }
+
+    async submitWorkOrder() {
+        const sku = document.getElementById('woProductSku').textContent;
+        const quantity = parseInt(document.getElementById('woQuantity').value) || 1;
+        const priority = parseInt(document.getElementById('woPriority').value) || 5;
+        const dueDate = document.getElementById('woDueDate').value;
+        const notes = document.getElementById('woNotes').value;
+        const routingId = document.getElementById('routingSelect').value;
+
+        try {
+            const response = await fetch('/api/mes/work-orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    product_id: sku,
+                    quantity_ordered: quantity,
+                    priority: priority,
+                    due_date: dueDate || undefined,
+                    notes: notes || undefined,
+                    routing_id: routingId || undefined,
+                    auto_generate_operations: true,
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to create work order');
+            }
+
+            const result = await response.json();
+            bootstrap.Modal.getInstance(document.getElementById('createWOModal')).hide();
+
+            // Show success and offer to navigate
+            const woId = result.work_order_id;
+            const opsCreated = result.operations_created || 0;
+            if (confirm(`Work Order ${woId} created with ${opsCreated} operations.\n\nGo to Work Orders page?`)) {
+                window.location.href = '/mes-data/work-orders';
+            }
+
+        } catch (error) {
+            console.error('Failed to create work order:', error);
+            alert(`Error: ${error.message}`);
+        }
+    }
+
+    async exportDesign() {
+        if (!this.selectedPart) return;
+
+        // This would integrate with Fusion 360 MCP
+        const partNumber = this.selectedPart.part_number;
+        alert(`Export to Fusion 360 for part #${partNumber}\n\nThis feature requires the Fusion 360 MCP server to be running.`);
+    }
+
+    viewInCatalog() {
+        if (!this.selectedPart) return;
+        window.location.href = `/lego/brick/${this.selectedPart.part_number}`;
+    }
+}
+
+// Initialize on page load
+const partDesigner = new PartDesigner();
+</script>
+{% endblock %}

@@ -1,0 +1,746 @@
+{% extends "base.html" %}
+{% block title %}Downtime Analysis - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --critical: #ef4444;
+        --warning: #f59e0b;
+        --success: #10b981;
+        --info: #3b82f6;
+        --purple: #8b5cf6;
+    }
+
+    body {
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .dashboard-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i { color: var(--critical); }
+
+    .header-controls {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .date-range {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        background: var(--bg-card);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .date-range input {
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary { background: var(--info); color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-outline { background: transparent; border: 1px solid var(--border-color); color: var(--text-primary); }
+    .btn-outline:hover { background: var(--bg-card); }
+    .btn-danger { background: var(--critical); color: white; }
+    .btn-danger:hover { background: #dc2626; }
+
+    /* Stats Row */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+    }
+
+    .stat-card.critical::before { background: var(--critical); }
+    .stat-card.warning::before { background: var(--warning); }
+    .stat-card.success::before { background: var(--success); }
+    .stat-card.info::before { background: var(--info); }
+    .stat-card.purple::before { background: var(--purple); }
+
+    .stat-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-value { font-size: 2rem; font-weight: 700; }
+    .stat-unit { font-size: 0.875rem; color: var(--text-secondary); margin-left: 0.25rem; }
+
+    .stat-trend {
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .stat-trend.good { color: var(--success); }
+    .stat-trend.bad { color: var(--critical); }
+
+    /* Cards */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .card {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-body { padding: 1.5rem; }
+
+    /* Pareto Chart */
+    .pareto-container { height: 320px; position: relative; }
+
+    /* Breakdown */
+    .breakdown-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+
+    .donut-container { display: flex; flex-direction: column; align-items: center; }
+
+    .donut-chart {
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        position: relative;
+        margin-bottom: 1rem;
+    }
+
+    .donut-hole {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 90px; height: 90px;
+        border-radius: 50%;
+        background: var(--bg-card);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .donut-value { font-size: 1.25rem; font-weight: 700; }
+    .donut-label { font-size: 0.75rem; color: var(--text-secondary); }
+
+    .legend { display: flex; flex-direction: column; gap: 0.5rem; }
+    .legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.813rem; }
+    .legend-color { width: 12px; height: 12px; border-radius: 3px; }
+
+    /* Timeline */
+    .timeline-machine { margin-bottom: 1rem; }
+    .timeline-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.875rem; }
+    .timeline-bar { height: 24px; display: flex; border-radius: 4px; overflow: hidden; background: rgba(255,255,255,0.1); }
+    .timeline-running { background: var(--success); }
+    .timeline-downtime { background: var(--critical); }
+    .timeline-idle { background: var(--warning); }
+    .timeline-setup { background: var(--info); }
+
+    /* Events Table */
+    .events-table { width: 100%; border-collapse: collapse; }
+    .events-table th, .events-table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .events-table th {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        font-weight: 600;
+        background: rgba(0,0,0,0.2);
+    }
+    .events-table td { font-size: 0.875rem; }
+    .events-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-badge.resolved { background: rgba(16,185,129,0.2); color: var(--success); }
+    .status-badge.ongoing { background: rgba(239,68,68,0.2); color: var(--critical); }
+
+    .category-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        background: rgba(255,255,255,0.1);
+    }
+
+    /* Root Causes */
+    .cause-list { display: flex; flex-direction: column; gap: 0.75rem; }
+    .cause-item { display: flex; align-items: center; gap: 1rem; }
+    .cause-label { width: 120px; font-size: 0.875rem; }
+    .cause-bar { flex: 1; height: 24px; background: rgba(255,255,255,0.05); border-radius: 0.25rem; overflow: hidden; }
+    .cause-fill {
+        height: 100%;
+        border-radius: 0.25rem;
+        display: flex;
+        align-items: center;
+        padding-left: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: white;
+        transition: width 0.5s ease;
+    }
+
+    /* Equipment Cards */
+    .equipment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .equipment-card {
+        background: rgba(255,255,255,0.02);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        border: 1px solid var(--border-color);
+    }
+    .equipment-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .equipment-name { font-weight: 600; font-size: 0.875rem; }
+    .equipment-status { font-size: 0.75rem; padding: 0.125rem 0.5rem; border-radius: 9999px; }
+    .equipment-status.running { background: rgba(16,185,129,0.2); color: var(--success); }
+    .equipment-status.down { background: rgba(239,68,68,0.2); color: var(--critical); }
+    .equipment-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 0.5rem; font-size: 0.75rem; }
+    .equipment-stat-label { color: var(--text-secondary); }
+    .equipment-stat-value { font-weight: 600; }
+    .uptime-bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 0.75rem; overflow: hidden; }
+    .uptime-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+
+    /* Modal */
+    .modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 999; display: none; }
+    .modal-backdrop.show { display: flex; align-items: center; justify-content: center; }
+    .modal-content {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        width: 90%;
+        max-width: 500px;
+        border: 1px solid var(--border-color);
+    }
+    .modal-header { padding: 1.25rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }
+    .modal-title { font-size: 1.125rem; font-weight: 600; }
+    .modal-close { background: none; border: none; color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; }
+    .modal-body { padding: 1.25rem; }
+    .modal-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem; }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-label { display: block; font-size: 0.875rem; margin-bottom: 0.5rem; color: var(--text-secondary); }
+    .form-control, .form-select {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+    .form-control:focus, .form-select:focus { border-color: var(--info); outline: none; }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .stats-row { grid-template-columns: repeat(3, 1fr); }
+        .main-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+        .breakdown-grid, .equipment-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-clock"></i>
+            Downtime Analysis
+        </h1>
+        <div class="header-controls">
+            <div class="date-range">
+                <i class="fas fa-calendar" style="color: var(--text-secondary);"></i>
+                <input type="date" id="startDate" value="2024-12-01">
+                <span style="color: var(--text-secondary);">to</span>
+                <input type="date" id="endDate" value="2024-12-31">
+            </div>
+            <button class="btn btn-danger" onclick="showRecordModal()">
+                <i class="fas fa-plus"></i> Record Downtime
+            </button>
+            <button class="btn btn-outline" onclick="exportReport()">
+                <i class="fas fa-download"></i> Export
+            </button>
+            <a href="/portal" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> Portal
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+        <div class="stat-card critical">
+            <div class="stat-label">Total Downtime</div>
+            <div class="stat-value" id="totalDowntime">47.5<span class="stat-unit">hrs</span></div>
+            <div class="stat-trend bad"><i class="fas fa-arrow-up"></i> 12% vs last month</div>
+        </div>
+        <div class="stat-card warning">
+            <div class="stat-label">Unplanned Downtime</div>
+            <div class="stat-value">32.2<span class="stat-unit">hrs</span></div>
+            <div class="stat-trend bad"><i class="fas fa-arrow-up"></i> 8% vs last month</div>
+        </div>
+        <div class="stat-card success">
+            <div class="stat-label">Availability</div>
+            <div class="stat-value" id="availability">93.4<span class="stat-unit">%</span></div>
+            <div class="stat-trend good"><i class="fas fa-arrow-up"></i> 1.2% improvement</div>
+        </div>
+        <div class="stat-card info">
+            <div class="stat-label">MTBF</div>
+            <div class="stat-value" id="mtbf">168<span class="stat-unit">hrs</span></div>
+            <div class="stat-trend good"><i class="fas fa-arrow-up"></i> 15% improvement</div>
+        </div>
+        <div class="stat-card purple">
+            <div class="stat-label">MTTR</div>
+            <div class="stat-value" id="mttr">2.4<span class="stat-unit">hrs</span></div>
+            <div class="stat-trend good"><i class="fas fa-arrow-down"></i> 20% faster</div>
+        </div>
+    </div>
+
+    <!-- Pareto & Breakdown -->
+    <div class="main-grid">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-chart-bar"></i> Pareto Analysis - Top Downtime Causes</span>
+                <span style="font-size: 0.75rem; color: var(--text-secondary);">80% of downtime from top 3 causes</span>
+            </div>
+            <div class="card-body">
+                <div class="pareto-container"><canvas id="paretoChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><span class="card-title"><i class="fas fa-pie-chart"></i> Downtime Breakdown</span></div>
+            <div class="card-body">
+                <div class="breakdown-grid">
+                    <div class="donut-container">
+                        <div class="donut-chart" id="typeDonut"></div>
+                        <div class="legend">
+                            <div class="legend-item"><div class="legend-color" style="background: var(--critical);"></div><span>Unplanned (68%)</span></div>
+                            <div class="legend-item"><div class="legend-color" style="background: var(--info);"></div><span>Planned (32%)</span></div>
+                        </div>
+                    </div>
+                    <div class="donut-container">
+                        <div class="donut-chart" id="categoryDonut"></div>
+                        <div class="legend">
+                            <div class="legend-item"><div class="legend-color" style="background: var(--critical);"></div><span>Mechanical (42%)</span></div>
+                            <div class="legend-item"><div class="legend-color" style="background: var(--warning);"></div><span>Electrical (28%)</span></div>
+                            <div class="legend-item"><div class="legend-color" style="background: var(--info);"></div><span>Process (18%)</span></div>
+                            <div class="legend-item"><div class="legend-color" style="background: var(--purple);"></div><span>Other (12%)</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trend & Timeline -->
+    <div class="main-grid">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-chart-line"></i> Weekly Downtime Trend</span>
+                <div style="display: flex; gap: 1rem; font-size: 0.75rem;">
+                    <span style="color: var(--critical);"><i class="fas fa-circle"></i> Unplanned</span>
+                    <span style="color: var(--info);"><i class="fas fa-circle"></i> Planned</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="pareto-container"><canvas id="trendChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><span class="card-title"><i class="fas fa-stream"></i> Machine Timeline (Today)</span></div>
+            <div class="card-body">
+                <div class="timeline-machine">
+                    <div class="timeline-header"><span>CNC-001</span><span style="color: var(--success);">94%</span></div>
+                    <div class="timeline-bar">
+                        <div class="timeline-running" style="width:35%"></div>
+                        <div class="timeline-downtime" style="width:6%"></div>
+                        <div class="timeline-running" style="width:28%"></div>
+                        <div class="timeline-setup" style="width:4%"></div>
+                        <div class="timeline-running" style="width:27%"></div>
+                    </div>
+                </div>
+                <div class="timeline-machine">
+                    <div class="timeline-header"><span>CNC-002</span><span style="color: var(--warning);">82%</span></div>
+                    <div class="timeline-bar">
+                        <div class="timeline-running" style="width:30%"></div>
+                        <div class="timeline-downtime" style="width:12%"></div>
+                        <div class="timeline-running" style="width:22%"></div>
+                        <div class="timeline-idle" style="width:8%"></div>
+                        <div class="timeline-running" style="width:28%"></div>
+                    </div>
+                </div>
+                <div class="timeline-machine">
+                    <div class="timeline-header"><span>CNC-003</span><span style="color: var(--critical);">65%</span></div>
+                    <div class="timeline-bar">
+                        <div class="timeline-running" style="width:20%"></div>
+                        <div class="timeline-downtime" style="width:25%"></div>
+                        <div class="timeline-idle" style="width:10%"></div>
+                        <div class="timeline-running" style="width:30%"></div>
+                        <div class="timeline-setup" style="width:5%"></div>
+                        <div class="timeline-running" style="width:10%"></div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 1rem; margin-top: 1rem; font-size: 0.75rem; color: var(--text-secondary);">
+                    <span><span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:2px;margin-right:4px;"></span>Running</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:var(--critical);border-radius:2px;margin-right:4px;"></span>Down</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:var(--warning);border-radius:2px;margin-right:4px;"></span>Idle</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:var(--info);border-radius:2px;margin-right:4px;"></span>Setup</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Events & Root Cause -->
+    <div class="main-grid">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title"><i class="fas fa-history"></i> Recent Downtime Events</span>
+                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">View All</button>
+            </div>
+            <div class="card-body" style="padding: 0;">
+                <table class="events-table">
+                    <thead>
+                        <tr><th>Start Time</th><th>Equipment</th><th>Category</th><th>Reason</th><th>Duration</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="eventsTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><span class="card-title"><i class="fas fa-search"></i> Root Cause Analysis</span></div>
+            <div class="card-body"><div class="cause-list" id="causeList"></div></div>
+        </div>
+    </div>
+
+    <!-- Equipment Status -->
+    <div class="card">
+        <div class="card-header"><span class="card-title"><i class="fas fa-cogs"></i> Equipment Status</span></div>
+        <div class="card-body"><div class="equipment-grid" id="equipmentGrid"></div></div>
+    </div>
+</div>
+
+<!-- Record Downtime Modal -->
+<div class="modal-backdrop" id="recordModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="modal-title">Record Downtime Event</span>
+            <button class="modal-close" onclick="hideRecordModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Machine</label>
+                <select class="form-select" id="dtMachine">
+                    <option value="">Select Machine</option>
+                    <option>CNC-001</option><option>CNC-002</option><option>CNC-003</option><option>CNC-004</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reason Code</label>
+                <select class="form-select" id="dtReason">
+                    <option value="">Select Reason</option>
+                    <option value="EQ-001">EQ-001 - Spindle Motor Fault</option>
+                    <option value="EQ-002">EQ-002 - Hydraulic Pressure Low</option>
+                    <option value="EQ-003">EQ-003 - Bearing Failure</option>
+                    <option value="ST-001">ST-001 - Tool Change</option>
+                    <option value="ST-002">ST-002 - Program Change</option>
+                    <option value="MT-001">MT-001 - Material Shortage</option>
+                    <option value="OP-001">OP-001 - Operator Break</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Start Time</label>
+                <input type="datetime-local" class="form-control" id="dtStartTime">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-control" id="dtNotes" rows="3" placeholder="Additional details..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideRecordModal()">Cancel</button>
+            <button class="btn btn-danger" onclick="recordDowntime()">Record Downtime</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Data
+    const paretoData = {
+        labels: ['Spindle Failure', 'Tool Breakage', 'Coolant System', 'Electrical', 'Programming', 'Material', 'Other'],
+        values: [12.5, 9.2, 7.8, 6.4, 5.1, 3.8, 2.7],
+        cumulative: [26.3, 45.7, 62.1, 75.6, 86.3, 94.3, 100]
+    };
+
+    const trendData = {
+        labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+        unplanned: [8.2, 10.5, 7.8, 5.7],
+        planned: [4.5, 3.2, 5.8, 3.8]
+    };
+
+    const equipmentData = [
+        { name: 'CNC-001', status: 'running', uptime: 94.2, mtbf: 168, mttr: 2.1, incidents: 3 },
+        { name: 'CNC-002', status: 'running', uptime: 91.8, mtbf: 142, mttr: 2.8, incidents: 5 },
+        { name: 'CNC-003', status: 'down', uptime: 65.5, mtbf: 82, mttr: 4.2, incidents: 9 },
+        { name: 'CNC-004', status: 'running', uptime: 96.1, mtbf: 210, mttr: 1.8, incidents: 2 }
+    ];
+
+    const eventsData = [
+        { time: '2024-12-28 14:32', equipment: 'CNC-003', category: 'Mechanical', reason: 'Spindle bearing failure', duration: '4h 15m', status: 'ongoing' },
+        { time: '2024-12-27 09:15', equipment: 'CNC-001', category: 'Electrical', reason: 'VFD fault code E012', duration: '1h 45m', status: 'resolved' },
+        { time: '2024-12-26 16:48', equipment: 'CNC-002', category: 'Process', reason: 'Tool breakage - T05', duration: '0h 35m', status: 'resolved' },
+        { time: '2024-12-25 11:22', equipment: 'CNC-004', category: 'Planned', reason: 'Scheduled maintenance', duration: '3h 00m', status: 'resolved' },
+        { time: '2024-12-24 08:05', equipment: 'CNC-001', category: 'Mechanical', reason: 'Coolant pump failure', duration: '2h 20m', status: 'resolved' }
+    ];
+
+    const causeData = [
+        { name: 'Bearing Wear', hours: 12.5, color: 'var(--critical)' },
+        { name: 'Tool Failure', hours: 9.2, color: 'var(--warning)' },
+        { name: 'Coolant Issues', hours: 7.8, color: 'var(--info)' },
+        { name: 'Electrical', hours: 6.4, color: 'var(--purple)' },
+        { name: 'Operator Error', hours: 5.1, color: 'var(--success)' },
+        { name: 'Material', hours: 3.8, color: '#64748b' }
+    ];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        createParetoChart();
+        createTrendChart();
+        createDonutCharts();
+        renderEquipment();
+        renderEvents();
+        renderCauses();
+        document.getElementById('dtStartTime').value = new Date().toISOString().slice(0, 16);
+    });
+
+    // Pareto Chart with cumulative line
+    function createParetoChart() {
+        const ctx = document.getElementById('paretoChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: paretoData.labels,
+                datasets: [{
+                    label: 'Hours',
+                    data: paretoData.values,
+                    backgroundColor: ['rgba(239,68,68,0.8)', 'rgba(239,68,68,0.7)', 'rgba(245,158,11,0.7)', 'rgba(245,158,11,0.6)', 'rgba(59,130,246,0.6)', 'rgba(59,130,246,0.5)', 'rgba(148,163,184,0.5)'],
+                    borderRadius: 4,
+                    yAxisID: 'y'
+                }, {
+                    label: 'Cumulative %',
+                    data: paretoData.cumulative,
+                    type: 'line',
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#f59e0b',
+                    pointRadius: 4,
+                    tension: 0.3,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: true, position: 'top', labels: { color: '#94a3b8' } } },
+                scales: {
+                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+                    y: { position: 'left', grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', callback: v => v + 'h' }, title: { display: true, text: 'Hours', color: '#94a3b8' } },
+                    y1: { position: 'right', grid: { display: false }, ticks: { color: '#f59e0b', callback: v => v + '%' }, min: 0, max: 100, title: { display: true, text: 'Cumulative %', color: '#f59e0b' } }
+                }
+            }
+        });
+    }
+
+    // Trend Chart
+    function createTrendChart() {
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: trendData.labels,
+                datasets: [
+                    { label: 'Unplanned', data: trendData.unplanned, backgroundColor: 'rgba(239,68,68,0.7)', borderRadius: 4 },
+                    { label: 'Planned', data: trendData.planned, backgroundColor: 'rgba(59,130,246,0.7)', borderRadius: 4 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { stacked: true, grid: { display: false }, ticks: { color: '#94a3b8' } },
+                    y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8', callback: v => v + 'h' } }
+                }
+            }
+        });
+    }
+
+    // Donut Charts
+    function createDonutCharts() {
+        const typeDonut = document.getElementById('typeDonut');
+        typeDonut.style.background = 'conic-gradient(var(--critical) 0deg 245deg, var(--info) 245deg 360deg)';
+        typeDonut.innerHTML = '<div class="donut-hole"><div class="donut-value">47.5h</div><div class="donut-label">Total</div></div>';
+
+        const categoryDonut = document.getElementById('categoryDonut');
+        categoryDonut.style.background = 'conic-gradient(var(--critical) 0deg 151deg, var(--warning) 151deg 252deg, var(--info) 252deg 317deg, var(--purple) 317deg 360deg)';
+        categoryDonut.innerHTML = '<div class="donut-hole"><div class="donut-value">6</div><div class="donut-label">Categories</div></div>';
+    }
+
+    // Render Equipment
+    function renderEquipment() {
+        const container = document.getElementById('equipmentGrid');
+        container.innerHTML = equipmentData.map(eq => `
+            <div class="equipment-card">
+                <div class="equipment-header">
+                    <span class="equipment-name">${eq.name}</span>
+                    <span class="equipment-status ${eq.status}">${eq.status === 'running' ? 'Running' : 'Down'}</span>
+                </div>
+                <div class="equipment-stats">
+                    <div><div class="equipment-stat-label">MTBF</div><div class="equipment-stat-value">${eq.mtbf}h</div></div>
+                    <div><div class="equipment-stat-label">MTTR</div><div class="equipment-stat-value">${eq.mttr}h</div></div>
+                    <div><div class="equipment-stat-label">Incidents</div><div class="equipment-stat-value">${eq.incidents}</div></div>
+                </div>
+                <div class="uptime-bar">
+                    <div class="uptime-fill" style="width: ${eq.uptime}%; background: ${eq.uptime > 95 ? 'var(--success)' : eq.uptime > 90 ? 'var(--warning)' : 'var(--critical)'};"></div>
+                </div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">${eq.uptime}% Uptime</div>
+            </div>
+        `).join('');
+    }
+
+    // Render Events
+    function renderEvents() {
+        const tbody = document.getElementById('eventsTable');
+        tbody.innerHTML = eventsData.map(ev => `
+            <tr>
+                <td>${ev.time}</td>
+                <td><strong>${ev.equipment}</strong></td>
+                <td><span class="category-badge">${ev.category}</span></td>
+                <td>${ev.reason}</td>
+                <td>${ev.duration}</td>
+                <td><span class="status-badge ${ev.status}">${ev.status}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    // Render Causes
+    function renderCauses() {
+        const container = document.getElementById('causeList');
+        const maxHours = Math.max(...causeData.map(c => c.hours));
+        container.innerHTML = causeData.map(cause => `
+            <div class="cause-item">
+                <span class="cause-label">${cause.name}</span>
+                <div class="cause-bar">
+                    <div class="cause-fill" style="width: ${(cause.hours / maxHours) * 100}%; background: ${cause.color};">${cause.hours}h</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Modal
+    function showRecordModal() { document.getElementById('recordModal').classList.add('show'); }
+    function hideRecordModal() { document.getElementById('recordModal').classList.remove('show'); }
+
+    function recordDowntime() {
+        const machine = document.getElementById('dtMachine').value;
+        const reason = document.getElementById('dtReason').value;
+        if (!machine || !reason) { alert('Please fill in required fields'); return; }
+        alert('Downtime recorded for ' + machine);
+        hideRecordModal();
+    }
+
+    function exportReport() { alert('Downtime report exported to PDF/Excel'); }
+</script>
+{% endblock %}

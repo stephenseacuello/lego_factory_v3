@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAPA Management - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --card-bg: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+            --cyan: #06b6d4;
+            --orange: #f97316;
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar-dark-custom {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .page-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .page-title i { color: var(--purple); }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+        }
+
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-purple {
+            background: var(--purple);
+            border-color: var(--purple);
+            color: white;
+        }
+
+        .btn-purple:hover {
+            background: #7c3aed;
+            border-color: #7c3aed;
+            color: white;
+        }
+
+        .btn-outline-light:hover {
+            background: var(--card-bg);
+        }
+
+        .form-control, .form-select {
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .form-control:focus, .form-select:focus {
+            background: var(--bg-dark);
+            border-color: var(--primary);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .table {
+            color: var(--text-primary);
+        }
+
+        .table thead th {
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+        }
+
+        .table tbody td {
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+            vertical-align: middle;
+        }
+
+        .table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            font-size: 0.813rem;
+            color: var(--text-secondary);
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-open { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .status-analysis { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .status-implementation { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+        .status-verification { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+        .status-closed { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+
+        .type-badge {
+            padding: 0.125rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .type-ca { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .type-pa { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+
+        .priority-badge {
+            padding: 0.125rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .priority-high { background: var(--danger); color: white; }
+        .priority-medium { background: var(--warning); color: #1e293b; }
+        .priority-low { background: var(--text-secondary); color: #1e293b; }
+
+        .capa-number {
+            font-family: 'SF Mono', Consolas, monospace;
+            font-size: 0.813rem;
+            font-weight: 600;
+        }
+
+        .progress-bar-custom {
+            height: 6px;
+            background: var(--bg-dark);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .action-item {
+            background: var(--bg-dark);
+            border-radius: 0.5rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid var(--border-color);
+        }
+
+        .action-item.completed {
+            border-left-color: var(--success);
+        }
+
+        .action-item.overdue {
+            border-left-color: var(--danger);
+        }
+
+        .action-item.in-progress {
+            border-left-color: var(--warning);
+        }
+
+        .action-btn {
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: var(--card-bg);
+            border-color: var(--primary);
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1.5rem;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+        }
+
+        .btn-close {
+            filter: invert(1);
+        }
+
+        @media (max-width: 1400px) {
+            .stats-row { grid-template-columns: repeat(3, 1fr); }
+            .section-grid { grid-template-columns: 1fr; }
+        }
+
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-dark-custom navbar-expand-lg">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="/portal">
+                <i class="bi bi-arrow-left me-2"></i> Back to Portal
+            </a>
+            <span class="navbar-text">
+                <i class="bi bi-clipboard2-check me-2"></i> QMS - CAPA Management
+            </span>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-header">
+            <h1 class="page-title">
+                <i class="bi bi-clipboard2-check-fill"></i>
+                CAPA Management
+            </h1>
+            <div>
+                <button class="btn btn-outline-light me-2">
+                    <i class="bi bi-download me-1"></i> Export
+                </button>
+                <button class="btn btn-purple" data-bs-toggle="modal" data-bs-target="#capaModal">
+                    <i class="bi bi-plus-lg me-1"></i> Create CAPA
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(139, 92, 246, 0.2); color: var(--purple);">
+                    <i class="bi bi-clipboard2-check"></i>
+                </div>
+                <div class="stat-value">18</div>
+                <div class="stat-label">Open CAPAs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--danger);">
+                    <i class="bi bi-exclamation-circle"></i>
+                </div>
+                <div class="stat-value">12</div>
+                <div class="stat-label">Corrective Actions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2); color: var(--primary);">
+                    <i class="bi bi-shield-check"></i>
+                </div>
+                <div class="stat-value">6</div>
+                <div class="stat-label">Preventive Actions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.2); color: var(--warning);">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+                <div class="stat-value">4</div>
+                <div class="stat-label">Overdue Actions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.2); color: var(--success);">
+                    <i class="bi bi-check2-circle"></i>
+                </div>
+                <div class="stat-value">94</div>
+                <div class="stat-label">Closed (YTD)</div>
+            </div>
+        </div>
+
+        <div class="section-grid">
+            <!-- CAPA List -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-list-ul me-2"></i> CAPA Records</span>
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm w-auto">
+                            <option>All Types</option>
+                            <option>Corrective</option>
+                            <option>Preventive</option>
+                        </select>
+                        <select class="form-select form-select-sm w-auto">
+                            <option>All Status</option>
+                            <option>Open</option>
+                            <option>Analysis</option>
+                            <option>Implementation</option>
+                            <option>Verification</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>CAPA #</th>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Source</th>
+                                <th>Priority</th>
+                                <th>Status</th>
+                                <th>Progress</th>
+                                <th>Due Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="capa-number">CAPA-2024-0034</td>
+                                <td>
+                                    <div>Recurring dimension failures</div>
+                                    <div class="text-secondary" style="font-size: 0.75rem;">From NCR-2024-0089</div>
+                                </td>
+                                <td><span class="type-badge type-ca">Corrective</span></td>
+                                <td>NCR</td>
+                                <td><span class="priority-badge priority-high">High</span></td>
+                                <td><span class="status-badge status-analysis">Root Cause Analysis</span></td>
+                                <td>
+                                    <div class="progress-bar-custom">
+                                        <div class="progress-fill" style="width: 35%; background: var(--warning);"></div>
+                                    </div>
+                                    <div class="text-secondary mt-1" style="font-size: 0.7rem;">35% - 2/6 actions</div>
+                                </td>
+                                <td>Feb 15, 2024</td>
+                                <td>
+                                    <button class="action-btn" title="View"><i class="bi bi-eye"></i></button>
+                                    <button class="action-btn" title="Edit"><i class="bi bi-pencil"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="capa-number">CAPA-2024-0033</td>
+                                <td>
+                                    <div>Supplier quality improvement</div>
+                                    <div class="text-secondary" style="font-size: 0.75rem;">From Audit Finding</div>
+                                </td>
+                                <td><span class="type-badge type-pa">Preventive</span></td>
+                                <td>Audit</td>
+                                <td><span class="priority-badge priority-medium">Medium</span></td>
+                                <td><span class="status-badge status-implementation">Implementation</span></td>
+                                <td>
+                                    <div class="progress-bar-custom">
+                                        <div class="progress-fill" style="width: 75%; background: var(--primary);"></div>
+                                    </div>
+                                    <div class="text-secondary mt-1" style="font-size: 0.7rem;">75% - 3/4 actions</div>
+                                </td>
+                                <td>Feb 01, 2024</td>
+                                <td>
+                                    <button class="action-btn" title="View"><i class="bi bi-eye"></i></button>
+                                    <button class="action-btn" title="Edit"><i class="bi bi-pencil"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="capa-number">CAPA-2024-0032</td>
+                                <td>
+                                    <div>Customer complaint - packaging</div>
+                                    <div class="text-secondary" style="font-size: 0.75rem;">Customer Complaint</div>
+                                </td>
+                                <td><span class="type-badge type-ca">Corrective</span></td>
+                                <td>Customer</td>
+                                <td><span class="priority-badge priority-high">High</span></td>
+                                <td><span class="status-badge status-verification">Verification</span></td>
+                                <td>
+                                    <div class="progress-bar-custom">
+                                        <div class="progress-fill" style="width: 90%; background: var(--success);"></div>
+                                    </div>
+                                    <div class="text-secondary mt-1" style="font-size: 0.7rem;">90% - 4/5 actions</div>
+                                </td>
+                                <td>Jan 25, 2024</td>
+                                <td>
+                                    <button class="action-btn" title="View"><i class="bi bi-eye"></i></button>
+                                    <button class="action-btn" title="Close"><i class="bi bi-check"></i></button>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="capa-number">CAPA-2024-0031</td>
+                                <td>
+                                    <div>Process improvement - molding</div>
+                                    <div class="text-secondary" style="font-size: 0.75rem;">Management Review</div>
+                                </td>
+                                <td><span class="type-badge type-pa">Preventive</span></td>
+                                <td>Review</td>
+                                <td><span class="priority-badge priority-low">Low</span></td>
+                                <td><span class="status-badge status-open">Open</span></td>
+                                <td>
+                                    <div class="progress-bar-custom">
+                                        <div class="progress-fill" style="width: 10%; background: var(--danger);"></div>
+                                    </div>
+                                    <div class="text-secondary mt-1" style="font-size: 0.7rem;">10% - 0/3 actions</div>
+                                </td>
+                                <td>Mar 01, 2024</td>
+                                <td>
+                                    <button class="action-btn" title="View"><i class="bi bi-eye"></i></button>
+                                    <button class="action-btn" title="Edit"><i class="bi bi-pencil"></i></button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Action Items Panel -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="bi bi-list-task me-2"></i> My Action Items
+                </div>
+                <div class="card-body">
+                    <div class="action-item overdue">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-bold" style="font-size: 0.875rem;">Update SOP-QA-001</div>
+                                <div class="text-secondary" style="font-size: 0.75rem;">CAPA-2024-0034</div>
+                            </div>
+                            <span class="text-danger" style="font-size: 0.75rem;">Overdue 2d</span>
+                        </div>
+                    </div>
+                    <div class="action-item in-progress">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-bold" style="font-size: 0.875rem;">Conduct root cause analysis</div>
+                                <div class="text-secondary" style="font-size: 0.75rem;">CAPA-2024-0034</div>
+                            </div>
+                            <span class="text-warning" style="font-size: 0.75rem;">Due Jan 22</span>
+                        </div>
+                    </div>
+                    <div class="action-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-bold" style="font-size: 0.875rem;">Verify corrective action effectiveness</div>
+                                <div class="text-secondary" style="font-size: 0.75rem;">CAPA-2024-0032</div>
+                            </div>
+                            <span class="text-secondary" style="font-size: 0.75rem;">Due Jan 25</span>
+                        </div>
+                    </div>
+                    <div class="action-item completed">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-bold text-decoration-line-through" style="font-size: 0.875rem;">Contact supplier for spec review</div>
+                                <div class="text-secondary" style="font-size: 0.75rem;">CAPA-2024-0033</div>
+                            </div>
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                        </div>
+                    </div>
+                    <div class="action-item completed">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-bold text-decoration-line-through" style="font-size: 0.875rem;">Implement packaging change</div>
+                                <div class="text-secondary" style="font-size: 0.75rem;">CAPA-2024-0032</div>
+                            </div>
+                            <i class="bi bi-check-circle-fill text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create CAPA Modal -->
+    <div class="modal fade" id="capaModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-clipboard2-plus me-2"></i> Create CAPA</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">CAPA Type</label>
+                                <select class="form-select">
+                                    <option value="corrective">Corrective Action</option>
+                                    <option value="preventive">Preventive Action</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Source</label>
+                                <select class="form-select">
+                                    <option>NCR</option>
+                                    <option>Customer Complaint</option>
+                                    <option>Audit Finding</option>
+                                    <option>Management Review</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Related Record</label>
+                                <input type="text" class="form-control" placeholder="e.g., NCR-2024-0089">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Priority</label>
+                                <select class="form-select">
+                                    <option value="low">Low</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Title</label>
+                                <input type="text" class="form-control" placeholder="Brief description of the issue">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Problem Description</label>
+                                <textarea class="form-control" rows="3" placeholder="Detailed description of the problem..."></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Responsible Person</label>
+                                <select class="form-select">
+                                    <option>Select responsible...</option>
+                                    <option>J. Smith</option>
+                                    <option>M. Johnson</option>
+                                    <option>A. Davis</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Target Completion Date</label>
+                                <input type="date" class="form-control">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-purple">
+                        <i class="bi bi-check-lg me-1"></i> Create CAPA
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

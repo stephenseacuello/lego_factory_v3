@@ -1,0 +1,838 @@
+{% extends "base.html" %}
+{% block title %}Maintenance Scheduler - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #22c55e;
+        --accent-yellow: #eab308;
+        --accent-red: #ef4444;
+        --accent-purple: #a855f7;
+        --accent-orange: #f97316;
+    }
+
+    .maintenance-container {
+        padding: 24px;
+        background: var(--bg-dark);
+        min-height: 100vh;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
+
+    /* Stats Row */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        margin-bottom: 12px;
+    }
+
+    .stat-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    /* Layout */
+    .main-layout {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 24px;
+    }
+
+    /* Calendar */
+    .calendar-section {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .calendar-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .calendar-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .calendar-nav {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .calendar-nav button {
+        background: var(--bg-dark);
+        border: none;
+        color: var(--text-primary);
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        cursor: pointer;
+    }
+
+    .calendar-month {
+        font-weight: 600;
+        color: var(--text-primary);
+        min-width: 140px;
+        text-align: center;
+    }
+
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+    }
+
+    .calendar-day-header {
+        padding: 12px;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        background: var(--bg-dark);
+    }
+
+    .calendar-day {
+        min-height: 100px;
+        padding: 8px;
+        border: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .calendar-day:hover {
+        background: var(--bg-card-hover);
+    }
+
+    .calendar-day.other-month {
+        opacity: 0.4;
+    }
+
+    .calendar-day.today {
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .day-number {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 6px;
+    }
+
+    .day-events {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .day-event {
+        font-size: 11px;
+        padding: 3px 6px;
+        border-radius: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .day-event.pm { background: rgba(59, 130, 246, 0.3); color: var(--accent-blue); }
+    .day-event.inspection { background: rgba(34, 197, 94, 0.3); color: var(--accent-green); }
+    .day-event.repair { background: rgba(239, 68, 68, 0.3); color: var(--accent-red); }
+    .day-event.calibration { background: rgba(168, 85, 247, 0.3); color: var(--accent-purple); }
+
+    /* Sidebar */
+    .sidebar-section {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 20px;
+    }
+
+    .sidebar-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .sidebar-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    /* Upcoming Tasks */
+    .task-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .task-item {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .task-item:hover {
+        background: var(--bg-card-hover);
+    }
+
+    .task-item:last-child {
+        border-bottom: none;
+    }
+
+    .task-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 6px;
+    }
+
+    .task-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .task-priority {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .task-priority.high { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .task-priority.medium { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+    .task-priority.low { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+
+    .task-meta {
+        display: flex;
+        gap: 16px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .task-type {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .type-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .type-dot.pm { background: var(--accent-blue); }
+    .type-dot.inspection { background: var(--accent-green); }
+    .type-dot.repair { background: var(--accent-red); }
+    .type-dot.calibration { background: var(--accent-purple); }
+
+    /* Asset Health */
+    .asset-list {
+        padding: 0 20px 20px;
+    }
+
+    .asset-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .asset-item:last-child {
+        border-bottom: none;
+    }
+
+    .asset-health {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 12px;
+    }
+
+    .asset-health.good { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+    .asset-health.fair { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+    .asset-health.poor { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+
+    .asset-info {
+        flex: 1;
+    }
+
+    .asset-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .asset-next {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    /* Legend */
+    .legend {
+        display: flex;
+        gap: 16px;
+        padding: 12px 20px;
+        background: var(--bg-dark);
+        flex-wrap: wrap;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .modal-overlay.show { display: flex; }
+
+    .modal-content {
+        background: var(--bg-card);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 550px;
+        max-height: 85vh;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 24px;
+        cursor: pointer;
+    }
+
+    .modal-body {
+        padding: 24px;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+    }
+
+    .form-input,
+    .form-select,
+    .form-textarea {
+        width: 100%;
+        padding: 10px 14px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .form-textarea {
+        min-height: 80px;
+        resize: vertical;
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    @media (max-width: 1200px) {
+        .main-layout { grid-template-columns: 1fr; }
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="maintenance-container">
+    <div class="page-header">
+        <h1 class="page-title">Maintenance Scheduler</h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="exportSchedule()">Export Schedule</button>
+            <button class="btn btn-primary" onclick="openTaskModal()">+ Schedule Task</button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2);">📅</div>
+            <div class="stat-value">12</div>
+            <div class="stat-label">Scheduled This Week</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(239, 68, 68, 0.2);">⚠️</div>
+            <div class="stat-value">3</div>
+            <div class="stat-label">Overdue Tasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(34, 197, 94, 0.2);">✓</div>
+            <div class="stat-value">89%</div>
+            <div class="stat-label">Completion Rate (MTD)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon" style="background: rgba(168, 85, 247, 0.2);">⏱️</div>
+            <div class="stat-value">4.2h</div>
+            <div class="stat-label">Avg. Repair Time</div>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <!-- Calendar -->
+        <div class="calendar-section">
+            <div class="calendar-header">
+                <h3 class="calendar-title">Maintenance Calendar</h3>
+                <div class="calendar-nav">
+                    <button onclick="prevMonth()">◀</button>
+                    <span class="calendar-month" id="currentMonth">January 2024</span>
+                    <button onclick="nextMonth()">▶</button>
+                </div>
+            </div>
+            <div class="calendar-grid" id="calendarGrid">
+                <!-- Populated by JavaScript -->
+            </div>
+            <div class="legend">
+                <div class="legend-item">
+                    <span class="legend-color" style="background: rgba(59, 130, 246, 0.5);"></span>
+                    <span>Preventive</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: rgba(34, 197, 94, 0.5);"></span>
+                    <span>Inspection</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: rgba(239, 68, 68, 0.5);"></span>
+                    <span>Repair</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="background: rgba(168, 85, 247, 0.5);"></span>
+                    <span>Calibration</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div>
+            <!-- Upcoming Tasks -->
+            <div class="sidebar-section">
+                <div class="sidebar-header">
+                    <h3 class="sidebar-title">Upcoming Tasks</h3>
+                    <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;">View All</button>
+                </div>
+                <div class="task-list" id="taskList">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Asset Health -->
+            <div class="sidebar-section">
+                <div class="sidebar-header">
+                    <h3 class="sidebar-title">Asset Health</h3>
+                </div>
+                <div class="asset-list" id="assetList">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Task Modal -->
+<div class="modal-overlay" id="taskModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Schedule Maintenance Task</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Task Name</label>
+                <input type="text" class="form-input" id="taskName" placeholder="e.g., Spindle bearing inspection">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Task Type</label>
+                    <select class="form-select" id="taskType">
+                        <option value="pm">Preventive Maintenance</option>
+                        <option value="inspection">Inspection</option>
+                        <option value="repair">Repair</option>
+                        <option value="calibration">Calibration</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" id="taskPriority">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Asset</label>
+                    <select class="form-select" id="taskAsset">
+                        <option value="CNC-001">CNC Mill #1</option>
+                        <option value="CNC-002">CNC Mill #2</option>
+                        <option value="CNC-003">CNC Lathe #1</option>
+                        <option value="CNC-004">CNC Lathe #2</option>
+                        <option value="CNC-005">5-Axis Mill</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Estimated Duration</label>
+                    <select class="form-select" id="taskDuration">
+                        <option value="30">30 minutes</option>
+                        <option value="60">1 hour</option>
+                        <option value="120">2 hours</option>
+                        <option value="240">4 hours</option>
+                        <option value="480">8 hours</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Scheduled Date</label>
+                    <input type="date" class="form-input" id="taskDate">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assigned To</label>
+                    <select class="form-select" id="taskAssignee">
+                        <option value="john">John Smith</option>
+                        <option value="maria">Maria Garcia</option>
+                        <option value="robert">Robert Chen</option>
+                        <option value="sarah">Sarah Johnson</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-textarea" id="taskNotes" placeholder="Additional instructions or notes..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Recurrence</label>
+                <select class="form-select" id="taskRecurrence">
+                    <option value="none">One-time</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Bi-weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveTask()">Schedule Task</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Calendar data
+    let currentDate = new Date();
+    const today = new Date();
+
+    const maintenanceEvents = [
+        { date: '2024-01-15', type: 'pm', name: 'CNC-001 Oil Change' },
+        { date: '2024-01-15', type: 'inspection', name: 'Safety Check' },
+        { date: '2024-01-17', type: 'calibration', name: 'Probe Calibration' },
+        { date: '2024-01-18', type: 'pm', name: 'CNC-002 Filter Replace' },
+        { date: '2024-01-19', type: 'repair', name: 'Coolant Pump Repair' },
+        { date: '2024-01-22', type: 'inspection', name: 'Spindle Inspection' },
+        { date: '2024-01-23', type: 'pm', name: 'Lubrication Service' },
+        { date: '2024-01-25', type: 'calibration', name: 'Axis Calibration' },
+        { date: '2024-01-26', type: 'pm', name: 'Way Cover Inspection' }
+    ];
+
+    const upcomingTasks = [
+        { name: 'CNC-001 Oil Change', type: 'pm', date: 'Today 2:00 PM', priority: 'high', asset: 'CNC Mill #1' },
+        { name: 'Safety Interlock Check', type: 'inspection', date: 'Today 4:00 PM', priority: 'medium', asset: 'All Machines' },
+        { name: 'Probe Calibration', type: 'calibration', date: 'Wed, Jan 17', priority: 'medium', asset: 'CNC Mill #2' },
+        { name: 'Filter Replacement', type: 'pm', date: 'Thu, Jan 18', priority: 'low', asset: 'CNC Mill #2' },
+        { name: 'Coolant Pump Repair', type: 'repair', date: 'Fri, Jan 19', priority: 'high', asset: 'CNC Lathe #1' }
+    ];
+
+    const assets = [
+        { name: 'CNC Mill #1', health: 92, status: 'good', next: 'PM in 3 days' },
+        { name: 'CNC Mill #2', health: 78, status: 'fair', next: 'Inspection today' },
+        { name: 'CNC Lathe #1', health: 45, status: 'poor', next: 'Repair scheduled' },
+        { name: 'CNC Lathe #2', health: 88, status: 'good', next: 'PM in 12 days' },
+        { name: '5-Axis Mill', health: 95, status: 'good', next: 'Calibration in 8 days' }
+    ];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        renderCalendar();
+        renderTasks();
+        renderAssets();
+    });
+
+    function renderCalendar() {
+        const grid = document.getElementById('calendarGrid');
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+
+        document.getElementById('currentMonth').textContent =
+            currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startDay = firstDay.getDay();
+        const daysInMonth = lastDay.getDate();
+
+        let html = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+            .map(d => `<div class="calendar-day-header">${d}</div>`).join('');
+
+        // Previous month days
+        const prevMonth = new Date(year, month, 0);
+        for (let i = startDay - 1; i >= 0; i--) {
+            html += `<div class="calendar-day other-month"><div class="day-number">${prevMonth.getDate() - i}</div></div>`;
+        }
+
+        // Current month days
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const events = maintenanceEvents.filter(e => e.date === dateStr);
+            const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+
+            html += `
+                <div class="calendar-day ${isToday ? 'today' : ''}" onclick="showDayEvents('${dateStr}')">
+                    <div class="day-number">${day}</div>
+                    <div class="day-events">
+                        ${events.slice(0, 3).map(e =>
+                            `<div class="day-event ${e.type}">${e.name}</div>`
+                        ).join('')}
+                        ${events.length > 3 ? `<div class="day-event" style="color: var(--text-secondary);">+${events.length - 3} more</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Next month days
+        const remaining = 42 - startDay - daysInMonth;
+        for (let i = 1; i <= remaining; i++) {
+            html += `<div class="calendar-day other-month"><div class="day-number">${i}</div></div>`;
+        }
+
+        grid.innerHTML = html;
+    }
+
+    function renderTasks() {
+        document.getElementById('taskList').innerHTML = upcomingTasks.map(t => `
+            <div class="task-item">
+                <div class="task-header">
+                    <span class="task-name">${t.name}</span>
+                    <span class="task-priority ${t.priority}">${t.priority}</span>
+                </div>
+                <div class="task-meta">
+                    <span class="task-type">
+                        <span class="type-dot ${t.type}"></span>
+                        ${t.type === 'pm' ? 'Preventive' : t.type.charAt(0).toUpperCase() + t.type.slice(1)}
+                    </span>
+                    <span>${t.asset}</span>
+                    <span>${t.date}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderAssets() {
+        document.getElementById('assetList').innerHTML = assets.map(a => `
+            <div class="asset-item">
+                <div class="asset-health ${a.status}">${a.health}%</div>
+                <div class="asset-info">
+                    <div class="asset-name">${a.name}</div>
+                    <div class="asset-next">${a.next}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function prevMonth() {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        renderCalendar();
+    }
+
+    function nextMonth() {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        renderCalendar();
+    }
+
+    function showDayEvents(dateStr) {
+        const events = maintenanceEvents.filter(e => e.date === dateStr);
+        if (events.length === 0) {
+            openTaskModal();
+            document.getElementById('taskDate').value = dateStr;
+        } else {
+            alert(`Events on ${dateStr}:\n${events.map(e => `- ${e.name} (${e.type})`).join('\n')}`);
+        }
+    }
+
+    function openTaskModal() {
+        document.getElementById('taskDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('taskModal').classList.add('show');
+    }
+
+    function closeModal() {
+        document.getElementById('taskModal').classList.remove('show');
+    }
+
+    function saveTask() {
+        const name = document.getElementById('taskName').value;
+        if (!name.trim()) {
+            alert('Please enter a task name');
+            return;
+        }
+        alert(`Task "${name}" scheduled successfully!`);
+        closeModal();
+    }
+
+    function exportSchedule() {
+        alert('Exporting maintenance schedule...');
+    }
+
+    document.getElementById('taskModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+</script>
+{% endblock %}

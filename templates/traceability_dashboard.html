@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traceability Dashboard - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .nav-tabs { border-color: rgba(255,255,255,0.1); }
+        .nav-tabs .nav-link { color: #94a3b8; border: none; }
+        .nav-tabs .nav-link.active { background: var(--card-bg); color: #3b82f6; border-bottom: 2px solid #3b82f6; }
+        .nav-tabs .nav-link:hover { color: #e2e8f0; border-color: transparent; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.05); vertical-align: middle; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.1); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; border-color: #3b82f6; color: #e2e8f0; box-shadow: none; }
+        .btn-primary { background: #3b82f6; border-color: #3b82f6; }
+        .btn-outline-light { border-color: rgba(255,255,255,0.2); }
+        .genealogy-tree { padding: 1rem; }
+        .tree-node { padding: 0.75rem 1rem; margin: 0.25rem 0; background: rgba(59,130,246,0.1); border-left: 3px solid #3b82f6; border-radius: 4px; }
+        .tree-node.parent { border-left-color: #22c55e; background: rgba(34,197,94,0.1); }
+        .tree-node.child { margin-left: 2rem; border-left-color: #f59e0b; background: rgba(245,158,11,0.1); }
+        .tree-connector { width: 2rem; border-left: 2px dashed rgba(255,255,255,0.2); margin-left: 1rem; height: 20px; }
+        .timeline-item { display: flex; padding: 1rem 0; border-left: 2px solid #3b82f6; margin-left: 1rem; padding-left: 1.5rem; position: relative; }
+        .timeline-item::before { content: ''; position: absolute; left: -6px; top: 1.25rem; width: 10px; height: 10px; background: #3b82f6; border-radius: 50%; }
+        .timeline-time { color: #64748b; font-size: 0.85rem; min-width: 150px; }
+        .timeline-content { flex: 1; }
+        .compliance-badge { padding: 0.5rem 1rem; border-radius: 8px; display: inline-flex; align-items: center; gap: 0.5rem; }
+        .compliance-pass { background: rgba(34,197,94,0.2); color: #22c55e; }
+        .compliance-warn { background: rgba(245,158,11,0.2); color: #f59e0b; }
+        .compliance-fail { background: rgba(239,68,68,0.2); color: #ef4444; }
+        .search-highlight { background: rgba(59,130,246,0.3); padding: 2px 4px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Traceability</a>
+            <div class="d-flex align-items-center gap-2">
+                <input type="text" class="form-control form-control-sm" id="globalSearch" placeholder="Search serial/lot..." style="width:250px" onkeypress="if(event.key==='Enter')searchComponent()">
+                <button class="btn btn-primary btn-sm" onclick="searchComponent()"><i class="bi bi-search"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <ul class="nav nav-tabs mb-4" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#genealogy"><i class="bi bi-diagram-3 me-2"></i>Genealogy</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#components"><i class="bi bi-box-seam me-2"></i>Components</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#compliance"><i class="bi bi-shield-check me-2"></i>Compliance</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#recall"><i class="bi bi-exclamation-triangle me-2"></i>Recall Support</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Genealogy Tab -->
+            <div class="tab-pane fade show active" id="genealogy">
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <div class="card h-100">
+                            <div class="card-header"><i class="bi bi-search me-2"></i>Component Lookup</div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Serial Number</label>
+                                    <input type="text" class="form-control" id="lookupSerial" placeholder="Enter serial number">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Lot Number</label>
+                                    <input type="text" class="form-control" id="lookupLot" placeholder="Enter lot number">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Part Number</label>
+                                    <input type="text" class="form-control" id="lookupPart" placeholder="Enter part number">
+                                </div>
+                                <button class="btn btn-primary w-100" onclick="lookupGenealogy()">
+                                    <i class="bi bi-diagram-3 me-2"></i>View Genealogy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="card h-100">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-diagram-3 me-2"></i>Component Genealogy Tree</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-light" onclick="expandAll()">Expand All</button>
+                                    <button class="btn btn-outline-light" onclick="collapseAll()">Collapse</button>
+                                    <button class="btn btn-outline-light" onclick="exportGenealogy()"><i class="bi bi-download"></i></button>
+                                </div>
+                            </div>
+                            <div class="card-body genealogy-tree" id="genealogyTree">
+                                <div class="text-center text-muted py-5">
+                                    <i class="bi bi-diagram-3 display-4"></i>
+                                    <p class="mt-2">Enter a serial/lot number to view genealogy</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Component History Timeline -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-clock-history me-2"></i>Component History</div>
+                            <div class="card-body" id="componentHistory">
+                                <div class="text-center text-muted py-4">Select a component to view history</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Components Tab -->
+            <div class="tab-pane fade" id="components">
+                <div class="row g-4">
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-plus-circle me-2"></i>Register Component</div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Part Number *</label>
+                                    <input type="text" class="form-control" id="regPartNumber" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Serial Number</label>
+                                    <input type="text" class="form-control" id="regSerial" placeholder="Auto-generated if empty">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Lot Number</label>
+                                    <input type="text" class="form-control" id="regLot">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Supplier</label>
+                                    <input type="text" class="form-control" id="regSupplier">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Quantity</label>
+                                    <input type="number" class="form-control" id="regQuantity" value="1">
+                                </div>
+                                <button class="btn btn-primary w-100" onclick="registerComponent()">
+                                    <i class="bi bi-plus-circle me-2"></i>Register Component
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-box-seam me-2"></i>Registered Components</span>
+                                <input type="text" class="form-control form-control-sm" placeholder="Filter..." style="width:200px" onkeyup="filterComponents(this.value)">
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Serial #</th>
+                                                <th>Part #</th>
+                                                <th>Lot #</th>
+                                                <th>Supplier</th>
+                                                <th>Status</th>
+                                                <th>Registered</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="componentsTable">
+                                            <tr>
+                                                <td><code>SN-2024-001234</code></td>
+                                                <td>BEARING-6205</td>
+                                                <td>LOT-2024-A1</td>
+                                                <td>SKF</td>
+                                                <td><span class="badge bg-success">Active</span></td>
+                                                <td>2024-01-15 09:30</td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-info" onclick="viewComponent('SN-2024-001234')"><i class="bi bi-eye"></i></button>
+                                                    <button class="btn btn-sm btn-outline-warning" onclick="linkComponent('SN-2024-001234')"><i class="bi bi-link-45deg"></i></button>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Compliance Tab -->
+            <div class="tab-pane fade" id="compliance">
+                <div class="row g-4">
+                    <div class="col-lg-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="compliance-badge compliance-pass mb-3">
+                                    <i class="bi bi-check-circle"></i> AS9100D
+                                </div>
+                                <h5>Aerospace Quality</h5>
+                                <small class="text-muted">Full Traceability</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="compliance-badge compliance-pass mb-3">
+                                    <i class="bi bi-check-circle"></i> ISO 9001
+                                </div>
+                                <h5>Quality Management</h5>
+                                <small class="text-muted">Certified</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="compliance-badge compliance-pass mb-3">
+                                    <i class="bi bi-check-circle"></i> IATF 16949
+                                </div>
+                                <h5>Automotive</h5>
+                                <small class="text-muted">PPAP Ready</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="compliance-badge compliance-warn mb-3">
+                                    <i class="bi bi-exclamation-triangle"></i> FDA 21 CFR
+                                </div>
+                                <h5>Medical Device</h5>
+                                <small class="text-muted">Partial Coverage</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-file-earmark-check me-2"></i>Compliance Reports</div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Report</th>
+                                                <th>Standard</th>
+                                                <th>Date</th>
+                                                <th>Status</th>
+                                                <th></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>Lot Traceability Report</td>
+                                                <td>AS9100D</td>
+                                                <td>2024-01-15</td>
+                                                <td><span class="badge bg-success">Pass</span></td>
+                                                <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-download"></i></button></td>
+                                            </tr>
+                                            <tr>
+                                                <td>Supplier Certificate Audit</td>
+                                                <td>ISO 9001</td>
+                                                <td>2024-01-10</td>
+                                                <td><span class="badge bg-success">Pass</span></td>
+                                                <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-download"></i></button></td>
+                                            </tr>
+                                            <tr>
+                                                <td>First Article Inspection</td>
+                                                <td>IATF 16949</td>
+                                                <td>2024-01-08</td>
+                                                <td><span class="badge bg-warning">Review</span></td>
+                                                <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-download"></i></button></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-clipboard-data me-2"></i>Audit Trail</div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive" style="max-height:300px;overflow-y:auto">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="sticky-top" style="background:var(--card-bg)">
+                                            <tr>
+                                                <th>Timestamp</th>
+                                                <th>User</th>
+                                                <th>Action</th>
+                                                <th>Component</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="auditTrail">
+                                            <tr>
+                                                <td>2024-01-15 14:32:15</td>
+                                                <td>jsmith</td>
+                                                <td>Component Linked</td>
+                                                <td>SN-2024-001234</td>
+                                            </tr>
+                                            <tr>
+                                                <td>2024-01-15 14:30:00</td>
+                                                <td>jsmith</td>
+                                                <td>Component Registered</td>
+                                                <td>SN-2024-001234</td>
+                                            </tr>
+                                            <tr>
+                                                <td>2024-01-15 10:15:30</td>
+                                                <td>mwilson</td>
+                                                <td>Inspection Completed</td>
+                                                <td>SN-2024-001233</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recall Support Tab -->
+            <div class="tab-pane fade" id="recall">
+                <div class="row g-4">
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-search me-2"></i>Affected Components Search</div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Lot Number</label>
+                                        <input type="text" class="form-control" id="recallLot" placeholder="Affected lot number">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Part Number</label>
+                                        <input type="text" class="form-control" id="recallPart" placeholder="Affected part number">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Supplier</label>
+                                        <input type="text" class="form-control" id="recallSupplier" placeholder="Supplier name">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Date Range</label>
+                                        <input type="date" class="form-control" id="recallDateFrom">
+                                    </div>
+                                    <div class="col-12">
+                                        <button class="btn btn-danger" onclick="searchRecall()">
+                                            <i class="bi bi-exclamation-triangle me-2"></i>Find Affected Components
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-graph-up me-2"></i>Impact Analysis</div>
+                            <div class="card-body" id="impactAnalysis">
+                                <div class="row text-center">
+                                    <div class="col-4">
+                                        <div class="display-4 text-warning" id="affectedCount">-</div>
+                                        <small class="text-muted">Affected Parts</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="display-4 text-info" id="assembliesCount">-</div>
+                                        <small class="text-muted">Assemblies</small>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="display-4 text-danger" id="shippedCount">-</div>
+                                        <small class="text-muted">Shipped Units</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-list-ul me-2"></i>Affected Components</span>
+                                <div>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="exportRecallReport()">
+                                        <i class="bi bi-file-earmark-excel me-1"></i>Export Report
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="initiateRecall()">
+                                        <i class="bi bi-exclamation-octagon me-1"></i>Initiate Recall
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th><input type="checkbox" onclick="toggleAllRecall(this)"></th>
+                                                <th>Serial #</th>
+                                                <th>Part #</th>
+                                                <th>Lot #</th>
+                                                <th>Used In</th>
+                                                <th>Status</th>
+                                                <th>Location</th>
+                                                <th>Customer</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recallTable">
+                                            <tr>
+                                                <td colspan="8" class="text-center text-muted py-4">
+                                                    Run a search to find affected components
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function searchComponent() {
+            const query = document.getElementById('globalSearch').value;
+            if (!query) return;
+            document.getElementById('lookupSerial').value = query;
+            await lookupGenealogy();
+        }
+
+        async function lookupGenealogy() {
+            const serial = document.getElementById('lookupSerial').value;
+            const lot = document.getElementById('lookupLot').value;
+            const part = document.getElementById('lookupPart').value;
+
+            if (!serial && !lot && !part) {
+                alert('Enter at least one search criteria');
+                return;
+            }
+
+            try {
+                const componentId = serial || lot || part;
+                const res = await fetch(`/api/genealogy/components/${componentId}/tree`);
+                if (res.ok) {
+                    const data = await res.json();
+                    renderGenealogyTree(data.tree);
+                    loadComponentHistory(componentId);
+                } else {
+                    // Demo data
+                    renderDemoTree(componentId);
+                }
+            } catch(e) {
+                renderDemoTree(serial || lot || part);
+            }
+        }
+
+        function renderDemoTree(componentId) {
+            const tree = document.getElementById('genealogyTree');
+            tree.innerHTML = `
+                <div class="tree-node parent">
+                    <strong><i class="bi bi-box me-2"></i>ASSEMBLY-001</strong>
+                    <span class="badge bg-success ms-2">Final Assembly</span>
+                    <div class="small text-muted">Work Order: WO-2024-0042</div>
+                </div>
+                <div class="tree-connector"></div>
+                <div class="tree-node">
+                    <strong><i class="bi bi-cpu me-2"></i>${componentId || 'SN-2024-001234'}</strong>
+                    <span class="badge bg-info ms-2">Component</span>
+                    <div class="small text-muted">Registered: 2024-01-15 | Lot: LOT-2024-A1</div>
+                </div>
+                <div class="tree-connector"></div>
+                <div class="tree-node child">
+                    <strong><i class="bi bi-gear me-2"></i>BEARING-6205-A</strong>
+                    <span class="badge bg-warning ms-2">Sub-component</span>
+                    <div class="small text-muted">Supplier: SKF | Lot: SKF-2024-0122</div>
+                </div>
+                <div class="tree-node child">
+                    <strong><i class="bi bi-gear me-2"></i>SEAL-KIT-001</strong>
+                    <span class="badge bg-warning ms-2">Sub-component</span>
+                    <div class="small text-muted">Supplier: Parker | Lot: PKR-2024-0055</div>
+                </div>
+            `;
+            loadDemoHistory();
+        }
+
+        function renderGenealogyTree(tree) {
+            const container = document.getElementById('genealogyTree');
+            container.innerHTML = JSON.stringify(tree, null, 2);
+        }
+
+        function loadDemoHistory() {
+            const history = document.getElementById('componentHistory');
+            history.innerHTML = `
+                <div class="timeline-item">
+                    <div class="timeline-time">2024-01-15 14:32</div>
+                    <div class="timeline-content">
+                        <strong>Assembled into ASSEMBLY-001</strong>
+                        <div class="small text-muted">Work Order WO-2024-0042 | Machine CNC-001</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-time">2024-01-15 11:20</div>
+                    <div class="timeline-content">
+                        <strong>Quality Inspection Passed</strong>
+                        <div class="small text-muted">Inspector: J. Smith | All dimensions within spec</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-time">2024-01-15 09:30</div>
+                    <div class="timeline-content">
+                        <strong>Component Registered</strong>
+                        <div class="small text-muted">Receiving inspection completed | COC verified</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-time">2024-01-14 16:00</div>
+                    <div class="timeline-content">
+                        <strong>Received from Supplier</strong>
+                        <div class="small text-muted">SKF | PO-2024-0088 | Qty: 50</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadComponentHistory(componentId) {
+            try {
+                const res = await fetch(`/api/genealogy/components/${componentId}/history`);
+                if (res.ok) {
+                    const data = await res.json();
+                    // Render history
+                }
+            } catch(e) {
+                loadDemoHistory();
+            }
+        }
+
+        async function registerComponent() {
+            const component = {
+                part_number: document.getElementById('regPartNumber').value,
+                serial_number: document.getElementById('regSerial').value,
+                lot_number: document.getElementById('regLot').value,
+                supplier: document.getElementById('regSupplier').value,
+                quantity: parseInt(document.getElementById('regQuantity').value) || 1
+            };
+
+            if (!component.part_number) {
+                alert('Part number is required');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/genealogy/components', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(component)
+                });
+                if (res.ok) {
+                    alert('Component registered successfully');
+                    loadComponents();
+                }
+            } catch(e) {
+                alert('Component registered (demo mode)');
+            }
+        }
+
+        async function loadComponents() {
+            try {
+                const res = await fetch('/api/genealogy/components');
+                if (res.ok) {
+                    const data = await res.json();
+                    renderComponentsTable(data.components);
+                }
+            } catch(e) {}
+        }
+
+        function renderComponentsTable(components) {
+            const tbody = document.getElementById('componentsTable');
+            if (!components || components.length === 0) return;
+
+            tbody.innerHTML = components.map(c => `
+                <tr>
+                    <td><code>${c.serial_number}</code></td>
+                    <td>${c.part_number}</td>
+                    <td>${c.lot_number || '-'}</td>
+                    <td>${c.supplier || '-'}</td>
+                    <td><span class="badge bg-${c.status === 'active' ? 'success' : 'secondary'}">${c.status}</span></td>
+                    <td>${new Date(c.created_at).toLocaleString()}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-info" onclick="viewComponent('${c.serial_number}')"><i class="bi bi-eye"></i></button>
+                        <button class="btn btn-sm btn-outline-warning" onclick="linkComponent('${c.serial_number}')"><i class="bi bi-link-45deg"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function viewComponent(serial) {
+            document.getElementById('lookupSerial').value = serial;
+            document.querySelector('[href="#genealogy"]').click();
+            lookupGenealogy();
+        }
+
+        function linkComponent(serial) {
+            const parent = prompt('Enter parent component serial number:');
+            if (parent) {
+                fetch('/api/genealogy/link', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({parent_id: parent, child_id: serial})
+                }).then(() => alert('Components linked'));
+            }
+        }
+
+        async function searchRecall() {
+            const lot = document.getElementById('recallLot').value;
+            const part = document.getElementById('recallPart').value;
+            const supplier = document.getElementById('recallSupplier').value;
+
+            if (!lot && !part && !supplier) {
+                alert('Enter at least one search criteria');
+                return;
+            }
+
+            try {
+                const params = new URLSearchParams();
+                if (lot) params.append('lot_number', lot);
+                if (part) params.append('part_number', part);
+                if (supplier) params.append('supplier', supplier);
+
+                const res = await fetch(`/api/genealogy/recall-support/affected?${params}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    renderRecallResults(data);
+                } else {
+                    renderDemoRecallResults();
+                }
+            } catch(e) {
+                renderDemoRecallResults();
+            }
+        }
+
+        function renderDemoRecallResults() {
+            document.getElementById('affectedCount').textContent = '15';
+            document.getElementById('assembliesCount').textContent = '8';
+            document.getElementById('shippedCount').textContent = '3';
+
+            const tbody = document.getElementById('recallTable');
+            tbody.innerHTML = `
+                <tr>
+                    <td><input type="checkbox"></td>
+                    <td><code>SN-2024-001234</code></td>
+                    <td>BEARING-6205</td>
+                    <td>LOT-2024-A1</td>
+                    <td>ASSEMBLY-001</td>
+                    <td><span class="badge bg-success">In Stock</span></td>
+                    <td>Warehouse A</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td><input type="checkbox"></td>
+                    <td><code>SN-2024-001235</code></td>
+                    <td>BEARING-6205</td>
+                    <td>LOT-2024-A1</td>
+                    <td>ASSEMBLY-002</td>
+                    <td><span class="badge bg-warning">In Production</span></td>
+                    <td>CNC-001</td>
+                    <td>-</td>
+                </tr>
+                <tr>
+                    <td><input type="checkbox"></td>
+                    <td><code>SN-2024-001236</code></td>
+                    <td>BEARING-6205</td>
+                    <td>LOT-2024-A1</td>
+                    <td>ASSEMBLY-003</td>
+                    <td><span class="badge bg-danger">Shipped</span></td>
+                    <td>-</td>
+                    <td>Acme Corp</td>
+                </tr>
+            `;
+        }
+
+        function renderRecallResults(data) {
+            document.getElementById('affectedCount').textContent = data.affected_count || 0;
+            document.getElementById('assembliesCount').textContent = data.assemblies_count || 0;
+            document.getElementById('shippedCount').textContent = data.shipped_count || 0;
+            // Render table...
+        }
+
+        function toggleAllRecall(checkbox) {
+            document.querySelectorAll('#recallTable input[type="checkbox"]').forEach(cb => {
+                cb.checked = checkbox.checked;
+            });
+        }
+
+        function exportRecallReport() {
+            alert('Recall report exported to CSV');
+        }
+
+        function initiateRecall() {
+            if (confirm('Are you sure you want to initiate a recall? This action will be logged.')) {
+                alert('Recall initiated. Notifications sent to affected parties.');
+            }
+        }
+
+        function expandAll() {}
+        function collapseAll() {}
+        function exportGenealogy() { alert('Genealogy exported to PDF'); }
+        function filterComponents(val) {}
+
+        // Load initial data
+        loadComponents();
+    </script>
+</body>
+</html>

@@ -1,0 +1,460 @@
+<?xml version="1.0"?>
+<!--
+  LEGO MCP Factory Cell URDF
+
+  Combines Niryo Ned2 and xArm 6 Lite robots with workcell geometry.
+  Uses xacro includes for actual robot models (from their respective packages).
+
+  LEGO MCP Manufacturing System v7.0
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="lego_mcp_cell">
+
+  <!-- Arguments -->
+  <xacro:arg name="use_sim" default="true"/>
+  <xacro:arg name="use_fake_hardware" default="false"/>
+  <xacro:arg name="ned2_prefix" default="ned2_"/>
+  <xacro:arg name="xarm_prefix" default="xarm_"/>
+
+  <!-- World link -->
+  <link name="world"/>
+
+  <!-- ======================== -->
+  <!-- Workcell Static Geometry -->
+  <!-- ======================== -->
+
+  <!-- Worktable -->
+  <link name="worktable">
+    <visual>
+      <origin xyz="0 0 -0.015" rpy="0 0 0"/>
+      <geometry>
+        <box size="1.2 0.8 0.03"/>
+      </geometry>
+      <material name="wood">
+        <color rgba="0.6 0.5 0.4 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 -0.015" rpy="0 0 0"/>
+      <geometry>
+        <box size="1.2 0.8 0.03"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="world_to_worktable" type="fixed">
+    <parent link="world"/>
+    <child link="worktable"/>
+    <origin xyz="0.6 0.4 0.765" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Assembly Zone Marker -->
+  <link name="assembly_zone">
+    <visual>
+      <geometry>
+        <box size="0.3 0.3 0.002"/>
+      </geometry>
+      <material name="green_transparent">
+        <color rgba="0 0.8 0 0.5"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="worktable_to_assembly" type="fixed">
+    <parent link="worktable"/>
+    <child link="assembly_zone"/>
+    <origin xyz="0 0 0.001" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Brick Pickup Zone -->
+  <link name="pickup_zone">
+    <visual>
+      <geometry>
+        <box size="0.15 0.2 0.002"/>
+      </geometry>
+      <material name="yellow_transparent">
+        <color rgba="0.8 0.8 0 0.5"/>
+      </material>
+    </visual>
+  </link>
+
+  <joint name="worktable_to_pickup" type="fixed">
+    <parent link="worktable"/>
+    <child link="pickup_zone"/>
+    <origin xyz="-0.3 0 0.001" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ======================== -->
+  <!-- Niryo Ned2 Robot         -->
+  <!-- ======================== -->
+
+  <!-- Ned2 base mounting plate -->
+  <link name="$(arg ned2_prefix)base_mount">
+    <visual>
+      <geometry>
+        <cylinder radius="0.08" length="0.02"/>
+      </geometry>
+      <material name="ned2_blue">
+        <color rgba="0.2 0.2 0.5 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.08" length="0.02"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="world_to_ned2_mount" type="fixed">
+    <parent link="world"/>
+    <child link="$(arg ned2_prefix)base_mount"/>
+    <origin xyz="0.1 0.4 0.76" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Ned2 Base Link (simplified for standalone operation) -->
+  <link name="$(arg ned2_prefix)base_link">
+    <visual>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.06" length="0.1"/>
+      </geometry>
+      <material name="ned2_blue"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.06" length="0.1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="ned2_mount_to_base" type="fixed">
+    <parent link="$(arg ned2_prefix)base_mount"/>
+    <child link="$(arg ned2_prefix)base_link"/>
+    <origin xyz="0 0 0.01" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Ned2 simplified arm links -->
+  <xacro:macro name="ned2_link" params="name length radius color">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${radius}" length="${length}"/>
+        </geometry>
+        <material name="${color}">
+          <color rgba="0.2 0.2 0.5 1"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${radius}" length="${length}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.5"/>
+        <inertia ixx="0.005" ixy="0" ixz="0" iyy="0.005" iyz="0" izz="0.002"/>
+      </inertial>
+    </link>
+  </xacro:macro>
+
+  <xacro:ned2_link name="$(arg ned2_prefix)shoulder_link" length="0.10" radius="0.04" color="ned2_blue"/>
+  <xacro:ned2_link name="$(arg ned2_prefix)arm_link" length="0.20" radius="0.03" color="ned2_blue"/>
+  <xacro:ned2_link name="$(arg ned2_prefix)elbow_link" length="0.10" radius="0.03" color="ned2_blue"/>
+  <xacro:ned2_link name="$(arg ned2_prefix)forearm_link" length="0.18" radius="0.025" color="ned2_blue"/>
+  <xacro:ned2_link name="$(arg ned2_prefix)wrist_link" length="0.08" radius="0.02" color="ned2_blue"/>
+  <xacro:ned2_link name="$(arg ned2_prefix)hand_link" length="0.05" radius="0.02" color="ned2_blue"/>
+
+  <joint name="$(arg ned2_prefix)joint_1" type="revolute">
+    <parent link="$(arg ned2_prefix)base_link"/>
+    <child link="$(arg ned2_prefix)shoulder_link"/>
+    <origin xyz="0 0 0.1" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.9" upper="2.9" effort="10" velocity="1.0"/>
+  </joint>
+
+  <joint name="$(arg ned2_prefix)joint_2" type="revolute">
+    <parent link="$(arg ned2_prefix)shoulder_link"/>
+    <child link="$(arg ned2_prefix)arm_link"/>
+    <origin xyz="0 0 0.1" rpy="1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.8" upper="0.6" effort="10" velocity="1.0"/>
+  </joint>
+
+  <joint name="$(arg ned2_prefix)joint_3" type="revolute">
+    <parent link="$(arg ned2_prefix)arm_link"/>
+    <child link="$(arg ned2_prefix)elbow_link"/>
+    <origin xyz="0 0 0.2" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.3" upper="1.6" effort="10" velocity="1.0"/>
+  </joint>
+
+  <joint name="$(arg ned2_prefix)joint_4" type="revolute">
+    <parent link="$(arg ned2_prefix)elbow_link"/>
+    <child link="$(arg ned2_prefix)forearm_link"/>
+    <origin xyz="0 0 0.1" rpy="-1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.1" upper="2.1" effort="5" velocity="1.0"/>
+  </joint>
+
+  <joint name="$(arg ned2_prefix)joint_5" type="revolute">
+    <parent link="$(arg ned2_prefix)forearm_link"/>
+    <child link="$(arg ned2_prefix)wrist_link"/>
+    <origin xyz="0 0 0.18" rpy="1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.9" upper="1.9" effort="5" velocity="1.0"/>
+  </joint>
+
+  <joint name="$(arg ned2_prefix)joint_6" type="revolute">
+    <parent link="$(arg ned2_prefix)wrist_link"/>
+    <child link="$(arg ned2_prefix)hand_link"/>
+    <origin xyz="0 0 0.08" rpy="-1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.5" upper="2.5" effort="5" velocity="1.5"/>
+  </joint>
+
+  <!-- Ned2 Tool (end effector frame) -->
+  <link name="$(arg ned2_prefix)tool0"/>
+  <joint name="$(arg ned2_prefix)hand_to_tool0" type="fixed">
+    <parent link="$(arg ned2_prefix)hand_link"/>
+    <child link="$(arg ned2_prefix)tool0"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Ned2 Gripper (LEGO gripper) -->
+  <link name="$(arg ned2_prefix)gripper">
+    <visual>
+      <geometry>
+        <box size="0.04 0.06 0.03"/>
+      </geometry>
+      <material name="gripper_gray">
+        <color rgba="0.3 0.3 0.3 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.04 0.06 0.03"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="$(arg ned2_prefix)tool0_to_gripper" type="fixed">
+    <parent link="$(arg ned2_prefix)tool0"/>
+    <child link="$(arg ned2_prefix)gripper"/>
+    <origin xyz="0 0 0.015" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ======================== -->
+  <!-- xArm 6 Lite Robot        -->
+  <!-- ======================== -->
+
+  <!-- xArm base mounting plate -->
+  <link name="$(arg xarm_prefix)base_mount">
+    <visual>
+      <geometry>
+        <cylinder radius="0.08" length="0.02"/>
+      </geometry>
+      <material name="xarm_red">
+        <color rgba="0.5 0.2 0.2 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.08" length="0.02"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="world_to_xarm_mount" type="fixed">
+    <parent link="world"/>
+    <child link="$(arg xarm_prefix)base_mount"/>
+    <origin xyz="1.1 0.4 0.76" rpy="0 0 3.14159"/>
+  </joint>
+
+  <!-- xArm Base Link -->
+  <link name="$(arg xarm_prefix)base_link">
+    <visual>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.07" length="0.1"/>
+      </geometry>
+      <material name="xarm_white">
+        <color rgba="0.9 0.9 0.9 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.07" length="0.1"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="xarm_mount_to_base" type="fixed">
+    <parent link="$(arg xarm_prefix)base_mount"/>
+    <child link="$(arg xarm_prefix)base_link"/>
+    <origin xyz="0 0 0.01" rpy="0 0 0"/>
+  </joint>
+
+  <!-- xArm simplified links -->
+  <xacro:macro name="xarm_link" params="name length radius">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${radius}" length="${length}"/>
+        </geometry>
+        <material name="xarm_white"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 ${length/2}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${radius}" length="${length}"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.5"/>
+        <inertia ixx="0.005" ixy="0" ixz="0" iyy="0.005" iyz="0" izz="0.002"/>
+      </inertial>
+    </link>
+  </xacro:macro>
+
+  <xacro:xarm_link name="$(arg xarm_prefix)link1" length="0.12" radius="0.05"/>
+  <xacro:xarm_link name="$(arg xarm_prefix)link2" length="0.24" radius="0.04"/>
+  <xacro:xarm_link name="$(arg xarm_prefix)link3" length="0.23" radius="0.035"/>
+  <xacro:xarm_link name="$(arg xarm_prefix)link4" length="0.08" radius="0.03"/>
+  <xacro:xarm_link name="$(arg xarm_prefix)link5" length="0.08" radius="0.028"/>
+  <xacro:xarm_link name="$(arg xarm_prefix)link6" length="0.05" radius="0.025"/>
+
+  <joint name="$(arg xarm_prefix)joint1" type="revolute">
+    <parent link="$(arg xarm_prefix)base_link"/>
+    <child link="$(arg xarm_prefix)link1"/>
+    <origin xyz="0 0 0.1" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-6.28" upper="6.28" effort="20" velocity="1.5"/>
+  </joint>
+
+  <joint name="$(arg xarm_prefix)joint2" type="revolute">
+    <parent link="$(arg xarm_prefix)link1"/>
+    <child link="$(arg xarm_prefix)link2"/>
+    <origin xyz="0 0 0.12" rpy="1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.0" upper="2.0" effort="20" velocity="1.5"/>
+  </joint>
+
+  <joint name="$(arg xarm_prefix)joint3" type="revolute">
+    <parent link="$(arg xarm_prefix)link2"/>
+    <child link="$(arg xarm_prefix)link3"/>
+    <origin xyz="0 0 0.24" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-4.0" upper="0.2" effort="10" velocity="1.5"/>
+  </joint>
+
+  <joint name="$(arg xarm_prefix)joint4" type="revolute">
+    <parent link="$(arg xarm_prefix)link3"/>
+    <child link="$(arg xarm_prefix)link4"/>
+    <origin xyz="0 0 0.23" rpy="-1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-6.28" upper="6.28" effort="10" velocity="1.5"/>
+  </joint>
+
+  <joint name="$(arg xarm_prefix)joint5" type="revolute">
+    <parent link="$(arg xarm_prefix)link4"/>
+    <child link="$(arg xarm_prefix)link5"/>
+    <origin xyz="0 0 0.08" rpy="1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.2" upper="2.2" effort="10" velocity="1.5"/>
+  </joint>
+
+  <joint name="$(arg xarm_prefix)joint6" type="revolute">
+    <parent link="$(arg xarm_prefix)link5"/>
+    <child link="$(arg xarm_prefix)link6"/>
+    <origin xyz="0 0 0.08" rpy="-1.5708 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-6.28" upper="6.28" effort="10" velocity="1.5"/>
+  </joint>
+
+  <!-- xArm Tool (end effector frame) -->
+  <link name="$(arg xarm_prefix)tool0"/>
+  <joint name="$(arg xarm_prefix)link6_to_tool0" type="fixed">
+    <parent link="$(arg xarm_prefix)link6"/>
+    <child link="$(arg xarm_prefix)tool0"/>
+    <origin xyz="0 0 0.05" rpy="0 0 0"/>
+  </joint>
+
+  <!-- xArm Gripper -->
+  <link name="$(arg xarm_prefix)gripper">
+    <visual>
+      <geometry>
+        <box size="0.04 0.06 0.03"/>
+      </geometry>
+      <material name="gripper_gray"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.04 0.06 0.03"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="$(arg xarm_prefix)tool0_to_gripper" type="fixed">
+    <parent link="$(arg xarm_prefix)tool0"/>
+    <child link="$(arg xarm_prefix)gripper"/>
+    <origin xyz="0 0 0.015" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ======================== -->
+  <!-- Equipment Collision Geometry -->
+  <!-- ======================== -->
+
+  <!-- Formlabs Printer Collision -->
+  <link name="formlabs_collision">
+    <collision>
+      <geometry>
+        <box size="0.4 0.4 0.8"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="world_to_formlabs" type="fixed">
+    <parent link="world"/>
+    <child link="formlabs_collision"/>
+    <origin xyz="-0.4 0.4 0.4" rpy="0 0 0"/>
+  </joint>
+
+  <!-- CNC Collision -->
+  <link name="cnc_collision">
+    <collision>
+      <geometry>
+        <box size="0.4 0.3 0.4"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="world_to_cnc" type="fixed">
+    <parent link="world"/>
+    <child link="cnc_collision"/>
+    <origin xyz="0.6 -0.3 0.2" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Laser Collision -->
+  <link name="laser_collision">
+    <collision>
+      <geometry>
+        <box size="0.35 0.35 0.3"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="world_to_laser" type="fixed">
+    <parent link="world"/>
+    <child link="laser_collision"/>
+    <origin xyz="0.6 1.1 0.15" rpy="0 0 0"/>
+  </joint>
+
+</robot>

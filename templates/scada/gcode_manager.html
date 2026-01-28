@@ -1,0 +1,1269 @@
+{% extends "base.html" %}
+
+{% block title %}G-code Manager - LEGO Factory{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('scada_web.machines') }}">SCADA</a></li>
+<li class="breadcrumb-item active">G-code Manager</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .gcode-editor {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        background: #1e1e1e;
+        color: #d4d4d4;
+        border: none;
+        resize: none;
+        padding: 1rem;
+        tab-size: 4;
+    }
+
+    .gcode-editor:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 2px var(--lego-blue);
+    }
+
+    .line-numbers {
+        background: #252526;
+        color: #858585;
+        padding: 1rem 0.5rem;
+        text-align: right;
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        user-select: none;
+        min-width: 50px;
+    }
+
+    .backplot-container {
+        background: #1a1a2e;
+        border-radius: 0.5rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .backplot-canvas {
+        width: 100%;
+        height: 400px;
+    }
+
+    .backplot-controls {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        display: flex;
+        gap: 0.25rem;
+    }
+
+    .backplot-controls .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .file-browser {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .file-item {
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .file-item:hover {
+        background: #f8f9fa;
+    }
+
+    .file-item.selected {
+        background: #e3f2fd;
+        border-left: 3px solid var(--lego-blue);
+    }
+
+    .file-item .file-size {
+        margin-left: auto;
+        color: #6c757d;
+        font-size: 0.875rem;
+    }
+
+    .analysis-stat {
+        padding: 0.75rem;
+        background: #f8f9fa;
+        border-radius: 0.375rem;
+        text-align: center;
+    }
+
+    .analysis-stat .value {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: var(--lego-blue);
+    }
+
+    .analysis-stat .label {
+        font-size: 0.75rem;
+        color: #6c757d;
+        text-transform: uppercase;
+    }
+
+    .tool-list {
+        max-height: 150px;
+        overflow-y: auto;
+    }
+
+    .tool-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.375rem 0;
+        border-bottom: 1px solid #eee;
+    }
+
+    .work-envelope {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+    }
+
+    .envelope-axis {
+        text-align: center;
+        padding: 0.5rem;
+        background: #f8f9fa;
+        border-radius: 0.25rem;
+    }
+
+    .envelope-axis .axis-label {
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .envelope-axis .axis-range {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+
+    .syntax-g { color: #569cd6; }
+    .syntax-m { color: #c586c0; }
+    .syntax-x { color: #4ec9b0; }
+    .syntax-y { color: #4ec9b0; }
+    .syntax-z { color: #4ec9b0; }
+    .syntax-f { color: #dcdcaa; }
+    .syntax-s { color: #ce9178; }
+    .syntax-comment { color: #6a9955; }
+    .syntax-number { color: #b5cea8; }
+
+    .validation-result {
+        padding: 0.5rem;
+        border-radius: 0.25rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .validation-result.error {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .validation-result.warning {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .validation-result.success {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .simulation-progress {
+        position: relative;
+        height: 4px;
+        background: #e9ecef;
+        border-radius: 2px;
+        overflow: hidden;
+    }
+
+    .simulation-progress .progress-bar {
+        height: 100%;
+        background: var(--lego-blue);
+        transition: width 0.1s linear;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Machine Selector Bar -->
+<div class="card mb-4" style="background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);">
+    <div class="card-body py-3">
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <label class="form-label text-white-50 small mb-1">Target Machine</label>
+                <select class="form-select" id="targetMachine" onchange="gcodeManager.setTargetMachine(this.value)">
+                    <option value="">Loading machines...</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label text-white-50 small mb-1">Post Processor</label>
+                <select class="form-select" id="postProcessor">
+                    <option value="grbl" selected>GRBL / TinyG</option>
+                    <option value="linuxcnc">LinuxCNC</option>
+                    <option value="mach3">Mach3</option>
+                    <option value="fanuc">Fanuc</option>
+                </select>
+            </div>
+            <div class="col-md-4 text-end">
+                <div class="text-white">
+                    <span class="badge bg-success me-2" id="machineConnectionStatus">Connected</span>
+                    <span class="text-white-50 small" id="targetMachineName">Bantam Desktop Explorer</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-file-code me-2"></i>G-code Manager</h4>
+    <div class="btn-group">
+        <button class="btn btn-outline-primary" onclick="gcodeManager.newFile()">
+            <i class="bi bi-file-plus"></i> New
+        </button>
+        <button class="btn btn-outline-primary" onclick="gcodeManager.openFile()">
+            <i class="bi bi-folder-open"></i> Open
+        </button>
+        <button class="btn btn-outline-primary" onclick="gcodeManager.saveFile()">
+            <i class="bi bi-save"></i> Save
+        </button>
+        <button class="btn btn-primary" onclick="gcodeManager.sendToMachine()">
+            <i class="bi bi-send"></i> Send to Machine
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Panel: File Browser & Editor -->
+    <div class="col-lg-6">
+        <!-- File Browser -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-folder me-2"></i>Files</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="gcodeManager.refreshFiles()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div class="card-body p-0">
+                <div class="file-browser" id="fileBrowser">
+                    <!-- Files loaded dynamically -->
+                </div>
+            </div>
+        </div>
+
+        <!-- G-code Editor -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-code-square me-2"></i>Editor: <span id="currentFileName">untitled.nc</span></span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" onclick="gcodeManager.validateCode()">
+                        <i class="bi bi-check-circle"></i> Validate
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="gcodeManager.formatCode()">
+                        <i class="bi bi-text-indent-left"></i> Format
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="d-flex" style="height: 350px;">
+                    <div class="line-numbers" id="lineNumbers">1</div>
+                    <textarea class="gcode-editor flex-grow-1" id="gcodeEditor"
+                        placeholder="Enter G-code here..." spellcheck="false">; Sample G-code Program
+; LEGO Brick Milling
+;
+G21 ; Metric units
+G90 ; Absolute positioning
+G17 ; XY plane selection
+
+; Tool: 3mm End Mill
+M6 T1
+S12000 M3 ; Spindle on CW
+
+; Rapid to start position
+G0 X0 Y0 Z5
+
+; Mill rectangular pocket
+G0 X10 Y10
+G1 Z-2 F100
+G1 X50 F500
+G1 Y30
+G1 X10
+G1 Y10
+G0 Z5
+
+; Second pass
+G0 X10 Y10
+G1 Z-4 F100
+G1 X50 F500
+G1 Y30
+G1 X10
+G1 Y10
+G0 Z10
+
+M5 ; Spindle off
+M30 ; Program end</textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel: Backplot & Analysis -->
+    <div class="col-lg-6">
+        <!-- Backplot Visualization -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bezier2 me-2"></i>Backplot</span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary active" onclick="gcodeManager.setView('xy')">XY</button>
+                    <button class="btn btn-outline-secondary" onclick="gcodeManager.setView('xz')">XZ</button>
+                    <button class="btn btn-outline-secondary" onclick="gcodeManager.setView('yz')">YZ</button>
+                    <button class="btn btn-outline-secondary" onclick="gcodeManager.setView('3d')">3D</button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="backplot-container">
+                    <canvas id="backplotCanvas" class="backplot-canvas"></canvas>
+                    <div class="backplot-controls">
+                        <button class="btn btn-dark btn-sm" onclick="gcodeManager.zoomIn()">
+                            <i class="bi bi-zoom-in"></i>
+                        </button>
+                        <button class="btn btn-dark btn-sm" onclick="gcodeManager.zoomOut()">
+                            <i class="bi bi-zoom-out"></i>
+                        </button>
+                        <button class="btn btn-dark btn-sm" onclick="gcodeManager.resetView()">
+                            <i class="bi bi-fullscreen"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulation Controls -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-play-circle me-2"></i>Simulation
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-success" id="btnSimStart" onclick="gcodeManager.startSimulation()">
+                        <i class="bi bi-play-fill"></i> Start
+                    </button>
+                    <button class="btn btn-warning" id="btnSimPause" onclick="gcodeManager.pauseSimulation()" disabled>
+                        <i class="bi bi-pause-fill"></i> Pause
+                    </button>
+                    <button class="btn btn-danger" id="btnSimStop" onclick="gcodeManager.stopSimulation()" disabled>
+                        <i class="bi bi-stop-fill"></i> Stop
+                    </button>
+                    <div class="ms-auto d-flex align-items-center gap-2">
+                        <label class="form-label mb-0">Speed:</label>
+                        <input type="range" class="form-range" id="simSpeed" min="0.5" max="10" step="0.5" value="1" style="width: 100px;">
+                        <span id="simSpeedLabel">1x</span>
+                    </div>
+                </div>
+                <div class="simulation-progress mb-2">
+                    <div class="progress-bar" id="simProgress" style="width: 0%"></div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small">
+                    <span>Line: <span id="simCurrentLine">0</span> / <span id="simTotalLines">0</span></span>
+                    <span>Position: X<span id="simPosX">0.000</span> Y<span id="simPosY">0.000</span> Z<span id="simPosZ">0.000</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Results -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-graph-up me-2"></i>Analysis
+            </div>
+            <div class="card-body">
+                <div class="row g-2 mb-3">
+                    <div class="col-3">
+                        <div class="analysis-stat">
+                            <div class="value" id="statLines">0</div>
+                            <div class="label">Lines</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="analysis-stat">
+                            <div class="value" id="statMoves">0</div>
+                            <div class="label">Moves</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="analysis-stat">
+                            <div class="value" id="statRapids">0</div>
+                            <div class="label">Rapids</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="analysis-stat">
+                            <div class="value" id="statTime">0:00</div>
+                            <div class="label">Est. Time</div>
+                        </div>
+                    </div>
+                </div>
+
+                <h6>Work Envelope</h6>
+                <div class="work-envelope mb-3">
+                    <div class="envelope-axis">
+                        <div class="axis-label">X</div>
+                        <div class="axis-range" id="envelopeX">0 - 0</div>
+                    </div>
+                    <div class="envelope-axis">
+                        <div class="axis-label">Y</div>
+                        <div class="axis-range" id="envelopeY">0 - 0</div>
+                    </div>
+                    <div class="envelope-axis">
+                        <div class="axis-label">Z</div>
+                        <div class="axis-range" id="envelopeZ">0 - 0</div>
+                    </div>
+                </div>
+
+                <h6>Tools Used</h6>
+                <div class="tool-list" id="toolList">
+                    <div class="text-muted small">No tools detected</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Validation Results -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-shield-check me-2"></i>Validation
+            </div>
+            <div class="card-body" id="validationResults">
+                <div class="text-muted small">Click "Validate" to check G-code</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Upload Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Open G-code File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Select from server:</label>
+                    <select class="form-select" id="serverFileSelect">
+                        <option value="">-- Select file --</option>
+                    </select>
+                </div>
+                <div class="text-center text-muted">- or -</div>
+                <div class="mb-3 mt-3">
+                    <label class="form-label">Upload from computer:</label>
+                    <input type="file" class="form-control" id="fileUpload" accept=".nc,.gcode,.ngc,.tap,.txt">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="gcodeManager.loadSelectedFile()">Open</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Save Modal -->
+<div class="modal fade" id="saveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Save G-code File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Filename:</label>
+                    <input type="text" class="form-control" id="saveFileName" value="untitled.nc">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="gcodeManager.saveToServer()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+class GcodeManager {
+    constructor() {
+        this.editor = document.getElementById('gcodeEditor');
+        this.canvas = document.getElementById('backplotCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.currentFile = 'untitled.nc';
+        this.currentView = 'xy';
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.parsedCode = [];
+        this.simulationRunning = false;
+        this.simulationPaused = false;
+        this.simulationLine = 0;
+        this.targetMachine = null;
+        this.machines = {};
+
+        this.uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+        this.saveModal = new bootstrap.Modal(document.getElementById('saveModal'));
+
+        this.loadMachines();
+        this.init();
+    }
+
+    async loadMachines() {
+        try {
+            const response = await fetch('/api/v1/scada/machines');
+            if (response.ok) {
+                const data = await response.json();
+                this.populateMachines(data.machines || []);
+            } else {
+                this.loadDemoMachines();
+            }
+        } catch (error) {
+            console.log('Using demo machine data');
+            this.loadDemoMachines();
+        }
+    }
+
+    loadDemoMachines() {
+        // Work envelopes by machine type (mm)
+        const workEnvelopes = {
+            'cnc_mill': { x: 203, y: 152, z: 76 },      // Bantam-class
+            'cnc_lathe': { x: 150, y: 150, z: 300 },    // Lathe (X=radius, Y=radius, Z=length)
+            'laser_cutter': { x: 400, y: 300, z: 10 },  // Longer Ray5
+            'printer_3d': { x: 256, y: 256, z: 256 },   // Bambu P1S
+            'robot_arm': { x: 400, y: 400, z: 400 },    // xArm Lite 6
+            'conveyor': { x: 400, y: 100, z: 50 }       // Niryo Conveyor
+        };
+
+        // Machines from config/machines.json
+        const machineList = [
+            { machine_id: 'bantam-explorer', name: 'Bantam Desktop Explorer CNC', machine_type: 'cnc_mill' },
+            { machine_id: 'coastrunner-cr1', name: 'CoastRunner CR-1', machine_type: 'cnc_mill' },
+            { machine_id: 'rownd-lathe', name: 'Rownd Lathe', machine_type: 'cnc_lathe' },
+            { machine_id: 'labfab-runner', name: 'LabFab Runner CNC', machine_type: 'cnc_mill' },
+            { machine_id: 'longer-ray-laser', name: 'Longer Ray5 20W Laser', machine_type: 'laser_cutter' },
+            { machine_id: 'creality-cr30', name: 'Creality CR-30 PrintMill', machine_type: 'printer_3d' },
+            { machine_id: 'bambu-ps1', name: 'Bambu Lab P1S', machine_type: 'printer_3d' },
+            { machine_id: 'niryo-ned2', name: 'Niryo Ned2 Robot', machine_type: 'robot_arm' },
+            { machine_id: 'niryo-conveyor', name: 'Niryo Conveyor Belt', machine_type: 'conveyor' },
+            { machine_id: 'xarm-lite6', name: 'xArm Lite 6', machine_type: 'robot_arm' }
+        ];
+
+        // Build machines object with work envelopes
+        this.machines = {};
+        machineList.forEach(m => {
+            this.machines[m.machine_id] = {
+                name: m.name,
+                machine_type: m.machine_type,
+                workEnvelope: workEnvelopes[m.machine_type] || { x: 200, y: 200, z: 100 }
+            };
+        });
+
+        this.populateMachineSelector();
+
+        // Set default machine
+        if (!this.targetMachine && machineList.length > 0) {
+            this.setTargetMachine(machineList[0].machine_id);
+        }
+    }
+
+    populateMachines(machines) {
+        // Work envelopes by machine type (mm)
+        const workEnvelopes = {
+            'cnc_mill': { x: 203, y: 152, z: 76 },
+            'cnc_lathe': { x: 150, y: 150, z: 300 },
+            'laser_cutter': { x: 400, y: 300, z: 10 },
+            'printer_3d': { x: 256, y: 256, z: 256 },
+            'robot_arm': { x: 400, y: 400, z: 400 },
+            'conveyor': { x: 400, y: 100, z: 50 }
+        };
+
+        this.machines = {};
+        machines.forEach(m => {
+            this.machines[m.machine_id] = {
+                name: m.name,
+                machine_type: m.machine_type,
+                workEnvelope: workEnvelopes[m.machine_type] || { x: 200, y: 200, z: 100 }
+            };
+        });
+
+        this.populateMachineSelector();
+
+        // Set default machine
+        if (!this.targetMachine && machines.length > 0) {
+            this.setTargetMachine(machines[0].machine_id);
+        }
+    }
+
+    populateMachineSelector() {
+        const select = document.getElementById('targetMachine');
+        select.innerHTML = Object.entries(this.machines).map(([id, machine]) =>
+            `<option value="${id}">${machine.name}</option>`
+        ).join('');
+    }
+
+    setTargetMachine(machineId) {
+        this.targetMachine = machineId;
+        const machine = this.machines[machineId];
+        if (machine) {
+            document.getElementById('targetMachineName').textContent = machine.name;
+            document.getElementById('machineConnectionStatus').textContent = 'Connected';
+            document.getElementById('machineConnectionStatus').className = 'badge bg-success me-2';
+            document.getElementById('targetMachine').value = machineId;
+
+            // Update work envelope display based on machine type
+            const envelope = machine.workEnvelope;
+            if (envelope) {
+                console.log(`Work envelope for ${machine.name}: X=${envelope.x}mm, Y=${envelope.y}mm, Z=${envelope.z}mm`);
+            }
+        }
+    }
+
+    init() {
+        // Set up canvas
+        this.resizeCanvas();
+        window.addEventListener('resize', () => this.resizeCanvas());
+
+        // Editor events
+        this.editor.addEventListener('input', () => {
+            this.updateLineNumbers();
+            this.parseAndAnalyze();
+            this.drawBackplot();
+        });
+
+        this.editor.addEventListener('scroll', () => {
+            document.getElementById('lineNumbers').scrollTop = this.editor.scrollTop;
+        });
+
+        this.editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.editor.selectionStart;
+                const end = this.editor.selectionEnd;
+                this.editor.value = this.editor.value.substring(0, start) + '  ' + this.editor.value.substring(end);
+                this.editor.selectionStart = this.editor.selectionEnd = start + 2;
+            }
+        });
+
+        // Simulation speed
+        document.getElementById('simSpeed').addEventListener('input', (e) => {
+            document.getElementById('simSpeedLabel').textContent = e.target.value + 'x';
+        });
+
+        // Initial parse
+        this.updateLineNumbers();
+        this.parseAndAnalyze();
+        this.drawBackplot();
+        this.refreshFiles();
+    }
+
+    resizeCanvas() {
+        const container = this.canvas.parentElement;
+        this.canvas.width = container.clientWidth;
+        this.canvas.height = 400;
+        this.drawBackplot();
+    }
+
+    updateLineNumbers() {
+        const lines = this.editor.value.split('\n');
+        const lineNumbers = document.getElementById('lineNumbers');
+        lineNumbers.innerHTML = lines.map((_, i) => i + 1).join('<br>');
+    }
+
+    parseAndAnalyze() {
+        const code = this.editor.value;
+        const lines = code.split('\n');
+        this.parsedCode = [];
+
+        let currentPos = { x: 0, y: 0, z: 0 };
+        let minPos = { x: Infinity, y: Infinity, z: Infinity };
+        let maxPos = { x: -Infinity, y: -Infinity, z: -Infinity };
+        let rapidCount = 0;
+        let feedCount = 0;
+        let tools = new Set();
+        let totalTime = 0;
+        let currentFeed = 100;
+        let isAbsolute = true;
+
+        lines.forEach((line, index) => {
+            const trimmed = line.trim().toUpperCase();
+            if (!trimmed || trimmed.startsWith(';') || trimmed.startsWith('(')) return;
+
+            const parsed = { line: index + 1, raw: line, type: 'unknown', from: {...currentPos}, to: {...currentPos} };
+
+            // Parse G codes
+            const gMatch = trimmed.match(/G(\d+)/);
+            if (gMatch) {
+                const gCode = parseInt(gMatch[1]);
+                if (gCode === 0) { parsed.type = 'rapid'; rapidCount++; }
+                else if (gCode === 1) { parsed.type = 'feed'; feedCount++; }
+                else if (gCode === 2 || gCode === 3) { parsed.type = 'arc'; feedCount++; }
+                else if (gCode === 90) { isAbsolute = true; parsed.type = 'mode'; }
+                else if (gCode === 91) { isAbsolute = false; parsed.type = 'mode'; }
+            }
+
+            // Parse coordinates
+            const xMatch = trimmed.match(/X(-?\d+\.?\d*)/);
+            const yMatch = trimmed.match(/Y(-?\d+\.?\d*)/);
+            const zMatch = trimmed.match(/Z(-?\d+\.?\d*)/);
+            const fMatch = trimmed.match(/F(\d+\.?\d*)/);
+
+            if (fMatch) currentFeed = parseFloat(fMatch[1]);
+
+            if (xMatch || yMatch || zMatch) {
+                const newPos = { ...currentPos };
+                if (xMatch) newPos.x = isAbsolute ? parseFloat(xMatch[1]) : currentPos.x + parseFloat(xMatch[1]);
+                if (yMatch) newPos.y = isAbsolute ? parseFloat(yMatch[1]) : currentPos.y + parseFloat(yMatch[1]);
+                if (zMatch) newPos.z = isAbsolute ? parseFloat(zMatch[1]) : currentPos.z + parseFloat(zMatch[1]);
+
+                parsed.to = newPos;
+
+                // Calculate time
+                const dist = Math.sqrt(
+                    Math.pow(newPos.x - currentPos.x, 2) +
+                    Math.pow(newPos.y - currentPos.y, 2) +
+                    Math.pow(newPos.z - currentPos.z, 2)
+                );
+                const feed = parsed.type === 'rapid' ? 5000 : currentFeed;
+                totalTime += (dist / feed) * 60;
+
+                currentPos = newPos;
+
+                // Update bounds
+                minPos.x = Math.min(minPos.x, newPos.x);
+                minPos.y = Math.min(minPos.y, newPos.y);
+                minPos.z = Math.min(minPos.z, newPos.z);
+                maxPos.x = Math.max(maxPos.x, newPos.x);
+                maxPos.y = Math.max(maxPos.y, newPos.y);
+                maxPos.z = Math.max(maxPos.z, newPos.z);
+            }
+
+            // Parse tool changes
+            const tMatch = trimmed.match(/T(\d+)/);
+            if (tMatch) tools.add(`T${tMatch[1]}`);
+
+            this.parsedCode.push(parsed);
+        });
+
+        // Update stats
+        document.getElementById('statLines').textContent = lines.length;
+        document.getElementById('statMoves').textContent = feedCount;
+        document.getElementById('statRapids').textContent = rapidCount;
+
+        const mins = Math.floor(totalTime / 60);
+        const secs = Math.floor(totalTime % 60);
+        document.getElementById('statTime').textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+        // Update envelope
+        if (minPos.x !== Infinity) {
+            document.getElementById('envelopeX').textContent = `${minPos.x.toFixed(1)} - ${maxPos.x.toFixed(1)}`;
+            document.getElementById('envelopeY').textContent = `${minPos.y.toFixed(1)} - ${maxPos.y.toFixed(1)}`;
+            document.getElementById('envelopeZ').textContent = `${minPos.z.toFixed(1)} - ${maxPos.z.toFixed(1)}`;
+        }
+
+        // Update tools
+        const toolList = document.getElementById('toolList');
+        if (tools.size > 0) {
+            toolList.innerHTML = Array.from(tools).map(t =>
+                `<div class="tool-item"><span>${t}</span><span class="text-muted">End Mill</span></div>`
+            ).join('');
+        } else {
+            toolList.innerHTML = '<div class="text-muted small">No tools detected</div>';
+        }
+
+        // Store bounds for backplot
+        this.bounds = { min: minPos, max: maxPos };
+
+        document.getElementById('simTotalLines').textContent = lines.length;
+    }
+
+    drawBackplot() {
+        const ctx = this.ctx;
+        const width = this.canvas.width;
+        const height = this.canvas.height;
+
+        // Clear canvas
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw grid
+        ctx.strokeStyle = '#2a2a4e';
+        ctx.lineWidth = 1;
+        const gridSize = 20 * this.zoom;
+
+        for (let x = (this.panX % gridSize); x < width; x += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, height);
+            ctx.stroke();
+        }
+        for (let y = (this.panY % gridSize); y < height; y += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(width, y);
+            ctx.stroke();
+        }
+
+        // Calculate scale
+        const bounds = this.bounds;
+        if (!bounds || bounds.min.x === Infinity) return;
+
+        const rangeX = bounds.max.x - bounds.min.x || 1;
+        const rangeY = bounds.max.y - bounds.min.y || 1;
+        const scale = Math.min((width - 40) / rangeX, (height - 40) / rangeY) * this.zoom;
+        const offsetX = (width - rangeX * scale) / 2 - bounds.min.x * scale + this.panX;
+        const offsetY = (height - rangeY * scale) / 2 + bounds.max.y * scale + this.panY;
+
+        // Transform function
+        const transform = (x, y) => {
+            if (this.currentView === 'xy') return [x * scale + offsetX, -y * scale + offsetY];
+            if (this.currentView === 'xz') return [x * scale + offsetX, -y * scale + offsetY]; // y becomes z
+            if (this.currentView === 'yz') return [x * scale + offsetX, -y * scale + offsetY]; // x becomes y, y becomes z
+            return [x * scale + offsetX, -y * scale + offsetY];
+        };
+
+        // Draw paths
+        this.parsedCode.forEach((cmd, index) => {
+            if (!cmd.from || !cmd.to) return;
+
+            let fromX, fromY, toX, toY;
+            if (this.currentView === 'xy') {
+                [fromX, fromY] = transform(cmd.from.x, cmd.from.y);
+                [toX, toY] = transform(cmd.to.x, cmd.to.y);
+            } else if (this.currentView === 'xz') {
+                [fromX, fromY] = transform(cmd.from.x, cmd.from.z);
+                [toX, toY] = transform(cmd.to.x, cmd.to.z);
+            } else {
+                [fromX, fromY] = transform(cmd.from.y, cmd.from.z);
+                [toX, toY] = transform(cmd.to.y, cmd.to.z);
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+
+            if (cmd.type === 'rapid') {
+                ctx.strokeStyle = '#4a9eff';
+                ctx.setLineDash([5, 5]);
+            } else if (cmd.type === 'feed' || cmd.type === 'arc') {
+                ctx.strokeStyle = '#4ade80';
+                ctx.setLineDash([]);
+            } else {
+                return;
+            }
+
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Highlight simulation line
+            if (this.simulationRunning && index === this.simulationLine) {
+                ctx.fillStyle = '#ff6b6b';
+                ctx.beginPath();
+                ctx.arc(toX, toY, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+
+        // Draw origin
+        const [originX, originY] = transform(0, 0);
+        ctx.strokeStyle = '#ff6b6b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(originX - 10, originY);
+        ctx.lineTo(originX + 10, originY);
+        ctx.moveTo(originX, originY - 10);
+        ctx.lineTo(originX, originY + 10);
+        ctx.stroke();
+
+        // Draw axis labels
+        ctx.fillStyle = '#fff';
+        ctx.font = '12px sans-serif';
+        if (this.currentView === 'xy') {
+            ctx.fillText('X', originX + 15, originY + 4);
+            ctx.fillText('Y', originX + 4, originY - 15);
+        } else if (this.currentView === 'xz') {
+            ctx.fillText('X', originX + 15, originY + 4);
+            ctx.fillText('Z', originX + 4, originY - 15);
+        } else {
+            ctx.fillText('Y', originX + 15, originY + 4);
+            ctx.fillText('Z', originX + 4, originY - 15);
+        }
+    }
+
+    setView(view) {
+        this.currentView = view;
+        document.querySelectorAll('.card-header .btn-group .btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.textContent.toLowerCase() === view || (view === '3d' && btn.textContent === '3D')) {
+                btn.classList.add('active');
+            }
+        });
+        this.drawBackplot();
+    }
+
+    zoomIn() {
+        this.zoom = Math.min(this.zoom * 1.2, 5);
+        this.drawBackplot();
+    }
+
+    zoomOut() {
+        this.zoom = Math.max(this.zoom / 1.2, 0.2);
+        this.drawBackplot();
+    }
+
+    resetView() {
+        this.zoom = 1;
+        this.panX = 0;
+        this.panY = 0;
+        this.drawBackplot();
+    }
+
+    validateCode() {
+        const code = this.editor.value;
+        const lines = code.split('\n');
+        const results = document.getElementById('validationResults');
+        const issues = [];
+
+        let hasG21orG20 = false;
+        let hasG90orG91 = false;
+        let hasSpindleOn = false;
+        let hasProgramEnd = false;
+
+        lines.forEach((line, index) => {
+            const trimmed = line.trim().toUpperCase();
+            if (!trimmed || trimmed.startsWith(';') || trimmed.startsWith('(')) return;
+
+            if (trimmed.includes('G21') || trimmed.includes('G20')) hasG21orG20 = true;
+            if (trimmed.includes('G90') || trimmed.includes('G91')) hasG90orG91 = true;
+            if (trimmed.includes('M3') || trimmed.includes('M4')) hasSpindleOn = true;
+            if (trimmed.includes('M30') || trimmed.includes('M2')) hasProgramEnd = true;
+
+            // Check for common issues
+            if (trimmed.match(/G[01]\s*[^XYZFRS]/i) && !trimmed.match(/[XYZ]/i)) {
+                issues.push({ line: index + 1, type: 'warning', msg: 'G0/G1 without coordinates' });
+            }
+
+            // Check for very high feed rates
+            const feedMatch = trimmed.match(/F(\d+)/);
+            if (feedMatch && parseInt(feedMatch[1]) > 10000) {
+                issues.push({ line: index + 1, type: 'warning', msg: `Very high feed rate: F${feedMatch[1]}` });
+            }
+        });
+
+        // Add structural warnings
+        if (!hasG21orG20) {
+            issues.push({ line: 0, type: 'warning', msg: 'No units specified (G20/G21)' });
+        }
+        if (!hasG90orG91) {
+            issues.push({ line: 0, type: 'warning', msg: 'No positioning mode specified (G90/G91)' });
+        }
+        if (!hasProgramEnd) {
+            issues.push({ line: 0, type: 'warning', msg: 'No program end (M30/M2)' });
+        }
+
+        // Display results
+        if (issues.length === 0) {
+            results.innerHTML = '<div class="validation-result success"><i class="bi bi-check-circle me-2"></i>No issues found</div>';
+        } else {
+            results.innerHTML = issues.map(issue =>
+                `<div class="validation-result ${issue.type}">
+                    <i class="bi bi-${issue.type === 'error' ? 'x-circle' : 'exclamation-triangle'} me-2"></i>
+                    ${issue.line > 0 ? `Line ${issue.line}: ` : ''}${issue.msg}
+                </div>`
+            ).join('');
+        }
+    }
+
+    formatCode() {
+        const lines = this.editor.value.split('\n');
+        const formatted = lines.map(line => {
+            let trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith(';') || trimmed.startsWith('(')) return trimmed;
+
+            // Add spaces after G/M codes
+            trimmed = trimmed.replace(/([GM])(\d+)/gi, '$1$2 ');
+            // Add spaces between parameters
+            trimmed = trimmed.replace(/([XYZFIJKRS])(-?\d)/gi, ' $1$2');
+            // Clean up multiple spaces
+            trimmed = trimmed.replace(/\s+/g, ' ').trim();
+
+            return trimmed;
+        });
+
+        this.editor.value = formatted.join('\n');
+        this.updateLineNumbers();
+        this.parseAndAnalyze();
+        this.drawBackplot();
+    }
+
+    startSimulation() {
+        if (this.simulationPaused) {
+            this.simulationPaused = false;
+            this.runSimulation();
+            return;
+        }
+
+        this.simulationRunning = true;
+        this.simulationPaused = false;
+        this.simulationLine = 0;
+
+        document.getElementById('btnSimStart').disabled = true;
+        document.getElementById('btnSimPause').disabled = false;
+        document.getElementById('btnSimStop').disabled = false;
+
+        this.runSimulation();
+    }
+
+    runSimulation() {
+        if (!this.simulationRunning || this.simulationPaused) return;
+
+        const speed = parseFloat(document.getElementById('simSpeed').value);
+        const delay = 100 / speed;
+
+        const cmd = this.parsedCode[this.simulationLine];
+        if (cmd) {
+            document.getElementById('simCurrentLine').textContent = cmd.line;
+            document.getElementById('simPosX').textContent = cmd.to.x.toFixed(3);
+            document.getElementById('simPosY').textContent = cmd.to.y.toFixed(3);
+            document.getElementById('simPosZ').textContent = cmd.to.z.toFixed(3);
+
+            const progress = (this.simulationLine / this.parsedCode.length) * 100;
+            document.getElementById('simProgress').style.width = progress + '%';
+        }
+
+        this.drawBackplot();
+
+        this.simulationLine++;
+        if (this.simulationLine < this.parsedCode.length) {
+            setTimeout(() => this.runSimulation(), delay);
+        } else {
+            this.stopSimulation();
+        }
+    }
+
+    pauseSimulation() {
+        this.simulationPaused = true;
+        document.getElementById('btnSimStart').disabled = false;
+        document.getElementById('btnSimStart').innerHTML = '<i class="bi bi-play-fill"></i> Resume';
+    }
+
+    stopSimulation() {
+        this.simulationRunning = false;
+        this.simulationPaused = false;
+        this.simulationLine = 0;
+
+        document.getElementById('btnSimStart').disabled = false;
+        document.getElementById('btnSimStart').innerHTML = '<i class="bi bi-play-fill"></i> Start';
+        document.getElementById('btnSimPause').disabled = true;
+        document.getElementById('btnSimStop').disabled = true;
+        document.getElementById('simProgress').style.width = '0%';
+        document.getElementById('simCurrentLine').textContent = '0';
+
+        this.drawBackplot();
+    }
+
+    async refreshFiles() {
+        try {
+            const response = await fetch('/api/scada/gcode/files');
+            if (response.ok) {
+                const data = await response.json();
+                this.displayFiles(data.files || []);
+            } else {
+                this.displayFiles(this.getDemoFiles());
+            }
+        } catch (error) {
+            this.displayFiles(this.getDemoFiles());
+        }
+    }
+
+    getDemoFiles() {
+        return [
+            { name: 'lego_2x4_brick.nc', size: 2048, modified: new Date().toISOString() },
+            { name: 'lego_1x1_round.nc', size: 1536, modified: new Date().toISOString() },
+            { name: 'lego_baseplate.nc', size: 4096, modified: new Date().toISOString() },
+            { name: 'test_square.nc', size: 512, modified: new Date().toISOString() },
+            { name: 'surfacing.nc', size: 768, modified: new Date().toISOString() }
+        ];
+    }
+
+    displayFiles(files) {
+        const browser = document.getElementById('fileBrowser');
+        const select = document.getElementById('serverFileSelect');
+
+        if (files.length === 0) {
+            browser.innerHTML = '<div class="text-muted p-3">No files found</div>';
+            return;
+        }
+
+        browser.innerHTML = files.map(file => `
+            <div class="file-item" data-filename="${file.name}" onclick="gcodeManager.selectFile('${file.name}')">
+                <i class="bi bi-file-code text-primary"></i>
+                <span>${file.name}</span>
+                <span class="file-size">${this.formatSize(file.size)}</span>
+            </div>
+        `).join('');
+
+        select.innerHTML = '<option value="">-- Select file --</option>' +
+            files.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
+    }
+
+    formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    selectFile(filename) {
+        document.querySelectorAll('.file-item').forEach(el => el.classList.remove('selected'));
+        document.querySelector(`.file-item[data-filename="${filename}"]`)?.classList.add('selected');
+        this.loadFile(filename);
+    }
+
+    async loadFile(filename) {
+        try {
+            const response = await fetch(`/api/scada/gcode/files/${encodeURIComponent(filename)}`);
+            if (response.ok) {
+                const data = await response.json();
+                this.editor.value = data.content;
+            } else {
+                // Demo mode
+                this.editor.value = `; Demo file: ${filename}\n; This is sample G-code\n\nG21\nG90\nG0 X0 Y0 Z5\nG1 Z0 F100\nG1 X50 Y50 F500\nG0 Z5\nM30`;
+            }
+        } catch (error) {
+            this.editor.value = `; Demo file: ${filename}\n; This is sample G-code\n\nG21\nG90\nG0 X0 Y0 Z5\nG1 Z0 F100\nG1 X50 Y50 F500\nG0 Z5\nM30`;
+        }
+
+        this.currentFile = filename;
+        document.getElementById('currentFileName').textContent = filename;
+        this.updateLineNumbers();
+        this.parseAndAnalyze();
+        this.drawBackplot();
+    }
+
+    newFile() {
+        this.editor.value = '; New G-code Program\n;\n\nG21 ; Metric\nG90 ; Absolute\n\nG0 X0 Y0 Z5\n\n; Your code here\n\nM30 ; End';
+        this.currentFile = 'untitled.nc';
+        document.getElementById('currentFileName').textContent = 'untitled.nc';
+        this.updateLineNumbers();
+        this.parseAndAnalyze();
+        this.drawBackplot();
+    }
+
+    openFile() {
+        this.uploadModal.show();
+    }
+
+    async loadSelectedFile() {
+        const serverFile = document.getElementById('serverFileSelect').value;
+        const uploadFile = document.getElementById('fileUpload').files[0];
+
+        if (uploadFile) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.editor.value = e.target.result;
+                this.currentFile = uploadFile.name;
+                document.getElementById('currentFileName').textContent = uploadFile.name;
+                this.updateLineNumbers();
+                this.parseAndAnalyze();
+                this.drawBackplot();
+            };
+            reader.readAsText(uploadFile);
+        } else if (serverFile) {
+            await this.loadFile(serverFile);
+        }
+
+        this.uploadModal.hide();
+    }
+
+    saveFile() {
+        document.getElementById('saveFileName').value = this.currentFile;
+        this.saveModal.show();
+    }
+
+    async saveToServer() {
+        const filename = document.getElementById('saveFileName').value;
+
+        try {
+            const response = await fetch(`/api/scada/gcode/files/${encodeURIComponent(filename)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: this.editor.value })
+            });
+
+            if (response.ok) {
+                this.currentFile = filename;
+                document.getElementById('currentFileName').textContent = filename;
+                this.refreshFiles();
+                alert('File saved successfully!');
+            }
+        } catch (error) {
+            console.log('Demo mode: save simulated');
+        }
+
+        this.saveModal.hide();
+
+        // Also download locally
+        const blob = new Blob([this.editor.value], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    async sendToMachine() {
+        if (!this.targetMachine) {
+            alert('Please select a target machine first.');
+            return;
+        }
+
+        const machine = this.machines[this.targetMachine];
+        const machineName = machine ? machine.name : this.targetMachine;
+
+        if (!confirm(`Send G-code "${this.currentFile}" to ${machineName}?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/v1/machines/${this.targetMachine}/program`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filename: this.currentFile,
+                    content: this.editor.value
+                })
+            });
+
+            if (response.ok) {
+                alert(`G-code sent to ${machineName} successfully!`);
+            } else {
+                alert(`Demo mode: G-code would be sent to ${machineName}`);
+            }
+        } catch (error) {
+            alert(`Demo mode: G-code would be sent to ${machineName}`);
+        }
+    }
+}
+
+// Initialize
+const gcodeManager = new GcodeManager();
+</script>
+{% endblock %}

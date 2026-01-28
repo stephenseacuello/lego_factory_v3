@@ -1,0 +1,1111 @@
+{% extends "base.html" %}
+{% block title %}Machine Control - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('scada_web.machines') }}">Machines</a></li>
+<li class="breadcrumb-item active">Control Panel</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2><i class="bi bi-joystick me-2"></i>Machine Control Panel</h2>
+        <p class="text-muted mb-0">Level 1 - Direct Machine Control</p>
+    </div>
+    <div class="d-flex gap-2">
+        <select class="form-select" id="machineSelect" onchange="controller.selectMachine(this.value)" style="width: 220px;">
+            <option value="">Select Machine...</option>
+        </select>
+        <button class="btn btn-outline-secondary" onclick="controller.refresh()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Connection Status Bar -->
+<div class="card mb-4" id="connectionStatus">
+    <div class="card-body py-2">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <span class="badge bg-secondary" id="connectionBadge">
+                    <i class="bi bi-circle-fill me-1"></i>Disconnected
+                </span>
+            </div>
+            <div class="col-auto">
+                <span class="text-muted small">Machine:</span>
+                <strong id="machineName">--</strong>
+            </div>
+            <div class="col-auto">
+                <span class="text-muted small">Controller:</span>
+                <strong id="controllerType">--</strong>
+            </div>
+            <div class="col-auto">
+                <span class="text-muted small">State:</span>
+                <strong id="machineState">--</strong>
+            </div>
+            <div class="col-auto ms-auto">
+                <button class="btn btn-success btn-sm" id="connectBtn" onclick="controller.connect()">
+                    <i class="bi bi-plug"></i> Connect
+                </button>
+                <button class="btn btn-danger btn-sm d-none" id="disconnectBtn" onclick="controller.disconnect()">
+                    <i class="bi bi-eject"></i> Disconnect
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Left Column: Position & Jog -->
+    <div class="col-lg-4">
+        <!-- Position Display (DRO) -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-crosshair me-2"></i>Position (DRO)
+                <div class="float-end">
+                    <select class="form-select form-select-sm" id="wcsSelect" style="width: 80px;" onchange="controller.setWCS(this.value)">
+                        <option value="G54">G54</option>
+                        <option value="G55">G55</option>
+                        <option value="G56">G56</option>
+                        <option value="G57">G57</option>
+                        <option value="G58">G58</option>
+                        <option value="G59">G59</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="position-display">
+                    <div class="axis-row">
+                        <span class="axis-label axis-x">X</span>
+                        <span class="axis-value" id="posX">0.000</span>
+                        <span class="axis-unit">mm</span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="controller.zeroAxis('x')">Zero</button>
+                    </div>
+                    <div class="axis-row">
+                        <span class="axis-label axis-y">Y</span>
+                        <span class="axis-value" id="posY">0.000</span>
+                        <span class="axis-unit">mm</span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="controller.zeroAxis('y')">Zero</button>
+                    </div>
+                    <div class="axis-row">
+                        <span class="axis-label axis-z">Z</span>
+                        <span class="axis-value" id="posZ">0.000</span>
+                        <span class="axis-unit">mm</span>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="controller.zeroAxis('z')">Zero</button>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-outline-primary btn-sm flex-fill" onclick="controller.home()">
+                        <i class="bi bi-house"></i> Home All
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm flex-fill" onclick="controller.zeroAll()">
+                        <i class="bi bi-bullseye"></i> Zero All
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Jog Controls -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-arrows-move me-2"></i>Jog Controls
+            </div>
+            <div class="card-body">
+                <div class="jog-settings mb-3">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label small">Step Size</label>
+                            <select class="form-select form-select-sm" id="jogStep">
+                                <option value="0.01">0.01 mm</option>
+                                <option value="0.1">0.1 mm</option>
+                                <option value="1" selected>1 mm</option>
+                                <option value="10">10 mm</option>
+                                <option value="100">100 mm</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">Feed Rate</label>
+                            <select class="form-select form-select-sm" id="jogFeed">
+                                <option value="100">100 mm/min</option>
+                                <option value="500">500 mm/min</option>
+                                <option value="1000" selected>1000 mm/min</option>
+                                <option value="3000">3000 mm/min</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="jog-pad">
+                    <!-- XY Pad -->
+                    <div class="jog-section">
+                        <div class="jog-row">
+                            <button class="jog-btn" onclick="controller.jog('y', 1)">Y+</button>
+                        </div>
+                        <div class="jog-row">
+                            <button class="jog-btn" onclick="controller.jog('x', -1)">X-</button>
+                            <button class="jog-btn jog-home" onclick="controller.goToZero()">
+                                <i class="bi bi-bullseye"></i>
+                            </button>
+                            <button class="jog-btn" onclick="controller.jog('x', 1)">X+</button>
+                        </div>
+                        <div class="jog-row">
+                            <button class="jog-btn" onclick="controller.jog('y', -1)">Y-</button>
+                        </div>
+                    </div>
+                    <!-- Z Pad -->
+                    <div class="jog-section z-section">
+                        <button class="jog-btn" onclick="controller.jog('z', 1)">Z+</button>
+                        <button class="jog-btn" onclick="controller.jog('z', -1)">Z-</button>
+                    </div>
+                </div>
+
+                <div class="d-grid gap-2 mt-3">
+                    <button class="btn btn-danger" id="stopBtn" onclick="controller.stop()">
+                        <i class="bi bi-stop-circle"></i> STOP
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center Column: MDI & G-code -->
+    <div class="col-lg-5">
+        <!-- MDI Console -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-terminal me-2"></i>MDI Console
+            </div>
+            <div class="card-body p-0">
+                <div class="console-output" id="consoleOutput">
+                    <div class="console-line console-info">> Machine control console ready</div>
+                </div>
+                <div class="console-input">
+                    <input type="text" class="form-control" id="mdiInput"
+                           placeholder="Enter G-code command (e.g., G0 X10 Y10)"
+                           onkeypress="if(event.key==='Enter') controller.sendMDI()">
+                    <button class="btn btn-primary" onclick="controller.sendMDI()">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- G-code Program -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-file-code me-2"></i>G-code Program</span>
+                <div>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="controller.loadProgram()">
+                        <i class="bi bi-folder2-open"></i> Load
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="program-info px-3 py-2 bg-light border-bottom">
+                    <span class="text-muted small">File:</span>
+                    <strong id="programName">No program loaded</strong>
+                    <span class="text-muted small ms-3">Lines:</span>
+                    <strong id="programLines">0</strong>
+                </div>
+                <div class="gcode-viewer" id="gcodeViewer">
+                    <div class="text-muted text-center py-4">Load a G-code program to view</div>
+                </div>
+                <div class="program-controls p-2 border-top">
+                    <div class="btn-group w-100">
+                        <button class="btn btn-success" id="runBtn" onclick="controller.runProgram()" disabled>
+                            <i class="bi bi-play-fill"></i> Run
+                        </button>
+                        <button class="btn btn-warning" id="pauseBtn" onclick="controller.pauseProgram()" disabled>
+                            <i class="bi bi-pause-fill"></i> Pause
+                        </button>
+                        <button class="btn btn-danger" id="stopProgramBtn" onclick="controller.stopProgram()" disabled>
+                            <i class="bi bi-stop-fill"></i> Stop
+                        </button>
+                    </div>
+                    <div class="progress mt-2" style="height: 4px;">
+                        <div class="progress-bar" id="programProgress" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Overrides & Probing -->
+    <div class="col-lg-3">
+        <!-- Feed & Speed Overrides -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-sliders me-2"></i>Overrides
+            </div>
+            <div class="card-body">
+                <div class="override-slider">
+                    <label class="form-label d-flex justify-content-between">
+                        <span>Feed Rate</span>
+                        <span id="feedOverrideValue">100%</span>
+                    </label>
+                    <input type="range" class="form-range" id="feedOverride"
+                           min="10" max="200" value="100"
+                           oninput="controller.setFeedOverride(this.value)">
+                </div>
+                <div class="override-slider">
+                    <label class="form-label d-flex justify-content-between">
+                        <span>Spindle Speed</span>
+                        <span id="spindleOverrideValue">100%</span>
+                    </label>
+                    <input type="range" class="form-range" id="spindleOverride"
+                           min="10" max="200" value="100"
+                           oninput="controller.setSpindleOverride(this.value)">
+                </div>
+                <div class="override-slider">
+                    <label class="form-label d-flex justify-content-between">
+                        <span>Rapid Override</span>
+                        <span id="rapidOverrideValue">100%</span>
+                    </label>
+                    <input type="range" class="form-range" id="rapidOverride"
+                           min="25" max="100" value="100"
+                           oninput="controller.setRapidOverride(this.value)">
+                </div>
+                <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="controller.resetOverrides()">
+                    Reset to 100%
+                </button>
+            </div>
+        </div>
+
+        <!-- Spindle & Coolant -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <i class="bi bi-gear me-2"></i>Spindle & Coolant
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-outline-success flex-fill" id="spindleCWBtn" onclick="controller.spindle('cw')">
+                        <i class="bi bi-arrow-clockwise"></i> CW
+                    </button>
+                    <button class="btn btn-outline-info flex-fill" id="spindleCCWBtn" onclick="controller.spindle('ccw')">
+                        <i class="bi bi-arrow-counterclockwise"></i> CCW
+                    </button>
+                    <button class="btn btn-outline-danger flex-fill" id="spindleOffBtn" onclick="controller.spindle('off')">
+                        <i class="bi bi-stop-circle"></i> Off
+                    </button>
+                </div>
+                <div class="input-group mb-3">
+                    <span class="input-group-text">RPM</span>
+                    <input type="number" class="form-control" id="spindleRPM" value="10000" min="0" max="30000">
+                    <button class="btn btn-outline-secondary" onclick="controller.setSpindleSpeed()">Set</button>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary flex-fill" id="coolantMistBtn" onclick="controller.coolant('mist')">
+                        <i class="bi bi-droplet-half"></i> Mist
+                    </button>
+                    <button class="btn btn-outline-primary flex-fill" id="coolantFloodBtn" onclick="controller.coolant('flood')">
+                        <i class="bi bi-droplet-fill"></i> Flood
+                    </button>
+                    <button class="btn btn-outline-secondary flex-fill" id="coolantOffBtn" onclick="controller.coolant('off')">
+                        Off
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Probing -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-crosshair2 me-2"></i>Probing
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-secondary" onclick="controller.probe('z')">
+                        <i class="bi bi-arrow-down"></i> Probe Z (Tool Length)
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="controller.probe('corner')">
+                        <i class="bi bi-bounding-box"></i> Probe Corner XY
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="controller.probe('center')">
+                        <i class="bi bi-bullseye"></i> Probe Center
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="controller.probe('edge_x')">
+                        <i class="bi bi-arrows-expand"></i> Probe Edge X
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="controller.probe('edge_y')">
+                        <i class="bi bi-arrows-expand"></i> Probe Edge Y
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load Program Modal -->
+<div class="modal fade" id="loadProgramModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Load G-code Program</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Select from library:</label>
+                    <select class="form-select" id="programSelect">
+                        <option value="">Choose a program...</option>
+                    </select>
+                </div>
+                <div class="text-center my-3">- OR -</div>
+                <div class="mb-3">
+                    <label class="form-label">Upload file:</label>
+                    <input type="file" class="form-control" id="programFile" accept=".nc,.gcode,.ngc,.tap">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="controller.loadSelectedProgram()">Load</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .position-display {
+        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+        border-radius: 8px;
+        padding: 15px;
+    }
+
+    .axis-row {
+        display: flex;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .axis-row:last-child {
+        border-bottom: none;
+    }
+
+    .axis-label {
+        width: 30px;
+        font-size: 1.2rem;
+        font-weight: 700;
+        text-align: center;
+    }
+
+    .axis-x { color: #dc3545; }
+    .axis-y { color: #198754; }
+    .axis-z { color: #0d6efd; }
+
+    .axis-value {
+        flex: 1;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #fff;
+        text-align: right;
+        padding-right: 10px;
+    }
+
+    .axis-unit {
+        color: rgba(255,255,255,0.5);
+        font-size: 0.8rem;
+        width: 30px;
+    }
+
+    .axis-row .btn {
+        margin-left: 10px;
+    }
+
+    .jog-pad {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .jog-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .jog-row {
+        display: flex;
+        gap: 5px;
+    }
+
+    .jog-btn {
+        width: 50px;
+        height: 50px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        background: linear-gradient(180deg, #fff 0%, #f8f9fa 100%);
+        cursor: pointer;
+        transition: all 0.1s;
+    }
+
+    .jog-btn:hover {
+        background: linear-gradient(180deg, #e9ecef 0%, #dee2e6 100%);
+        border-color: #adb5bd;
+    }
+
+    .jog-btn:active {
+        transform: scale(0.95);
+        background: linear-gradient(180deg, #dee2e6 0%, #ced4da 100%);
+    }
+
+    .jog-btn.jog-home {
+        background: linear-gradient(180deg, #198754 0%, #146c43 100%);
+        color: white;
+        border-color: #146c43;
+    }
+
+    .z-section {
+        border-left: 2px solid #dee2e6;
+        padding-left: 20px;
+    }
+
+    .console-output {
+        height: 200px;
+        overflow-y: auto;
+        background: #1a1a2e;
+        padding: 10px;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 0.85rem;
+    }
+
+    .console-line {
+        margin: 2px 0;
+        color: #a0aec0;
+    }
+
+    .console-line.console-sent {
+        color: #68d391;
+    }
+
+    .console-line.console-received {
+        color: #63b3ed;
+    }
+
+    .console-line.console-error {
+        color: #fc8181;
+    }
+
+    .console-line.console-info {
+        color: #a0aec0;
+    }
+
+    .console-input {
+        display: flex;
+        border-top: 1px solid #dee2e6;
+    }
+
+    .console-input input {
+        border: none;
+        border-radius: 0;
+        font-family: 'Roboto Mono', monospace;
+    }
+
+    .console-input .btn {
+        border-radius: 0;
+    }
+
+    .gcode-viewer {
+        height: 200px;
+        overflow-y: auto;
+        font-family: 'Roboto Mono', monospace;
+        font-size: 0.85rem;
+        background: #f8f9fa;
+    }
+
+    .gcode-line {
+        display: flex;
+        padding: 2px 10px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .gcode-line:hover {
+        background: #e9ecef;
+    }
+
+    .gcode-line.current {
+        background: rgba(25, 135, 84, 0.2);
+    }
+
+    .gcode-line .line-num {
+        width: 40px;
+        color: #6c757d;
+        text-align: right;
+        padding-right: 10px;
+        user-select: none;
+    }
+
+    .gcode-line .line-code {
+        flex: 1;
+    }
+
+    .override-slider {
+        margin-bottom: 15px;
+    }
+
+    #stopBtn {
+        font-size: 1.2rem;
+        padding: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/api_client.js"></script>
+
+<script>
+/**
+ * CNC Machine Controller
+ */
+class MachineController {
+    constructor() {
+        this.machineId = '{{ machine_id }}' || null;
+        this.connected = false;
+        this.machines = [];
+        this.position = { x: 0, y: 0, z: 0 };
+        this.state = 'DISCONNECTED';
+        this.program = null;
+        this.programLines = [];
+        this.currentLine = 0;
+        this.running = false;
+        this.pollingInterval = null;
+
+        this.init();
+    }
+
+    async init() {
+        await this.loadMachines();
+        if (this.machineId) {
+            document.getElementById('machineSelect').value = this.machineId;
+            await this.loadMachineStatus();
+        }
+        this.setupKeyboardShortcuts();
+    }
+
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            if (document.activeElement.tagName === 'INPUT') return;
+
+            const step = parseFloat(document.getElementById('jogStep').value);
+
+            switch(e.key) {
+                case 'ArrowLeft': this.jog('x', -1); e.preventDefault(); break;
+                case 'ArrowRight': this.jog('x', 1); e.preventDefault(); break;
+                case 'ArrowUp': this.jog('y', 1); e.preventDefault(); break;
+                case 'ArrowDown': this.jog('y', -1); e.preventDefault(); break;
+                case 'PageUp': this.jog('z', 1); e.preventDefault(); break;
+                case 'PageDown': this.jog('z', -1); e.preventDefault(); break;
+                case 'Escape': this.stop(); e.preventDefault(); break;
+                case 'Home': this.home(); e.preventDefault(); break;
+            }
+        });
+    }
+
+    async loadMachines() {
+        try {
+            const response = await fetch('/api/scada/machines');
+            const data = await response.json();
+            this.machines = data.machines || data.data || [];
+
+            const select = document.getElementById('machineSelect');
+            select.innerHTML = '<option value="">Select Machine...</option>';
+            this.machines.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m.id || m.machine_id;
+                option.textContent = `${m.name} (${m.controller_type || 'Unknown'})`;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Failed to load machines:', error);
+            this.loadDemoMachines();
+        }
+    }
+
+    loadDemoMachines() {
+        this.machines = [
+            { id: 'BANTAM-1', name: 'Bantam Desktop CNC', controller_type: 'TinyG' },
+            { id: 'PRUSA-MK4-1', name: 'Prusa MK4 #1', controller_type: 'Marlin' },
+            { id: 'HAAS-VF2', name: 'Haas VF-2', controller_type: 'GRBL' }
+        ];
+
+        const select = document.getElementById('machineSelect');
+        select.innerHTML = '<option value="">Select Machine...</option>';
+        this.machines.forEach(m => {
+            const option = document.createElement('option');
+            option.value = m.id;
+            option.textContent = `${m.name} (${m.controller_type})`;
+            select.appendChild(option);
+        });
+    }
+
+    selectMachine(machineId) {
+        this.machineId = machineId;
+        if (machineId) {
+            this.loadMachineStatus();
+        } else {
+            this.updateUI();
+        }
+    }
+
+    async loadMachineStatus() {
+        if (!this.machineId) return;
+
+        try {
+            const response = await fetch(`/api/plc/${this.machineId}/status`);
+            if (response.ok) {
+                const data = await response.json();
+                this.updateStatus(data);
+            }
+        } catch (error) {
+            // Use demo data
+            this.updateStatus({
+                connected: false,
+                state: 'DISCONNECTED',
+                position: { x: 0, y: 0, z: 0 },
+                wcs: 'G54'
+            });
+        }
+    }
+
+    updateStatus(data) {
+        this.connected = data.connected || false;
+        this.state = data.state || 'DISCONNECTED';
+        this.position = data.position || { x: 0, y: 0, z: 0 };
+
+        this.updateUI();
+    }
+
+    updateUI() {
+        const machine = this.machines.find(m => (m.id || m.machine_id) === this.machineId);
+
+        // Connection badge
+        const badge = document.getElementById('connectionBadge');
+        if (this.connected) {
+            badge.className = 'badge bg-success';
+            badge.innerHTML = '<i class="bi bi-circle-fill me-1"></i>Connected';
+            document.getElementById('connectBtn').classList.add('d-none');
+            document.getElementById('disconnectBtn').classList.remove('d-none');
+        } else {
+            badge.className = 'badge bg-secondary';
+            badge.innerHTML = '<i class="bi bi-circle-fill me-1"></i>Disconnected';
+            document.getElementById('connectBtn').classList.remove('d-none');
+            document.getElementById('disconnectBtn').classList.add('d-none');
+        }
+
+        // Machine info
+        document.getElementById('machineName').textContent = machine?.name || '--';
+        document.getElementById('controllerType').textContent = machine?.controller_type || '--';
+        document.getElementById('machineState').textContent = this.state;
+
+        // Position
+        document.getElementById('posX').textContent = this.position.x?.toFixed(3) || '0.000';
+        document.getElementById('posY').textContent = this.position.y?.toFixed(3) || '0.000';
+        document.getElementById('posZ').textContent = this.position.z?.toFixed(3) || '0.000';
+    }
+
+    async connect() {
+        if (!this.machineId) {
+            alert('Please select a machine first');
+            return;
+        }
+
+        this.log('Connecting to machine...', 'info');
+
+        try {
+            const response = await fetch(`/api/plc/${this.machineId}/connect`, { method: 'POST' });
+            if (response.ok) {
+                this.connected = true;
+                this.state = 'IDLE';
+                this.log('Connected successfully', 'sent');
+                this.startPolling();
+            } else {
+                throw new Error('Connection failed');
+            }
+        } catch (error) {
+            // Demo mode
+            this.connected = true;
+            this.state = 'IDLE';
+            this.log('Connected (demo mode)', 'sent');
+            this.startPolling();
+        }
+
+        this.updateUI();
+    }
+
+    async disconnect() {
+        this.log('Disconnecting...', 'info');
+        this.stopPolling();
+
+        try {
+            await fetch(`/api/plc/${this.machineId}/disconnect`, { method: 'POST' });
+        } catch (error) {
+            // Ignore
+        }
+
+        this.connected = false;
+        this.state = 'DISCONNECTED';
+        this.log('Disconnected', 'info');
+        this.updateUI();
+    }
+
+    startPolling() {
+        this.pollingInterval = setInterval(() => this.poll(), 250);
+    }
+
+    stopPolling() {
+        if (this.pollingInterval) {
+            clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+        }
+    }
+
+    async poll() {
+        if (!this.connected || !this.machineId) return;
+
+        try {
+            const response = await fetch(`/api/plc/${this.machineId}/status`);
+            if (response.ok) {
+                const data = await response.json();
+                this.updateStatus(data);
+            }
+        } catch (error) {
+            // Simulate position changes in demo mode
+            if (this.running) {
+                this.position.x += (Math.random() - 0.5) * 0.1;
+                this.position.y += (Math.random() - 0.5) * 0.1;
+                this.updateUI();
+            }
+        }
+    }
+
+    async jog(axis, direction) {
+        const step = parseFloat(document.getElementById('jogStep').value);
+        const feed = parseFloat(document.getElementById('jogFeed').value);
+        const distance = step * direction;
+
+        this.log(`Jog ${axis.toUpperCase()}${direction > 0 ? '+' : ''}${distance}`, 'sent');
+
+        try {
+            await fetch(`/api/plc/${this.machineId}/jog`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ axis, distance, feed_rate: feed })
+            });
+        } catch (error) {
+            // Demo mode - update position locally
+            this.position[axis] = (this.position[axis] || 0) + distance;
+            this.updateUI();
+        }
+    }
+
+    async home() {
+        this.log('Homing all axes...', 'sent');
+
+        try {
+            await fetch(`/api/plc/${this.machineId}/home`, { method: 'POST' });
+        } catch (error) {
+            // Demo mode
+            setTimeout(() => {
+                this.position = { x: 0, y: 0, z: 0 };
+                this.updateUI();
+                this.log('Homing complete', 'received');
+            }, 2000);
+        }
+    }
+
+    async zeroAxis(axis) {
+        this.log(`Zero ${axis.toUpperCase()} axis`, 'sent');
+
+        try {
+            await fetch(`/api/plc/${this.machineId}/zero`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ axes: [axis] })
+            });
+        } catch (error) {
+            // Demo
+            this.position[axis] = 0;
+            this.updateUI();
+        }
+    }
+
+    async zeroAll() {
+        this.log('Zero all axes', 'sent');
+
+        try {
+            await fetch(`/api/plc/${this.machineId}/zero`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ axes: ['x', 'y', 'z'] })
+            });
+        } catch (error) {
+            this.position = { x: 0, y: 0, z: 0 };
+            this.updateUI();
+        }
+    }
+
+    goToZero() {
+        this.sendMDICommand('G0 X0 Y0 Z0');
+    }
+
+    async stop() {
+        this.log('EMERGENCY STOP', 'error');
+        this.running = false;
+
+        try {
+            await fetch(`/api/plc/${this.machineId}/gcode/stop`, { method: 'POST' });
+        } catch (error) {
+            // Demo mode
+        }
+
+        this.state = 'IDLE';
+        this.updateUI();
+    }
+
+    async sendMDI() {
+        const input = document.getElementById('mdiInput');
+        const command = input.value.trim().toUpperCase();
+
+        if (!command) return;
+
+        await this.sendMDICommand(command);
+        input.value = '';
+    }
+
+    async sendMDICommand(command) {
+        this.log(`> ${command}`, 'sent');
+
+        try {
+            const response = await fetch(`/api/plc/${this.machineId}/command`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.response) {
+                    this.log(`< ${data.response}`, 'received');
+                }
+            }
+        } catch (error) {
+            // Demo - simulate response
+            setTimeout(() => {
+                this.log('< ok', 'received');
+            }, 100);
+        }
+    }
+
+    setFeedOverride(value) {
+        document.getElementById('feedOverrideValue').textContent = `${value}%`;
+        this.sendMDICommand(`M220 S${value}`);
+    }
+
+    setSpindleOverride(value) {
+        document.getElementById('spindleOverrideValue').textContent = `${value}%`;
+        this.sendMDICommand(`M221 S${value}`);
+    }
+
+    setRapidOverride(value) {
+        document.getElementById('rapidOverrideValue').textContent = `${value}%`;
+    }
+
+    resetOverrides() {
+        document.getElementById('feedOverride').value = 100;
+        document.getElementById('spindleOverride').value = 100;
+        document.getElementById('rapidOverride').value = 100;
+        this.setFeedOverride(100);
+        this.setSpindleOverride(100);
+        this.setRapidOverride(100);
+    }
+
+    spindle(mode) {
+        switch(mode) {
+            case 'cw': this.sendMDICommand('M3 S' + document.getElementById('spindleRPM').value); break;
+            case 'ccw': this.sendMDICommand('M4 S' + document.getElementById('spindleRPM').value); break;
+            case 'off': this.sendMDICommand('M5'); break;
+        }
+    }
+
+    setSpindleSpeed() {
+        const rpm = document.getElementById('spindleRPM').value;
+        this.sendMDICommand(`S${rpm}`);
+    }
+
+    coolant(mode) {
+        switch(mode) {
+            case 'mist': this.sendMDICommand('M7'); break;
+            case 'flood': this.sendMDICommand('M8'); break;
+            case 'off': this.sendMDICommand('M9'); break;
+        }
+    }
+
+    setWCS(wcs) {
+        this.sendMDICommand(wcs);
+    }
+
+    async probe(type) {
+        this.log(`Starting ${type} probe cycle...`, 'info');
+
+        try {
+            const response = await fetch(`/api/plc/${this.machineId}/probe`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ probe_type: type })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.log(`Probe result: ${JSON.stringify(data.result)}`, 'received');
+            }
+        } catch (error) {
+            // Demo
+            setTimeout(() => {
+                this.log('Probe cycle complete', 'received');
+            }, 1500);
+        }
+    }
+
+    loadProgram() {
+        new bootstrap.Modal(document.getElementById('loadProgramModal')).show();
+    }
+
+    async loadSelectedProgram() {
+        const select = document.getElementById('programSelect');
+        const fileInput = document.getElementById('programFile');
+
+        if (fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const content = await file.text();
+            this.parseProgram(file.name, content);
+        } else if (select.value) {
+            // Load from API
+            try {
+                const response = await fetch(`/api/scada/gcode/${select.value}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    this.parseProgram(data.filename, data.content);
+                }
+            } catch (error) {
+                // Demo
+                this.parseProgram('demo.nc', 'G21\nG90\nG0 Z5\nG0 X0 Y0\nG1 Z-1 F100\nG1 X50 F500\nG1 Y50\nG1 X0\nG1 Y0\nG0 Z5\nM30');
+            }
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('loadProgramModal')).hide();
+    }
+
+    parseProgram(name, content) {
+        this.program = { name, content };
+        this.programLines = content.split('\n').filter(l => l.trim());
+        this.currentLine = 0;
+
+        document.getElementById('programName').textContent = name;
+        document.getElementById('programLines').textContent = this.programLines.length;
+
+        const viewer = document.getElementById('gcodeViewer');
+        viewer.innerHTML = this.programLines.map((line, idx) => `
+            <div class="gcode-line" data-line="${idx}">
+                <span class="line-num">${idx + 1}</span>
+                <span class="line-code">${this.highlightGcode(line)}</span>
+            </div>
+        `).join('');
+
+        document.getElementById('runBtn').disabled = false;
+        this.log(`Loaded program: ${name} (${this.programLines.length} lines)`, 'info');
+    }
+
+    highlightGcode(line) {
+        return line
+            .replace(/;.*/g, '<span style="color:#6c757d">$&</span>')
+            .replace(/\b(G[0-3]|G2[0189]|G4[0-3]|G5[3-9]|G9[0128])/gi, '<span style="color:#0d6efd">$1</span>')
+            .replace(/\b(M[0-9]+)/gi, '<span style="color:#dc3545">$1</span>')
+            .replace(/([XYZIJKFSR])(-?[0-9.]+)/gi, '<span style="color:#198754">$1</span><span style="color:#ffc107">$2</span>');
+    }
+
+    async runProgram() {
+        if (!this.program) return;
+
+        this.running = true;
+        this.state = 'RUNNING';
+        document.getElementById('runBtn').disabled = true;
+        document.getElementById('pauseBtn').disabled = false;
+        document.getElementById('stopProgramBtn').disabled = false;
+
+        this.log('Running program...', 'info');
+
+        // Demo: simulate line execution
+        for (this.currentLine = 0; this.currentLine < this.programLines.length && this.running; this.currentLine++) {
+            const line = this.programLines[this.currentLine];
+
+            // Highlight current line
+            document.querySelectorAll('.gcode-line').forEach(el => el.classList.remove('current'));
+            const currentEl = document.querySelector(`.gcode-line[data-line="${this.currentLine}"]`);
+            if (currentEl) {
+                currentEl.classList.add('current');
+                currentEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            }
+
+            // Update progress
+            const progress = ((this.currentLine + 1) / this.programLines.length) * 100;
+            document.getElementById('programProgress').style.width = `${progress}%`;
+
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        this.running = false;
+        this.state = 'IDLE';
+        document.getElementById('runBtn').disabled = false;
+        document.getElementById('pauseBtn').disabled = true;
+        document.getElementById('stopProgramBtn').disabled = true;
+        this.log('Program complete', 'info');
+    }
+
+    pauseProgram() {
+        this.running = false;
+        this.state = 'PAUSED';
+        document.getElementById('runBtn').disabled = false;
+        document.getElementById('pauseBtn').disabled = true;
+        this.log('Program paused', 'info');
+    }
+
+    stopProgram() {
+        this.running = false;
+        this.currentLine = 0;
+        this.state = 'IDLE';
+        document.getElementById('runBtn').disabled = false;
+        document.getElementById('pauseBtn').disabled = true;
+        document.getElementById('stopProgramBtn').disabled = true;
+        document.getElementById('programProgress').style.width = '0%';
+        document.querySelectorAll('.gcode-line').forEach(el => el.classList.remove('current'));
+        this.log('Program stopped', 'info');
+    }
+
+    log(message, type = 'info') {
+        const output = document.getElementById('consoleOutput');
+        const line = document.createElement('div');
+        line.className = `console-line console-${type}`;
+        line.textContent = message;
+        output.appendChild(line);
+        output.scrollTop = output.scrollHeight;
+    }
+
+    refresh() {
+        this.loadMachineStatus();
+    }
+}
+
+// Initialize
+const controller = new MachineController();
+</script>
+{% endblock %}

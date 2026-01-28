@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Login - LEGO Factory v3{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header text-center">
+                <h4><i class="bi bi-box-seam me-2"></i>LEGO Factory v3</h4>
+            </div>
+            <div class="card-body">
+                <div id="loginError" class="alert alert-danger d-none"></div>
+                <form id="loginForm">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" placeholder="Enter username" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="remember">
+                        <label class="form-check-label" for="remember">Remember me</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" id="loginBtn">
+                        <span id="loginText">Login</span>
+                        <span id="loginSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+                    </button>
+                </form>
+                <hr>
+                <div class="text-center">
+                    <p class="text-muted small mb-1">Demo Credentials:</p>
+                    <code>admin / admin123</code> or <code>demo / demo123</code>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value;
+    const password = document.getElementById('password').value;
+    const loginBtn = document.getElementById('loginBtn');
+    const loginText = document.getElementById('loginText');
+    const loginSpinner = document.getElementById('loginSpinner');
+    const loginError = document.getElementById('loginError');
+
+    // Show loading state
+    loginBtn.disabled = true;
+    loginText.textContent = 'Logging in...';
+    loginSpinner.classList.remove('d-none');
+    loginError.classList.add('d-none');
+
+    try {
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.access_token) {
+            // Store tokens and user info
+            localStorage.setItem('lego_factory_token', data.access_token);
+            localStorage.setItem('lego_factory_refresh_token', data.refresh_token || '');
+            localStorage.setItem('lego_factory_user', JSON.stringify({
+                username: data.user?.username || username,
+                name: data.user?.first_name ? `${data.user.first_name} ${data.user.last_name || ''}`.trim() : username,
+                role: data.user?.role || 'user',
+                email: data.user?.email || ''
+            }));
+
+            // Calculate token expiration
+            const expiresIn = data.expires_in || 900; // default 15 minutes
+            const expireTime = Date.now() + (expiresIn * 1000);
+            localStorage.setItem('lego_factory_token_expire', expireTime.toString());
+
+            // Redirect to dashboard
+            window.location.href = '/';
+        } else {
+            throw new Error(data.error || data.message || 'Login failed');
+        }
+    } catch (error) {
+        loginError.textContent = error.message || 'Login failed. Please check your credentials.';
+        loginError.classList.remove('d-none');
+    } finally {
+        loginBtn.disabled = false;
+        loginText.textContent = 'Login';
+        loginSpinner.classList.add('d-none');
+    }
+});
+</script>
+{% endblock %}

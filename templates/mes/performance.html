@@ -1,0 +1,627 @@
+{% extends "base.html" %}
+
+{% block title %}Performance Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-trend-up { color: #4CAF50; }
+.kpi-trend-down { color: #f44336; }
+.kpi-trend-neutral { color: #9e9e9e; }
+
+.waterfall-bar {
+    height: 30px;
+    display: flex;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.waterfall-segment {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: white;
+    transition: all 0.3s;
+}
+
+.waterfall-segment:hover {
+    filter: brightness(1.1);
+}
+
+.heatmap-cell {
+    width: 30px;
+    height: 30px;
+    border-radius: 2px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: white;
+    margin: 1px;
+}
+
+.gauge-container {
+    position: relative;
+    width: 150px;
+    height: 75px;
+    margin: 0 auto;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Performance Analysis</h2>
+            <p class="text-muted mb-0">MESA-11 Performance Analysis KPIs</p>
+        </div>
+        <div class="d-flex gap-2">
+            <select id="period-select" class="form-select form-select-sm" style="width: 120px;" onchange="loadKPIs()">
+                <option value="7">Last 7 days</option>
+                <option value="14">Last 14 days</option>
+                <option value="30" selected>Last 30 days</option>
+                <option value="90">Last 90 days</option>
+            </select>
+            <select id="machine-select" class="form-select form-select-sm" style="width: 150px;" onchange="loadKPIs()">
+                <option value="">All Machines</option>
+            </select>
+            <a href="{{ url_for('mes_web.shift_report') if mes_web is defined else '#' }}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-file-text"></i> Shift Report
+            </a>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="kpi-oee">--%</div>
+                        <div class="stat-label">OEE</div>
+                    </div>
+                    <span id="kpi-oee-trend" class="kpi-trend-neutral"><i class="bi bi-dash"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card success">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="kpi-throughput">--</div>
+                        <div class="stat-label">Throughput/hr</div>
+                    </div>
+                    <span id="kpi-throughput-trend" class="kpi-trend-neutral"><i class="bi bi-dash"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="kpi-yield">--%</div>
+                        <div class="stat-label">Yield Rate</div>
+                    </div>
+                    <span id="kpi-yield-trend" class="kpi-trend-neutral"><i class="bi bi-dash"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card warning">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="kpi-otd">--%</div>
+                        <div class="stat-label">On-Time Delivery</div>
+                    </div>
+                    <span id="kpi-otd-trend" class="kpi-trend-neutral"><i class="bi bi-dash"></i></span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="kpi-mtbf">-- hrs</div>
+                        <div class="stat-label">MTBF</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stat-card danger">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" id="kpi-wip">--</div>
+                        <div class="stat-label">WIP Level</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- OEE Waterfall -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">OEE Waterfall Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <div id="oee-waterfall">
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Scheduled Time</span>
+                                <span id="wf-scheduled">--</span>
+                            </div>
+                            <div class="waterfall-bar">
+                                <div class="waterfall-segment" style="background: #2196F3; width: 100%;">100%</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Available Time (Availability)</span>
+                                <span id="wf-available">--</span>
+                            </div>
+                            <div class="waterfall-bar">
+                                <div class="waterfall-segment" id="wf-avail-bar" style="background: #4CAF50; width: 90%;">90%</div>
+                                <div class="waterfall-segment" style="background: #f44336; flex: 1;">Loss</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Operating Time (Performance)</span>
+                                <span id="wf-operating">--</span>
+                            </div>
+                            <div class="waterfall-bar">
+                                <div class="waterfall-segment" id="wf-perf-bar" style="background: #FF9800; width: 80%;">80%</div>
+                                <div class="waterfall-segment" style="background: #f44336; flex: 1;">Loss</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between mb-1">
+                                <span>Productive Time (Quality)</span>
+                                <span id="wf-productive">--</span>
+                            </div>
+                            <div class="waterfall-bar">
+                                <div class="waterfall-segment" id="wf-qual-bar" style="background: #9C27B0; width: 75%;">75%</div>
+                                <div class="waterfall-segment" style="background: #f44336; flex: 1;">Loss</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-center">
+                        <h4>OEE = <span id="wf-oee-calc">--%</span></h4>
+                        <small class="text-muted">Availability x Performance x Quality</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Machine Utilization Heatmap -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Utilization Heatmap (Last 24h)</h5>
+                </div>
+                <div class="card-body">
+                    <div id="utilization-heatmap" style="overflow-x: auto;">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th style="width: 100px;">Machine</th>
+                                    <th colspan="24" class="text-center">Hour of Day</th>
+                                </tr>
+                            </thead>
+                            <tbody id="heatmap-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Throughput Trend -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Throughput Trend</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="throughput-chart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- OTD Gauge -->
+        <div class="col-md-3 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">On-Time Delivery</h5>
+                </div>
+                <div class="card-body text-center">
+                    <canvas id="otd-gauge" height="150"></canvas>
+                    <h3 id="otd-value" class="mt-2">--%</h3>
+                    <p class="text-muted mb-0">Target: 95%</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Schedule Adherence -->
+        <div class="col-md-3 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Schedule Adherence</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="adherence-chart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Downtime Pareto -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Downtime Pareto Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="downtime-chart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Events -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Performance Events</h5>
+                </div>
+                <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-sm mb-0">
+                        <thead class="sticky-top bg-white">
+                            <tr>
+                                <th>Time</th>
+                                <th>Machine</th>
+                                <th>Event</th>
+                                <th>Impact</th>
+                            </tr>
+                        </thead>
+                        <tbody id="events-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let throughputChart = null;
+let otdGauge = null;
+let adherenceChart = null;
+let downtimeChart = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+    loadMachines();
+    loadKPIs();
+});
+
+function initCharts() {
+    // Throughput trend
+    const throughputCtx = document.getElementById('throughput-chart').getContext('2d');
+    throughputChart = new Chart(throughputCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Throughput',
+                data: [],
+                borderColor: '#4CAF50',
+                backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                fill: true,
+                tension: 0.4
+            }, {
+                label: '7-day Avg',
+                data: [],
+                borderColor: '#FF9800',
+                borderDash: [5, 5],
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+                y: { beginAtZero: true, title: { display: true, text: 'Parts/Hour' } }
+            }
+        }
+    });
+
+    // OTD Gauge (doughnut)
+    const otdCtx = document.getElementById('otd-gauge').getContext('2d');
+    otdGauge = new Chart(otdCtx, {
+        type: 'doughnut',
+        data: {
+            datasets: [{
+                data: [0, 100],
+                backgroundColor: ['#4CAF50', '#e0e0e0'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            circumference: 180,
+            rotation: 270,
+            cutout: '70%',
+            plugins: { legend: { display: false } }
+        }
+    });
+
+    // Adherence scatter
+    const adherenceCtx = document.getElementById('adherence-chart').getContext('2d');
+    adherenceChart = new Chart(adherenceCtx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Jobs',
+                data: [],
+                backgroundColor: 'rgba(33, 150, 243, 0.6)'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { title: { display: true, text: 'Scheduled Start (mins from now)' } },
+                y: { title: { display: true, text: 'Actual Start (mins)' } }
+            }
+        }
+    });
+
+    // Downtime Pareto
+    const downtimeCtx = document.getElementById('downtime-chart').getContext('2d');
+    downtimeChart = new Chart(downtimeCtx, {
+        type: 'bar',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Duration (min)',
+                data: [],
+                backgroundColor: '#f44336',
+                yAxisID: 'y'
+            }, {
+                label: 'Cumulative %',
+                data: [],
+                type: 'line',
+                borderColor: '#2196F3',
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Minutes' } },
+                y1: { beginAtZero: true, max: 100, position: 'right', title: { display: true, text: '%' } }
+            }
+        }
+    });
+}
+
+async function loadMachines() {
+    try {
+        const response = await fetch('/api/mes/resources');
+        const data = await response.json();
+
+        const select = document.getElementById('machine-select');
+        (data.machines || []).forEach(m => {
+            const option = document.createElement('option');
+            option.value = m.machine_id;
+            option.textContent = m.machine_id;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Failed to load machines:', error);
+    }
+}
+
+async function loadKPIs() {
+    const period = document.getElementById('period-select').value;
+    const machineId = document.getElementById('machine-select').value;
+
+    try {
+        let url = `/api/mes/performance/kpis?period=${period}d`;
+        if (machineId) url += `&machine_id=${machineId}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        updateKPICards(data);
+        updateOEEWaterfall(data);
+        await loadTrends(period, machineId);
+        await loadHeatmap();
+        await loadDowntimePareto(period);
+
+    } catch (error) {
+        console.error('Failed to load KPIs:', error);
+        // Show sample data
+        showSampleData();
+    }
+}
+
+function updateKPICards(data) {
+    document.getElementById('kpi-oee').textContent = `${((data.oee || 0) * 100).toFixed(1)}%`;
+    document.getElementById('kpi-throughput').textContent = (data.throughput || 0).toFixed(1);
+    document.getElementById('kpi-yield').textContent = `${((data.yield_rate || 0) * 100).toFixed(1)}%`;
+    document.getElementById('kpi-otd').textContent = `${((data.on_time_delivery_pct || 0) * 100).toFixed(1)}%`;
+    document.getElementById('kpi-mtbf').textContent = `${(data.mtbf || 0).toFixed(1)} hrs`;
+    document.getElementById('kpi-wip').textContent = data.wip_level || 0;
+
+    // Update OTD gauge
+    const otd = (data.on_time_delivery_pct || 0) * 100;
+    otdGauge.data.datasets[0].data = [otd, 100 - otd];
+    otdGauge.update();
+    document.getElementById('otd-value').textContent = `${otd.toFixed(1)}%`;
+}
+
+function updateOEEWaterfall(data) {
+    const availability = data.availability || 0.9;
+    const performance = data.performance || 0.85;
+    const quality = data.quality || 0.95;
+    const oee = availability * performance * quality;
+
+    document.getElementById('wf-avail-bar').style.width = `${availability * 100}%`;
+    document.getElementById('wf-avail-bar').textContent = `${(availability * 100).toFixed(0)}%`;
+
+    document.getElementById('wf-perf-bar').style.width = `${availability * performance * 100}%`;
+    document.getElementById('wf-perf-bar').textContent = `${(performance * 100).toFixed(0)}%`;
+
+    document.getElementById('wf-qual-bar').style.width = `${oee * 100}%`;
+    document.getElementById('wf-qual-bar').textContent = `${(quality * 100).toFixed(0)}%`;
+
+    document.getElementById('wf-oee-calc').textContent = `${(oee * 100).toFixed(1)}%`;
+}
+
+async function loadTrends(period, machineId) {
+    try {
+        let url = `/api/mes/performance/trends/throughput?days=${period}`;
+        if (machineId) url += `&machine_id=${machineId}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.trend) {
+            throughputChart.data.labels = data.trend.map(t => t.date);
+            throughputChart.data.datasets[0].data = data.trend.map(t => t.value);
+
+            // Calculate 7-day moving average
+            const values = data.trend.map(t => t.value);
+            const ma = values.map((_, i) => {
+                const start = Math.max(0, i - 6);
+                const subset = values.slice(start, i + 1);
+                return subset.reduce((a, b) => a + b, 0) / subset.length;
+            });
+            throughputChart.data.datasets[1].data = ma;
+
+            throughputChart.update();
+        }
+    } catch (error) {
+        console.error('Failed to load trends:', error);
+    }
+}
+
+async function loadHeatmap() {
+    try {
+        const response = await fetch('/api/mes/resources');
+        const data = await response.json();
+
+        const machines = (data.machines || []).slice(0, 8);
+        const tbody = document.getElementById('heatmap-body');
+
+        tbody.innerHTML = machines.map(m => {
+            let cells = '';
+            for (let h = 0; h < 24; h++) {
+                // Generate random utilization for demo
+                const util = Math.random();
+                const color = getHeatmapColor(util);
+                cells += `<td><div class="heatmap-cell" style="background: ${color}" title="${h}:00 - ${(util * 100).toFixed(0)}%"></div></td>`;
+            }
+            return `<tr><td><small>${m.machine_id}</small></td>${cells}</tr>`;
+        }).join('');
+
+    } catch (error) {
+        console.error('Failed to load heatmap:', error);
+    }
+}
+
+function getHeatmapColor(value) {
+    if (value < 0.3) return '#e0e0e0';
+    if (value < 0.5) return '#81D4FA';
+    if (value < 0.7) return '#4CAF50';
+    if (value < 0.9) return '#FF9800';
+    return '#f44336';
+}
+
+async function loadDowntimePareto(period) {
+    try {
+        const response = await fetch(`/api/mes/downtime/pareto?days=${period}`);
+        const data = await response.json();
+
+        if (data.reasons) {
+            const sorted = data.reasons.sort((a, b) => b.duration - a.duration);
+            const total = sorted.reduce((sum, r) => sum + r.duration, 0);
+
+            downtimeChart.data.labels = sorted.map(r => r.reason);
+            downtimeChart.data.datasets[0].data = sorted.map(r => r.duration);
+
+            let cumulative = 0;
+            downtimeChart.data.datasets[1].data = sorted.map(r => {
+                cumulative += r.duration;
+                return (cumulative / total) * 100;
+            });
+
+            downtimeChart.update();
+        }
+    } catch (error) {
+        // Show sample data
+        const reasons = ['Breakdown', 'Setup', 'Material', 'Quality', 'Other'];
+        const durations = [120, 80, 60, 40, 20];
+        const total = durations.reduce((a, b) => a + b, 0);
+
+        downtimeChart.data.labels = reasons;
+        downtimeChart.data.datasets[0].data = durations;
+
+        let cum = 0;
+        downtimeChart.data.datasets[1].data = durations.map(d => {
+            cum += d;
+            return (cum / total) * 100;
+        });
+
+        downtimeChart.update();
+    }
+}
+
+function showSampleData() {
+    // Show sample KPI data
+    updateKPICards({
+        oee: 0.72,
+        throughput: 12.5,
+        yield_rate: 0.95,
+        on_time_delivery_pct: 0.88,
+        mtbf: 48.5,
+        wip_level: 15,
+        availability: 0.85,
+        performance: 0.90,
+        quality: 0.94
+    });
+
+    // Sample throughput trend
+    const days = [];
+    const values = [];
+    for (let i = 29; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        days.push(d.toLocaleDateString());
+        values.push(10 + Math.random() * 5);
+    }
+    throughputChart.data.labels = days;
+    throughputChart.data.datasets[0].data = values;
+    throughputChart.update();
+
+    loadHeatmap();
+    loadDowntimePareto(30);
+}
+</script>
+{% endblock %}

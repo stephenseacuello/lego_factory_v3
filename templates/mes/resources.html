@@ -1,0 +1,679 @@
+{% extends "base.html" %}
+
+{% block title %}Resources - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Resources</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-hdd-stack me-2"></i>Resource Dashboard</h2>
+    <div class="d-flex align-items-center gap-2">
+        <span class="badge bg-success" id="connectedBadge">
+            <i class="bi bi-broadcast me-1"></i>Live
+        </span>
+        <button class="btn btn-outline-secondary btn-sm" onclick="resourceDashboard.refresh()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-muted mb-1">Running</h6>
+                        <h2 class="mb-0" id="machinesRunning">--</h2>
+                    </div>
+                    <div class="stat-icon bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-play-circle"></i>
+                    </div>
+                </div>
+                <small class="text-muted">Actively producing</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card info">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-muted mb-1">Idle</h6>
+                        <h2 class="mb-0" id="machinesIdle">--</h2>
+                    </div>
+                    <div class="stat-icon bg-info bg-opacity-10 text-info">
+                        <i class="bi bi-pause-circle"></i>
+                    </div>
+                </div>
+                <small class="text-muted">Available for work</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-muted mb-1">Down</h6>
+                        <h2 class="mb-0" id="machinesDown">--</h2>
+                    </div>
+                    <div class="stat-icon bg-danger bg-opacity-10 text-danger">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                </div>
+                <small class="text-muted">Requires attention</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-muted mb-1">Setup / Maintenance</h6>
+                        <h2 class="mb-0" id="machinesSetup">--</h2>
+                    </div>
+                    <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+                        <i class="bi bi-tools"></i>
+                    </div>
+                </div>
+                <small class="text-muted">In changeover or PM</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="row g-4">
+    <!-- Machine Grid -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-grid me-2"></i>Machine Status</span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary active" data-view="grid" onclick="resourceDashboard.setView('grid')">
+                        <i class="bi bi-grid-3x3-gap"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" data-view="list" onclick="resourceDashboard.setView('list')">
+                        <i class="bi bi-list"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3" id="machineGrid">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="col-lg-4">
+        <!-- Material Summary -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-box-seam me-2"></i>Material Inventory</span>
+                <a href="{{ url_for('mes_web.materials') }}" class="btn btn-sm btn-outline-primary">
+                    View All
+                </a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="sticky-top bg-white">
+                            <tr>
+                                <th>Material</th>
+                                <th class="text-end">Available</th>
+                                <th class="text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="materialSummary">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Events -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-activity me-2"></i>Recent Events
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="eventFeed" style="max-height: 350px; overflow-y: auto;">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Machine Detail Modal -->
+<div class="modal fade" id="machineDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-gear me-2"></i><span id="modalMachineName">Machine Details</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="machineDetailContent">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="viewDetailLink" class="btn btn-primary">
+                    <i class="bi bi-arrow-right me-1"></i>View Full Details
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const resourceDashboard = {
+    machines: [],
+    materials: [],
+    events: [],
+    socket: null,
+    viewMode: 'grid',
+
+    init() {
+        this.loadData();
+        this.initWebSocket();
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => this.loadData(), 30000);
+    },
+
+    initWebSocket() {
+        if (typeof LegoFactorySocket !== 'undefined') {
+            this.socket = new LegoFactorySocket('/dashboard');
+
+            this.socket.on('resource_update', (data) => {
+                console.log('Resource update:', data);
+                this.handleResourceUpdate(data);
+            });
+
+            this.socket.on('machine_event', (data) => {
+                console.log('Machine event:', data);
+                this.addEvent(data);
+            });
+
+            this.socket.connect();
+        }
+    },
+
+    async loadData() {
+        try {
+            LoadingSpinner.show();
+            const response = await fetch('/api/mes/resources');
+            const data = await response.json();
+
+            this.machines = data.machines || [];
+            this.materials = data.low_stock_materials || [];
+            this.events = data.recent_events || [];
+
+            this.updateStatCards(data.status_summary || {});
+            this.renderMachineGrid();
+            this.renderMaterialSummary();
+            this.renderEvents();
+        } catch (error) {
+            console.error('Error loading resources:', error);
+            showToast('Error loading resource data', 'error');
+        } finally {
+            LoadingSpinner.hide();
+        }
+    },
+
+    refresh() {
+        this.loadData();
+    },
+
+    updateStatCards(summary) {
+        document.getElementById('machinesRunning').textContent = summary.running || 0;
+        document.getElementById('machinesIdle').textContent = summary.idle || 0;
+        document.getElementById('machinesDown').textContent = summary.down || 0;
+        document.getElementById('machinesSetup').textContent =
+            (summary.setup || 0) + (summary.maintenance || 0);
+    },
+
+    renderMachineGrid() {
+        const container = document.getElementById('machineGrid');
+
+        if (this.machines.length === 0) {
+            container.innerHTML = `
+                <div class="col-12 text-center text-muted py-5">
+                    <i class="bi bi-inbox fs-1 mb-3 d-block"></i>
+                    No machines configured
+                </div>
+            `;
+            return;
+        }
+
+        const colClass = this.viewMode === 'grid' ? 'col-md-6 col-lg-4' : 'col-12';
+
+        container.innerHTML = this.machines.map(machine => `
+            <div class="${colClass}">
+                <div class="card machine-card h-100 ${this.getStatusClass(machine.status)}"
+                     onclick="resourceDashboard.showMachineDetail('${machine.machine_id}')"
+                     style="cursor: pointer;">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h6 class="mb-0">${machine.machine_name || machine.machine_id}</h6>
+                                <small class="text-muted">${machine.machine_id}</small>
+                            </div>
+                            <span class="badge ${this.getStatusBadge(machine.status)}">
+                                ${machine.status || 'unknown'}
+                            </span>
+                        </div>
+
+                        ${machine.current_job_id ? `
+                            <div class="small mb-2">
+                                <i class="bi bi-briefcase me-1"></i>
+                                <span class="text-primary">${machine.current_job_id}</span>
+                            </div>
+                        ` : ''}
+
+                        ${machine.current_operation_name ? `
+                            <div class="small text-muted mb-2">
+                                ${machine.current_operation_name}
+                            </div>
+                        ` : ''}
+
+                        <!-- Utilization Bar -->
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span>Utilization (8hr)</span>
+                                <span>${(machine.utilization_8hr || 0).toFixed(1)}%</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar ${this.getUtilizationColor(machine.utilization_8hr)}"
+                                     style="width: ${machine.utilization_8hr || 0}%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Job Progress -->
+                        ${machine.job_progress_pct > 0 ? `
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span>Job Progress</span>
+                                    <span>${machine.job_progress_pct.toFixed(0)}%</span>
+                                </div>
+                                <div class="progress" style="height: 6px;">
+                                    <div class="progress-bar bg-primary"
+                                         style="width: ${machine.job_progress_pct}%"></div>
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <!-- Connection Status -->
+                        <div class="d-flex justify-content-between align-items-center mt-2 pt-2 border-top small">
+                            <span class="${machine.is_connected ? 'text-success' : 'text-danger'}">
+                                <i class="bi bi-${machine.is_connected ? 'wifi' : 'wifi-off'} me-1"></i>
+                                ${machine.is_connected ? 'Connected' : 'Disconnected'}
+                            </span>
+                            ${machine.has_alarm ? `
+                                <span class="text-danger">
+                                    <i class="bi bi-bell-fill me-1"></i>Alarm
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    },
+
+    renderMaterialSummary() {
+        const tbody = document.getElementById('materialSummary');
+
+        if (this.materials.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="text-center text-muted py-3">
+                        No low-stock materials
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = this.materials.map(mat => `
+            <tr class="${mat.is_low_stock ? 'table-warning' : ''}">
+                <td>
+                    <div class="fw-medium">${mat.material_type}</div>
+                    <small class="text-muted">${mat.lot_number}</small>
+                </td>
+                <td class="text-end">
+                    ${mat.quantity_available.toFixed(1)} ${mat.unit_of_measure || 'g'}
+                </td>
+                <td class="text-center">
+                    <span class="badge ${this.getMaterialStatusBadge(mat.status)}">
+                        ${mat.status}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+    },
+
+    renderEvents() {
+        const container = document.getElementById('eventFeed');
+
+        if (this.events.length === 0) {
+            container.innerHTML = `
+                <div class="list-group-item text-center text-muted py-4">
+                    No recent events
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = this.events.slice(0, 20).map(event => `
+            <div class="list-group-item list-group-item-action">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="d-flex align-items-center">
+                            ${this.getEventIcon(event.event_type, event.severity)}
+                            <span class="ms-2 fw-medium">${event.machine_id}</span>
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            ${event.description || event.event_type}
+                        </small>
+                    </div>
+                    <small class="text-muted">
+                        ${this.formatTimestamp(event.timestamp)}
+                    </small>
+                </div>
+            </div>
+        `).join('');
+    },
+
+    handleResourceUpdate(data) {
+        // Find and update machine in list
+        const index = this.machines.findIndex(m => m.machine_id === data.machine_id);
+        if (index >= 0) {
+            this.machines[index] = { ...this.machines[index], ...data };
+        }
+
+        // Re-render
+        this.renderMachineGrid();
+
+        // Update stat cards
+        const summary = {
+            running: this.machines.filter(m => m.status === 'running').length,
+            idle: this.machines.filter(m => m.status === 'idle').length,
+            down: this.machines.filter(m => m.status === 'down').length,
+            setup: this.machines.filter(m => m.status === 'setup').length,
+            maintenance: this.machines.filter(m => m.status === 'maintenance').length,
+        };
+        this.updateStatCards(summary);
+    },
+
+    addEvent(event) {
+        this.events.unshift(event);
+        this.events = this.events.slice(0, 50); // Keep last 50
+        this.renderEvents();
+    },
+
+    async showMachineDetail(machineId) {
+        try {
+            const response = await fetch(`/api/mes/resources/${machineId}`);
+            const data = await response.json();
+
+            const machine = data.status;
+            document.getElementById('modalMachineName').textContent =
+                machine.machine_name || machineId;
+            document.getElementById('viewDetailLink').href =
+                `/mes/resources/${machineId}`;
+
+            document.getElementById('machineDetailContent').innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Status</h6>
+                        <span class="badge ${this.getStatusBadge(machine.status)} fs-6 mb-3">
+                            ${machine.status}
+                        </span>
+
+                        ${machine.current_job_id ? `
+                            <h6 class="mt-3">Current Job</h6>
+                            <p class="mb-1"><strong>${machine.current_job_id}</strong></p>
+                            <p class="text-muted small mb-0">${machine.current_operation_name || ''}</p>
+                            <div class="progress mt-2" style="height: 8px;">
+                                <div class="progress-bar bg-primary" style="width: ${machine.job_progress_pct || 0}%"></div>
+                            </div>
+                            <small class="text-muted">${(machine.job_progress_pct || 0).toFixed(0)}% complete</small>
+                        ` : '<p class="text-muted">No active job</p>'}
+
+                        ${machine.has_alarm ? `
+                            <div class="alert alert-danger mt-3 mb-0">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                <strong>${machine.alarm_code || 'ALARM'}</strong>
+                                <div class="small">${machine.alarm_message || 'Machine alarm active'}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Utilization</h6>
+                        <div class="mb-2">
+                            <span class="d-flex justify-content-between small">
+                                <span>1 Hour</span>
+                                <span>${(machine.utilization_1hr || 0).toFixed(1)}%</span>
+                            </span>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-info" style="width: ${machine.utilization_1hr || 0}%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-2">
+                            <span class="d-flex justify-content-between small">
+                                <span>8 Hours</span>
+                                <span>${(machine.utilization_8hr || 0).toFixed(1)}%</span>
+                            </span>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-info" style="width: ${machine.utilization_8hr || 0}%"></div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <span class="d-flex justify-content-between small">
+                                <span>24 Hours</span>
+                                <span>${(machine.utilization_24hr || 0).toFixed(1)}%</span>
+                            </span>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar bg-info" style="width: ${machine.utilization_24hr || 0}%"></div>
+                            </div>
+                        </div>
+
+                        <h6>Connection</h6>
+                        <p class="${machine.is_connected ? 'text-success' : 'text-danger'}">
+                            <i class="bi bi-${machine.is_connected ? 'wifi' : 'wifi-off'} me-2"></i>
+                            ${machine.is_connected ? 'Connected' : 'Disconnected'}
+                        </p>
+                        ${machine.last_heartbeat ? `
+                            <small class="text-muted">Last heartbeat: ${this.formatTimestamp(machine.last_heartbeat)}</small>
+                        ` : ''}
+                    </div>
+                </div>
+
+                ${data.tools && data.tools.length > 0 ? `
+                    <hr>
+                    <h6>Installed Tools</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Tool</th>
+                                    <th>Type</th>
+                                    <th>Wear</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.tools.map(tool => `
+                                    <tr>
+                                        <td>${tool.tool_name || tool.tool_id}</td>
+                                        <td>${tool.tool_type}</td>
+                                        <td>
+                                            <div class="progress" style="height: 6px; width: 60px;">
+                                                <div class="progress-bar ${tool.wear_percent > 80 ? 'bg-danger' : tool.wear_percent > 50 ? 'bg-warning' : 'bg-success'}"
+                                                     style="width: ${tool.wear_percent || 0}%"></div>
+                                            </div>
+                                            <small>${(tool.wear_percent || 0).toFixed(0)}%</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge ${tool.status === 'available' ? 'bg-success' : tool.status === 'worn' ? 'bg-warning' : 'bg-secondary'}">
+                                                ${tool.status}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : ''}
+
+                ${data.recent_events && data.recent_events.length > 0 ? `
+                    <hr>
+                    <h6>Recent Events</h6>
+                    <div class="list-group list-group-flush" style="max-height: 200px; overflow-y: auto;">
+                        ${data.recent_events.slice(0, 5).map(event => `
+                            <div class="list-group-item px-0 py-2">
+                                <div class="d-flex justify-content-between">
+                                    <span>${this.getEventIcon(event.event_type, event.severity)} ${event.description || event.event_type}</span>
+                                    <small class="text-muted">${this.formatTimestamp(event.timestamp)}</small>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            `;
+
+            new bootstrap.Modal(document.getElementById('machineDetailModal')).show();
+        } catch (error) {
+            console.error('Error loading machine detail:', error);
+            showToast('Error loading machine details', 'error');
+        }
+    },
+
+    setView(mode) {
+        this.viewMode = mode;
+        document.querySelectorAll('[data-view]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.view === mode);
+        });
+        this.renderMachineGrid();
+    },
+
+    getStatusClass(status) {
+        const classes = {
+            'running': 'border-start border-success border-4',
+            'idle': 'border-start border-info border-4',
+            'down': 'border-start border-danger border-4',
+            'setup': 'border-start border-warning border-4',
+            'maintenance': 'border-start border-secondary border-4',
+            'offline': 'border-start border-dark border-4',
+        };
+        return classes[status] || '';
+    },
+
+    getStatusBadge(status) {
+        const badges = {
+            'running': 'bg-success',
+            'idle': 'bg-info',
+            'down': 'bg-danger',
+            'setup': 'bg-warning text-dark',
+            'maintenance': 'bg-secondary',
+            'offline': 'bg-dark',
+        };
+        return badges[status] || 'bg-secondary';
+    },
+
+    getMaterialStatusBadge(status) {
+        const badges = {
+            'available': 'bg-success',
+            'reserved': 'bg-info',
+            'in_use': 'bg-primary',
+            'quarantine': 'bg-warning text-dark',
+            'consumed': 'bg-secondary',
+            'expired': 'bg-danger',
+        };
+        return badges[status] || 'bg-secondary';
+    },
+
+    getUtilizationColor(pct) {
+        if (pct >= 80) return 'bg-success';
+        if (pct >= 50) return 'bg-info';
+        if (pct >= 20) return 'bg-warning';
+        return 'bg-danger';
+    },
+
+    getEventIcon(eventType, severity) {
+        const icons = {
+            'state_change': '<i class="bi bi-arrow-repeat text-info"></i>',
+            'alarm_raised': '<i class="bi bi-exclamation-triangle text-danger"></i>',
+            'alarm_cleared': '<i class="bi bi-check-circle text-success"></i>',
+            'job_started': '<i class="bi bi-play-circle text-success"></i>',
+            'job_completed': '<i class="bi bi-check-circle text-success"></i>',
+            'job_failed': '<i class="bi bi-x-circle text-danger"></i>',
+            'material_loaded': '<i class="bi bi-box-arrow-in-down text-primary"></i>',
+            'tool_changed': '<i class="bi bi-tools text-warning"></i>',
+            'maintenance_started': '<i class="bi bi-wrench text-secondary"></i>',
+            'maintenance_completed': '<i class="bi bi-wrench-adjustable text-success"></i>',
+            'connection_lost': '<i class="bi bi-wifi-off text-danger"></i>',
+            'connection_restored': '<i class="bi bi-wifi text-success"></i>',
+        };
+
+        if (severity === 'critical' || severity === 'error') {
+            return '<i class="bi bi-exclamation-octagon text-danger"></i>';
+        }
+
+        return icons[eventType] || '<i class="bi bi-info-circle text-muted"></i>';
+    },
+
+    formatTimestamp(ts) {
+        if (!ts) return '--';
+        const date = new Date(ts);
+        const now = new Date();
+        const diff = (now - date) / 1000;
+
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return date.toLocaleDateString();
+    }
+};
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    resourceDashboard.init();
+});
+</script>
+
+<style>
+.machine-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+.machine-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+</style>
+{% endblock %}

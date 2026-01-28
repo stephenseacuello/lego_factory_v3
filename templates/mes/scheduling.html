@@ -1,0 +1,1274 @@
+{% extends "base.html" %}
+{% block title %}Scheduling - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Scheduling</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-calendar3 me-2"></i>Production Schedule</h2>
+    <div class="btn-group">
+        <button class="btn btn-outline-secondary" onclick="scheduler.runOptimizer()">
+            <i class="bi bi-cpu"></i> Run Optimizer
+        </button>
+        <button class="btn btn-outline-secondary" onclick="scheduler.refresh()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Timeline Controls -->
+<div class="card mb-4">
+    <div class="card-body py-2">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary" onclick="scheduler.prevPeriod()">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="scheduler.goToday()">Today</button>
+                    <button type="button" class="btn btn-outline-primary" onclick="scheduler.nextPeriod()">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="col">
+                <h5 class="mb-0 text-center" id="currentPeriodLabel">Loading...</h5>
+            </div>
+            <div class="col-auto">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-secondary active" data-view="day" onclick="scheduler.setView('day')">Day</button>
+                    <button type="button" class="btn btn-outline-secondary" data-view="week" onclick="scheduler.setView('week')">Week</button>
+                    <button type="button" class="btn btn-outline-secondary" data-view="month" onclick="scheduler.setView('month')">Month</button>
+                </div>
+            </div>
+            <div class="col-auto">
+                <select class="form-select form-select-sm" id="filterStatus" onchange="scheduler.filterByStatus()">
+                    <option value="">All Statuses</option>
+                    <option value="draft">Draft</option>
+                    <option value="released">Released</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="on_hold">On Hold</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gantt Chart -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="gantt-container">
+            <!-- Timeline Header -->
+            <div class="gantt-header">
+                <div class="gantt-resource-header">Machine</div>
+                <div class="gantt-timeline-header" id="timelineHeader">
+                    <!-- Time slots populated by JS -->
+                </div>
+            </div>
+
+            <!-- Gantt Body -->
+            <div class="gantt-body" id="ganttBody">
+                <!-- Rows populated by JS -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="card mt-4">
+    <div class="card-body py-2">
+        <div class="d-flex flex-wrap gap-4 justify-content-center">
+            <div class="d-flex align-items-center gap-2">
+                <div class="legend-box bg-secondary"></div>
+                <span class="small">Draft</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="legend-box bg-info"></div>
+                <span class="small">Released</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="legend-box bg-primary"></div>
+                <span class="small">In Progress</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="legend-box bg-warning"></div>
+                <span class="small">On Hold</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="legend-box bg-success"></div>
+                <span class="small">Completed</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="legend-box" style="background: repeating-linear-gradient(45deg, #dc3545, #dc3545 2px, transparent 2px, transparent 4px);"></div>
+                <span class="small">Overdue</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="row g-3 mt-2">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-muted small">Scheduled Jobs</div>
+                        <div class="h4 mb-0" id="scheduledCount">0</div>
+                    </div>
+                    <div class="text-primary"><i class="bi bi-calendar-check display-6"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-muted small">Machine Utilization</div>
+                        <div class="h4 mb-0" id="utilizationPct">0%</div>
+                    </div>
+                    <div class="text-success"><i class="bi bi-speedometer2 display-6"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-muted small">Unassigned Jobs</div>
+                        <div class="h4 mb-0" id="unassignedCount">0</div>
+                    </div>
+                    <div class="text-warning"><i class="bi bi-exclamation-circle display-6"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card danger">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <div class="text-muted small">Overdue</div>
+                        <div class="h4 mb-0" id="overdueCount">0</div>
+                    </div>
+                    <div class="text-danger"><i class="bi bi-alarm display-6"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Work Order Detail Modal -->
+<div class="modal fade" id="woDetailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="woModalTitle">Work Order Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="woModalBody">
+                <!-- Populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="#" class="btn btn-primary" id="woModalViewBtn">View Details</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Conflict Resolution Modal -->
+<div class="modal fade" id="conflictModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>Schedule Conflict</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Moving this job will cause the following conflicts:</p>
+                <div id="conflictList" class="mb-3">
+                    <!-- Populated by JS -->
+                </div>
+                <p class="mb-0">Would you like to proceed anyway?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel Move</button>
+                <button type="button" class="btn btn-warning" id="forceRescheduleBtn">
+                    <i class="bi bi-arrow-right-circle me-1"></i>Move Anyway
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Drag Feedback Toast -->
+<div class="position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index: 1100;">
+    <div id="dragToast" class="toast align-items-center text-white bg-primary" role="alert" data-bs-autohide="false">
+        <div class="d-flex">
+            <div class="toast-body">
+                <i class="bi bi-arrows-move me-2"></i>
+                <span id="dragToastText">Drag to reschedule...</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .gantt-container {
+        overflow-x: auto;
+        min-height: 400px;
+    }
+
+    .gantt-header {
+        display: flex;
+        background: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .gantt-resource-header {
+        width: 200px;
+        min-width: 200px;
+        padding: 12px;
+        font-weight: 600;
+        border-right: 1px solid #dee2e6;
+        background: #f8f9fa;
+    }
+
+    .gantt-timeline-header {
+        display: flex;
+        flex: 1;
+    }
+
+    .gantt-time-slot {
+        min-width: 100px;
+        padding: 8px 4px;
+        text-align: center;
+        border-right: 1px solid #e9ecef;
+        font-size: 0.85rem;
+    }
+
+    .gantt-time-slot.weekend {
+        background: #f8f9fa;
+    }
+
+    .gantt-time-slot.today {
+        background: #fff3cd;
+        font-weight: 600;
+    }
+
+    .gantt-body {
+        min-height: 300px;
+    }
+
+    .gantt-row {
+        display: flex;
+        border-bottom: 1px solid #e9ecef;
+        min-height: 60px;
+    }
+
+    .gantt-row:hover {
+        background: rgba(0, 0, 0, 0.02);
+    }
+
+    .gantt-resource {
+        width: 200px;
+        min-width: 200px;
+        padding: 12px;
+        border-right: 1px solid #dee2e6;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .gantt-resource .machine-status {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .gantt-timeline {
+        flex: 1;
+        position: relative;
+        display: flex;
+    }
+
+    .gantt-cell {
+        min-width: 100px;
+        border-right: 1px solid #f0f0f0;
+        position: relative;
+    }
+
+    .gantt-cell.weekend {
+        background: #fafafa;
+    }
+
+    .gantt-cell.today {
+        background: rgba(255, 193, 7, 0.1);
+    }
+
+    .gantt-job {
+        position: absolute;
+        top: 8px;
+        height: calc(100% - 16px);
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 0.75rem;
+        color: white;
+        cursor: pointer;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        z-index: 5;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        transition: transform 0.1s, box-shadow 0.1s;
+    }
+
+    .gantt-job:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        z-index: 10;
+    }
+
+    .gantt-job.dragging {
+        opacity: 0.5;
+        cursor: grabbing;
+    }
+
+    .gantt-job[draggable="true"] {
+        cursor: grab;
+    }
+
+    .gantt-timeline.drag-over {
+        background: rgba(13, 110, 253, 0.1);
+    }
+
+    .gantt-timeline.drag-over-invalid {
+        background: rgba(220, 53, 69, 0.1);
+    }
+
+    .gantt-row.drag-eligible {
+        outline: 2px solid rgba(40, 167, 69, 0.5);
+        outline-offset: -2px;
+        background: rgba(40, 167, 69, 0.05);
+    }
+
+    .gantt-row.drag-ineligible {
+        opacity: 0.4;
+        background: rgba(220, 53, 69, 0.05);
+    }
+
+    .gantt-job.conflict-highlight {
+        animation: conflict-pulse 0.5s ease-in-out 3;
+        border: 2px solid #dc3545 !important;
+    }
+
+    @keyframes conflict-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .drop-indicator {
+        position: absolute;
+        top: 8px;
+        height: calc(100% - 16px);
+        border: 2px dashed #0d6efd;
+        border-radius: 4px;
+        background: rgba(13, 110, 253, 0.1);
+        pointer-events: none;
+        z-index: 15;
+    }
+
+    .gantt-job.overdue {
+        background: repeating-linear-gradient(
+            45deg,
+            var(--job-color),
+            var(--job-color) 4px,
+            rgba(220, 53, 69, 0.8) 4px,
+            rgba(220, 53, 69, 0.8) 8px
+        ) !important;
+    }
+
+    .gantt-job.draft { background: #6c757d; }
+    .gantt-job.released { background: #0dcaf0; }
+    .gantt-job.in_progress { background: #0d6efd; }
+    .gantt-job.on_hold { background: #ffc107; color: #000; }
+    .gantt-job.completed { background: #198754; }
+
+    .legend-box {
+        width: 20px;
+        height: 14px;
+        border-radius: 2px;
+    }
+
+    .now-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--lego-red);
+        z-index: 20;
+    }
+
+    .now-line::before {
+        content: 'Now';
+        position: absolute;
+        top: -20px;
+        left: -12px;
+        font-size: 0.65rem;
+        color: var(--lego-red);
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/api_client.js"></script>
+
+<script>
+/**
+ * Production Scheduler / Gantt Chart Controller
+ */
+class ProductionScheduler {
+    constructor() {
+        this.machines = [];
+        this.workOrders = [];
+        this.jobs = [];
+        this.view = 'day';  // day, week, month
+        this.currentDate = new Date();
+        this.statusFilter = '';
+        this.slotWidth = 100;  // pixels per time slot
+
+        // Drag-drop state
+        this.draggedJob = null;
+        this.draggedJobElement = null;
+        this.pendingReschedule = null;
+
+        this.init();
+    }
+
+    async init() {
+        await this.loadMachines();
+        await this.loadSchedule();
+        this.render();
+    }
+
+    /**
+     * Load machines
+     */
+    async loadMachines() {
+        try {
+            const response = await fetch('/api/scada/machines');
+            const data = await response.json();
+            this.machines = data.machines || data.data || [];
+        } catch (error) {
+            console.error('Failed to load machines:', error);
+            this.loadDemoMachines();
+        }
+    }
+
+    loadDemoMachines() {
+        // Machines from config/machines.json
+        this.machines = [
+            { id: 'bantam-explorer', name: 'Bantam Desktop Explorer CNC', status: 'running' },
+            { id: 'coastrunner-cr1', name: 'CoastRunner CR-1', status: 'idle' },
+            { id: 'rownd-lathe', name: 'Rownd Lathe', status: 'running' },
+            { id: 'labfab-runner', name: 'LabFab Runner CNC', status: 'idle' },
+            { id: 'longer-ray-laser', name: 'Longer Ray5 20W Laser', status: 'running' },
+            { id: 'creality-cr30', name: 'Creality CR-30 PrintMill', status: 'maintenance' },
+            { id: 'bambu-ps1', name: 'Bambu Lab P1S', status: 'running' },
+            { id: 'niryo-ned2', name: 'Niryo Ned2 Robot', status: 'idle' },
+            { id: 'niryo-conveyor', name: 'Niryo Conveyor Belt', status: 'running' },
+            { id: 'xarm-lite6', name: 'xArm Lite 6', status: 'idle' },
+        ];
+    }
+
+    /**
+     * Load scheduled work orders and jobs
+     */
+    async loadSchedule() {
+        let loadedFromApi = false;
+
+        // Try gantt endpoint first — it provides machines + jobs + eligible_machines
+        try {
+            const response = await fetch('/api/mes/scheduling/gantt');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.machines && data.machines.length > 0) {
+                    this.machines = data.machines;
+                }
+                if (data.jobs && data.jobs.length > 0) {
+                    this.jobs = data.jobs;
+                    loadedFromApi = true;
+                }
+            }
+        } catch (error) {
+            console.log('Gantt endpoint not available, falling back');
+        }
+
+        // Fallback: load work orders
+        if (!loadedFromApi) {
+            try {
+                const response = await fetch('/api/mes/work-orders?active=true');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.workOrders = data.work_orders || data.data || [];
+                    loadedFromApi = this.workOrders.length > 0;
+                }
+            } catch (error) {
+                console.error('Failed to load work orders:', error);
+            }
+
+            // Fall back to demo data if no work orders loaded
+            if (!loadedFromApi || this.workOrders.length === 0) {
+                console.log('Loading demo schedule data');
+                this.loadDemoSchedule();
+            }
+
+            // Also try to load jobs
+            try {
+                const response = await fetch('/api/mes/jobs');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.jobs = data.jobs || data.data || [];
+                }
+            } catch (error) {
+                console.log('Using generated demo jobs');
+            }
+        }
+
+        // Generate demo jobs if none loaded
+        if (this.jobs.length === 0) {
+            this.generateDemoJobs();
+        }
+    }
+
+    loadDemoSchedule() {
+        const now = new Date();
+        const products = ['2x4 Red Brick', '2x2 Blue Brick', '1x4 Yellow', 'Custom Gear', 'Baseplate 32x32'];
+        const statuses = ['draft', 'released', 'in_progress', 'on_hold'];
+
+        this.workOrders = [];
+        for (let i = 1; i <= 15; i++) {
+            const startOffset = Math.floor(Math.random() * 72) - 24; // -24 to +48 hours
+            const duration = Math.floor(Math.random() * 8) + 2; // 2-10 hours
+            const startDate = new Date(now.getTime() + startOffset * 60 * 60 * 1000);
+            const endDate = new Date(startDate.getTime() + duration * 60 * 60 * 1000);
+            const dueDate = new Date(endDate.getTime() + Math.random() * 24 * 60 * 60 * 1000);
+
+            this.workOrders.push({
+                wo_number: `WO-2024-${String(i).padStart(4, '0')}`,
+                product: products[Math.floor(Math.random() * products.length)],
+                qty_ordered: Math.floor(Math.random() * 500) + 100,
+                qty_complete: 0,
+                status: statuses[Math.floor(Math.random() * statuses.length)],
+                priority: Math.floor(Math.random() * 10) + 1,
+                machine_id: this.machines[Math.floor(Math.random() * this.machines.length)]?.id,
+                scheduled_start: startDate.toISOString(),
+                scheduled_end: endDate.toISOString(),
+                due_date: dueDate.toISOString().split('T')[0]
+            });
+        }
+    }
+
+    generateDemoJobs() {
+        this.jobs = this.workOrders.filter(wo => wo.machine_id).map(wo => ({
+            job_id: `JOB-${wo.wo_number}`,
+            work_order_id: wo.wo_number,
+            machine_id: wo.machine_id,
+            product: wo.product,
+            qty: wo.qty_ordered,
+            status: wo.status,
+            priority: wo.priority,
+            scheduled_start: wo.scheduled_start,
+            scheduled_end: wo.scheduled_end,
+            due_date: wo.due_date,
+            eligible_machines: wo.eligible_machines || []
+        }));
+    }
+
+    /**
+     * Get time slots based on view
+     */
+    getTimeSlots() {
+        const slots = [];
+        const now = new Date();
+
+        if (this.view === 'day') {
+            // 24 hours in 1-hour slots
+            const startOfDay = new Date(this.currentDate);
+            startOfDay.setHours(0, 0, 0, 0);
+
+            for (let h = 0; h < 24; h++) {
+                const time = new Date(startOfDay);
+                time.setHours(h);
+                slots.push({
+                    start: new Date(time),
+                    end: new Date(time.getTime() + 60 * 60 * 1000),
+                    label: time.toLocaleTimeString('en-US', { hour: '2-digit', hour12: true }),
+                    isToday: time.toDateString() === now.toDateString(),
+                    isWeekend: false,
+                    isNow: time <= now && now < new Date(time.getTime() + 60 * 60 * 1000)
+                });
+            }
+        } else if (this.view === 'week') {
+            // 7 days
+            const startOfWeek = new Date(this.currentDate);
+            startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+            startOfWeek.setHours(0, 0, 0, 0);
+
+            for (let d = 0; d < 7; d++) {
+                const date = new Date(startOfWeek);
+                date.setDate(date.getDate() + d);
+                slots.push({
+                    start: new Date(date),
+                    end: new Date(date.getTime() + 24 * 60 * 60 * 1000),
+                    label: date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+                    isToday: date.toDateString() === now.toDateString(),
+                    isWeekend: date.getDay() === 0 || date.getDay() === 6
+                });
+            }
+        } else {
+            // Month - show ~30 days
+            const startOfMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth(), 1);
+
+            for (let d = 0; d < 35; d++) {
+                const date = new Date(startOfMonth);
+                date.setDate(date.getDate() + d);
+                if (date.getMonth() !== this.currentDate.getMonth() && d > 28) break;
+
+                slots.push({
+                    start: new Date(date),
+                    end: new Date(date.getTime() + 24 * 60 * 60 * 1000),
+                    label: date.getDate().toString(),
+                    isToday: date.toDateString() === now.toDateString(),
+                    isWeekend: date.getDay() === 0 || date.getDay() === 6
+                });
+            }
+        }
+
+        return slots;
+    }
+
+    /**
+     * Render the Gantt chart
+     */
+    render() {
+        const slots = this.getTimeSlots();
+        this.renderHeader(slots);
+        this.renderBody(slots);
+        this.renderPeriodLabel();
+        this.updateStats();
+    }
+
+    renderHeader(slots) {
+        const header = document.getElementById('timelineHeader');
+        header.innerHTML = slots.map(slot => `
+            <div class="gantt-time-slot ${slot.isWeekend ? 'weekend' : ''} ${slot.isToday ? 'today' : ''}">
+                ${slot.label}
+            </div>
+        `).join('');
+    }
+
+    renderBody(slots) {
+        const body = document.getElementById('ganttBody');
+        const filteredJobs = this.statusFilter
+            ? this.jobs.filter(j => j.status === this.statusFilter)
+            : this.jobs;
+
+        // Calculate timeline bounds
+        const timelineStart = slots[0].start.getTime();
+        const timelineEnd = slots[slots.length - 1].end.getTime();
+        const timelineWidth = slots.length * this.slotWidth;
+        const msPerPixel = (timelineEnd - timelineStart) / timelineWidth;
+
+        body.innerHTML = this.machines.map(machine => {
+            const machineJobs = filteredJobs.filter(j => j.machine_id === machine.id);
+            const statusClass = `status-${machine.status || 'idle'}`;
+
+            return `
+                <div class="gantt-row" data-machine-row="${machine.id}">
+                    <div class="gantt-resource">
+                        <span class="machine-status ${statusClass}"></span>
+                        <span>${machine.name}</span>
+                    </div>
+                    <div class="gantt-timeline"
+                         data-machine="${machine.id}"
+                         data-timeline-start="${timelineStart}"
+                         data-ms-per-pixel="${msPerPixel}"
+                         ondragover="scheduler.handleDragOver(event)"
+                         ondragleave="scheduler.handleDragLeave(event)"
+                         ondrop="scheduler.handleDrop(event, '${machine.id}')">
+                        ${slots.map(slot => `
+                            <div class="gantt-cell ${slot.isWeekend ? 'weekend' : ''} ${slot.isToday ? 'today' : ''}"></div>
+                        `).join('')}
+                        ${machineJobs.map(job => this.renderJob(job, timelineStart, msPerPixel, timelineEnd)).join('')}
+                        ${this.renderNowLine(timelineStart, msPerPixel, timelineEnd)}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add unassigned row - include jobs with no machine_id OR unrecognized machine_id
+        const machineIds = this.machines.map(m => m.id);
+        const unassignedJobs = filteredJobs.filter(j => !j.machine_id || !machineIds.includes(j.machine_id));
+        body.innerHTML += `
+            <div class="gantt-row">
+                <div class="gantt-resource">
+                    <span class="machine-status status-idle"></span>
+                    <span class="text-muted"><em>Unassigned</em></span>
+                </div>
+                <div class="gantt-timeline">
+                    ${slots.map(slot => `
+                        <div class="gantt-cell ${slot.isWeekend ? 'weekend' : ''} ${slot.isToday ? 'today' : ''}"></div>
+                    `).join('')}
+                    ${unassignedJobs.map(job => this.renderJob(job, timelineStart, msPerPixel, timelineEnd)).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    renderJob(job, timelineStart, msPerPixel, timelineEnd) {
+        const startTime = new Date(job.scheduled_start).getTime();
+        const endTime = new Date(job.scheduled_end).getTime();
+
+        // Check if job is within visible range
+        if (endTime < timelineStart || startTime > timelineEnd) {
+            return '';
+        }
+
+        const clampedStart = Math.max(startTime, timelineStart);
+        const clampedEnd = Math.min(endTime, timelineEnd);
+
+        const left = (clampedStart - timelineStart) / msPerPixel;
+        const width = Math.max((clampedEnd - clampedStart) / msPerPixel, 30); // min 30px
+
+        const isOverdue = new Date(job.due_date) < new Date() && job.status !== 'completed';
+
+        const jobId = job.job_id || job.work_order_id;
+        const canDrag = !['completed', 'cancelled'].includes(job.status);
+        const eligibleJson = JSON.stringify(job.eligible_machines || []).replace(/"/g, '&quot;');
+
+        return `
+            <div class="gantt-job ${job.status} ${isOverdue ? 'overdue' : ''}"
+                 id="job-${jobId}"
+                 data-job-id="${jobId}"
+                 data-machine-id="${job.machine_id || ''}"
+                 data-eligible-machines="${eligibleJson}"
+                 data-start="${job.scheduled_start}"
+                 data-end="${job.scheduled_end}"
+                 style="left: ${left}px; width: ${width}px; --job-color: var(--bs-${this.getStatusColor(job.status)});"
+                 ${canDrag ? 'draggable="true"' : ''}
+                 ${canDrag ? `ondragstart="scheduler.handleDragStart(event, '${jobId}')"` : ''}
+                 ${canDrag ? 'ondragend="scheduler.handleDragEnd(event)"' : ''}
+                 onclick="scheduler.showJobDetails('${jobId}')"
+                 title="${job.product} - ${job.work_order_id}">
+                ${job.product}
+            </div>
+        `;
+    }
+
+    renderNowLine(timelineStart, msPerPixel, timelineEnd) {
+        const now = Date.now();
+        if (now < timelineStart || now > timelineEnd) return '';
+
+        const left = (now - timelineStart) / msPerPixel;
+        return `<div class="now-line" style="left: ${left}px;"></div>`;
+    }
+
+    getStatusColor(status) {
+        const colors = {
+            draft: 'secondary',
+            released: 'info',
+            in_progress: 'primary',
+            on_hold: 'warning',
+            completed: 'success'
+        };
+        return colors[status] || 'secondary';
+    }
+
+    renderPeriodLabel() {
+        const label = document.getElementById('currentPeriodLabel');
+        const options = { year: 'numeric', month: 'long' };
+
+        if (this.view === 'day') {
+            label.textContent = this.currentDate.toLocaleDateString('en-US', {
+                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+            });
+        } else if (this.view === 'week') {
+            const startOfWeek = new Date(this.currentDate);
+            startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+            const endOfWeek = new Date(startOfWeek);
+            endOfWeek.setDate(endOfWeek.getDate() + 6);
+
+            label.textContent = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${endOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        } else {
+            label.textContent = this.currentDate.toLocaleDateString('en-US', options);
+        }
+    }
+
+    updateStats() {
+        const now = new Date();
+        const machineIds = this.machines.map(m => m.id);
+        const scheduled = this.jobs.filter(j => j.machine_id && machineIds.includes(j.machine_id)).length;
+        const unassigned = this.jobs.filter(j => !j.machine_id || !machineIds.includes(j.machine_id)).length;
+        const overdue = this.jobs.filter(j => new Date(j.due_date) < now && j.status !== 'completed').length;
+
+        // Calculate utilization (simplified)
+        const totalSlots = this.machines.length * 24; // hours
+        const usedSlots = this.jobs.reduce((sum, j) => {
+            if (!j.machine_id) return sum;
+            const duration = (new Date(j.scheduled_end) - new Date(j.scheduled_start)) / (1000 * 60 * 60);
+            return sum + Math.min(duration, 24);
+        }, 0);
+        const utilization = Math.min(Math.round((usedSlots / totalSlots) * 100), 100);
+
+        document.getElementById('scheduledCount').textContent = scheduled;
+        document.getElementById('utilizationPct').textContent = `${utilization}%`;
+        document.getElementById('unassignedCount').textContent = unassigned;
+        document.getElementById('overdueCount').textContent = overdue;
+    }
+
+    /**
+     * Navigation methods
+     */
+    setView(view) {
+        this.view = view;
+        document.querySelectorAll('[data-view]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.view === view);
+        });
+        this.render();
+    }
+
+    prevPeriod() {
+        if (this.view === 'day') {
+            this.currentDate.setDate(this.currentDate.getDate() - 1);
+        } else if (this.view === 'week') {
+            this.currentDate.setDate(this.currentDate.getDate() - 7);
+        } else {
+            this.currentDate.setMonth(this.currentDate.getMonth() - 1);
+        }
+        this.render();
+    }
+
+    nextPeriod() {
+        if (this.view === 'day') {
+            this.currentDate.setDate(this.currentDate.getDate() + 1);
+        } else if (this.view === 'week') {
+            this.currentDate.setDate(this.currentDate.getDate() + 7);
+        } else {
+            this.currentDate.setMonth(this.currentDate.getMonth() + 1);
+        }
+        this.render();
+    }
+
+    goToday() {
+        this.currentDate = new Date();
+        this.render();
+    }
+
+    filterByStatus() {
+        this.statusFilter = document.getElementById('filterStatus').value;
+        this.render();
+    }
+
+    /**
+     * Show job details modal
+     */
+    showJobDetails(jobId) {
+        const job = this.jobs.find(j => (j.job_id || j.work_order_id) === jobId);
+        if (!job) return;
+
+        document.getElementById('woModalTitle').textContent = job.work_order_id || jobId;
+        document.getElementById('woModalBody').innerHTML = `
+            <table class="table table-sm">
+                <tr><th>Product</th><td>${job.product}</td></tr>
+                <tr><th>Quantity</th><td>${job.qty?.toLocaleString() || '-'}</td></tr>
+                <tr><th>Status</th><td><span class="badge bg-${this.getStatusColor(job.status)}">${job.status}</span></td></tr>
+                <tr><th>Priority</th><td>${job.priority || '-'}</td></tr>
+                <tr><th>Machine</th><td>${this.getMachineName(job.machine_id)}</td></tr>
+                <tr><th>Scheduled Start</th><td>${job.scheduled_start ? new Date(job.scheduled_start).toLocaleString() : '-'}</td></tr>
+                <tr><th>Scheduled End</th><td>${job.scheduled_end ? new Date(job.scheduled_end).toLocaleString() : '-'}</td></tr>
+                <tr><th>Due Date</th><td>${job.due_date || '-'}</td></tr>
+            </table>
+        `;
+        document.getElementById('woModalViewBtn').href = `/mes/work-orders/${job.work_order_id}`;
+
+        new bootstrap.Modal(document.getElementById('woDetailModal')).show();
+    }
+
+    getMachineName(machineId) {
+        const machine = this.machines.find(m => m.id === machineId);
+        return machine ? machine.name : (machineId || 'Unassigned');
+    }
+
+    /**
+     * Run optimizer (placeholder)
+     */
+    async runOptimizer() {
+        const btn = event.target;
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Optimizing...';
+        btn.disabled = true;
+
+        try {
+            // Simulate optimization
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // Shuffle assignments as "optimization"
+            this.jobs.forEach(job => {
+                if (Math.random() > 0.7) {
+                    job.machine_id = this.machines[Math.floor(Math.random() * this.machines.length)]?.id;
+                }
+            });
+
+            this.render();
+            alert('Schedule optimized successfully!');
+        } catch (error) {
+            console.error('Optimization failed:', error);
+            alert('Optimization failed. Please try again.');
+        } finally {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+
+    /**
+     * Refresh data
+     */
+    async refresh() {
+        await this.loadSchedule();
+        this.render();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Drag and Drop Methods
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Handle drag start
+     */
+    handleDragStart(event, jobId) {
+        this.draggedJob = this.jobs.find(j => (j.job_id || j.work_order_id) === jobId);
+        this.draggedJobElement = event.target;
+
+        if (!this.draggedJob) return;
+
+        // Store eligible machines for validation during drag
+        const eligible = this.draggedJob.eligible_machines || [];
+        this.dragEligibleMachines = eligible;
+
+        // Set drag data
+        event.dataTransfer.setData('text/plain', jobId);
+        event.dataTransfer.setData('application/json', JSON.stringify({
+            job_id: jobId,
+            eligible_machines: eligible
+        }));
+        event.dataTransfer.effectAllowed = 'move';
+
+        // Add dragging class
+        event.target.classList.add('dragging');
+
+        // Highlight eligible machine rows
+        document.querySelectorAll('.gantt-row').forEach(row => {
+            const machineId = row.dataset.machineRow;
+            if (eligible.length > 0 && !eligible.includes(machineId)) {
+                row.classList.add('drag-ineligible');
+            } else {
+                row.classList.add('drag-eligible');
+            }
+        });
+
+        // Show drag toast
+        const toast = document.getElementById('dragToast');
+        document.getElementById('dragToastText').textContent =
+            `Moving: ${this.draggedJob.product} (${this.draggedJob.work_order_id})`;
+        new bootstrap.Toast(toast, { autohide: false }).show();
+    }
+
+    /**
+     * Handle drag end
+     */
+    handleDragEnd(event) {
+        // Remove dragging class
+        if (this.draggedJobElement) {
+            this.draggedJobElement.classList.remove('dragging');
+        }
+
+        // Hide toast
+        const toast = bootstrap.Toast.getInstance(document.getElementById('dragToast'));
+        if (toast) toast.hide();
+
+        // Clear drag state
+        this.draggedJob = null;
+        this.draggedJobElement = null;
+        this.dragEligibleMachines = null;
+
+        // Remove all drag-over and eligibility classes
+        document.querySelectorAll('.drag-over, .drag-over-invalid, .drag-eligible, .drag-ineligible').forEach(el => {
+            el.classList.remove('drag-over', 'drag-over-invalid', 'drag-eligible', 'drag-ineligible');
+        });
+
+        // Remove drop indicators
+        document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+    }
+
+    /**
+     * Handle drag over (allow drop)
+     */
+    handleDragOver(event) {
+        const timeline = event.currentTarget;
+        const targetMachineId = timeline.dataset.machine;
+
+        // Check if target machine is eligible
+        const eligible = this.dragEligibleMachines || [];
+        const isEligible = eligible.length === 0 || eligible.includes(targetMachineId);
+
+        if (!isEligible) {
+            event.dataTransfer.dropEffect = 'none';
+            timeline.classList.add('drag-over-invalid');
+            timeline.classList.remove('drag-over');
+            return; // Don't preventDefault — disallows drop
+        }
+
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+
+        timeline.classList.add('drag-over');
+        timeline.classList.remove('drag-over-invalid');
+
+        // Show drop position indicator
+        this.showDropIndicator(event, timeline);
+    }
+
+    /**
+     * Handle drag leave
+     */
+    handleDragLeave(event) {
+        const timeline = event.currentTarget;
+        timeline.classList.remove('drag-over', 'drag-over-invalid');
+
+        // Remove drop indicator if leaving timeline completely
+        if (!timeline.contains(event.relatedTarget)) {
+            const indicator = timeline.querySelector('.drop-indicator');
+            if (indicator) indicator.remove();
+        }
+    }
+
+    /**
+     * Show drop position indicator
+     */
+    showDropIndicator(event, timeline) {
+        // Remove existing indicator
+        let indicator = timeline.querySelector('.drop-indicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.className = 'drop-indicator';
+            timeline.appendChild(indicator);
+        }
+
+        const rect = timeline.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+
+        // Get job width from dragged job
+        const jobDuration = this.draggedJob ?
+            new Date(this.draggedJob.scheduled_end) - new Date(this.draggedJob.scheduled_start) : 0;
+        const msPerPixel = parseFloat(timeline.dataset.msPerPixel);
+        const width = Math.max(jobDuration / msPerPixel, 30);
+
+        indicator.style.left = `${x}px`;
+        indicator.style.width = `${width}px`;
+    }
+
+    /**
+     * Handle drop
+     */
+    async handleDrop(event, targetMachineId) {
+        event.preventDefault();
+
+        const timeline = event.currentTarget;
+        timeline.classList.remove('drag-over', 'drag-over-invalid');
+
+        // Remove drop indicator
+        const indicator = timeline.querySelector('.drop-indicator');
+        if (indicator) indicator.remove();
+
+        if (!this.draggedJob) return;
+
+        // Validate eligible machines
+        const eligible = this.draggedJob.eligible_machines || [];
+        if (eligible.length > 0 && !eligible.includes(targetMachineId)) {
+            this.showToast(`Cannot move job to ${this.getMachineName(targetMachineId)} — machine is not eligible for this operation`, 'danger');
+            return;
+        }
+
+        const jobId = this.draggedJob.job_id || this.draggedJob.work_order_id;
+        const rect = timeline.getBoundingClientRect();
+        const dropX = event.clientX - rect.left;
+
+        // Calculate new scheduled times
+        const timelineStart = parseInt(timeline.dataset.timelineStart);
+        const msPerPixel = parseFloat(timeline.dataset.msPerPixel);
+
+        const newStartMs = timelineStart + (dropX * msPerPixel);
+        const jobDuration = new Date(this.draggedJob.scheduled_end) - new Date(this.draggedJob.scheduled_start);
+        const newEndMs = newStartMs + jobDuration;
+
+        const newStart = new Date(newStartMs).toISOString();
+        const newEnd = new Date(newEndMs).toISOString();
+
+        // Attempt reschedule
+        await this.rescheduleJob(jobId, targetMachineId, newStart, newEnd);
+    }
+
+    /**
+     * Reschedule a job via API
+     */
+    async rescheduleJob(jobId, machineId, scheduledStart, scheduledEnd, force = false) {
+        try {
+            const response = await fetch(`/api/mes/jobs/${jobId}/reschedule`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    machine_id: machineId,
+                    scheduled_start: scheduledStart,
+                    scheduled_end: scheduledEnd,
+                    force: force
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.status === 409 && result.conflicts) {
+                // Show conflict modal
+                this.pendingReschedule = { jobId, machineId, scheduledStart, scheduledEnd };
+                this.showConflictModal(result.conflicts);
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to reschedule job');
+            }
+
+            // Success - refresh schedule
+            this.showToast(`Job rescheduled to ${this.getMachineName(machineId)}`, 'success');
+            await this.refresh();
+
+        } catch (error) {
+            console.error('Reschedule failed:', error);
+            this.showToast(error.message, 'danger');
+        }
+    }
+
+    /**
+     * Show conflict resolution modal
+     */
+    showConflictModal(conflicts) {
+        const conflictList = document.getElementById('conflictList');
+        conflictList.innerHTML = conflicts.map(c => {
+            if (c.type === 'machine_overlap') {
+                return `
+                    <div class="alert alert-warning py-2 mb-2">
+                        <i class="bi bi-clock me-2"></i>
+                        <strong>Time overlap</strong> with job ${c.job_id}
+                        <br><small class="text-muted">
+                            ${c.scheduled_start ? new Date(c.scheduled_start).toLocaleString() : ''} -
+                            ${c.scheduled_end ? new Date(c.scheduled_end).toLocaleString() : ''}
+                        </small>
+                    </div>
+                `;
+            } else if (c.type === 'due_date_violation') {
+                return `
+                    <div class="alert alert-danger py-2 mb-2">
+                        <i class="bi bi-calendar-x me-2"></i>
+                        <strong>Due date violation</strong>
+                        <br><small>Job would end after due date: ${c.due_date}</small>
+                    </div>
+                `;
+            }
+            return '';
+        }).join('');
+
+        // Set up force button
+        document.getElementById('forceRescheduleBtn').onclick = () => this.forceReschedule();
+
+        // Highlight conflicting jobs
+        conflicts.filter(c => c.job_id).forEach(c => {
+            const jobEl = document.getElementById(`job-${c.job_id}`);
+            if (jobEl) {
+                jobEl.classList.add('conflict-highlight');
+                setTimeout(() => jobEl.classList.remove('conflict-highlight'), 2000);
+            }
+        });
+
+        new bootstrap.Modal(document.getElementById('conflictModal')).show();
+    }
+
+    /**
+     * Force reschedule despite conflicts
+     */
+    async forceReschedule() {
+        if (!this.pendingReschedule) return;
+
+        bootstrap.Modal.getInstance(document.getElementById('conflictModal')).hide();
+
+        const { jobId, machineId, scheduledStart, scheduledEnd } = this.pendingReschedule;
+        await this.rescheduleJob(jobId, machineId, scheduledStart, scheduledEnd, true);
+
+        this.pendingReschedule = null;
+    }
+
+    /**
+     * Show toast notification
+     */
+    showToast(message, type = 'info') {
+        // Create toast container if it doesn't exist
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'toast-container position-fixed top-0 end-0 p-3';
+            document.body.appendChild(container);
+        }
+
+        const toastId = 'toast-' + Date.now();
+        const bgClass = type === 'success' ? 'bg-success' :
+                        type === 'danger' ? 'bg-danger' :
+                        type === 'warning' ? 'bg-warning text-dark' : 'bg-info';
+
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-white ${bgClass}" role="alert">
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        `;
+
+        container.insertAdjacentHTML('beforeend', toastHtml);
+        const toast = new bootstrap.Toast(document.getElementById(toastId));
+        toast.show();
+
+        document.getElementById(toastId).addEventListener('hidden.bs.toast', function() {
+            this.remove();
+        });
+    }
+}
+
+// Initialize
+const scheduler = new ProductionScheduler();
+</script>
+{% endblock %}

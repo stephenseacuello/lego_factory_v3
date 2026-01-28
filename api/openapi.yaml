@@ -1,0 +1,1060 @@
+openapi: 3.0.3
+info:
+  title: LEGO Factory v3 API
+  description: |
+    Unified API for the LEGO Factory Manufacturing Execution System.
+
+    ## Overview
+    This API provides access to all LEGO Factory subsystems:
+    - **SCADA**: Supervisory Control and Data Acquisition (Level 2)
+    - **MES**: Manufacturing Execution System (Level 3)
+    - **ERP**: Enterprise Resource Planning (Level 4)
+    - **QMS**: Quality Management System
+    - **CMMS**: Computerized Maintenance Management System
+    - **LEGO**: Brick design and slicing services
+    - **ML**: Machine learning and fingerprinting
+    - **MCP**: Model Context Protocol integration
+    - **Unity**: Digital Twin state management
+
+    ## Authentication
+    Currently, the API operates without authentication for development.
+    Production deployments should enable JWT authentication.
+
+  version: 3.0.0
+  contact:
+    name: LEGO Factory Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: SCADA
+    description: Machine control, tags, alarms, and recipes
+  - name: MES
+    description: Work orders, scheduling, OEE, and labor management
+  - name: ERP
+    description: Customers, sales, inventory, and MRP
+  - name: QMS
+    description: Documents, NCRs, CAPAs, and audits
+  - name: CMMS
+    description: Assets and maintenance management
+  - name: LEGO
+    description: Brick design, catalog, and slicing
+  - name: ML
+    description: Machine learning and anomaly detection
+  - name: MCP
+    description: Model Context Protocol tools
+  - name: Unity
+    description: Digital Twin state
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns the health status of the application
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                  components:
+                    type: object
+
+  # SCADA Endpoints
+  /api/scada/machines:
+    get:
+      tags: [SCADA]
+      summary: List all machines
+      responses:
+        '200':
+          description: List of machines
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  machines:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Machine'
+
+  /api/scada/machines/{machine_id}:
+    get:
+      tags: [SCADA]
+      summary: Get machine details
+      parameters:
+        - name: machine_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Machine details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Machine'
+
+  /api/scada/alarms/active:
+    get:
+      tags: [SCADA]
+      summary: Get active alarms
+      responses:
+        '200':
+          description: Active alarms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alarms:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alarm'
+                  count:
+                    type: integer
+
+  /api/scada/alarms/{alarm_id}/acknowledge:
+    post:
+      tags: [SCADA]
+      summary: Acknowledge an alarm
+      parameters:
+        - name: alarm_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+      responses:
+        '200':
+          description: Alarm acknowledged
+
+  # MES Endpoints
+  /api/mes/work-orders:
+    get:
+      tags: [MES]
+      summary: List work orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, planned, released, in_progress, completed, cancelled]
+      responses:
+        '200':
+          description: List of work orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  work_orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WorkOrder'
+                  count:
+                    type: integer
+
+    post:
+      tags: [MES]
+      summary: Create work order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkOrderCreate'
+      responses:
+        '201':
+          description: Work order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+
+  /api/mes/jobs:
+    get:
+      tags: [MES]
+      summary: List jobs
+      responses:
+        '200':
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Job'
+                  count:
+                    type: integer
+
+  /api/mes/oee:
+    get:
+      tags: [MES]
+      summary: Get OEE metrics
+      responses:
+        '200':
+          description: OEE metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OEE'
+
+  /api/mes/recipes:
+    get:
+      tags: [MES]
+      summary: List recipes
+      responses:
+        '200':
+          description: List of recipes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recipes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Recipe'
+
+    post:
+      tags: [MES]
+      summary: Create recipe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecipeCreate'
+      responses:
+        '201':
+          description: Recipe created
+
+  # ERP Endpoints
+  /api/erp/customers:
+    get:
+      tags: [ERP]
+      summary: List customers
+      responses:
+        '200':
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  customers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Customer'
+                  count:
+                    type: integer
+
+    post:
+      tags: [ERP]
+      summary: Create customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerCreate'
+      responses:
+        '201':
+          description: Customer created
+
+  /api/erp/sales-orders:
+    get:
+      tags: [ERP]
+      summary: List sales orders
+      responses:
+        '200':
+          description: List of sales orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SalesOrder'
+                  count:
+                    type: integer
+
+    post:
+      tags: [ERP]
+      summary: Create sales order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesOrderCreate'
+      responses:
+        '201':
+          description: Sales order created
+
+  /api/erp/items:
+    get:
+      tags: [ERP]
+      summary: List inventory items
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Item'
+                  count:
+                    type: integer
+
+  /api/erp/mrp/run:
+    post:
+      tags: [ERP]
+      summary: Run MRP calculation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                horizon_days:
+                  type: integer
+                  default: 90
+                include_safety_stock:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: MRP run results
+
+  # QMS Endpoints
+  /api/qms/documents:
+    get:
+      tags: [QMS]
+      summary: List documents
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  documents:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Document'
+                  count:
+                    type: integer
+
+  /api/qms/ncrs:
+    get:
+      tags: [QMS]
+      summary: List NCRs
+      responses:
+        '200':
+          description: List of NCRs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ncrs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NCR'
+                  count:
+                    type: integer
+
+    post:
+      tags: [QMS]
+      summary: Create NCR
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NCRCreate'
+      responses:
+        '201':
+          description: NCR created
+
+  /api/qms/capas:
+    get:
+      tags: [QMS]
+      summary: List CAPAs
+      responses:
+        '200':
+          description: List of CAPAs
+
+  # LEGO Endpoints
+  /api/lego/catalog:
+    get:
+      tags: [LEGO]
+      summary: Get brick catalog
+      responses:
+        '200':
+          description: Brick catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bricks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrickCatalogItem'
+
+  /api/lego/dimensions/{brick_spec}:
+    get:
+      tags: [LEGO]
+      summary: Get brick dimensions
+      parameters:
+        - name: brick_spec
+          in: path
+          required: true
+          schema:
+            type: string
+          example: "2x4"
+      responses:
+        '200':
+          description: Brick dimensions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrickDimensions'
+
+  /api/lego/colors:
+    get:
+      tags: [LEGO]
+      summary: Get LEGO colors
+      responses:
+        '200':
+          description: List of colors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  colors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LEGOColor'
+                  count:
+                    type: integer
+
+  /api/lego/designs:
+    get:
+      tags: [LEGO]
+      summary: List brick designs
+      responses:
+        '200':
+          description: List of designs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  designs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BrickDesign'
+                  count:
+                    type: integer
+
+  /api/lego/design:
+    post:
+      tags: [LEGO]
+      summary: Create custom brick design
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BrickDesignCreate'
+      responses:
+        '201':
+          description: Design created
+
+  # ML Endpoints
+  /api/ml/status:
+    get:
+      tags: [ML]
+      summary: Get ML service status
+      responses:
+        '200':
+          description: ML status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available:
+                    type: boolean
+                  models_loaded:
+                    type: array
+                    items:
+                      type: string
+
+  /api/ml/anomaly/detect:
+    post:
+      tags: [ML]
+      summary: Detect anomalies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sensor_data:
+                  type: object
+                  properties:
+                    temperature:
+                      type: number
+                    vibration_x:
+                      type: number
+                    vibration_y:
+                      type: number
+                    current_draw:
+                      type: number
+      responses:
+        '200':
+          description: Anomaly detection result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnomalyResult'
+
+  /api/ml/predict:
+    post:
+      tags: [ML]
+      summary: Predict from G-code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gcode:
+                  type: string
+      responses:
+        '200':
+          description: Prediction result
+
+  # MCP Endpoints
+  /api/mcp/tools:
+    get:
+      tags: [MCP]
+      summary: List MCP tools
+      responses:
+        '200':
+          description: Available tools
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tools:
+                    type: array
+                    items:
+                      type: object
+                  count:
+                    type: integer
+
+  /api/mcp/execute:
+    post:
+      tags: [MCP]
+      summary: Execute MCP tool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tool:
+                  type: string
+                arguments:
+                  type: object
+      responses:
+        '200':
+          description: Tool execution result
+
+  # Unity Endpoints
+  /api/unity/scene:
+    get:
+      tags: [Unity]
+      summary: Get scene state
+      responses:
+        '200':
+          description: Current scene state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SceneState'
+
+  /api/unity/entities:
+    get:
+      tags: [Unity]
+      summary: Get entities
+      responses:
+        '200':
+          description: List of entities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  entities:
+                    type: array
+                    items:
+                      type: object
+
+  # ROS2 Endpoints
+  /api/ros2/bridge/status:
+    get:
+      tags: [SCADA]
+      summary: Get ROS2 bridge status
+      responses:
+        '200':
+          description: Bridge status
+
+  /api/ros2/cells:
+    get:
+      tags: [SCADA]
+      summary: List work cells
+      responses:
+        '200':
+          description: List of cells
+
+  /api/ros2/tasks:
+    get:
+      tags: [SCADA]
+      summary: List robot tasks
+      responses:
+        '200':
+          description: List of tasks
+
+components:
+  schemas:
+    Machine:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        machine_id:
+          type: string
+        name:
+          type: string
+        machine_type:
+          type: string
+        current_state:
+          type: string
+          enum: [disconnected, idle, running, paused, alarm, error]
+        is_connected:
+          type: boolean
+        position:
+          type: object
+          properties:
+            x: { type: number }
+            y: { type: number }
+            z: { type: number }
+
+    Alarm:
+      type: object
+      properties:
+        alarm_id:
+          type: string
+        name:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, urgent, critical]
+        state:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    WorkOrder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        work_order_id:
+          type: string
+        description:
+          type: string
+        product_id:
+          type: string
+        quantity_ordered:
+          type: integer
+        quantity_completed:
+          type: integer
+        status:
+          type: string
+        priority:
+          type: integer
+        due_date:
+          type: string
+          format: date-time
+
+    WorkOrderCreate:
+      type: object
+      required:
+        - product_id
+        - quantity_ordered
+      properties:
+        product_id:
+          type: string
+        quantity_ordered:
+          type: integer
+        priority:
+          type: integer
+          default: 5
+        due_date:
+          type: string
+          format: date
+        customer_id:
+          type: string
+        description:
+          type: string
+
+    Job:
+      type: object
+      properties:
+        job_id:
+          type: string
+        work_order_id:
+          type: string
+        machine_id:
+          type: string
+        status:
+          type: string
+        scheduled_start:
+          type: string
+          format: date-time
+
+    OEE:
+      type: object
+      properties:
+        overall_oee:
+          type: number
+        availability:
+          type: number
+        performance:
+          type: number
+        quality:
+          type: number
+        period:
+          type: string
+        machines:
+          type: array
+          items:
+            type: object
+
+    Recipe:
+      type: object
+      properties:
+        recipe_id:
+          type: string
+        name:
+          type: string
+        product_id:
+          type: string
+        version:
+          type: string
+        status:
+          type: string
+        operations:
+          type: array
+          items:
+            type: object
+
+    RecipeCreate:
+      type: object
+      required:
+        - name
+        - product_id
+      properties:
+        name:
+          type: string
+        product_id:
+          type: string
+        version:
+          type: string
+        operations:
+          type: array
+          items:
+            type: object
+        parameters:
+          type: object
+
+    Customer:
+      type: object
+      properties:
+        customer_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+
+    CustomerCreate:
+      type: object
+      required:
+        - customer_id
+        - name
+      properties:
+        customer_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+
+    SalesOrder:
+      type: object
+      properties:
+        order_id:
+          type: string
+        customer_id:
+          type: string
+        status:
+          type: string
+        order_date:
+          type: string
+          format: date-time
+        total_amount:
+          type: number
+
+    SalesOrderCreate:
+      type: object
+      required:
+        - customer_id
+        - lines
+      properties:
+        customer_id:
+          type: string
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              item_id:
+                type: string
+              quantity:
+                type: integer
+              unit_price:
+                type: number
+
+    Item:
+      type: object
+      properties:
+        item_id:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        unit_cost:
+          type: number
+        unit_price:
+          type: number
+        quantity_on_hand:
+          type: integer
+
+    Document:
+      type: object
+      properties:
+        document_id:
+          type: string
+        title:
+          type: string
+        document_type:
+          type: string
+        status:
+          type: string
+        current_revision:
+          type: string
+
+    NCR:
+      type: object
+      properties:
+        ncr_id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+        status:
+          type: string
+
+    NCRCreate:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [minor, moderate, major, critical]
+        source:
+          type: string
+
+    BrickCatalogItem:
+      type: object
+      properties:
+        brick_id:
+          type: string
+        name:
+          type: string
+        studs_x:
+          type: integer
+        studs_y:
+          type: integer
+        brick_type:
+          type: string
+
+    BrickDimensions:
+      type: object
+      properties:
+        studs_x:
+          type: integer
+        studs_y:
+          type: integer
+        width_mm:
+          type: number
+        depth_mm:
+          type: number
+        height_mm:
+          type: number
+        volume_mm3:
+          type: number
+        weight_grams:
+          type: number
+
+    LEGOColor:
+      type: object
+      properties:
+        color_id:
+          type: integer
+        name:
+          type: string
+        hex:
+          type: string
+        is_current:
+          type: boolean
+
+    BrickDesign:
+      type: object
+      properties:
+        design_id:
+          type: string
+        name:
+          type: string
+        brick_type:
+          type: string
+        studs_x:
+          type: integer
+        studs_y:
+          type: integer
+        is_valid:
+          type: boolean
+
+    BrickDesignCreate:
+      type: object
+      required:
+        - name
+        - studs_x
+        - studs_y
+      properties:
+        name:
+          type: string
+        studs_x:
+          type: integer
+        studs_y:
+          type: integer
+        height_units:
+          type: integer
+          default: 1
+        brick_type:
+          type: string
+          default: standard
+
+    AnomalyResult:
+      type: object
+      properties:
+        is_anomaly:
+          type: boolean
+        anomaly_score:
+          type: number
+        anomaly_type:
+          type: string
+        confidence:
+          type: number
+
+    SceneState:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        machines:
+          type: array
+          items:
+            $ref: '#/components/schemas/Machine'
+        alarms:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alarm'

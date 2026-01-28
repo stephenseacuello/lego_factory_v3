@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}3D Factory View - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item active">3D Factory View</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2><i class="bi bi-badge-3d me-2"></i>Digital Twin - Factory Floor</h2>
+    <div class="btn-group">
+        <button class="btn btn-outline-secondary btn-sm" onclick="resetCamera()">
+            <i class="bi bi-arrow-counterclockwise"></i> Reset View
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#overlaySettings">
+            <i class="bi bi-layers"></i> Overlays
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="toggleFullscreen()">
+            <i class="bi bi-arrows-fullscreen"></i> Fullscreen
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <!-- 3D Viewer -->
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-body p-0">
+                <div id="unity-container" style="height: 600px; background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); position: relative; overflow: hidden;">
+                    <!-- Unity WebGL or Three.js viewer would load here -->
+                    <div id="loading-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.7);">
+                        <div class="text-center text-white">
+                            <div class="spinner-border mb-3" role="status"></div>
+                            <p>Loading Digital Twin...</p>
+                            <small class="text-muted">Connecting to factory floor</small>
+                        </div>
+                    </div>
+
+                    <!-- Simplified 3D representation -->
+                    <svg id="factory-svg" viewBox="0 0 800 600" style="width: 100%; height: 100%; display: none;">
+                        <!-- Floor grid -->
+                        <defs>
+                            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                            </pattern>
+                        </defs>
+                        <rect width="800" height="600" fill="url(#grid)"/>
+
+                        <!-- Machines -->
+                        <g id="machines">
+                            <!-- Printer 1 -->
+                            <g class="machine" data-id="printer_1" transform="translate(100, 200)">
+                                <rect width="80" height="80" rx="5" fill="#4a5568" stroke="#718096" stroke-width="2"/>
+                                <rect x="10" y="10" width="60" height="40" fill="#2d3748"/>
+                                <circle cx="40" cy="70" r="5" class="status-indicator" fill="#48bb78"/>
+                                <text x="40" y="-10" text-anchor="middle" fill="white" font-size="12">Prusa MK4 #1</text>
+                            </g>
+
+                            <!-- Printer 2 -->
+                            <g class="machine" data-id="printer_2" transform="translate(220, 200)">
+                                <rect width="80" height="80" rx="5" fill="#4a5568" stroke="#718096" stroke-width="2"/>
+                                <rect x="10" y="10" width="60" height="40" fill="#2d3748"/>
+                                <circle cx="40" cy="70" r="5" class="status-indicator" fill="#48bb78"/>
+                                <text x="40" y="-10" text-anchor="middle" fill="white" font-size="12">Prusa MK4 #2</text>
+                            </g>
+
+                            <!-- Printer 3 -->
+                            <g class="machine" data-id="printer_3" transform="translate(340, 200)">
+                                <rect width="80" height="80" rx="5" fill="#4a5568" stroke="#718096" stroke-width="2"/>
+                                <rect x="10" y="10" width="60" height="40" fill="#2d3748"/>
+                                <circle cx="40" cy="70" r="5" class="status-indicator" fill="#a0aec0"/>
+                                <text x="40" y="-10" text-anchor="middle" fill="white" font-size="12">Bambu X1C</text>
+                            </g>
+
+                            <!-- Robot 1 -->
+                            <g class="robot" data-id="niryo_ned2" transform="translate(150, 400)">
+                                <circle r="30" fill="#2b6cb0" stroke="#4299e1" stroke-width="2"/>
+                                <line x1="0" y1="0" x2="40" y2="-20" stroke="#4299e1" stroke-width="4" stroke-linecap="round"/>
+                                <circle cx="40" cy="-20" r="8" fill="#4299e1"/>
+                                <circle cx="0" cy="25" r="4" class="status-indicator" fill="#48bb78"/>
+                                <text x="0" y="50" text-anchor="middle" fill="white" font-size="12">Niryo Ned2</text>
+                            </g>
+
+                            <!-- Robot 2 -->
+                            <g class="robot" data-id="xarm_lite6" transform="translate(350, 400)">
+                                <circle r="30" fill="#2b6cb0" stroke="#4299e1" stroke-width="2"/>
+                                <line x1="0" y1="0" x2="30" y2="-30" stroke="#4299e1" stroke-width="4" stroke-linecap="round"/>
+                                <circle cx="30" cy="-30" r="8" fill="#4299e1"/>
+                                <circle cx="0" cy="25" r="4" class="status-indicator" fill="#f56565"/>
+                                <text x="0" y="50" text-anchor="middle" fill="white" font-size="12">xArm Lite 6</text>
+                            </g>
+
+                            <!-- Conveyor -->
+                            <g class="conveyor" data-id="conveyor_a" transform="translate(500, 250)">
+                                <rect width="200" height="30" rx="3" fill="#4a5568" stroke="#718096"/>
+                                <line x1="10" y1="15" x2="190" y2="15" stroke="#718096" stroke-width="2" stroke-dasharray="10,5"/>
+                                <text x="100" y="-10" text-anchor="middle" fill="white" font-size="12">Conveyor A</text>
+                            </g>
+                        </g>
+
+                        <!-- Alarm indicators -->
+                        <g id="alarms" style="display: none;">
+                            <circle class="alarm-pulse" cx="380" cy="425" r="40" fill="none" stroke="#f56565" stroke-width="2"/>
+                        </g>
+                    </svg>
+
+                    <!-- Entity tooltip -->
+                    <div id="entity-tooltip" class="card shadow" style="position: absolute; display: none; min-width: 200px; z-index: 100;">
+                        <div class="card-body p-2">
+                            <h6 class="mb-1" id="tooltip-name"></h6>
+                            <small class="text-muted" id="tooltip-type"></small>
+                            <hr class="my-1">
+                            <div id="tooltip-state"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Entity List -->
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-list-ul me-2"></i>Entities
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="entity-list">
+                    {% for entity_id, entity in scene.get('entities', {}).items() %}
+                    <a href="#" class="list-group-item list-group-item-action" data-entity="{{ entity_id }}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-{{ 'cpu' if entity.entity_type == 'machine' else 'robot' if entity.entity_type == 'robot' else 'arrow-right' }} me-2"></i>
+                                {{ entity.name }}
+                            </div>
+                            <span class="badge bg-{{ 'success' if entity.state.status == 'running' else 'secondary' if entity.state.status == 'idle' else 'danger' }}">
+                                {{ entity.state.status|default('unknown') }}
+                            </span>
+                        </div>
+                    </a>
+                    {% else %}
+                    <div class="list-group-item">
+                        <div class="text-muted text-center py-3">
+                            <i class="bi bi-cpu fs-1 d-block mb-2"></i>
+                            Printer 1 - Running<br>
+                            <i class="bi bi-cpu fs-1 d-block mb-2 mt-3"></i>
+                            Printer 2 - Running<br>
+                            <i class="bi bi-robot fs-1 d-block mb-2 mt-3"></i>
+                            Niryo Ned2 - Idle
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <i class="bi bi-bar-chart me-2"></i>Live Stats
+            </div>
+            <div class="card-body">
+                <div class="row g-2 text-center">
+                    <div class="col-6">
+                        <h4 class="text-success mb-0" id="stat-running">3</h4>
+                        <small class="text-muted">Running</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-secondary mb-0" id="stat-idle">2</h4>
+                        <small class="text-muted">Idle</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-danger mb-0" id="stat-alarm">1</h4>
+                        <small class="text-muted">Alarm</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-primary mb-0" id="stat-parts">845</h4>
+                        <small class="text-muted">Parts Today</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .machine, .robot, .conveyor {
+        cursor: pointer;
+        transition: transform 0.2s;
+    }
+
+    .machine:hover, .robot:hover, .conveyor:hover {
+        transform: scale(1.05);
+    }
+
+    .status-indicator {
+        transition: fill 0.3s;
+    }
+
+    .alarm-pulse {
+        animation: pulse-ring 1.5s infinite;
+    }
+
+    @keyframes pulse-ring {
+        0% { r: 35; opacity: 1; }
+        100% { r: 60; opacity: 0; }
+    }
+
+    #factory-svg {
+        user-select: none;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize viewer
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(() => {
+            document.getElementById('loading-overlay').style.display = 'none';
+            document.getElementById('factory-svg').style.display = 'block';
+            initializeInteractions();
+        }, 1500);
+    });
+
+    function initializeInteractions() {
+        // Machine click handlers
+        document.querySelectorAll('.machine, .robot, .conveyor').forEach(el => {
+            el.addEventListener('click', function() {
+                const entityId = this.dataset.id;
+                showEntityDetail(entityId);
+            });
+
+            el.addEventListener('mouseenter', function(e) {
+                showTooltip(this, e);
+            });
+
+            el.addEventListener('mouseleave', function() {
+                hideTooltip();
+            });
+        });
+    }
+
+    function showEntityDetail(entityId) {
+        fetch(`/unity/api/entity/${entityId}`)
+        .then(r => r.json())
+        .then(data => {
+            console.log('Entity:', data);
+            // Show detail panel or modal
+        })
+        .catch(() => {
+            console.log('Demo mode - entity:', entityId);
+        });
+    }
+
+    function showTooltip(element, event) {
+        const tooltip = document.getElementById('entity-tooltip');
+        const entityId = element.dataset.id;
+
+        document.getElementById('tooltip-name').textContent = entityId.replace('_', ' ').toUpperCase();
+        document.getElementById('tooltip-type').textContent = element.classList.contains('robot') ? 'Robot' : 'Machine';
+        document.getElementById('tooltip-state').innerHTML = '<span class="badge bg-success">Running</span>';
+
+        const rect = element.getBoundingClientRect();
+        const container = document.getElementById('unity-container').getBoundingClientRect();
+
+        tooltip.style.left = (rect.right - container.left + 10) + 'px';
+        tooltip.style.top = (rect.top - container.top) + 'px';
+        tooltip.style.display = 'block';
+    }
+
+    function hideTooltip() {
+        document.getElementById('entity-tooltip').style.display = 'none';
+    }
+
+    function resetCamera() {
+        // Reset view
+        console.log('Camera reset');
+    }
+
+    function toggleFullscreen() {
+        const container = document.getElementById('unity-container');
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            container.requestFullscreen();
+        }
+    }
+
+    // Real-time updates
+    socket.on('unity_state_update', function(data) {
+        console.log('State update:', data);
+        // Update entity states
+        Object.entries(data.entities || {}).forEach(([id, entity]) => {
+            const el = document.querySelector(`[data-id="${id}"] .status-indicator`);
+            if (el) {
+                el.setAttribute('fill',
+                    entity.state?.status === 'running' ? '#48bb78' :
+                    entity.state?.status === 'alarm' ? '#f56565' : '#a0aec0'
+                );
+            }
+        });
+    });
+</script>
+{% endblock %}

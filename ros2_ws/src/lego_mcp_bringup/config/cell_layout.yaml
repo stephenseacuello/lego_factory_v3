@@ -1,0 +1,200 @@
+# LEGO MCP Factory Cell Layout Configuration
+# Defines equipment positions and workspace boundaries
+
+# World frame is at center of work table
+# X: positive toward operator
+# Y: positive toward left
+# Z: positive upward
+
+factory_cell:
+  name: "lego_mcp_cell_01"
+  description: "LEGO MCP Manufacturing Cell"
+
+  # Workspace boundaries (safety zone)
+  workspace:
+    x_min: -0.6  # meters
+    x_max: 0.6
+    y_min: -0.5
+    y_max: 0.5
+    z_min: 0.0
+    z_max: 0.8
+
+  # Work table
+  table:
+    width: 1.2   # X dimension
+    depth: 0.8   # Y dimension
+    height: 0.75 # Z position of table surface
+
+# Equipment positions (transforms from world frame)
+equipment:
+  # Niryo Ned2 Robot Arm
+  ned2:
+    type: robot_arm
+    model: niryo_ned2
+    base_frame: ned2_base_link
+    position:
+      x: -0.3
+      y: 0.3
+      z: 0.0  # On table surface
+    orientation:  # Quaternion (x, y, z, w)
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    workspace_radius: 0.44  # meters
+
+  # UFactory xArm 6 Lite
+  xarm:
+    type: robot_arm
+    model: xarm_lite6
+    base_frame: xarm_base_link
+    position:
+      x: -0.3
+      y: -0.3
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 1.0  # Rotated 180 degrees
+      w: 0.0
+    workspace_radius: 0.50
+
+  # TinyG Bantam CNC
+  bantam_cnc:
+    type: cnc
+    model: tinyg_bantam
+    base_frame: cnc_base_link
+    position:
+      x: 0.4
+      y: 0.3
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    work_envelope:
+      x: 0.15
+      y: 0.12
+      z: 0.05
+
+  # MKS Laser Engraver
+  mks_laser:
+    type: laser
+    model: mks_grbl
+    base_frame: laser_base_link
+    position:
+      x: 0.4
+      y: -0.2
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      w: 1.0
+    work_envelope:
+      x: 0.30
+      y: 0.30
+      z: 0.0
+    safety_zone_radius: 0.5  # Laser safety zone
+
+  # Formlabs Form 3+ SLA Printer
+  formlabs:
+    type: printer_sla
+    model: formlabs_form3
+    base_frame: formlabs_base_link
+    position:
+      x: 0.0
+      y: 0.5
+      z: 0.0  # On floor next to table
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: -0.707
+      w: 0.707
+    build_volume:
+      x: 0.145
+      y: 0.145
+      z: 0.185
+
+  # Coastrunner CR-1 (GRBL + 3D Print)
+  coastrunner:
+    type: multi_function
+    model: coastrunner_cr1
+    base_frame: coastrunner_base_link
+    position:
+      x: 0.0
+      y: -0.5
+      z: 0.0
+    orientation:
+      x: 0.0
+      y: 0.0
+      z: 0.707
+      w: 0.707
+    build_volume:
+      x: 0.22
+      y: 0.22
+      z: 0.25
+
+# Zones for material handling
+zones:
+  # Brick feeder zone (where robots pick bricks)
+  brick_feeder:
+    frame: brick_feeder_frame
+    position:
+      x: 0.0
+      y: 0.0
+      z: 0.02  # Slightly above table
+    dimensions:
+      x: 0.2
+      y: 0.3
+      z: 0.1
+    accessible_by: [ned2, xarm]
+
+  # Assembly zone (where LEGO models are built)
+  assembly_zone:
+    frame: assembly_frame
+    position:
+      x: 0.15
+      y: 0.0
+      z: 0.0
+    dimensions:
+      x: 0.3
+      y: 0.3
+      z: 0.3
+    accessible_by: [ned2, xarm]
+
+  # Inspection zone (quality camera location)
+  inspection_zone:
+    frame: inspection_frame
+    position:
+      x: 0.3
+      y: 0.0
+      z: 0.3  # Camera overhead
+    accessible_by: [ned2, xarm]
+
+  # Finished goods zone
+  finished_goods:
+    frame: finished_frame
+    position:
+      x: 0.4
+      y: 0.0
+      z: 0.0
+    dimensions:
+      x: 0.15
+      y: 0.2
+      z: 0.1
+
+# Safety zones (keep-out for collision avoidance)
+safety_zones:
+  - name: operator_zone
+    type: keep_out
+    position: {x: 0.6, y: 0.0, z: 0.0}
+    radius: 0.3
+    height: 1.5
+
+  - name: laser_hazard
+    type: restricted
+    equipment: mks_laser
+    radius: 0.5
+    require_interlocks: true

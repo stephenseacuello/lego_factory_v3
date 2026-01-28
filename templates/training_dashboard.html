@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Training Dashboard - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --card-bg: #334155;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --purple: #8b5cf6;
+            --cyan: #06b6d4;
+            --pink: #ec4899;
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar-dark-custom {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .page-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .page-title i { color: var(--pink); }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+        }
+
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.5rem;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-pink {
+            background: var(--pink);
+            border-color: var(--pink);
+            color: white;
+        }
+
+        .btn-pink:hover {
+            background: #db2777;
+            border-color: #db2777;
+            color: white;
+        }
+
+        .btn-outline-light:hover {
+            background: var(--card-bg);
+        }
+
+        .form-control, .form-select {
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .form-control:focus, .form-select:focus {
+            background: var(--bg-dark);
+            border-color: var(--primary);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .table {
+            color: var(--text-primary);
+        }
+
+        .table thead th {
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            padding: 0.75rem 1rem;
+        }
+
+        .table tbody td {
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+            vertical-align: middle;
+        }
+
+        .table tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            font-size: 0.813rem;
+            color: var(--text-secondary);
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-active { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+        .status-draft { background: rgba(148, 163, 184, 0.2); color: var(--text-secondary); }
+        .status-completed { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+        .status-expired { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .status-due { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+
+        .course-card {
+            background: var(--bg-dark);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+
+        .course-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .course-category {
+            padding: 0.125rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .cat-safety { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+        .cat-quality { background: rgba(139, 92, 246, 0.2); color: var(--purple); }
+        .cat-technical { background: rgba(59, 130, 246, 0.2); color: var(--primary); }
+        .cat-compliance { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+        .cat-soft { background: rgba(236, 72, 153, 0.2); color: var(--pink); }
+
+        .progress-bar-custom {
+            height: 8px;
+            background: var(--border-color);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .employee-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--pink), var(--purple));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .course-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .courses-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .action-btn {
+            padding: 0.375rem 0.75rem;
+            border-radius: 0.375rem;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: var(--card-bg);
+            border-color: var(--primary);
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-footer {
+            border-top: 1px solid var(--border-color);
+        }
+
+        .btn-close {
+            filter: invert(1);
+        }
+
+        @media (max-width: 1200px) {
+            .stats-row { grid-template-columns: repeat(2, 1fr); }
+            .section-grid { grid-template-columns: 1fr; }
+            .courses-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .stats-row { grid-template-columns: 1fr; }
+            .courses-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-dark-custom navbar-expand-lg">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand" href="/portal">
+                <i class="bi bi-arrow-left me-2"></i> Back to Portal
+            </a>
+            <span class="navbar-text">
+                <i class="bi bi-mortarboard me-2"></i> HR - Training Dashboard
+            </span>
+        </div>
+    </nav>
+
+    <div class="page-container">
+        <div class="page-header">
+            <h1 class="page-title">
+                <i class="bi bi-mortarboard-fill"></i>
+                Training Dashboard
+            </h1>
+            <div>
+                <button class="btn btn-outline-light me-2">
+                    <i class="bi bi-file-earmark-text me-1"></i> Reports
+                </button>
+                <button class="btn btn-pink" data-bs-toggle="modal" data-bs-target="#courseModal">
+                    <i class="bi bi-plus-lg me-1"></i> New Course
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-row">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(236, 72, 153, 0.2); color: var(--pink);">
+                    <i class="bi bi-book"></i>
+                </div>
+                <div class="stat-value">48</div>
+                <div class="stat-label">Active Courses</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.2); color: var(--success);">
+                    <i class="bi bi-people"></i>
+                </div>
+                <div class="stat-value">156</div>
+                <div class="stat-label">Trained Employees</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.2); color: var(--warning);">
+                    <i class="bi bi-clock-history"></i>
+                </div>
+                <div class="stat-value">23</div>
+                <div class="stat-label">Training Due</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(59, 130, 246, 0.2); color: var(--primary);">
+                    <i class="bi bi-percent"></i>
+                </div>
+                <div class="stat-value">94%</div>
+                <div class="stat-label">Compliance Rate</div>
+            </div>
+        </div>
+
+        <!-- Courses Section -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-journal-bookmark me-2"></i> Training Courses</span>
+                <div class="d-flex gap-2">
+                    <input type="text" class="form-control form-control-sm" placeholder="Search courses..." style="width: 200px;">
+                    <select class="form-select form-select-sm w-auto">
+                        <option>All Categories</option>
+                        <option>Safety</option>
+                        <option>Quality</option>
+                        <option>Technical</option>
+                        <option>Compliance</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="courses-grid">
+                    <div class="course-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="course-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--danger);">
+                                <i class="bi bi-shield-check"></i>
+                            </div>
+                            <span class="course-category cat-safety">Safety</span>
+                        </div>
+                        <h6 class="mb-2">Workplace Safety Fundamentals</h6>
+                        <p class="text-secondary mb-3" style="font-size: 0.813rem;">Basic safety protocols and emergency procedures</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-clock me-1"></i> 2 hours</span>
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-people me-1"></i> 145 enrolled</span>
+                        </div>
+                    </div>
+                    <div class="course-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="course-icon" style="background: rgba(139, 92, 246, 0.2); color: var(--purple);">
+                                <i class="bi bi-clipboard-check"></i>
+                            </div>
+                            <span class="course-category cat-quality">Quality</span>
+                        </div>
+                        <h6 class="mb-2">QMS Awareness Training</h6>
+                        <p class="text-secondary mb-3" style="font-size: 0.813rem;">ISO 9001 quality management system basics</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-clock me-1"></i> 4 hours</span>
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-people me-1"></i> 132 enrolled</span>
+                        </div>
+                    </div>
+                    <div class="course-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="course-icon" style="background: rgba(59, 130, 246, 0.2); color: var(--primary);">
+                                <i class="bi bi-gear"></i>
+                            </div>
+                            <span class="course-category cat-technical">Technical</span>
+                        </div>
+                        <h6 class="mb-2">Injection Molding Operations</h6>
+                        <p class="text-secondary mb-3" style="font-size: 0.813rem;">Machine setup, operation, and troubleshooting</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-clock me-1"></i> 8 hours</span>
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-people me-1"></i> 28 enrolled</span>
+                        </div>
+                    </div>
+                    <div class="course-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="course-icon" style="background: rgba(245, 158, 11, 0.2); color: var(--warning);">
+                                <i class="bi bi-file-earmark-ruled"></i>
+                            </div>
+                            <span class="course-category cat-compliance">Compliance</span>
+                        </div>
+                        <h6 class="mb-2">GMP Compliance Training</h6>
+                        <p class="text-secondary mb-3" style="font-size: 0.813rem;">Good manufacturing practices and documentation</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-clock me-1"></i> 3 hours</span>
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-people me-1"></i> 98 enrolled</span>
+                        </div>
+                    </div>
+                    <div class="course-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="course-icon" style="background: rgba(236, 72, 153, 0.2); color: var(--pink);">
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <span class="course-category cat-soft">Soft Skills</span>
+                        </div>
+                        <h6 class="mb-2">Effective Communication</h6>
+                        <p class="text-secondary mb-3" style="font-size: 0.813rem;">Team communication and collaboration skills</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-clock me-1"></i> 2 hours</span>
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-people me-1"></i> 67 enrolled</span>
+                        </div>
+                    </div>
+                    <div class="course-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="course-icon" style="background: rgba(239, 68, 68, 0.2); color: var(--danger);">
+                                <i class="bi bi-exclamation-triangle"></i>
+                            </div>
+                            <span class="course-category cat-safety">Safety</span>
+                        </div>
+                        <h6 class="mb-2">Hazardous Materials Handling</h6>
+                        <p class="text-secondary mb-3" style="font-size: 0.813rem;">Safe handling of chemicals and hazmat procedures</p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-clock me-1"></i> 4 hours</span>
+                            <span class="text-secondary" style="font-size: 0.75rem;"><i class="bi bi-people me-1"></i> 45 enrolled</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Training Records Section -->
+        <div class="section-grid">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-person-badge me-2"></i> Recent Training Records</span>
+                    <button class="btn btn-sm btn-outline-light">View All</button>
+                </div>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Course</th>
+                                <th>Completed</th>
+                                <th>Expires</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="employee-avatar">JS</div>
+                                        <div>
+                                            <div>John Smith</div>
+                                            <div class="text-secondary" style="font-size: 0.75rem;">Operator</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>Workplace Safety</td>
+                                <td>Jan 15, 2024</td>
+                                <td>Jan 15, 2025</td>
+                                <td><span class="status-badge status-completed">Completed</span></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="employee-avatar">MJ</div>
+                                        <div>
+                                            <div>Mary Johnson</div>
+                                            <div class="text-secondary" style="font-size: 0.75rem;">Quality Tech</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>QMS Awareness</td>
+                                <td>Jan 18, 2024</td>
+                                <td>Jan 18, 2025</td>
+                                <td><span class="status-badge status-completed">Completed</span></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="employee-avatar">AD</div>
+                                        <div>
+                                            <div>Alex Davis</div>
+                                            <div class="text-secondary" style="font-size: 0.75rem;">Technician</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>Injection Molding</td>
+                                <td>In Progress</td>
+                                <td>-</td>
+                                <td><span class="status-badge status-active">In Progress</span></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="employee-avatar">RW</div>
+                                        <div>
+                                            <div>Robert Wilson</div>
+                                            <div class="text-secondary" style="font-size: 0.75rem;">Supervisor</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>GMP Compliance</td>
+                                <td>Dec 10, 2023</td>
+                                <td>Dec 10, 2024</td>
+                                <td><span class="status-badge status-completed">Completed</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-exclamation-triangle me-2 text-warning"></i> Training Due / Expired</span>
+                    <span class="text-secondary" style="font-size: 0.875rem;">23 items require attention</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Employee</th>
+                                <th>Course</th>
+                                <th>Due/Expired</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="employee-avatar">TM</div>
+                                        <span>Tom Martinez</span>
+                                    </div>
+                                </td>
+                                <td>Workplace Safety</td>
+                                <td class="text-danger">Expired Jan 10</td>
+                                <td><span class="status-badge status-expired">Expired</span></td>
+                                <td><button class="action-btn" title="Assign"><i class="bi bi-plus"></i></button></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="employee-avatar">SL</div>
+                                        <span>Sarah Lee</span>
+                                    </div>
+                                </td>
+                                <td>QMS Awareness</td>
+                                <td class="text-warning">Due Jan 25</td>
+                                <td><span class="status-badge status-due">Due Soon</span></td>
+                                <td><button class="action-btn" title="Assign"><i class="bi bi-plus"></i></button></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="employee-avatar">JB</div>
+                                        <span>James Brown</span>
+                                    </div>
+                                </td>
+                                <td>Hazmat Handling</td>
+                                <td class="text-danger">Expired Jan 5</td>
+                                <td><span class="status-badge status-expired">Expired</span></td>
+                                <td><button class="action-btn" title="Assign"><i class="bi bi-plus"></i></button></td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="employee-avatar">KP</div>
+                                        <span>Karen Phillips</span>
+                                    </div>
+                                </td>
+                                <td>GMP Compliance</td>
+                                <td class="text-warning">Due Feb 1</td>
+                                <td><span class="status-badge status-due">Due Soon</span></td>
+                                <td><button class="action-btn" title="Assign"><i class="bi bi-plus"></i></button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Course Modal -->
+    <div class="modal fade" id="courseModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-journal-plus me-2"></i> Create New Course</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="row g-3">
+                            <div class="col-md-8">
+                                <label class="form-label">Course Title</label>
+                                <input type="text" class="form-control" placeholder="Enter course title">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Category</label>
+                                <select class="form-select">
+                                    <option>Safety</option>
+                                    <option>Quality</option>
+                                    <option>Technical</option>
+                                    <option>Compliance</option>
+                                    <option>Soft Skills</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Description</label>
+                                <textarea class="form-control" rows="3" placeholder="Course description..."></textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Duration (hours)</label>
+                                <input type="number" class="form-control" placeholder="e.g., 4">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Validity (months)</label>
+                                <input type="number" class="form-control" placeholder="e.g., 12">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Passing Score (%)</label>
+                                <input type="number" class="form-control" value="80">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Instructor</label>
+                                <select class="form-select">
+                                    <option>Select instructor...</option>
+                                    <option>Internal - HR Department</option>
+                                    <option>Internal - Safety Officer</option>
+                                    <option>External Provider</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Delivery Method</label>
+                                <select class="form-select">
+                                    <option>In-Person</option>
+                                    <option>Online (Self-Paced)</option>
+                                    <option>Virtual Classroom</option>
+                                    <option>Hybrid</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-pink">
+                        <i class="bi bi-check-lg me-1"></i> Create Course
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

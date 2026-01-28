@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% block title %}Customers - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('crm_web.dashboard') }}">CRM</a></li>
+<li class="breadcrumb-item active">Customers</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-building me-2"></i>Customers</h2>
+    <div>
+        <button class="btn btn-outline-secondary me-2" onclick="exportCustomers()">
+            <i class="bi bi-download me-1"></i>Export
+        </button>
+        <button class="btn btn-primary" onclick="showNewCustomerModal()">
+            <i class="bi bi-plus-lg me-1"></i>Add Customer
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" id="searchCustomers" placeholder="Search customers...">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterStatus">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                    <option value="prospect">Prospect</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterCategory">
+                    <option value="">All Categories</option>
+                    <option value="enterprise">Enterprise</option>
+                    <option value="mid-market">Mid-Market</option>
+                    <option value="small-business">Small Business</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-primary w-100" onclick="applyFilters()">
+                    <i class="bi bi-funnel me-1"></i>Apply
+                </button>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                    <i class="bi bi-x-lg me-1"></i>Clear
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customers Table -->
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Primary Contact</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Territory</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="customersTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2"></div>
+                            Loading customers...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- New/Edit Customer Modal -->
+<div class="modal fade" id="customerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="customerModalTitle">
+                    <i class="bi bi-building me-2"></i>New Customer
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="customerForm">
+                    <input type="hidden" id="customerId">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Company Name *</label>
+                            <input type="text" class="form-control" id="customerName" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Legal Name</label>
+                            <input type="text" class="form-control" id="customerLegalName">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="customerEmail">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-control" id="customerPhone">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Website</label>
+                            <input type="url" class="form-control" id="customerWebsite">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tax ID</label>
+                            <input type="text" class="form-control" id="customerTaxId">
+                        </div>
+                    </div>
+                    <hr>
+                    <h6>Address</h6>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label">Address Line 1</label>
+                            <input type="text" class="form-control" id="customerAddress1">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">City</label>
+                            <input type="text" class="form-control" id="customerCity">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">State</label>
+                            <input type="text" class="form-control" id="customerState">
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <label class="form-label">Postal Code</label>
+                            <input type="text" class="form-control" id="customerPostal">
+                        </div>
+                    </div>
+                    <hr>
+                    <h6>Sales Information</h6>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Category</label>
+                            <select class="form-select" id="customerCategory">
+                                <option value="">Select...</option>
+                                <option value="enterprise">Enterprise</option>
+                                <option value="mid-market">Mid-Market</option>
+                                <option value="small-business">Small Business</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Territory</label>
+                            <input type="text" class="form-control" id="customerTerritory">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Payment Terms (days)</label>
+                            <input type="number" class="form-control" id="customerPaymentTerms" value="30">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveCustomer()">Save Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let customersData = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadCustomers();
+
+    document.getElementById('searchCustomers').addEventListener('input', function(e) {
+        filterCustomers(e.target.value);
+    });
+});
+
+async function loadCustomers() {
+    try {
+        const response = await fetch('/api/crm/customers');
+        const data = await response.json();
+
+        if (data.error) {
+            showDemoData();
+            return;
+        }
+
+        customersData = data.customers || [];
+        renderTable(customersData);
+
+    } catch (error) {
+        console.error('Error loading customers:', error);
+        showDemoData();
+    }
+}
+
+function showDemoData() {
+    customersData = [
+        { id: '1', partner_id: 'CUST-001', name: 'Acme Corporation', email: 'sales@acme.com', phone: '555-0100', territory: 'Northeast', status: 'active', primary_contact: 'John Smith' },
+        { id: '2', partner_id: 'CUST-002', name: 'BuildRight Inc', email: 'info@buildright.com', phone: '555-0200', territory: 'Midwest', status: 'active', primary_contact: 'Jane Doe' },
+        { id: '3', partner_id: 'CUST-003', name: 'Tech Solutions LLC', email: 'contact@techsol.com', phone: '555-0300', territory: 'West', status: 'active', primary_contact: 'Bob Wilson' },
+        { id: '4', partner_id: 'CUST-004', name: 'Global Plastics', email: 'sales@globalplastics.com', phone: '555-0400', territory: 'South', status: 'prospect', primary_contact: 'Sarah Johnson' },
+        { id: '5', partner_id: 'CUST-005', name: 'MegaBuild Corp', email: 'info@megabuild.com', phone: '555-0500', territory: 'Northeast', status: 'inactive', primary_contact: 'Mike Brown' }
+    ];
+    renderTable(customersData);
+}
+
+function renderTable(customers) {
+    const tbody = document.getElementById('customersTableBody');
+
+    if (!customers || customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No customers found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = customers.map(c => {
+        const statusClass = c.status === 'active' ? 'success' : (c.status === 'prospect' ? 'warning' : 'secondary');
+
+        return `
+            <tr>
+                <td>
+                    <strong>${c.name}</strong>
+                    <br><small class="text-muted">${c.partner_id || ''}</small>
+                </td>
+                <td>${c.primary_contact || '-'}</td>
+                <td><a href="mailto:${c.email}">${c.email || '-'}</a></td>
+                <td>${c.phone || '-'}</td>
+                <td>${c.territory || '-'}</td>
+                <td><span class="badge bg-${statusClass}">${c.status || 'active'}</span></td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary" onclick="editCustomer('${c.id}')" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-info" onclick="viewCustomer('${c.id}')" title="View Details">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-success" onclick="logActivity('${c.id}')" title="Log Activity">
+                            <i class="bi bi-journal-plus"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function filterCustomers(searchTerm) {
+    const filtered = customersData.filter(c =>
+        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (c.partner_id && c.partner_id.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    renderTable(filtered);
+}
+
+function applyFilters() {
+    const status = document.getElementById('filterStatus').value;
+    const category = document.getElementById('filterCategory').value;
+    const search = document.getElementById('searchCustomers').value;
+
+    let filtered = customersData;
+
+    if (status) {
+        filtered = filtered.filter(c => c.status === status);
+    }
+    if (category) {
+        filtered = filtered.filter(c => c.customer_category === category);
+    }
+    if (search) {
+        filtered = filtered.filter(c =>
+            c.name.toLowerCase().includes(search.toLowerCase()) ||
+            (c.email && c.email.toLowerCase().includes(search.toLowerCase()))
+        );
+    }
+
+    renderTable(filtered);
+}
+
+function clearFilters() {
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterCategory').value = '';
+    document.getElementById('searchCustomers').value = '';
+    renderTable(customersData);
+}
+
+function showNewCustomerModal() {
+    document.getElementById('customerForm').reset();
+    document.getElementById('customerId').value = '';
+    document.getElementById('customerModalTitle').innerHTML = '<i class="bi bi-building me-2"></i>New Customer';
+    const modal = new bootstrap.Modal(document.getElementById('customerModal'));
+    modal.show();
+}
+
+function editCustomer(id) {
+    const customer = customersData.find(c => c.id === id);
+    if (!customer) return;
+
+    document.getElementById('customerId').value = customer.id;
+    document.getElementById('customerName').value = customer.name || '';
+    document.getElementById('customerLegalName').value = customer.legal_name || '';
+    document.getElementById('customerEmail').value = customer.email || '';
+    document.getElementById('customerPhone').value = customer.phone || '';
+    document.getElementById('customerWebsite').value = customer.website || '';
+    document.getElementById('customerTaxId').value = customer.tax_id || '';
+    document.getElementById('customerAddress1').value = customer.address_line1 || '';
+    document.getElementById('customerCity').value = customer.city || '';
+    document.getElementById('customerState').value = customer.state || '';
+    document.getElementById('customerPostal').value = customer.postal_code || '';
+    document.getElementById('customerCategory').value = customer.customer_category || '';
+    document.getElementById('customerTerritory').value = customer.territory || '';
+    document.getElementById('customerPaymentTerms').value = customer.payment_terms_days || 30;
+
+    document.getElementById('customerModalTitle').innerHTML = '<i class="bi bi-building me-2"></i>Edit Customer';
+    const modal = new bootstrap.Modal(document.getElementById('customerModal'));
+    modal.show();
+}
+
+async function saveCustomer() {
+    const id = document.getElementById('customerId').value;
+    const data = {
+        name: document.getElementById('customerName').value,
+        legal_name: document.getElementById('customerLegalName').value,
+        email: document.getElementById('customerEmail').value,
+        phone: document.getElementById('customerPhone').value,
+        website: document.getElementById('customerWebsite').value,
+        tax_id: document.getElementById('customerTaxId').value,
+        address_line1: document.getElementById('customerAddress1').value,
+        city: document.getElementById('customerCity').value,
+        state: document.getElementById('customerState').value,
+        postal_code: document.getElementById('customerPostal').value,
+        customer_category: document.getElementById('customerCategory').value,
+        territory: document.getElementById('customerTerritory').value,
+        payment_terms_days: parseInt(document.getElementById('customerPaymentTerms').value) || 30,
+        is_customer: true
+    };
+
+    try {
+        const url = id ? `/api/crm/customers/${id}` : '/api/crm/customers';
+        const method = id ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('customerModal')).hide();
+            loadCustomers();
+        } else {
+            alert('Failed to save customer');
+        }
+    } catch (error) {
+        console.error('Error saving customer:', error);
+        alert('Failed to save customer');
+    }
+}
+
+function viewCustomer(id) {
+    window.location.href = `/crm/customers/${id}`;
+}
+
+function logActivity(id) {
+    window.location.href = `/crm/activities?customer_id=${id}`;
+}
+
+function exportCustomers() {
+    alert('Export functionality would generate a CSV of all customers');
+}
+</script>
+{% endblock %}

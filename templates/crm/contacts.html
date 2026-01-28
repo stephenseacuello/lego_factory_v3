@@ -1,0 +1,370 @@
+{% extends "base.html" %}
+{% block title %}Contacts - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('crm_web.dashboard') }}">CRM</a></li>
+<li class="breadcrumb-item active">Contacts</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-person-lines-fill me-2"></i>Contacts</h2>
+    <div>
+        <button class="btn btn-outline-secondary me-2" onclick="exportContacts()">
+            <i class="bi bi-download me-1"></i>Export
+        </button>
+        <button class="btn btn-primary" onclick="showNewContactModal()">
+            <i class="bi bi-plus-lg me-1"></i>Add Contact
+        </button>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-5">
+                <input type="text" class="form-control" id="searchContacts" placeholder="Search contacts...">
+            </div>
+            <div class="col-md-4">
+                <select class="form-select" id="filterCustomer">
+                    <option value="">All Customers</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-outline-secondary w-100" onclick="clearFilters()">
+                    <i class="bi bi-x-lg me-1"></i>Clear Filters
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Contacts Grid -->
+<div class="row g-3" id="contactsGrid">
+    <div class="col-12 text-center text-muted py-4">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+        Loading contacts...
+    </div>
+</div>
+
+<!-- New/Edit Contact Modal -->
+<div class="modal fade" id="contactModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contactModalTitle">
+                    <i class="bi bi-person-plus me-2"></i>New Contact
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="contactForm">
+                    <input type="hidden" id="contactId">
+                    <div class="mb-3">
+                        <label class="form-label">Customer *</label>
+                        <select class="form-select" id="contactCustomer" required>
+                            <option value="">Select customer...</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">First Name *</label>
+                            <input type="text" class="form-control" id="contactFirstName" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Last Name *</label>
+                            <input type="text" class="form-control" id="contactLastName" required>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-control" id="contactTitle">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Department</label>
+                            <input type="text" class="form-control" id="contactDepartment">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" id="contactEmail">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-control" id="contactPhone">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Mobile</label>
+                            <input type="tel" class="form-control" id="contactMobile">
+                        </div>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="contactPrimary">
+                        <label class="form-check-label" for="contactPrimary">Primary Contact</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="contactNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveContact()">Save Contact</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let contactsData = [];
+let customersData = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadCustomersForFilter();
+    loadContacts();
+
+    document.getElementById('searchContacts').addEventListener('input', function(e) {
+        filterContacts(e.target.value);
+    });
+
+    document.getElementById('filterCustomer').addEventListener('change', function(e) {
+        filterByCustomer(e.target.value);
+    });
+});
+
+async function loadCustomersForFilter() {
+    try {
+        const response = await fetch('/api/crm/customers?limit=100');
+        const data = await response.json();
+        customersData = data.customers || [];
+
+        const select = document.getElementById('filterCustomer');
+        const modalSelect = document.getElementById('contactCustomer');
+
+        select.innerHTML = '<option value="">All Customers</option>';
+        modalSelect.innerHTML = '<option value="">Select customer...</option>';
+
+        customersData.forEach(c => {
+            select.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+            modalSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+    } catch (error) {
+        console.error('Error loading customers:', error);
+        // Demo customers for select
+        const demoCustomers = [
+            { id: '1', name: 'Acme Corporation' },
+            { id: '2', name: 'BuildRight Inc' },
+            { id: '3', name: 'Tech Solutions LLC' }
+        ];
+        customersData = demoCustomers;
+
+        const select = document.getElementById('filterCustomer');
+        const modalSelect = document.getElementById('contactCustomer');
+
+        select.innerHTML = '<option value="">All Customers</option>';
+        modalSelect.innerHTML = '<option value="">Select customer...</option>';
+
+        demoCustomers.forEach(c => {
+            select.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+            modalSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+    }
+}
+
+async function loadContacts() {
+    try {
+        const response = await fetch('/api/crm/contacts');
+        const data = await response.json();
+
+        if (data.error) {
+            showDemoData();
+            return;
+        }
+
+        contactsData = data.contacts || [];
+        renderGrid(contactsData);
+
+    } catch (error) {
+        console.error('Error loading contacts:', error);
+        showDemoData();
+    }
+}
+
+function showDemoData() {
+    contactsData = [
+        { id: '1', first_name: 'John', last_name: 'Smith', title: 'VP Purchasing', email: 'jsmith@acme.com', phone: '555-0101', customer_name: 'Acme Corporation', is_primary: true },
+        { id: '2', first_name: 'Jane', last_name: 'Doe', title: 'Buyer', email: 'jdoe@buildright.com', phone: '555-0202', customer_name: 'BuildRight Inc', is_primary: true },
+        { id: '3', first_name: 'Bob', last_name: 'Wilson', title: 'Operations Manager', email: 'bwilson@techsol.com', phone: '555-0303', customer_name: 'Tech Solutions LLC', is_primary: true },
+        { id: '4', first_name: 'Alice', last_name: 'Johnson', title: 'Procurement Lead', email: 'ajohnson@acme.com', phone: '555-0104', customer_name: 'Acme Corporation', is_primary: false },
+        { id: '5', first_name: 'Mike', last_name: 'Brown', title: 'CEO', email: 'mbrown@buildright.com', phone: '555-0205', customer_name: 'BuildRight Inc', is_primary: false }
+    ];
+    renderGrid(contactsData);
+}
+
+function renderGrid(contacts) {
+    const container = document.getElementById('contactsGrid');
+
+    if (!contacts || contacts.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center text-muted py-4">No contacts found</div>';
+        return;
+    }
+
+    container.innerHTML = contacts.map(c => `
+        <div class="col-md-4 col-lg-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                            <i class="bi bi-person text-primary" style="font-size: 1.5rem;"></i>
+                        </div>
+                        <div>
+                            <h6 class="mb-0">${c.first_name} ${c.last_name}</h6>
+                            <small class="text-muted">${c.title || ''}</small>
+                        </div>
+                        ${c.is_primary ? '<span class="badge bg-success ms-auto">Primary</span>' : ''}
+                    </div>
+                    <p class="text-muted small mb-2">
+                        <i class="bi bi-building me-1"></i>${c.customer_name || 'Unknown'}
+                    </p>
+                    <p class="mb-1 small">
+                        <i class="bi bi-envelope me-1"></i>
+                        <a href="mailto:${c.email}">${c.email || '-'}</a>
+                    </p>
+                    <p class="mb-0 small">
+                        <i class="bi bi-telephone me-1"></i>${c.phone || '-'}
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <div class="btn-group btn-group-sm w-100">
+                        <button class="btn btn-outline-primary" onclick="editContact('${c.id}')" title="Edit">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-info" onclick="sendEmail('${c.email}')" title="Send Email">
+                            <i class="bi bi-envelope"></i>
+                        </button>
+                        <button class="btn btn-outline-success" onclick="logActivity('${c.id}')" title="Log Activity">
+                            <i class="bi bi-journal-plus"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function filterContacts(searchTerm) {
+    const filtered = contactsData.filter(c =>
+        `${c.first_name} ${c.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (c.customer_name && c.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+    renderGrid(filtered);
+}
+
+function filterByCustomer(customerId) {
+    if (!customerId) {
+        renderGrid(contactsData);
+        return;
+    }
+    const customer = customersData.find(c => c.id === customerId);
+    if (customer) {
+        const filtered = contactsData.filter(c => c.customer_name === customer.name || c.partner_id === customerId);
+        renderGrid(filtered);
+    }
+}
+
+function clearFilters() {
+    document.getElementById('searchContacts').value = '';
+    document.getElementById('filterCustomer').value = '';
+    renderGrid(contactsData);
+}
+
+function showNewContactModal() {
+    document.getElementById('contactForm').reset();
+    document.getElementById('contactId').value = '';
+    document.getElementById('contactModalTitle').innerHTML = '<i class="bi bi-person-plus me-2"></i>New Contact';
+    const modal = new bootstrap.Modal(document.getElementById('contactModal'));
+    modal.show();
+}
+
+function editContact(id) {
+    const contact = contactsData.find(c => c.id === id);
+    if (!contact) return;
+
+    document.getElementById('contactId').value = contact.id;
+    document.getElementById('contactCustomer').value = contact.partner_id || '';
+    document.getElementById('contactFirstName').value = contact.first_name || '';
+    document.getElementById('contactLastName').value = contact.last_name || '';
+    document.getElementById('contactTitle').value = contact.title || '';
+    document.getElementById('contactDepartment').value = contact.department || '';
+    document.getElementById('contactEmail').value = contact.email || '';
+    document.getElementById('contactPhone').value = contact.phone || '';
+    document.getElementById('contactMobile').value = contact.mobile || '';
+    document.getElementById('contactPrimary').checked = contact.is_primary || false;
+    document.getElementById('contactNotes').value = contact.notes || '';
+
+    document.getElementById('contactModalTitle').innerHTML = '<i class="bi bi-person me-2"></i>Edit Contact';
+    const modal = new bootstrap.Modal(document.getElementById('contactModal'));
+    modal.show();
+}
+
+async function saveContact() {
+    const id = document.getElementById('contactId').value;
+    const data = {
+        partner_id: document.getElementById('contactCustomer').value,
+        first_name: document.getElementById('contactFirstName').value,
+        last_name: document.getElementById('contactLastName').value,
+        title: document.getElementById('contactTitle').value,
+        department: document.getElementById('contactDepartment').value,
+        email: document.getElementById('contactEmail').value,
+        phone: document.getElementById('contactPhone').value,
+        mobile: document.getElementById('contactMobile').value,
+        is_primary: document.getElementById('contactPrimary').checked,
+        notes: document.getElementById('contactNotes').value
+    };
+
+    try {
+        const url = id ? `/api/crm/contacts/${id}` : '/api/crm/contacts';
+        const method = id ? 'PUT' : 'POST';
+
+        const response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('contactModal')).hide();
+            loadContacts();
+        } else {
+            alert('Failed to save contact');
+        }
+    } catch (error) {
+        console.error('Error saving contact:', error);
+        alert('Failed to save contact');
+    }
+}
+
+function sendEmail(email) {
+    if (email) {
+        window.location.href = `mailto:${email}`;
+    }
+}
+
+function logActivity(id) {
+    window.location.href = `/crm/activities?contact_id=${id}`;
+}
+
+function exportContacts() {
+    alert('Export functionality would generate a CSV of all contacts');
+}
+</script>
+{% endblock %}

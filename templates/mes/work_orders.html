@@ -1,0 +1,1442 @@
+{% extends "base.html" %}
+
+{% block title %}Work Orders - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Work Orders</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-clipboard-check me-2"></i>Work Orders</h2>
+    <div class="btn-group">
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createWOModal">
+            <i class="bi bi-plus-circle"></i> New Work Order
+        </button>
+        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#filterModal">
+            <i class="bi bi-funnel"></i> Filter
+        </button>
+        <button class="btn btn-outline-secondary" onclick="workOrderDashboard.refresh()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Status Summary -->
+<div class="row g-3 mb-4">
+    <div class="col-md-2">
+        <div class="card text-center status-card" data-status="draft" onclick="workOrderDashboard.filterByStatus('draft')">
+            <div class="card-body py-2">
+                <h4 class="mb-0 text-secondary" id="draftCount">0</h4>
+                <small class="text-muted">Draft</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center status-card" data-status="released" onclick="workOrderDashboard.filterByStatus('released')">
+            <div class="card-body py-2">
+                <h4 class="mb-0 text-info" id="releasedCount">0</h4>
+                <small class="text-muted">Released</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center status-card" data-status="in_progress" onclick="workOrderDashboard.filterByStatus('in_progress')">
+            <div class="card-body py-2">
+                <h4 class="mb-0 text-primary" id="inProgressCount">0</h4>
+                <small class="text-muted">In Progress</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center status-card" data-status="on_hold" onclick="workOrderDashboard.filterByStatus('on_hold')">
+            <div class="card-body py-2">
+                <h4 class="mb-0 text-warning" id="onHoldCount">0</h4>
+                <small class="text-muted">On Hold</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center status-card" data-status="completed" onclick="workOrderDashboard.filterByStatus('completed')">
+            <div class="card-body py-2">
+                <h4 class="mb-0 text-success" id="completedCount">0</h4>
+                <small class="text-muted">Completed</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-2">
+        <div class="card text-center status-card" data-status="cancelled" onclick="workOrderDashboard.filterByStatus('cancelled')">
+            <div class="card-body py-2">
+                <h4 class="mb-0 text-danger" id="cancelledCount">0</h4>
+                <small class="text-muted">Cancelled</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Actions Bar (hidden until selection) -->
+<div class="card mb-3" id="bulkActionsBar" style="display: none;">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <span class="me-3"><strong id="selectedCount">0</strong> work orders selected</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="workOrderDashboard.clearSelection()">
+                    Clear Selection
+                </button>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-sm btn-primary" onclick="workOrderDashboard.bulkRelease()" id="bulkReleaseBtn">
+                    <i class="bi bi-play me-1"></i>Release
+                </button>
+                <button class="btn btn-sm btn-warning" onclick="workOrderDashboard.bulkHold()" id="bulkHoldBtn">
+                    <i class="bi bi-pause me-1"></i>Hold
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="workOrderDashboard.bulkCancel()" id="bulkCancelBtn">
+                    <i class="bi bi-x-circle me-1"></i>Cancel
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="workOrderDashboard.exportSelected()">
+                    <i class="bi bi-download me-1"></i>Export CSV
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Work Orders Table -->
+<div class="card" id="workOrdersCard">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <ul class="nav nav-tabs card-header-tabs" id="statusTabs">
+            <li class="nav-item">
+                <a class="nav-link active" href="#" data-filter="active">Active</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-filter="all">All</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="#" data-filter="completed">Completed</a>
+            </li>
+        </ul>
+        <button class="btn btn-sm btn-outline-secondary" onclick="workOrderDashboard.exportAll()">
+            <i class="bi bi-download me-1"></i>Export All
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 40px;">
+                            <input type="checkbox" class="form-check-input" id="selectAllCheckbox"
+                                   onchange="workOrderDashboard.toggleSelectAll(this.checked)">
+                        </th>
+                        <th class="sortable" data-sort="wo_number">WO Number <i class="bi bi-arrow-down-up"></i></th>
+                        <th>Product</th>
+                        <th class="text-end">Qty Ordered</th>
+                        <th class="text-end">Qty Complete</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Machine</th>
+                        <th class="sortable" data-sort="due_date">Due Date <i class="bi bi-arrow-down-up"></i></th>
+                        <th style="width: 120px;">Progress</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="workOrdersTableBody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer" id="workOrderPagination">
+        <!-- Pagination inserted here -->
+    </div>
+</div>
+
+<!-- Create Work Order Modal -->
+<div class="modal fade" id="createWOModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="createWOForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Work Order</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Product (SKU) <span class="text-danger">*</span></label>
+                            <select class="form-select" name="product_id" id="productSelect" required
+                                    onchange="workOrderDashboard.handleProductChange(this)">
+                                <option value="">Select product...</option>
+                                <!-- Populated dynamically from LEGO catalog -->
+                            </select>
+                            <small class="text-muted">Format: PartNumber-Material-Color</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" name="quantity_ordered" min="1" value="1" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Manufacturing Routing</label>
+                            <select class="form-select" name="routing_id" id="routingSelect">
+                                <option value="">Auto-select from product...</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                            <small class="text-muted">Operations auto-generated from routing</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select" name="priority">
+                                <option value="8">Low</option>
+                                <option value="5" selected>Normal</option>
+                                <option value="3">High</option>
+                                <option value="1">Rush</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Due Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" name="due_date" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Sales Order (Optional)</label>
+                            <input type="text" class="form-control" name="sales_order" placeholder="SO-2024-XXX">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Customer (Optional)</label>
+                            <select class="form-select" name="customer_id" id="customerSelect">
+                                <option value="">Select customer...</option>
+                                <!-- Populated dynamically -->
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" name="notes" rows="2"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="createWOBtn">
+                        <i class="bi bi-plus-circle me-1"></i>Create Work Order
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Work Order Action Modal (for hold reason, etc.) -->
+<div class="modal fade" id="actionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="actionModalTitle">Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3" id="actionReasonField">
+                    <label class="form-label">Reason</label>
+                    <textarea class="form-control" id="actionReason" rows="2"></textarea>
+                </div>
+                <div class="mb-3" id="actionMachineField" style="display: none;">
+                    <label class="form-label">Assign Machine</label>
+                    <select class="form-select" id="actionMachine">
+                        <option value="">Select machine...</option>
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmActionBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Modal -->
+<div class="modal fade" id="filterModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Filter Work Orders</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="filterStatus">
+                        <option value="">All Statuses</option>
+                        <option value="draft">Draft</option>
+                        <option value="released">Released</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="on_hold">On Hold</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" id="filterPriority">
+                        <option value="">All Priorities</option>
+                        <option value="rush">Rush</option>
+                        <option value="high">High</option>
+                        <option value="normal">Normal</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Due Date Range</label>
+                    <div class="row g-2">
+                        <div class="col">
+                            <input type="date" class="form-control" id="filterDueDateStart" placeholder="From">
+                        </div>
+                        <div class="col">
+                            <input type="date" class="form-control" id="filterDueDateEnd" placeholder="To">
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Search</label>
+                    <input type="text" class="form-control" id="filterSearch" placeholder="WO number, product, customer...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" onclick="workOrderDashboard.clearFilters()">Clear</button>
+                <button type="button" class="btn btn-primary" onclick="workOrderDashboard.applyFilters()">Apply Filters</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-card {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .status-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .status-card.active {
+        border: 2px solid var(--lego-blue);
+    }
+
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .sortable:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    .priority-rush { background-color: #dc3545; color: white; }
+    .priority-high { background-color: #fd7e14; color: white; }
+    .priority-normal { background-color: #0dcaf0; }
+    .priority-low { background-color: #6c757d; color: white; }
+
+    .wo-row {
+        transition: background-color 0.3s;
+    }
+
+    .wo-row.updated {
+        background-color: rgba(16, 185, 129, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Dashboard JS files -->
+<script src="/static/js/api_client.js"></script>
+<script src="/static/js/dashboard_common.js"></script>
+<script src="/static/js/socket_handlers.js"></script>
+
+<script>
+/**
+ * Work Order Dashboard Controller
+ */
+class WorkOrderDashboard {
+    constructor() {
+        this.workOrders = [];
+        this.selectedWorkOrders = new Set();
+        this.filters = {
+            status: '',
+            priority: '',
+            dueDateStart: null,
+            dueDateEnd: null,
+            search: '',
+            tab: 'active',
+        };
+        this.sort = { field: 'due_date', direction: 'asc' };
+        this.currentAction = null;
+        this.currentWONumber = null;
+
+        // Initialize pagination
+        this.pagination = new TablePagination({
+            container: '#workOrderPagination',
+            pageSize: 25,
+            onPageChange: (page) => this.loadWorkOrders(page),
+        });
+
+        // Initialize socket handler
+        this.socketHandler = new WorkOrderSocketHandler(socketManager, {
+            onCreated: (data) => this.handleWorkOrderCreated(data),
+            onUpdated: (data) => this.handleWorkOrderUpdated(data),
+            onStatusChanged: (data) => this.handleStatusChanged(data),
+            onCompleted: (data) => this.handleWorkOrderCompleted(data),
+        });
+
+        this.init();
+    }
+
+    async init() {
+        this.setupEventListeners();
+        await this.loadWorkOrders();
+        await this.loadProducts();
+        await this.loadRoutings();
+        await this.loadCustomers();
+        await this.loadMachines();
+        showConnectionIndicator();
+    }
+
+    setupEventListeners() {
+        // Tab filtering
+        document.querySelectorAll('#statusTabs [data-filter]').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                e.preventDefault();
+                document.querySelectorAll('#statusTabs .nav-link').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                this.filters.tab = tab.dataset.filter;
+                this.loadWorkOrders();
+            });
+        });
+
+        // Sortable headers
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.addEventListener('click', () => {
+                const field = header.dataset.sort;
+                if (this.sort.field === field) {
+                    this.sort.direction = this.sort.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    this.sort.field = field;
+                    this.sort.direction = 'asc';
+                }
+                this.loadWorkOrders();
+            });
+        });
+
+        // Create work order form
+        document.getElementById('createWOForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.createWorkOrder();
+        });
+
+        // Set default due date to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.querySelector('input[name="due_date"]').value = tomorrow.toISOString().split('T')[0];
+    }
+
+    /**
+     * Load work orders from API
+     */
+    async loadWorkOrders(page = 1) {
+        const card = document.getElementById('workOrdersCard');
+        LoadingSpinner.show(card);
+
+        try {
+            const params = {
+                page,
+                page_size: this.pagination.pageSize,
+                sort_by: this.sort.field,
+                sort_dir: this.sort.direction,
+                ...this.getFilterParams(),
+            };
+
+            const response = await mesApi.getWorkOrders(params);
+            this.workOrders = response.work_orders || response.data || [];
+
+            // Load demo data if empty
+            if (this.workOrders.length === 0) {
+                this.loadDemoWorkOrders();
+            }
+
+            this.renderWorkOrders();
+            this.pagination.update(response.total || this.workOrders.length, page);
+            this.updateStatusCounts(response.summary || this.getDemoStatusCounts());
+
+        } catch (error) {
+            console.error('Failed to load work orders:', error);
+            // Load demo data on error
+            this.loadDemoWorkOrders();
+            this.renderWorkOrders();
+            this.pagination.update(this.workOrders.length, page);
+            this.updateStatusCounts(this.getDemoStatusCounts());
+        } finally {
+            LoadingSpinner.hide(card);
+        }
+    }
+
+    /**
+     * Load demo work orders for testing
+     */
+    loadDemoWorkOrders() {
+        const now = new Date();
+        const products = ['2x4 Red Brick', '2x2 Blue Brick', '1x4 Yellow Brick', 'Custom Gear 24T', 'Baseplate 32x32'];
+        const statuses = ['draft', 'released', 'in_progress', 'on_hold', 'completed'];
+        const priorities = ['low', 'normal', 'high', 'rush'];
+        const machines = ['bantam-explorer', 'bambu-ps1', 'coastrunner-cr1', 'rownd-lathe'];
+
+        this.workOrders = [];
+        for (let i = 1; i <= 12; i++) {
+            const status = statuses[Math.floor(Math.random() * statuses.length)];
+            const qtyOrdered = Math.floor(Math.random() * 500) + 50;
+            const qtyComplete = status === 'completed' ? qtyOrdered :
+                               status === 'in_progress' ? Math.floor(qtyOrdered * Math.random()) : 0;
+
+            this.workOrders.push({
+                wo_number: `WO-2024-${String(i).padStart(4, '0')}`,
+                work_order_id: `WO-2024-${String(i).padStart(4, '0')}`,
+                product: products[Math.floor(Math.random() * products.length)],
+                product_id: products[Math.floor(Math.random() * products.length)],
+                qty_ordered: qtyOrdered,
+                quantity_ordered: qtyOrdered,
+                qty_complete: qtyComplete,
+                quantity_completed: qtyComplete,
+                status: status,
+                priority: Math.floor(Math.random() * 10) + 1,
+                machine_id: machines[Math.floor(Math.random() * machines.length)],
+                due_date: new Date(now.getTime() + (Math.random() * 14 - 3) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                created_at: new Date(now.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+                demo: true
+            });
+        }
+    }
+
+    /**
+     * Get demo status counts
+     */
+    getDemoStatusCounts() {
+        const counts = { draft: 0, released: 0, in_progress: 0, on_hold: 0, completed: 0, cancelled: 0 };
+        this.workOrders.forEach(wo => {
+            if (counts[wo.status] !== undefined) {
+                counts[wo.status]++;
+            }
+        });
+        return counts;
+    }
+
+    /**
+     * Get filter parameters for API
+     */
+    getFilterParams() {
+        const params = {};
+
+        // Tab filter
+        if (this.filters.tab === 'active') {
+            params.active = true;
+        } else if (this.filters.tab === 'completed') {
+            params.status = 'completed';
+        }
+
+        // Other filters
+        if (this.filters.status) {
+            params.status = this.filters.status;
+        }
+        if (this.filters.priority) {
+            params.priority = this.filters.priority;
+        }
+        if (this.filters.dueDateStart) {
+            params.due_date_start = this.filters.dueDateStart;
+        }
+        if (this.filters.dueDateEnd) {
+            params.due_date_end = this.filters.dueDateEnd;
+        }
+        if (this.filters.search) {
+            params.search = this.filters.search;
+        }
+
+        return params;
+    }
+
+    /**
+     * Render work orders table
+     */
+    renderWorkOrders() {
+        const tbody = document.getElementById('workOrdersTableBody');
+
+        if (this.workOrders.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="10" class="text-center text-muted py-4">
+                        <i class="bi bi-clipboard display-6 d-block mb-2"></i>
+                        No work orders found
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        const statusColors = {
+            draft: 'secondary',
+            released: 'info',
+            in_progress: 'primary',
+            on_hold: 'warning',
+            completed: 'success',
+            cancelled: 'danger',
+        };
+
+        tbody.innerHTML = this.workOrders.map(wo => {
+            const woNumber = wo.wo_number || wo.work_order_id || wo.number;
+            const progress = wo.qty_ordered > 0
+                ? Math.round((wo.qty_complete / wo.qty_ordered) * 100)
+                : 0;
+            const statusColor = statusColors[wo.status] || 'secondary';
+            const isOverdue = new Date(wo.due_date) < new Date() && wo.status !== 'completed';
+            const isSelected = this.selectedWorkOrders.has(woNumber);
+
+            return `
+                <tr class="wo-row ${isSelected ? 'table-active' : ''}" data-wo="${woNumber}">
+                    <td>
+                        <input type="checkbox" class="form-check-input wo-checkbox"
+                               data-wo="${woNumber}"
+                               ${isSelected ? 'checked' : ''}
+                               onchange="workOrderDashboard.toggleSelection('${woNumber}', this.checked)">
+                    </td>
+                    <td>
+                        <a href="${this.getDetailUrl(woNumber)}" class="fw-bold text-decoration-none">
+                            ${woNumber}
+                        </a>
+                    </td>
+                    <td>${wo.product || wo.item_name || '-'}</td>
+                    <td class="text-end">${(wo.qty_ordered || 0).toLocaleString()}</td>
+                    <td class="text-end">${(wo.qty_complete || 0).toLocaleString()}</td>
+                    <td>
+                        <span class="badge ${this.getPriorityBadgeClass(wo.priority)}">
+                            ${this.getPriorityLabel(wo.priority)}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge bg-${statusColor}">
+                            ${(wo.status || 'draft').replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                        </span>
+                    </td>
+                    <td>${wo.machine || wo.machine_name || '-'}</td>
+                    <td class="${isOverdue ? 'text-danger fw-bold' : ''}">${wo.due_date || '-'}</td>
+                    <td>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar ${progress === 100 ? 'bg-success' : progress > 0 ? 'bg-primary' : ''}"
+                                 style="width: ${progress}%">
+                                ${progress}%
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        ${this.renderActions(wo)}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Render action buttons based on status
+     */
+    renderActions(wo) {
+        const woNumber = wo.wo_number || wo.number;
+        const status = wo.status;
+
+        const actions = [];
+
+        // View details
+        actions.push(`
+            <a href="${this.getDetailUrl(woNumber)}" class="dropdown-item">
+                <i class="bi bi-eye me-2"></i>View Details
+            </a>
+        `);
+
+        // Status-specific actions
+        if (status === 'draft') {
+            actions.push(`
+                <a class="dropdown-item" href="#" onclick="workOrderDashboard.releaseWorkOrder('${woNumber}')">
+                    <i class="bi bi-play me-2"></i>Release
+                </a>
+            `);
+        } else if (status === 'released') {
+            actions.push(`
+                <a class="dropdown-item" href="#" onclick="workOrderDashboard.startWorkOrder('${woNumber}')">
+                    <i class="bi bi-play-fill me-2"></i>Start
+                </a>
+            `);
+        } else if (status === 'in_progress') {
+            actions.push(`
+                <a class="dropdown-item" href="#" onclick="workOrderDashboard.showHoldDialog('${woNumber}')">
+                    <i class="bi bi-pause me-2"></i>Hold
+                </a>
+                <a class="dropdown-item" href="#" onclick="workOrderDashboard.completeWorkOrder('${woNumber}')">
+                    <i class="bi bi-check-circle me-2"></i>Complete
+                </a>
+            `);
+        } else if (status === 'on_hold') {
+            actions.push(`
+                <a class="dropdown-item" href="#" onclick="workOrderDashboard.resumeWorkOrder('${woNumber}')">
+                    <i class="bi bi-play me-2"></i>Resume
+                </a>
+            `);
+        }
+
+        // Print action
+        actions.push(`
+            <li><hr class="dropdown-divider"></li>
+            <a class="dropdown-item" href="#" onclick="workOrderDashboard.printWorkOrder('${woNumber}')">
+                <i class="bi bi-printer me-2"></i>Print
+            </a>
+        `);
+
+        return `
+            <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="bi bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    ${actions.join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    /**
+     * Update status count cards
+     */
+    updateStatusCounts(summary) {
+        document.getElementById('draftCount').textContent = summary.draft || 0;
+        document.getElementById('releasedCount').textContent = summary.released || 0;
+        document.getElementById('inProgressCount').textContent = summary.in_progress || 0;
+        document.getElementById('onHoldCount').textContent = summary.on_hold || 0;
+        document.getElementById('completedCount').textContent = summary.completed || 0;
+        document.getElementById('cancelledCount').textContent = summary.cancelled || 0;
+    }
+
+    /**
+     * Create new work order
+     */
+    async createWorkOrder() {
+        const form = document.getElementById('createWOForm');
+        const formData = new FormData(form);
+        const rawData = Object.fromEntries(formData.entries());
+
+        // Get selected product option for routing info
+        const productSelect = document.getElementById('productSelect');
+        const selectedOption = productSelect.selectedOptions[0];
+        const productRoutingId = selectedOption?.dataset?.routingId;
+
+        // Transform data to match API schema
+        const data = {
+            product_id: rawData.product_id,
+            quantity_ordered: parseInt(rawData.quantity_ordered, 10) || 1,
+            priority: parseInt(rawData.priority, 10) || 5,
+            due_date: rawData.due_date || null,
+            description: rawData.description || rawData.notes || null,
+            customer_id: rawData.customer_id || null,
+            // Include routing_id - use form value or auto-detected from product
+            routing_id: rawData.routing_id || productRoutingId || null,
+            auto_generate_operations: true,
+        };
+
+        // Remove null/empty values
+        Object.keys(data).forEach(key => {
+            if (data[key] === null || data[key] === '') {
+                delete data[key];
+            }
+        });
+
+        const btn = document.getElementById('createWOBtn');
+        const restore = LoadingSpinner.button(btn, 'Creating...');
+
+        try {
+            const response = await mesApi.createWorkOrder(data);
+            const woId = response.work_order_id || response.wo_number || response.number;
+            const opsCreated = response.operations_created || 0;
+
+            let msg = `Work Order ${woId} created`;
+            if (opsCreated > 0) {
+                msg += ` with ${opsCreated} operations`;
+            }
+            Toast.success(msg);
+
+            // Close modal and refresh
+            bootstrap.Modal.getInstance(document.getElementById('createWOModal')).hide();
+            form.reset();
+            await this.loadWorkOrders();
+
+        } catch (error) {
+            console.error('Failed to create work order:', error);
+            Toast.apiError(error);
+        } finally {
+            restore();
+        }
+    }
+
+    /**
+     * Release work order
+     */
+    async releaseWorkOrder(woNumber) {
+        try {
+            await mesApi.releaseWorkOrder(woNumber);
+            Toast.success(`Work Order ${woNumber} released`);
+            await this.loadWorkOrders(this.pagination.currentPage);
+        } catch (error) {
+            console.error('Failed to release work order:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Start work order
+     */
+    async startWorkOrder(woNumber) {
+        this.currentWONumber = woNumber;
+        this.currentAction = 'start';
+
+        document.getElementById('actionModalTitle').textContent = 'Start Work Order';
+        document.getElementById('actionReasonField').style.display = 'none';
+        document.getElementById('actionMachineField').style.display = 'block';
+
+        document.getElementById('confirmActionBtn').onclick = () => this.confirmAction();
+
+        new bootstrap.Modal(document.getElementById('actionModal')).show();
+    }
+
+    /**
+     * Show hold dialog
+     */
+    showHoldDialog(woNumber) {
+        this.currentWONumber = woNumber;
+        this.currentAction = 'hold';
+
+        document.getElementById('actionModalTitle').textContent = 'Hold Work Order';
+        document.getElementById('actionReasonField').style.display = 'block';
+        document.getElementById('actionMachineField').style.display = 'none';
+
+        document.getElementById('confirmActionBtn').onclick = () => this.confirmAction();
+
+        new bootstrap.Modal(document.getElementById('actionModal')).show();
+    }
+
+    /**
+     * Confirm action from modal
+     */
+    async confirmAction() {
+        const woNumber = this.currentWONumber;
+
+        try {
+            if (this.currentAction === 'start') {
+                const machineId = document.getElementById('actionMachine').value;
+                await mesApi.startWorkOrder(woNumber, machineId || null);
+                Toast.success(`Work Order ${woNumber} started`);
+            } else if (this.currentAction === 'hold') {
+                const reason = document.getElementById('actionReason').value;
+                await mesApi.holdWorkOrder(woNumber, reason);
+                Toast.success(`Work Order ${woNumber} placed on hold`);
+            }
+
+            bootstrap.Modal.getInstance(document.getElementById('actionModal')).hide();
+            await this.loadWorkOrders(this.pagination.currentPage);
+
+        } catch (error) {
+            console.error('Failed to perform action:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Resume work order
+     */
+    async resumeWorkOrder(woNumber) {
+        try {
+            await mesApi.resumeWorkOrder(woNumber);
+            Toast.success(`Work Order ${woNumber} resumed`);
+            await this.loadWorkOrders(this.pagination.currentPage);
+        } catch (error) {
+            console.error('Failed to resume work order:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Complete work order
+     */
+    async completeWorkOrder(woNumber) {
+        const confirmed = await DashboardUtils.confirm(
+            'Mark this work order as complete?',
+            { title: 'Complete Work Order', confirmText: 'Complete', confirmVariant: 'success' }
+        );
+
+        if (!confirmed) return;
+
+        try {
+            await mesApi.completeWorkOrder(woNumber);
+            Toast.success(`Work Order ${woNumber} completed`);
+            await this.loadWorkOrders(this.pagination.currentPage);
+        } catch (error) {
+            console.error('Failed to complete work order:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Print work order
+     */
+    printWorkOrder(woNumber) {
+        window.open(`/mes/work-orders/${woNumber}/print`, '_blank');
+    }
+
+    /**
+     * Filter by status card click
+     */
+    filterByStatus(status) {
+        // Update card highlight
+        document.querySelectorAll('.status-card').forEach(card => {
+            card.classList.remove('active');
+            if (card.dataset.status === status) {
+                card.classList.add('active');
+            }
+        });
+
+        // Clear tab active state
+        document.querySelectorAll('#statusTabs .nav-link').forEach(t => t.classList.remove('active'));
+
+        this.filters.status = status;
+        this.filters.tab = '';
+        this.loadWorkOrders();
+    }
+
+    /**
+     * Apply filters from modal
+     */
+    applyFilters() {
+        this.filters.status = document.getElementById('filterStatus').value;
+        this.filters.priority = document.getElementById('filterPriority').value;
+        this.filters.dueDateStart = document.getElementById('filterDueDateStart').value;
+        this.filters.dueDateEnd = document.getElementById('filterDueDateEnd').value;
+        this.filters.search = document.getElementById('filterSearch').value;
+
+        bootstrap.Modal.getInstance(document.getElementById('filterModal')).hide();
+        this.loadWorkOrders();
+    }
+
+    /**
+     * Clear filters
+     */
+    clearFilters() {
+        document.getElementById('filterStatus').value = '';
+        document.getElementById('filterPriority').value = '';
+        document.getElementById('filterDueDateStart').value = '';
+        document.getElementById('filterDueDateEnd').value = '';
+        document.getElementById('filterSearch').value = '';
+
+        this.filters = {
+            status: '',
+            priority: '',
+            dueDateStart: null,
+            dueDateEnd: null,
+            search: '',
+            tab: 'active',
+        };
+
+        // Reset tabs
+        document.querySelectorAll('#statusTabs .nav-link').forEach(t => t.classList.remove('active'));
+        document.querySelector('#statusTabs [data-filter="active"]').classList.add('active');
+
+        // Reset status cards
+        document.querySelectorAll('.status-card').forEach(card => card.classList.remove('active'));
+
+        this.loadWorkOrders();
+    }
+
+    /**
+     * Refresh data
+     */
+    refresh() {
+        this.loadWorkOrders(this.pagination.currentPage);
+    }
+
+    /**
+     * Load products for dropdown
+     */
+    async loadProducts() {
+        const select = document.getElementById('productSelect');
+
+        try {
+            // Load LEGO products from catalog
+            const response = await api.get('/lego/products');
+            const products = response.products || [];
+
+            if (products.length > 0) {
+                // Group by part number for better UX
+                const grouped = {};
+                products.forEach(p => {
+                    const partNum = p.part_number;
+                    if (!grouped[partNum]) {
+                        grouped[partNum] = [];
+                    }
+                    grouped[partNum].push(p);
+                });
+
+                // Create optgroups by part
+                Object.entries(grouped).forEach(([partNum, items]) => {
+                    const partName = items[0].part_name || partNum;
+                    const group = document.createElement('optgroup');
+                    group.label = `${partName} (${partNum})`;
+
+                    items.forEach(p => {
+                        const option = document.createElement('option');
+                        option.value = p.sku;
+                        option.textContent = `${p.material_code} - ${p.color_name || p.color_code}`;
+                        option.dataset.routingId = p.routing_id || '';
+                        option.dataset.partName = p.part_name || '';
+                        option.dataset.materialCode = p.material_code || '';
+                        select.appendChild(option);
+                        group.appendChild(option);
+                    });
+
+                    select.appendChild(group);
+                });
+                return;
+            }
+        } catch (error) {
+            console.log('LEGO products not available, trying ERP items');
+        }
+
+        // Fallback to ERP items
+        try {
+            const response = await api.get('/erp/items', { type: 'product' });
+            const products = response.items || response.data || [];
+
+            products.forEach(p => {
+                const option = document.createElement('option');
+                option.value = p.item_id || p.id;
+                option.textContent = p.name || p.description;
+                select.appendChild(option);
+            });
+            return;
+        } catch (error) {
+            console.log('ERP items not available, using defaults');
+        }
+
+        // Final fallback: default demo products
+        const defaults = [
+            { sku: '3001-ABS-RED', name: 'Brick 2x4 - ABS Red', routing: 'FDM-STANDARD' },
+            { sku: '3001-ABS-BLU', name: 'Brick 2x4 - ABS Blue', routing: 'FDM-STANDARD' },
+            { sku: '3001-ALU-RAW', name: 'Brick 2x4 - Aluminum Raw', routing: 'CNC-STANDARD' },
+            { sku: '3020-ABS-RED', name: 'Plate 2x4 - ABS Red', routing: 'FDM-STANDARD' },
+            { sku: '3040-ABS-BLK', name: 'Slope 45 1x2 - ABS Black', routing: 'FDM-STANDARD' },
+            { sku: '3700-ALU-RAW', name: 'Technic Brick 1x2 - Aluminum', routing: 'CNC-STANDARD' },
+        ];
+
+        defaults.forEach(p => {
+            const option = document.createElement('option');
+            option.value = p.sku;
+            option.textContent = p.name;
+            option.dataset.routingId = p.routing;
+            select.appendChild(option);
+        });
+    }
+
+    /**
+     * Load available routings for dropdown
+     */
+    async loadRoutings() {
+        const select = document.getElementById('routingSelect');
+        if (!select) return;
+
+        try {
+            const response = await api.get('/lego/routings');
+            const routings = response.routings || [];
+
+            routings.forEach(r => {
+                const option = document.createElement('option');
+                option.value = r.routing_id;
+                option.textContent = `${r.name} (${r.process_type})`;
+                option.dataset.processType = r.process_type || '';
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.log('Using default routings');
+            const defaults = [
+                { id: 'FDM-STANDARD', name: 'FDM 3D Print Standard', type: 'fdm' },
+                { id: 'CNC-STANDARD', name: 'CNC Mill Standard', type: 'cnc_mill' },
+                { id: 'SLA-STANDARD', name: 'SLA Resin Print', type: 'sla' },
+            ];
+            defaults.forEach(r => {
+                const option = document.createElement('option');
+                option.value = r.id;
+                option.textContent = `${r.name} (${r.type})`;
+                select.appendChild(option);
+            });
+        }
+    }
+
+    /**
+     * Handle product selection change - auto-select routing
+     */
+    handleProductChange(selectElement) {
+        const selectedOption = selectElement.selectedOptions[0];
+        const routingId = selectedOption?.dataset?.routingId;
+        const routingSelect = document.getElementById('routingSelect');
+
+        if (routingSelect && routingId) {
+            // Auto-select the matching routing
+            const routingOption = routingSelect.querySelector(`option[value="${routingId}"]`);
+            if (routingOption) {
+                routingSelect.value = routingId;
+            }
+        }
+    }
+
+    /**
+     * Load customers for dropdown
+     */
+    async loadCustomers() {
+        try {
+            const response = await api.get('/erp/customers');
+            const customers = response.customers || response.data || [];
+
+            const select = document.getElementById('customerSelect');
+            customers.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.customer_id || c.id;
+                option.textContent = c.name;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.log('Using default customers');
+            const defaults = [
+                { id: 'CUST-001', name: 'LEGO Direct' },
+                { id: 'CUST-002', name: 'Brick Builders Inc' },
+            ];
+            const select = document.getElementById('customerSelect');
+            defaults.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c.id;
+                option.textContent = c.name;
+                select.appendChild(option);
+            });
+        }
+    }
+
+    /**
+     * Load machines for dropdown
+     */
+    async loadMachines() {
+        try {
+            const response = await scadaApi.getMachines();
+            const machines = response.machines || response.data || [];
+
+            const select = document.getElementById('actionMachine');
+            machines.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m.id || m.machine_id;
+                option.textContent = m.name;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.log('Using default machines');
+            const defaults = [
+                { id: 'PRUSA-MK4-1', name: 'Prusa MK4 #1' },
+                { id: 'PRUSA-MK4-2', name: 'Prusa MK4 #2' },
+                { id: 'BAMBU-X1C', name: 'Bambu X1C' },
+            ];
+            const select = document.getElementById('actionMachine');
+            defaults.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m.id;
+                option.textContent = m.name;
+                select.appendChild(option);
+            });
+        }
+    }
+
+    /**
+     * Get priority badge CSS class
+     */
+    getPriorityBadgeClass(priority) {
+        // Handle numeric priorities (1-10 scale)
+        if (typeof priority === 'number') {
+            if (priority >= 8) return 'bg-danger';
+            if (priority >= 5) return 'bg-warning text-dark';
+            if (priority >= 3) return 'bg-info';
+            return 'bg-secondary';
+        }
+        // Handle string priorities
+        const classes = {
+            rush: 'bg-danger',
+            high: 'bg-warning text-dark',
+            normal: 'bg-info',
+            low: 'bg-secondary'
+        };
+        return classes[priority] || 'bg-secondary';
+    }
+
+    /**
+     * Get priority display label
+     */
+    getPriorityLabel(priority) {
+        // Handle numeric priorities
+        if (typeof priority === 'number') {
+            if (priority >= 8) return 'Urgent';
+            if (priority >= 5) return 'High';
+            if (priority >= 3) return 'Normal';
+            return 'Low';
+        }
+        // Handle string priorities
+        if (priority === 'rush') return 'RUSH';
+        return priority ? priority.charAt(0).toUpperCase() + priority.slice(1) : 'Normal';
+    }
+
+    /**
+     * Get detail URL for work order
+     */
+    getDetailUrl(woNumber) {
+        return `/mes/work-orders/${woNumber}`;
+    }
+
+    // WebSocket event handlers
+
+    handleWorkOrderCreated(data) {
+        Toast.info(`New Work Order: ${data.wo_number}`);
+        this.loadWorkOrders(this.pagination.currentPage);
+    }
+
+    handleWorkOrderUpdated(data) {
+        const row = document.querySelector(`tr[data-wo="${data.wo_number}"]`);
+        if (row) {
+            row.classList.add('updated');
+            setTimeout(() => row.classList.remove('updated'), 3000);
+        }
+        this.loadWorkOrders(this.pagination.currentPage);
+    }
+
+    handleStatusChanged(data) {
+        this.loadWorkOrders(this.pagination.currentPage);
+    }
+
+    handleWorkOrderCompleted(data) {
+        Toast.success(`Work Order ${data.wo_number} completed`);
+        this.loadWorkOrders(this.pagination.currentPage);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Bulk Selection Methods
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Toggle selection of a single work order
+     */
+    toggleSelection(woNumber, isSelected) {
+        if (isSelected) {
+            this.selectedWorkOrders.add(woNumber);
+        } else {
+            this.selectedWorkOrders.delete(woNumber);
+        }
+        this.updateBulkActionsBar();
+        this.updateSelectAllCheckbox();
+    }
+
+    /**
+     * Toggle select all work orders on current page
+     */
+    toggleSelectAll(isSelected) {
+        this.workOrders.forEach(wo => {
+            const woNumber = wo.wo_number || wo.work_order_id || wo.number;
+            if (isSelected) {
+                this.selectedWorkOrders.add(woNumber);
+            } else {
+                this.selectedWorkOrders.delete(woNumber);
+            }
+        });
+
+        // Update all checkboxes
+        document.querySelectorAll('.wo-checkbox').forEach(cb => {
+            cb.checked = isSelected;
+            cb.closest('tr').classList.toggle('table-active', isSelected);
+        });
+
+        this.updateBulkActionsBar();
+    }
+
+    /**
+     * Clear all selections
+     */
+    clearSelection() {
+        this.selectedWorkOrders.clear();
+        document.querySelectorAll('.wo-checkbox').forEach(cb => {
+            cb.checked = false;
+            cb.closest('tr').classList.remove('table-active');
+        });
+        document.getElementById('selectAllCheckbox').checked = false;
+        this.updateBulkActionsBar();
+    }
+
+    /**
+     * Update the select all checkbox state
+     */
+    updateSelectAllCheckbox() {
+        const checkboxes = document.querySelectorAll('.wo-checkbox');
+        const checkedCount = document.querySelectorAll('.wo-checkbox:checked').length;
+        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+
+        if (checkedCount === 0) {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = false;
+        } else if (checkedCount === checkboxes.length) {
+            selectAllCheckbox.checked = true;
+            selectAllCheckbox.indeterminate = false;
+        } else {
+            selectAllCheckbox.checked = false;
+            selectAllCheckbox.indeterminate = true;
+        }
+    }
+
+    /**
+     * Update bulk actions bar visibility
+     */
+    updateBulkActionsBar() {
+        const bar = document.getElementById('bulkActionsBar');
+        const count = this.selectedWorkOrders.size;
+
+        if (count > 0) {
+            bar.style.display = 'block';
+            document.getElementById('selectedCount').textContent = count;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
+    /**
+     * Bulk release selected work orders
+     */
+    async bulkRelease() {
+        const ids = Array.from(this.selectedWorkOrders);
+        if (ids.length === 0) return;
+
+        const confirmed = await DashboardUtils.confirm(
+            `Release ${ids.length} work orders?`,
+            { title: 'Bulk Release', confirmText: 'Release All', confirmVariant: 'primary' }
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch('/api/mes/work-orders/bulk/release', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ work_order_ids: ids })
+            });
+
+            const result = await response.json();
+            Toast.success(result.message);
+
+            this.clearSelection();
+            await this.loadWorkOrders(this.pagination.currentPage);
+        } catch (error) {
+            console.error('Bulk release failed:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Bulk hold selected work orders
+     */
+    async bulkHold() {
+        const ids = Array.from(this.selectedWorkOrders);
+        if (ids.length === 0) return;
+
+        // Show hold reason dialog
+        const reason = prompt(`Enter reason for holding ${ids.length} work orders (optional):`);
+
+        try {
+            const response = await fetch('/api/mes/work-orders/bulk/hold', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ work_order_ids: ids, reason: reason })
+            });
+
+            const result = await response.json();
+            Toast.success(result.message);
+
+            this.clearSelection();
+            await this.loadWorkOrders(this.pagination.currentPage);
+        } catch (error) {
+            console.error('Bulk hold failed:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Bulk cancel selected work orders
+     */
+    async bulkCancel() {
+        const ids = Array.from(this.selectedWorkOrders);
+        if (ids.length === 0) return;
+
+        const confirmed = await DashboardUtils.confirm(
+            `Cancel ${ids.length} work orders? This cannot be undone.`,
+            { title: 'Bulk Cancel', confirmText: 'Cancel All', confirmVariant: 'danger' }
+        );
+
+        if (!confirmed) return;
+
+        const reason = prompt('Enter cancellation reason (optional):');
+
+        try {
+            const response = await fetch('/api/mes/work-orders/bulk/cancel', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ work_order_ids: ids, reason: reason })
+            });
+
+            const result = await response.json();
+            Toast.success(result.message);
+
+            this.clearSelection();
+            await this.loadWorkOrders(this.pagination.currentPage);
+        } catch (error) {
+            console.error('Bulk cancel failed:', error);
+            Toast.apiError(error);
+        }
+    }
+
+    /**
+     * Export selected work orders to CSV
+     */
+    exportSelected() {
+        const ids = Array.from(this.selectedWorkOrders);
+        if (ids.length === 0) return;
+
+        const url = `/api/mes/work-orders/export?ids=${ids.join(',')}`;
+        window.location.href = url;
+    }
+
+    /**
+     * Export all work orders (with current filters)
+     */
+    exportAll() {
+        const params = this.getFilterParams();
+        const queryString = new URLSearchParams(params).toString();
+        const url = `/api/mes/work-orders/export${queryString ? '?' + queryString : ''}`;
+        window.location.href = url;
+    }
+}
+
+// Initialize dashboard
+const workOrderDashboard = new WorkOrderDashboard();
+</script>
+{% endblock %}

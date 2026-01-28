@@ -1,0 +1,838 @@
+{% extends "base.html" %}
+
+{% block title %}SPC Dashboard - LEGO Factory v3{% endblock %}
+
+{% block extra_css %}
+<style>
+.spc-chart-container {
+    position: relative;
+    height: 300px;
+}
+
+.violation-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+}
+
+.rule-violation {
+    border-left: 3px solid #dc3545;
+    padding-left: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.chart-selector {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.chart-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.chart-item:hover {
+    background-color: #f8f9fa;
+}
+
+.chart-item.active {
+    background-color: #e7f1ff;
+    border-left: 3px solid var(--lego-blue);
+}
+
+.capability-indicator {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.capability-good { background-color: #d4edda; color: #155724; }
+.capability-warning { background-color: #fff3cd; color: #856404; }
+.capability-bad { background-color: #f8d7da; color: #721c24; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="bi bi-graph-up me-2"></i>Statistical Process Control</h2>
+            <p class="text-muted mb-0">Real-time control charts with Western Electric rules</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newChartModal">
+                <i class="bi bi-plus-lg me-1"></i> New Chart
+            </button>
+            <button class="btn btn-outline-secondary" onclick="refreshAllCharts()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Active Charts</h6>
+                            <h3 class="mb-0" id="stat-active-charts">--</h3>
+                        </div>
+                        <i class="bi bi-bar-chart-line fs-1 text-primary opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card success h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">In Control</h6>
+                            <h3 class="mb-0" id="stat-in-control">--</h3>
+                        </div>
+                        <i class="bi bi-check-circle fs-1 text-success opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card danger h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Out of Control</h6>
+                            <h3 class="mb-0" id="stat-out-of-control">--</h3>
+                        </div>
+                        <i class="bi bi-exclamation-triangle fs-1 text-danger opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted mb-1">Readings Today</h6>
+                            <h3 class="mb-0" id="stat-readings-today">--</h3>
+                        </div>
+                        <i class="bi bi-clipboard-data fs-1 text-info opacity-25"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Chart Selector -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Control Charts</h6>
+                </div>
+                <div class="card-body p-0 chart-selector">
+                    <div class="list-group list-group-flush" id="chart-list">
+                        <!-- Charts loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Machine Filter -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Filter</h6>
+                </div>
+                <div class="card-body">
+                    <select class="form-select form-select-sm" id="machine-filter" onchange="filterCharts()">
+                        <option value="">All Machines</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Display -->
+        <div class="col-md-9">
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0" id="chart-title">Select a Chart</h5>
+                        <small class="text-muted" id="chart-subtitle"></small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-primary" onclick="addReadingModal()" id="btn-add-reading" disabled>
+                            <i class="bi bi-plus-lg"></i> Add Reading
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="recalculateLimits()" id="btn-recalculate" disabled>
+                            <i class="bi bi-calculator"></i> Recalculate Limits
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="spc-chart-container">
+                        <canvas id="spc-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- Control Limits -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h6 class="mb-0">Control Limits</h6>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm mb-0">
+                                <tr><td>UCL</td><td class="text-end fw-bold text-danger" id="limit-ucl">--</td></tr>
+                                <tr><td>+2σ Warning</td><td class="text-end text-warning" id="limit-warning-ucl">--</td></tr>
+                                <tr><td>Center Line</td><td class="text-end fw-bold text-success" id="limit-cl">--</td></tr>
+                                <tr><td>-2σ Warning</td><td class="text-end text-warning" id="limit-warning-lcl">--</td></tr>
+                                <tr><td>LCL</td><td class="text-end fw-bold text-danger" id="limit-lcl">--</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Process Capability -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <h6 class="mb-0">Process Capability</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-around">
+                                <div class="text-center">
+                                    <div class="capability-indicator mx-auto" id="cp-indicator">--</div>
+                                    <small class="text-muted">Cp</small>
+                                </div>
+                                <div class="text-center">
+                                    <div class="capability-indicator mx-auto" id="cpk-indicator">--</div>
+                                    <small class="text-muted">Cpk</small>
+                                </div>
+                            </div>
+                            <hr>
+                            <small class="text-muted">
+                                Cp ≥ 1.33 = Capable<br>
+                                Cpk ≥ 1.00 = Acceptable
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rule Violations -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">Rule Violations</h6>
+                            <span class="badge bg-danger" id="violation-count">0</span>
+                        </div>
+                        <div class="card-body p-2" style="max-height: 150px; overflow-y: auto;">
+                            <div id="violations-list">
+                                <p class="text-muted text-center small mb-0">No violations</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Chart Modal -->
+<div class="modal fade" id="newChartModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Control Chart</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="new-chart-form">
+                    <div class="mb-3">
+                        <label class="form-label">Chart ID</label>
+                        <input type="text" class="form-control" id="new-chart-id" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Name</label>
+                        <input type="text" class="form-control" id="new-chart-name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Characteristic</label>
+                        <input type="text" class="form-control" id="new-chart-characteristic" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Chart Type</label>
+                            <select class="form-select" id="new-chart-type">
+                                <option value="xbar_r">X-bar R</option>
+                                <option value="xbar_s">X-bar S</option>
+                                <option value="imr">Individual-MR</option>
+                                <option value="p">p-Chart</option>
+                                <option value="c">c-Chart</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Subgroup Size</label>
+                            <input type="number" class="form-control" id="new-chart-subgroup" value="5" min="1" max="10">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">LSL</label>
+                            <input type="number" step="0.001" class="form-control" id="new-chart-lsl">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Target</label>
+                            <input type="number" step="0.001" class="form-control" id="new-chart-target">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">USL</label>
+                            <input type="number" step="0.001" class="form-control" id="new-chart-usl">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Machine</label>
+                        <select class="form-select" id="new-chart-machine">
+                            <option value="">Select Machine</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createChart()">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Reading Modal -->
+<div class="modal fade" id="addReadingModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Reading</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="add-reading-form">
+                    <div class="mb-3">
+                        <label class="form-label">Measurements (comma-separated)</label>
+                        <input type="text" class="form-control" id="reading-values" placeholder="9.5, 9.6, 9.7, 9.5, 9.6" required>
+                        <small class="text-muted">Enter <span id="subgroup-size-hint">5</span> values</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Operator ID (optional)</label>
+                        <input type="text" class="form-control" id="reading-operator">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Work Order (optional)</label>
+                        <input type="text" class="form-control" id="reading-work-order">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes (optional)</label>
+                        <textarea class="form-control" id="reading-notes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addReading()">Add Reading</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let spcChart = null;
+let selectedChartId = null;
+let chartsData = [];
+
+// Western Electric rule descriptions
+const RULE_DESCRIPTIONS = {
+    'RULE1': '1 point beyond 3σ',
+    'RULE2': '2 of 3 points beyond 2σ (same side)',
+    'RULE3': '4 of 5 points beyond 1σ (same side)',
+    'RULE4': '8 consecutive points same side of CL',
+    'RULE5': '6 consecutive points increasing/decreasing',
+    'RULE6': '14 consecutive points alternating',
+    'RULE7': '15 consecutive points within 1σ (stratification)',
+    'RULE8': '8 consecutive points beyond 1σ both sides (mixture)',
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadCharts();
+    loadMachines();
+    initWebSocket();
+});
+
+async function loadCharts() {
+    try {
+        const response = await fetch('/api/qms/spc/charts');
+        chartsData = await response.json();
+        displayChartList(chartsData);
+        updateStats(chartsData);
+    } catch (error) {
+        console.error('Failed to load charts:', error);
+        displaySampleCharts();
+    }
+}
+
+function displaySampleCharts() {
+    chartsData = [
+        {
+            id: 'chart-1',
+            chart_id: 'BRICK-HEIGHT-001',
+            name: 'Brick Height - Line 1',
+            characteristic: 'Height',
+            chart_type: 'xbar_r',
+            machine_id: 'bambu-ps1',
+            ucl: 9.8,
+            lcl: 9.4,
+            center_line: 9.6,
+            is_out_of_control: false,
+        },
+        {
+            id: 'chart-2',
+            chart_id: 'STUD-DIA-001',
+            name: 'Stud Diameter',
+            characteristic: 'Diameter',
+            chart_type: 'xbar_r',
+            machine_id: 'prusa-mk4-1',
+            ucl: 4.90,
+            lcl: 4.80,
+            center_line: 4.85,
+            is_out_of_control: true,
+        },
+        {
+            id: 'chart-3',
+            chart_id: 'WEIGHT-001',
+            name: 'Part Weight',
+            characteristic: 'Weight',
+            chart_type: 'imr',
+            machine_id: 'bambu-ps2',
+            ucl: 2.4,
+            lcl: 2.2,
+            center_line: 2.3,
+            is_out_of_control: false,
+        },
+    ];
+    displayChartList(chartsData);
+    updateStats(chartsData);
+}
+
+function displayChartList(charts) {
+    const list = document.getElementById('chart-list');
+    if (charts.length === 0) {
+        list.innerHTML = '<div class="p-3 text-muted text-center">No charts found</div>';
+        return;
+    }
+
+    list.innerHTML = charts.map(chart => `
+        <a href="#" class="list-group-item list-group-item-action chart-item"
+           onclick="selectChart('${chart.id}')" id="chart-item-${chart.id}">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <div class="fw-bold">${chart.name}</div>
+                    <small class="text-muted">${chart.characteristic}</small>
+                </div>
+                ${chart.is_out_of_control ?
+                    '<span class="badge bg-danger">OOC</span>' :
+                    '<span class="badge bg-success">OK</span>'}
+            </div>
+        </a>
+    `).join('');
+}
+
+function updateStats(charts) {
+    const active = charts.length;
+    const outOfControl = charts.filter(c => c.is_out_of_control).length;
+    const inControl = active - outOfControl;
+
+    document.getElementById('stat-active-charts').textContent = active;
+    document.getElementById('stat-in-control').textContent = inControl;
+    document.getElementById('stat-out-of-control').textContent = outOfControl;
+    document.getElementById('stat-readings-today').textContent = '--';
+}
+
+async function selectChart(chartId) {
+    selectedChartId = chartId;
+
+    // Update active state
+    document.querySelectorAll('.chart-item').forEach(el => el.classList.remove('active'));
+    document.getElementById(`chart-item-${chartId}`)?.classList.add('active');
+
+    // Enable buttons
+    document.getElementById('btn-add-reading').disabled = false;
+    document.getElementById('btn-recalculate').disabled = false;
+
+    try {
+        const response = await fetch(`/api/qms/spc/charts/${chartId}/data`);
+        const data = await response.json();
+        displayChartData(data);
+    } catch (error) {
+        console.error('Failed to load chart data:', error);
+        displaySampleChartData(chartId);
+    }
+}
+
+function displaySampleChartData(chartId) {
+    const chart = chartsData.find(c => c.id === chartId);
+    if (!chart) return;
+
+    // Generate sample data
+    const sampleData = [];
+    const baseValue = chart.center_line || 9.6;
+    const sigma = (chart.ucl - chart.center_line) / 3;
+
+    for (let i = 0; i < 25; i++) {
+        const mean = baseValue + (Math.random() - 0.5) * sigma * 2;
+        const inControl = mean >= chart.lcl && mean <= chart.ucl;
+        sampleData.push({
+            sample_time: new Date(Date.now() - (24 - i) * 3600000).toISOString(),
+            mean: mean,
+            in_control: inControl,
+            rule_violations: inControl ? [] : ['RULE1'],
+        });
+    }
+
+    displayChartData({
+        chart: chart,
+        limits: {
+            ucl: chart.ucl,
+            lcl: chart.lcl,
+            center_line: chart.center_line,
+            warning_ucl: chart.center_line + (chart.ucl - chart.center_line) * 2/3,
+            warning_lcl: chart.center_line - (chart.center_line - chart.lcl) * 2/3,
+        },
+        data: sampleData,
+        summary: {
+            total_points: 25,
+            in_control_count: 23,
+            out_of_control_count: 2,
+            cp: 1.45,
+            cpk: 1.32,
+        },
+    });
+}
+
+function displayChartData(data) {
+    const chart = data.chart;
+    const limits = data.limits;
+
+    // Update header
+    document.getElementById('chart-title').textContent = chart.name;
+    document.getElementById('chart-subtitle').textContent =
+        `${chart.chart_type.toUpperCase()} | ${chart.characteristic} | ${chart.machine_id || 'All machines'}`;
+
+    // Update limits
+    document.getElementById('limit-ucl').textContent = limits.ucl?.toFixed(3) || '--';
+    document.getElementById('limit-warning-ucl').textContent = limits.warning_ucl?.toFixed(3) || '--';
+    document.getElementById('limit-cl').textContent = limits.center_line?.toFixed(3) || '--';
+    document.getElementById('limit-warning-lcl').textContent = limits.warning_lcl?.toFixed(3) || '--';
+    document.getElementById('limit-lcl').textContent = limits.lcl?.toFixed(3) || '--';
+
+    // Update capability
+    updateCapabilityIndicator('cp-indicator', data.summary.cp);
+    updateCapabilityIndicator('cpk-indicator', data.summary.cpk);
+
+    // Update violations
+    updateViolationsList(data.data);
+
+    // Update chart
+    renderSPCChart(data);
+}
+
+function updateCapabilityIndicator(elementId, value) {
+    const el = document.getElementById(elementId);
+    if (value === null || value === undefined) {
+        el.textContent = '--';
+        el.className = 'capability-indicator mx-auto';
+        return;
+    }
+
+    el.textContent = value.toFixed(2);
+    if (value >= 1.33) {
+        el.className = 'capability-indicator mx-auto capability-good';
+    } else if (value >= 1.0) {
+        el.className = 'capability-indicator mx-auto capability-warning';
+    } else {
+        el.className = 'capability-indicator mx-auto capability-bad';
+    }
+}
+
+function updateViolationsList(data) {
+    const violations = data.filter(d => d.rule_violations && d.rule_violations.length > 0);
+    const countEl = document.getElementById('violation-count');
+    const listEl = document.getElementById('violations-list');
+
+    countEl.textContent = violations.length;
+
+    if (violations.length === 0) {
+        listEl.innerHTML = '<p class="text-muted text-center small mb-0">No violations</p>';
+        return;
+    }
+
+    listEl.innerHTML = violations.slice(-10).reverse().map(v => `
+        <div class="rule-violation small">
+            <strong>${new Date(v.sample_time).toLocaleTimeString()}</strong>
+            ${v.rule_violations.map(r => `
+                <span class="badge violation-badge bg-danger">${r}</span>
+            `).join(' ')}
+        </div>
+    `).join('');
+}
+
+function renderSPCChart(data) {
+    const ctx = document.getElementById('spc-chart').getContext('2d');
+
+    if (spcChart) {
+        spcChart.destroy();
+    }
+
+    const chartData = data.data;
+    const limits = data.limits;
+
+    const labels = chartData.map(d => new Date(d.sample_time).toLocaleTimeString());
+    const means = chartData.map(d => d.mean);
+    const pointColors = chartData.map(d => d.in_control ? '#4CAF50' : '#f44336');
+
+    spcChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Mean',
+                    data: means,
+                    borderColor: '#2196F3',
+                    backgroundColor: pointColors,
+                    pointBackgroundColor: pointColors,
+                    pointRadius: 4,
+                    fill: false,
+                    tension: 0,
+                },
+                {
+                    label: 'UCL',
+                    data: Array(labels.length).fill(limits.ucl),
+                    borderColor: '#f44336',
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: 'LCL',
+                    data: Array(labels.length).fill(limits.lcl),
+                    borderColor: '#f44336',
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: 'Center',
+                    data: Array(labels.length).fill(limits.center_line),
+                    borderColor: '#4CAF50',
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: '+2σ',
+                    data: Array(labels.length).fill(limits.warning_ucl),
+                    borderColor: '#ff9800',
+                    borderDash: [3, 3],
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: '-2σ',
+                    data: Array(labels.length).fill(limits.warning_lcl),
+                    borderColor: '#ff9800',
+                    borderDash: [3, 3],
+                    pointRadius: 0,
+                    fill: false,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: function(context) {
+                            if (context.datasetIndex === 0) {
+                                const point = chartData[context.dataIndex];
+                                if (point.rule_violations && point.rule_violations.length > 0) {
+                                    return 'Violations: ' + point.rule_violations.join(', ');
+                                }
+                            }
+                            return '';
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    title: {
+                        display: true,
+                        text: data.chart.characteristic,
+                    },
+                },
+            },
+        },
+    });
+}
+
+async function loadMachines() {
+    const machines = [
+        'bambu-ps1', 'bambu-ps2', 'prusa-mk4-1', 'prusa-mk4-2',
+        'formlabs-3l', 'bantam-explorer', 'nomad-883',
+        'k40-laser', 'emblaser-2', 'assembly-1', 'inspection-1'
+    ];
+
+    const filterSelect = document.getElementById('machine-filter');
+    const modalSelect = document.getElementById('new-chart-machine');
+
+    machines.forEach(m => {
+        filterSelect.innerHTML += `<option value="${m}">${m}</option>`;
+        modalSelect.innerHTML += `<option value="${m}">${m}</option>`;
+    });
+}
+
+function filterCharts() {
+    const machine = document.getElementById('machine-filter').value;
+    const filtered = machine ?
+        chartsData.filter(c => c.machine_id === machine) :
+        chartsData;
+    displayChartList(filtered);
+}
+
+function addReadingModal() {
+    if (!selectedChartId) return;
+    const chart = chartsData.find(c => c.id === selectedChartId);
+    if (chart) {
+        document.getElementById('subgroup-size-hint').textContent = chart.subgroup_size || 5;
+    }
+    new bootstrap.Modal(document.getElementById('addReadingModal')).show();
+}
+
+async function addReading() {
+    if (!selectedChartId) return;
+
+    const valuesStr = document.getElementById('reading-values').value;
+    const values = valuesStr.split(',').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+
+    if (values.length === 0) {
+        alert('Please enter valid measurements');
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/qms/spc/charts/${selectedChartId}/readings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                values: values,
+                operator_id: document.getElementById('reading-operator').value || null,
+                work_order_id: document.getElementById('reading-work-order').value || null,
+                notes: document.getElementById('reading-notes').value || null,
+            }),
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('addReadingModal')).hide();
+            document.getElementById('add-reading-form').reset();
+            selectChart(selectedChartId);  // Refresh chart
+        } else {
+            alert('Failed to add reading');
+        }
+    } catch (error) {
+        console.error('Failed to add reading:', error);
+        alert('Failed to add reading');
+    }
+}
+
+async function createChart() {
+    const chartData = {
+        chart_id: document.getElementById('new-chart-id').value,
+        name: document.getElementById('new-chart-name').value,
+        characteristic: document.getElementById('new-chart-characteristic').value,
+        chart_type: document.getElementById('new-chart-type').value,
+        subgroup_size: parseInt(document.getElementById('new-chart-subgroup').value),
+        lsl: parseFloat(document.getElementById('new-chart-lsl').value) || null,
+        target: parseFloat(document.getElementById('new-chart-target').value) || null,
+        usl: parseFloat(document.getElementById('new-chart-usl').value) || null,
+        machine_id: document.getElementById('new-chart-machine').value || null,
+    };
+
+    try {
+        const response = await fetch('/api/qms/spc/charts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(chartData),
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('newChartModal')).hide();
+            document.getElementById('new-chart-form').reset();
+            loadCharts();
+        } else {
+            alert('Failed to create chart');
+        }
+    } catch (error) {
+        console.error('Failed to create chart:', error);
+        alert('Failed to create chart');
+    }
+}
+
+async function recalculateLimits() {
+    if (!selectedChartId) return;
+
+    if (!confirm('Recalculate control limits from recent in-control data?')) return;
+
+    try {
+        const response = await fetch(`/api/qms/spc/charts/${selectedChartId}/recalculate`, {
+            method: 'POST',
+        });
+
+        if (response.ok) {
+            selectChart(selectedChartId);
+        } else {
+            alert('Failed to recalculate limits');
+        }
+    } catch (error) {
+        console.error('Failed to recalculate:', error);
+    }
+}
+
+function refreshAllCharts() {
+    loadCharts();
+    if (selectedChartId) {
+        selectChart(selectedChartId);
+    }
+}
+
+function initWebSocket() {
+    if (typeof LegoFactorySocket !== 'undefined') {
+        const socket = new LegoFactorySocket('/qms');
+        socket.on('spc_reading', function(data) {
+            if (data.chart_id === selectedChartId) {
+                selectChart(selectedChartId);  // Refresh current chart
+            }
+            loadCharts();  // Refresh list
+        });
+    }
+}
+</script>
+{% endblock %}

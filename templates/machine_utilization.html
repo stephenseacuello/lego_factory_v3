@@ -1,0 +1,636 @@
+{% extends "base.html" %}
+{% block title %}Machine Utilization - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #10b981;
+        --accent-red: #ef4444;
+        --accent-yellow: #f59e0b;
+        --accent-purple: #8b5cf6;
+        --accent-cyan: #06b6d4;
+    }
+
+    .util-container {
+        padding: 1.5rem;
+        background: var(--bg-dark);
+        min-height: calc(100vh - 60px);
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i { color: var(--accent-blue); }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: none;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    /* Summary Banner */
+    .summary-banner {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .summary-card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+        text-align: center;
+    }
+
+    .summary-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.75rem;
+        font-size: 1.25rem;
+    }
+
+    .summary-icon.running { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+    .summary-icon.idle { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+    .summary-icon.down { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .summary-icon.setup { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+    .summary-icon.util { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .summary-icon.spindle { background: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); }
+
+    .summary-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .summary-label {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Machine Grid */
+    .machine-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .machine-card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .machine-card:hover {
+        border-color: var(--accent-blue);
+        transform: translateY(-2px);
+    }
+
+    .machine-card.selected {
+        border-color: var(--accent-blue);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+    }
+
+    .machine-header {
+        padding: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .machine-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .machine-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-running { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+    .status-idle { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .status-down { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .status-setup { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; }
+
+    .machine-body { padding: 1rem; }
+
+    /* Utilization Gauge */
+    .util-gauge {
+        position: relative;
+        width: 120px;
+        height: 60px;
+        margin: 0 auto 1rem;
+    }
+
+    .gauge-bg {
+        position: absolute;
+        width: 120px;
+        height: 60px;
+        border-radius: 60px 60px 0 0;
+        background: var(--bg-dark);
+        overflow: hidden;
+    }
+
+    .gauge-fill {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 120px;
+        height: 60px;
+        border-radius: 60px 60px 0 0;
+        transform-origin: center bottom;
+    }
+
+    .gauge-value {
+        position: absolute;
+        bottom: 5px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    /* Machine Stats */
+    .machine-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    .stat-item {
+        padding: 0.5rem;
+        background: var(--bg-dark);
+        border-radius: 0.375rem;
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .stat-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    /* Timeline Chart */
+    .timeline-section {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .timeline-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .timeline-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .timeline-legend {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+    }
+
+    .legend-dot.running { background: var(--accent-green); }
+    .legend-dot.idle { background: var(--accent-yellow); }
+    .legend-dot.down { background: var(--accent-red); }
+    .legend-dot.setup { background: var(--accent-purple); }
+
+    /* Gantt-style Timeline */
+    .gantt-container {
+        overflow-x: auto;
+    }
+
+    .gantt-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .gantt-label {
+        width: 100px;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        flex-shrink: 0;
+    }
+
+    .gantt-bar-container {
+        flex: 1;
+        height: 24px;
+        background: var(--bg-dark);
+        border-radius: 4px;
+        display: flex;
+        position: relative;
+    }
+
+    .gantt-segment {
+        height: 100%;
+        transition: width 0.3s;
+    }
+
+    .gantt-segment:first-child { border-radius: 4px 0 0 4px; }
+    .gantt-segment:last-child { border-radius: 0 4px 4px 0; }
+
+    .gantt-segment.running { background: var(--accent-green); }
+    .gantt-segment.idle { background: var(--accent-yellow); }
+    .gantt-segment.down { background: var(--accent-red); }
+    .gantt-segment.setup { background: var(--accent-purple); }
+
+    /* Time Labels */
+    .time-axis {
+        display: flex;
+        margin-left: 100px;
+        margin-top: 0.5rem;
+    }
+
+    .time-label {
+        flex: 1;
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-align: center;
+    }
+
+    /* Trend Charts */
+    .charts-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+
+    .card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-body { padding: 1.25rem; }
+
+    .chart-container {
+        height: 200px;
+        position: relative;
+    }
+
+    @media (max-width: 1200px) {
+        .summary-banner { grid-template-columns: repeat(3, 1fr); }
+        .charts-row { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="util-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-tachometer-alt"></i>
+            Machine Utilization
+        </h1>
+        <div class="header-actions">
+            <select class="btn btn-secondary">
+                <option>Today</option>
+                <option>Yesterday</option>
+                <option>Last 7 Days</option>
+                <option>Last 30 Days</option>
+            </select>
+            <button class="btn btn-primary">
+                <i class="fas fa-sync-alt"></i>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Banner -->
+    <div class="summary-banner">
+        <div class="summary-card">
+            <div class="summary-icon running"><i class="fas fa-play"></i></div>
+            <div class="summary-value">5</div>
+            <div class="summary-label">Running</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon idle"><i class="fas fa-pause"></i></div>
+            <div class="summary-value">2</div>
+            <div class="summary-label">Idle</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon down"><i class="fas fa-times-circle"></i></div>
+            <div class="summary-value">1</div>
+            <div class="summary-label">Down</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon setup"><i class="fas fa-tools"></i></div>
+            <div class="summary-value">0</div>
+            <div class="summary-label">Setup</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon util"><i class="fas fa-chart-pie"></i></div>
+            <div class="summary-value">78.5%</div>
+            <div class="summary-label">Avg Utilization</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-icon spindle"><i class="fas fa-fan"></i></div>
+            <div class="summary-value">234.5</div>
+            <div class="summary-label">Spindle Hours</div>
+        </div>
+    </div>
+
+    <!-- Machine Grid -->
+    <div class="machine-grid" id="machine-grid">
+        <!-- Populated by JS -->
+    </div>
+
+    <!-- Timeline Section -->
+    <div class="timeline-section">
+        <div class="timeline-header">
+            <span class="timeline-title">
+                <i class="fas fa-stream"></i>
+                24-Hour Timeline
+            </span>
+            <div class="timeline-legend">
+                <span class="legend-item"><span class="legend-dot running"></span> Running</span>
+                <span class="legend-item"><span class="legend-dot idle"></span> Idle</span>
+                <span class="legend-item"><span class="legend-dot down"></span> Down</span>
+                <span class="legend-item"><span class="legend-dot setup"></span> Setup</span>
+            </div>
+        </div>
+        <div class="gantt-container" id="gantt-container">
+            <!-- Populated by JS -->
+        </div>
+        <div class="time-axis">
+            <span class="time-label">00:00</span>
+            <span class="time-label">04:00</span>
+            <span class="time-label">08:00</span>
+            <span class="time-label">12:00</span>
+            <span class="time-label">16:00</span>
+            <span class="time-label">20:00</span>
+            <span class="time-label">24:00</span>
+        </div>
+    </div>
+
+    <!-- Trend Charts -->
+    <div class="charts-row">
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fas fa-chart-line"></i>
+                    Utilization Trend (7 Days)
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="utilTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fas fa-chart-bar"></i>
+                    Downtime by Reason
+                </span>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="downtimeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const machines = [
+        { id: 'CNC-001', name: 'CNC Mill #1', status: 'running', util: 85, spindle: 6.2, parts: 48, runtime: '6h 12m' },
+        { id: 'CNC-002', name: 'CNC Mill #2', status: 'running', util: 92, spindle: 7.1, parts: 62, runtime: '7h 05m' },
+        { id: 'CNC-003', name: 'CNC Mill #3', status: 'idle', util: 45, spindle: 3.4, parts: 28, runtime: '3h 24m' },
+        { id: 'CNC-004', name: 'CNC Lathe #1', status: 'running', util: 78, spindle: 5.8, parts: 95, runtime: '5h 48m' },
+        { id: 'CNC-005', name: 'CNC Lathe #2', status: 'running', util: 88, spindle: 6.8, parts: 112, runtime: '6h 48m' },
+        { id: 'CNC-006', name: '5-Axis Mill', status: 'down', util: 12, spindle: 0.9, parts: 4, runtime: '0h 54m' },
+        { id: 'CNC-007', name: 'VMC #1', status: 'running', util: 82, spindle: 6.3, parts: 55, runtime: '6h 18m' },
+        { id: 'CNC-008', name: 'VMC #2', status: 'idle', util: 38, spindle: 2.9, parts: 22, runtime: '2h 54m' },
+    ];
+
+    const timelineData = [
+        { machine: 'CNC-001', segments: [{type: 'running', width: 25}, {type: 'setup', width: 5}, {type: 'running', width: 50}, {type: 'idle', width: 20}] },
+        { machine: 'CNC-002', segments: [{type: 'running', width: 40}, {type: 'idle', width: 10}, {type: 'running', width: 50}] },
+        { machine: 'CNC-003', segments: [{type: 'running', width: 20}, {type: 'idle', width: 30}, {type: 'running', width: 25}, {type: 'idle', width: 25}] },
+        { machine: 'CNC-004', segments: [{type: 'setup', width: 10}, {type: 'running', width: 60}, {type: 'idle', width: 15}, {type: 'running', width: 15}] },
+        { machine: 'CNC-005', segments: [{type: 'running', width: 70}, {type: 'setup', width: 8}, {type: 'running', width: 22}] },
+        { machine: 'CNC-006', segments: [{type: 'running', width: 10}, {type: 'down', width: 90}] },
+    ];
+
+    function renderMachines() {
+        const grid = document.getElementById('machine-grid');
+        grid.innerHTML = machines.map(m => {
+            const color = m.util >= 80 ? '#10b981' : m.util >= 50 ? '#f59e0b' : '#ef4444';
+            return `
+                <div class="machine-card" onclick="selectMachine('${m.id}')">
+                    <div class="machine-header">
+                        <span class="machine-name">
+                            <i class="fas fa-cog"></i> ${m.name}
+                        </span>
+                        <span class="machine-status status-${m.status}">${m.status}</span>
+                    </div>
+                    <div class="machine-body">
+                        <div class="util-gauge">
+                            <div class="gauge-bg"></div>
+                            <svg width="120" height="60" style="position: absolute; top: 0; left: 0;">
+                                <path d="M 10 55 A 50 50 0 0 1 110 55" fill="none" stroke="${color}" stroke-width="8"
+                                    stroke-dasharray="${m.util * 1.57} 157" stroke-linecap="round"/>
+                            </svg>
+                            <span class="gauge-value">${m.util}%</span>
+                        </div>
+                        <div class="machine-stats">
+                            <div class="stat-item">
+                                <div class="stat-value">${m.spindle}h</div>
+                                <div class="stat-label">Spindle</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${m.parts}</div>
+                                <div class="stat-label">Parts</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${m.runtime}</div>
+                                <div class="stat-label">Runtime</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-value">${m.id}</div>
+                                <div class="stat-label">Machine ID</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderTimeline() {
+        const container = document.getElementById('gantt-container');
+        container.innerHTML = timelineData.map(t => `
+            <div class="gantt-row">
+                <span class="gantt-label">${t.machine}</span>
+                <div class="gantt-bar-container">
+                    ${t.segments.map(s => `<div class="gantt-segment ${s.type}" style="width: ${s.width}%"></div>`).join('')}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function initCharts() {
+        // Utilization Trend
+        new Chart(document.getElementById('utilTrendChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Utilization %',
+                    data: [75, 82, 78, 85, 79, 45, 38],
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', callback: v => v + '%' }, max: 100 }
+                }
+            }
+        });
+
+        // Downtime Reasons
+        new Chart(document.getElementById('downtimeChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Maintenance', 'Tool Change', 'Material', 'Breakdown', 'Other'],
+                datasets: [{
+                    label: 'Hours',
+                    data: [4.5, 3.2, 2.8, 1.5, 0.8],
+                    backgroundColor: ['#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#6b7280']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8', callback: v => v + 'h' } }
+                }
+            }
+        });
+    }
+
+    function selectMachine(id) {
+        document.querySelectorAll('.machine-card').forEach(card => card.classList.remove('selected'));
+        event.currentTarget.classList.add('selected');
+    }
+
+    renderMachines();
+    renderTimeline();
+    initCharts();
+</script>
+{% endblock %}

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Brick Catalog - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: #3b82f6; }
+        .modal-content { background: var(--card-bg); color: #e2e8f0; }
+        .modal-header, .modal-footer { border-color: rgba(255,255,255,0.1); }
+        .nav-pills .nav-link { color: #94a3b8; border-radius: 8px; }
+        .nav-pills .nav-link.active { background: #3b82f6; }
+        .brick-card { background: var(--card-bg); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; overflow: hidden; }
+        .brick-card:hover { transform: translateY(-4px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); border-color: #3b82f6; }
+        .brick-preview { height: 120px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.2); }
+        .brick-icon { font-size: 3rem; }
+        .brick-info { padding: 1rem; }
+        .brick-part-no { font-family: monospace; color: #94a3b8; font-size: 0.85rem; }
+        .category-badge { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .filter-sidebar { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1); }
+        .color-swatch { width: 24px; height: 24px; border-radius: 4px; display: inline-block; margin: 2px; cursor: pointer; border: 2px solid transparent; }
+        .color-swatch:hover, .color-swatch.selected { border-color: #fff; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Brick Catalog</a>
+            <div class="d-flex">
+                <input type="text" class="form-control form-control-sm me-2" style="width:250px" placeholder="Search parts...">
+                <button class="btn btn-outline-light btn-sm" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i></button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <div class="row">
+            <!-- Filter Sidebar -->
+            <div class="col-lg-3 col-md-4 mb-4">
+                <div class="filter-sidebar">
+                    <h6 class="mb-3"><i class="bi bi-funnel me-2"></i>Filters</h6>
+
+                    <div class="mb-4">
+                        <label class="form-label small text-muted">Category</label>
+                        <select class="form-select form-select-sm">
+                            <option>All Categories</option>
+                            <option>Bricks</option>
+                            <option>Plates</option>
+                            <option>Tiles</option>
+                            <option>Slopes</option>
+                            <option>Technic</option>
+                            <option>Minifigure</option>
+                            <option>Specialty</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small text-muted">Color</label>
+                        <div>
+                            <span class="color-swatch selected" style="background:#c91a09" title="Red"></span>
+                            <span class="color-swatch" style="background:#1e5aa8" title="Blue"></span>
+                            <span class="color-swatch" style="background:#f7d117" title="Yellow"></span>
+                            <span class="color-swatch" style="background:#237841" title="Green"></span>
+                            <span class="color-swatch" style="background:#ffffff" title="White"></span>
+                            <span class="color-swatch" style="background:#1b2a34" title="Black"></span>
+                            <span class="color-swatch" style="background:#f57d20" title="Orange"></span>
+                            <span class="color-swatch" style="background:#95b90b" title="Lime"></span>
+                            <span class="color-swatch" style="background:#923978" title="Magenta"></span>
+                            <span class="color-swatch" style="background:#a5a9b4" title="Light Gray"></span>
+                            <span class="color-swatch" style="background:#6b5a5a" title="Dark Gray"></span>
+                            <span class="color-swatch" style="background:#fcac00" title="Bright Light Orange"></span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small text-muted">Dimensions</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <select class="form-select form-select-sm">
+                                    <option>Width</option>
+                                    <option>1</option>
+                                    <option>2</option>
+                                    <option>3</option>
+                                    <option>4</option>
+                                    <option>6</option>
+                                    <option>8</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <select class="form-select form-select-sm">
+                                    <option>Length</option>
+                                    <option>1</option>
+                                    <option>2</option>
+                                    <option>3</option>
+                                    <option>4</option>
+                                    <option>6</option>
+                                    <option>8</option>
+                                    <option>10</option>
+                                    <option>12</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small text-muted">Status</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" checked id="inProduction">
+                            <label class="form-check-label small" for="inProduction">In Production</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="discontinued">
+                            <label class="form-check-label small" for="discontinued">Discontinued</label>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary btn-sm w-100">Apply Filters</button>
+                    <button class="btn btn-outline-secondary btn-sm w-100 mt-2">Reset</button>
+                </div>
+
+                <div class="filter-sidebar mt-4">
+                    <h6 class="mb-3"><i class="bi bi-info-circle me-2"></i>Catalog Stats</h6>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Total Parts</span>
+                        <strong>18,456</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">In Production</span>
+                        <strong class="text-success">12,847</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-muted small">Colors Available</span>
+                        <strong>182</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted small">Categories</span>
+                        <strong>45</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Brick Grid -->
+            <div class="col-lg-9 col-md-8">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="mb-0">Bricks <span class="badge bg-secondary">2,456 results</span></h5>
+                    <div>
+                        <select class="form-select form-select-sm d-inline-block" style="width:150px">
+                            <option>Sort by: Popular</option>
+                            <option>Part Number</option>
+                            <option>Name A-Z</option>
+                            <option>Newest</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3">
+                    <!-- Brick 1 -->
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="brick-card" data-bs-toggle="modal" data-bs-target="#brickDetailModal">
+                            <div class="brick-preview" style="background:linear-gradient(135deg, #c91a09 0%, #8b1206 100%)">
+                                <i class="bi bi-box-fill brick-icon text-white opacity-75"></i>
+                            </div>
+                            <div class="brick-info">
+                                <div class="brick-part-no">3001</div>
+                                <h6 class="mb-1">Brick 2 x 4</h6>
+                                <span class="badge category-badge">Classic</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Brick 2 -->
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="brick-card">
+                            <div class="brick-preview" style="background:linear-gradient(135deg, #1e5aa8 0%, #14407a 100%)">
+                                <i class="bi bi-box-fill brick-icon text-white opacity-75"></i>
+                            </div>
+                            <div class="brick-info">
+                                <div class="brick-part-no">3003</div>
+                                <h6 class="mb-1">Brick 2 x 2</h6>
+                                <span class="badge category-badge">Classic</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Brick 3 -->
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="brick-card">
+                            <div class="brick-preview" style="background:linear-gradient(135deg, #f7d117 0%, #c9a812 100%)">
+                                <i class="bi bi-box-fill brick-icon text-dark opacity-75"></i>
+                            </div>
+                            <div class="brick-info">
+                                <div class="brick-part-no">3004</div>
+                                <h6 class="mb-1">Brick 1 x 2</h6>
+                                <span class="badge category-badge">Classic</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Brick 4 -->
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="brick-card">
+                            <div class="brick-preview" style="background:linear-gradient(135deg, #237841 0%, #1a5830 100%)">
+                                <i class="bi bi-box-fill brick-icon text-white opacity-75"></i>
+                            </div>
+                            <div class="brick-info">
+                                <div class="brick-part-no">3005</div>
+                                <h6 class="mb-1">Brick 1 x 1</h6>
+                                <span class="badge category-badge">Classic</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Brick 5 -->
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="brick-card">
+                            <div class="brick-preview" style="background:linear-gradient(135deg, #f57d20 0%, #c66319 100%)">
+                                <i class="bi bi-box-fill brick-icon text-white opacity-75"></i>
+                            </div>
+                            <div class="brick-info">
+                                <div class="brick-part-no">3006</div>
+                                <h6 class="mb-1">Brick 2 x 10</h6>
+                                <span class="badge category-badge">Classic</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Brick 6 -->
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="brick-card">
+                            <div class="brick-preview" style="background:linear-gradient(135deg, #ffffff 0%, #e5e5e5 100%)">
+                                <i class="bi bi-box-fill brick-icon text-dark opacity-50"></i>
+                            </div>
+                            <div class="brick-info">
+                                <div class="brick-part-no">3007</div>
+                                <h6 class="mb-1">Brick 2 x 8</h6>
+                                <span class="badge category-badge">Classic</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Brick 7 -->
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="brick-card">
+                            <div class="brick-preview" style="background:linear-gradient(135deg, #1b2a34 0%, #0f1a21 100%)">
+                                <i class="bi bi-box-fill brick-icon text-white opacity-50"></i>
+                            </div>
+                            <div class="brick-info">
+                                <div class="brick-part-no">3008</div>
+                                <h6 class="mb-1">Brick 1 x 8</h6>
+                                <span class="badge category-badge">Classic</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Brick 8 -->
+                    <div class="col-lg-3 col-md-4 col-6">
+                        <div class="brick-card">
+                            <div class="brick-preview" style="background:linear-gradient(135deg, #923978 0%, #6e2b5a 100%)">
+                                <i class="bi bi-box-fill brick-icon text-white opacity-75"></i>
+                            </div>
+                            <div class="brick-info">
+                                <div class="brick-part-no">3009</div>
+                                <h6 class="mb-1">Brick 1 x 6</h6>
+                                <span class="badge category-badge">Classic</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <nav class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item disabled"><a class="page-link bg-dark border-secondary" href="#">Previous</a></li>
+                        <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                        <li class="page-item"><a class="page-link bg-dark border-secondary text-light" href="#">2</a></li>
+                        <li class="page-item"><a class="page-link bg-dark border-secondary text-light" href="#">3</a></li>
+                        <li class="page-item"><a class="page-link bg-dark border-secondary text-light" href="#">...</a></li>
+                        <li class="page-item"><a class="page-link bg-dark border-secondary text-light" href="#">307</a></li>
+                        <li class="page-item"><a class="page-link bg-dark border-secondary text-light" href="#">Next</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- Brick Detail Modal -->
+    <div class="modal fade" id="brickDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Brick 2 x 4 <span class="text-muted">(3001)</span></h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-5">
+                            <div class="brick-preview rounded mb-3" style="height:200px; background:linear-gradient(135deg, #c91a09 0%, #8b1206 100%)">
+                                <i class="bi bi-box-fill brick-icon text-white opacity-75" style="font-size:5rem"></i>
+                            </div>
+                            <div class="d-flex flex-wrap gap-1 mb-3">
+                                <span class="color-swatch" style="background:#c91a09"></span>
+                                <span class="color-swatch" style="background:#1e5aa8"></span>
+                                <span class="color-swatch" style="background:#f7d117"></span>
+                                <span class="color-swatch" style="background:#237841"></span>
+                                <span class="color-swatch" style="background:#ffffff"></span>
+                                <span class="color-swatch" style="background:#1b2a34"></span>
+                                <span class="color-swatch" style="background:#f57d20"></span>
+                                <span class="color-swatch" style="background:#923978"></span>
+                                <span class="text-muted small">+174 more</span>
+                            </div>
+                        </div>
+                        <div class="col-md-7">
+                            <table class="table table-sm table-borderless" style="color:#e2e8f0">
+                                <tr>
+                                    <td class="text-muted">Part Number</td>
+                                    <td><code>3001</code></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Name</td>
+                                    <td>Brick 2 x 4</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Category</td>
+                                    <td>Bricks / Basic</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Dimensions (studs)</td>
+                                    <td>2 x 4 x 1</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Size (mm)</td>
+                                    <td>15.8 x 31.8 x 9.6</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Weight</td>
+                                    <td>2.3g</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Material</td>
+                                    <td>ABS Plastic</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Year Introduced</td>
+                                    <td>1958</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Status</td>
+                                    <td><span class="badge bg-success">In Production</span></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Available Colors</td>
+                                    <td>182</td>
+                                </tr>
+                            </table>
+                            <div class="mt-3">
+                                <button class="btn btn-primary btn-sm me-2"><i class="bi bi-printer me-1"></i>Print Profile</button>
+                                <button class="btn btn-outline-light btn-sm"><i class="bi bi-download me-1"></i>Download STL</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function loadData() {
+            console.log('Refreshing brick catalog...');
+        }
+
+        // Color swatch selection
+        document.querySelectorAll('.color-swatch').forEach(swatch => {
+            swatch.addEventListener('click', function() {
+                this.classList.toggle('selected');
+            });
+        });
+    </script>
+</body>
+</html>

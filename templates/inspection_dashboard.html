@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inspection Dashboard - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-label { color: #64748b; font-size: 0.85rem; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.05); }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: #3b82f6; }
+        .modal-content { background: var(--card-bg); color: #e2e8f0; }
+        .modal-header, .modal-footer { border-color: rgba(255,255,255,0.1); }
+        .nav-pills .nav-link { color: #94a3b8; border-radius: 8px; }
+        .nav-pills .nav-link.active { background: #3b82f6; }
+        .inspection-item { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem; }
+        .measurement-pass { color: #34d399; }
+        .measurement-fail { color: #f87171; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Inspection Dashboard</a>
+            <button class="btn btn-outline-light btn-sm" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-primary" id="statPlans">18</div>
+                    <div class="stat-label">Inspection Plans</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-info" id="statToday">127</div>
+                    <div class="stat-label">Inspections Today</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-success" id="statPass">124</div>
+                    <div class="stat-label">Passed</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-danger" id="statFail">3</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-warning" id="statPending">12</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value" id="statRate">97.6%</div>
+                    <div class="stat-label">Pass Rate</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-pills mb-4">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#plans"><i class="bi bi-clipboard-check me-1"></i>Inspection Plans</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#records"><i class="bi bi-journal-text me-1"></i>Inspection Records</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#measurements"><i class="bi bi-rulers me-1"></i>Measurements</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Plans Tab -->
+            <div class="tab-pane fade show active" id="plans">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><i class="bi bi-clipboard-check me-2"></i>Inspection Plans</span>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPlanModal">
+                            <i class="bi bi-plus-lg me-1"></i>New Plan
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Plan ID</th>
+                                        <th>Name</th>
+                                        <th>Part Number</th>
+                                        <th>Revision</th>
+                                        <th>Checkpoints</th>
+                                        <th>Sampling</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>IP-001</td>
+                                        <td>2x4 Brick Standard</td>
+                                        <td>3001</td>
+                                        <td>Rev C</td>
+                                        <td>12</td>
+                                        <td>AQL 1.0</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-light me-1"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-play-fill"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>IP-002</td>
+                                        <td>2x2 Brick Standard</td>
+                                        <td>3003</td>
+                                        <td>Rev B</td>
+                                        <td>10</td>
+                                        <td>AQL 1.0</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-light me-1"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-play-fill"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>IP-003</td>
+                                        <td>1x4 Plate Standard</td>
+                                        <td>3710</td>
+                                        <td>Rev A</td>
+                                        <td>8</td>
+                                        <td>AQL 2.5</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-light me-1"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-play-fill"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>IP-004</td>
+                                        <td>Minifigure Head</td>
+                                        <td>3626</td>
+                                        <td>Rev D</td>
+                                        <td>15</td>
+                                        <td>100%</td>
+                                        <td><span class="badge bg-warning">Draft</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-light me-1"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil"></i></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Records Tab -->
+            <div class="tab-pane fade" id="records">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><i class="bi bi-journal-text me-2"></i>Inspection Records</span>
+                        <div>
+                            <select class="form-select form-select-sm d-inline-block" style="width:150px">
+                                <option>All Results</option>
+                                <option>Pass Only</option>
+                                <option>Fail Only</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Record ID</th>
+                                        <th>Time</th>
+                                        <th>Plan</th>
+                                        <th>Lot/Batch</th>
+                                        <th>Sample Size</th>
+                                        <th>Defects</th>
+                                        <th>Inspector</th>
+                                        <th>Result</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>IR-2024-0847</td>
+                                        <td>10:45 AM</td>
+                                        <td>IP-001</td>
+                                        <td>LOT-2024-0156</td>
+                                        <td>50</td>
+                                        <td>0</td>
+                                        <td>J. Smith</td>
+                                        <td><span class="badge bg-success">ACCEPT</span></td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>IR-2024-0846</td>
+                                        <td>10:22 AM</td>
+                                        <td>IP-002</td>
+                                        <td>LOT-2024-0155</td>
+                                        <td>50</td>
+                                        <td>1</td>
+                                        <td>M. Johnson</td>
+                                        <td><span class="badge bg-success">ACCEPT</span></td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>IR-2024-0845</td>
+                                        <td>09:58 AM</td>
+                                        <td>IP-001</td>
+                                        <td>LOT-2024-0154</td>
+                                        <td>50</td>
+                                        <td>4</td>
+                                        <td>J. Smith</td>
+                                        <td><span class="badge bg-danger">REJECT</span></td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>IR-2024-0844</td>
+                                        <td>09:35 AM</td>
+                                        <td>IP-003</td>
+                                        <td>LOT-2024-0153</td>
+                                        <td>80</td>
+                                        <td>0</td>
+                                        <td>S. Chen</td>
+                                        <td><span class="badge bg-success">ACCEPT</span></td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Measurements Tab -->
+            <div class="tab-pane fade" id="measurements">
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-rulers me-2"></i>Recent Measurements - IP-001 (2x4 Brick)</div>
+                            <div class="card-body">
+                                <div class="inspection-item">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <strong>Checkpoint 1: Overall Length</strong>
+                                        <span class="measurement-pass"><i class="bi bi-check-circle"></i> PASS</span>
+                                    </div>
+                                    <div class="row small">
+                                        <div class="col">Spec: 31.8 +/- 0.1 mm</div>
+                                        <div class="col">Measured: 31.82 mm</div>
+                                        <div class="col">Deviation: +0.02 mm</div>
+                                    </div>
+                                </div>
+                                <div class="inspection-item">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <strong>Checkpoint 2: Overall Width</strong>
+                                        <span class="measurement-pass"><i class="bi bi-check-circle"></i> PASS</span>
+                                    </div>
+                                    <div class="row small">
+                                        <div class="col">Spec: 15.8 +/- 0.1 mm</div>
+                                        <div class="col">Measured: 15.79 mm</div>
+                                        <div class="col">Deviation: -0.01 mm</div>
+                                    </div>
+                                </div>
+                                <div class="inspection-item">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <strong>Checkpoint 3: Height</strong>
+                                        <span class="measurement-pass"><i class="bi bi-check-circle"></i> PASS</span>
+                                    </div>
+                                    <div class="row small">
+                                        <div class="col">Spec: 9.6 +/- 0.05 mm</div>
+                                        <div class="col">Measured: 9.58 mm</div>
+                                        <div class="col">Deviation: -0.02 mm</div>
+                                    </div>
+                                </div>
+                                <div class="inspection-item">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <strong>Checkpoint 4: Stud Diameter</strong>
+                                        <span class="measurement-fail"><i class="bi bi-x-circle"></i> FAIL</span>
+                                    </div>
+                                    <div class="row small">
+                                        <div class="col">Spec: 4.8 +/- 0.02 mm</div>
+                                        <div class="col">Measured: 4.85 mm</div>
+                                        <div class="col text-danger">Deviation: +0.05 mm</div>
+                                    </div>
+                                </div>
+                                <div class="inspection-item">
+                                    <div class="d-flex justify-content-between mb-2">
+                                        <strong>Checkpoint 5: Stud Height</strong>
+                                        <span class="measurement-pass"><i class="bi bi-check-circle"></i> PASS</span>
+                                    </div>
+                                    <div class="row small">
+                                        <div class="col">Spec: 1.8 +/- 0.05 mm</div>
+                                        <div class="col">Measured: 1.78 mm</div>
+                                        <div class="col">Deviation: -0.02 mm</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-calculator me-2"></i>Measurement Summary</div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Total Checkpoints</span>
+                                        <strong>12</strong>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Passed</span>
+                                        <strong class="text-success">11</strong>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Failed</span>
+                                        <strong class="text-danger">1</strong>
+                                    </div>
+                                </div>
+                                <hr class="border-secondary">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <span>Yield</span>
+                                        <strong>91.7%</strong>
+                                    </div>
+                                </div>
+                                <div class="d-grid mt-4">
+                                    <button class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Record New Measurement</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Plan Modal -->
+    <div class="modal fade" id="addPlanModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">New Inspection Plan</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="planForm">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Plan Name</label>
+                                <input type="text" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Part Number</label>
+                                <input type="text" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Sampling Method</label>
+                                <select class="form-select">
+                                    <option>AQL 0.65</option>
+                                    <option>AQL 1.0</option>
+                                    <option>AQL 2.5</option>
+                                    <option>100% Inspection</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Inspection Level</label>
+                                <select class="form-select">
+                                    <option>Level I (Reduced)</option>
+                                    <option selected>Level II (Normal)</option>
+                                    <option>Level III (Tightened)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary">Create Plan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function loadData() {
+            console.log('Refreshing inspection data...');
+        }
+    </script>
+</body>
+</html>

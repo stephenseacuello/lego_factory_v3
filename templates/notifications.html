@@ -1,0 +1,1108 @@
+{% extends "base.html" %}
+{% block title %}Notification Center - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --critical: #ef4444;
+        --warning: #f59e0b;
+        --info: #3b82f6;
+        --success: #10b981;
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+    }
+
+    body {
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .notifications-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 2rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i {
+        color: var(--warning);
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: none;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: var(--info);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #2563eb;
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+        background: var(--bg-card);
+    }
+
+    /* Stats Cards */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .stat-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .stat-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .stat-icon.critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); }
+    .stat-icon.warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .stat-icon.info { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+    .stat-icon.success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    .stat-trend {
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+    }
+
+    .stat-trend.up { color: var(--critical); }
+    .stat-trend.down { color: var(--success); }
+
+    /* Main Content */
+    .main-content {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 1.5rem;
+    }
+
+    .card {
+        background: var(--bg-card);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-body {
+        padding: 1.5rem;
+    }
+
+    /* Filters */
+    .filters-bar {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        flex-wrap: wrap;
+    }
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .filter-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .filter-select, .filter-input {
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        padding: 0.5rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.875rem;
+    }
+
+    .filter-chips {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .filter-chip {
+        padding: 0.375rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--text-secondary);
+    }
+
+    .filter-chip:hover, .filter-chip.active {
+        border-color: var(--info);
+        color: var(--info);
+    }
+
+    .filter-chip.critical.active {
+        background: rgba(239, 68, 68, 0.2);
+        border-color: var(--critical);
+        color: var(--critical);
+    }
+
+    .filter-chip.warning.active {
+        background: rgba(245, 158, 11, 0.2);
+        border-color: var(--warning);
+        color: var(--warning);
+    }
+
+    .filter-chip.info.active {
+        background: rgba(59, 130, 246, 0.2);
+        border-color: var(--info);
+        color: var(--info);
+    }
+
+    /* Notification List */
+    .notification-list {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .notification-item {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        transition: background 0.2s;
+        cursor: pointer;
+    }
+
+    .notification-item:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .notification-item.unread {
+        background: rgba(59, 130, 246, 0.05);
+    }
+
+    .notification-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .notification-icon.critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); }
+    .notification-icon.warning { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .notification-icon.info { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+    .notification-icon.success { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+
+    .notification-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .notification-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.25rem;
+    }
+
+    .notification-title {
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .notification-time {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+
+    .notification-message {
+        font-size: 0.813rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .notification-meta {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .notification-meta span {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .notification-actions {
+        display: flex;
+        gap: 0.5rem;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .notification-item:hover .notification-actions {
+        opacity: 1;
+    }
+
+    .action-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 0.375rem;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+        background: var(--bg-dark);
+        color: var(--text-primary);
+    }
+
+    .action-btn.ack:hover {
+        border-color: var(--success);
+        color: var(--success);
+    }
+
+    .action-btn.dismiss:hover {
+        border-color: var(--critical);
+        color: var(--critical);
+    }
+
+    /* Badge */
+    .badge {
+        padding: 0.125rem 0.5rem;
+        border-radius: 9999px;
+        font-size: 0.625rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .badge-critical { background: var(--critical); color: white; }
+    .badge-warning { background: var(--warning); color: #000; }
+    .badge-info { background: var(--info); color: white; }
+    .badge-success { background: var(--success); color: white; }
+
+    /* Recent Activity */
+    .activity-timeline {
+        position: relative;
+        padding-left: 1.5rem;
+    }
+
+    .activity-timeline::before {
+        content: '';
+        position: absolute;
+        left: 6px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border-color);
+    }
+
+    .activity-item {
+        position: relative;
+        padding-bottom: 1.5rem;
+    }
+
+    .activity-item:last-child {
+        padding-bottom: 0;
+    }
+
+    .activity-dot {
+        position: absolute;
+        left: -1.5rem;
+        top: 0;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 2px solid var(--bg-card);
+    }
+
+    .activity-dot.critical { background: var(--critical); }
+    .activity-dot.warning { background: var(--warning); }
+    .activity-dot.info { background: var(--info); }
+    .activity-dot.success { background: var(--success); }
+
+    .activity-time {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+    }
+
+    .activity-text {
+        font-size: 0.875rem;
+    }
+
+    /* Alert Rules */
+    .rule-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .rule-item:last-child {
+        border-bottom: none;
+    }
+
+    .rule-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .rule-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 0.375rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+    }
+
+    .rule-name {
+        font-weight: 500;
+        font-size: 0.875rem;
+    }
+
+    .rule-condition {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .toggle-switch {
+        position: relative;
+        width: 44px;
+        height: 24px;
+    }
+
+    .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+    .toggle-slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--border-color);
+        transition: 0.3s;
+        border-radius: 24px;
+    }
+
+    .toggle-slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.3s;
+        border-radius: 50%;
+    }
+
+    input:checked + .toggle-slider {
+        background-color: var(--success);
+    }
+
+    input:checked + .toggle-slider:before {
+        transform: translateX(20px);
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .main-content {
+            grid-template-columns: 1fr;
+        }
+
+        .stats-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .stats-row {
+            grid-template-columns: 1fr;
+        }
+
+        .filters-bar {
+            flex-direction: column;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="notifications-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-bell"></i>
+            Notification Center
+        </h1>
+        <div class="header-actions">
+            <button class="btn btn-outline" onclick="markAllRead()">
+                <i class="fas fa-check-double"></i> Mark All Read
+            </button>
+            <button class="btn btn-outline" onclick="openSettings()">
+                <i class="fas fa-cog"></i> Settings
+            </button>
+            <a href="/portal" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> Portal
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon critical">
+                    <i class="fas fa-exclamation-circle"></i>
+                </div>
+            </div>
+            <div class="stat-value" id="criticalCount">3</div>
+            <div class="stat-label">Critical Alerts</div>
+            <div class="stat-trend up">
+                <i class="fas fa-arrow-up"></i> 2 new in last hour
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+            </div>
+            <div class="stat-value" id="warningCount">8</div>
+            <div class="stat-label">Warnings</div>
+            <div class="stat-trend down">
+                <i class="fas fa-arrow-down"></i> 3 resolved today
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon info">
+                    <i class="fas fa-info-circle"></i>
+                </div>
+            </div>
+            <div class="stat-value" id="infoCount">24</div>
+            <div class="stat-label">Informational</div>
+            <div class="stat-trend">
+                <span style="color: var(--text-secondary)">Normal activity</span>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+            </div>
+            <div class="stat-value" id="acknowledgedCount">156</div>
+            <div class="stat-label">Acknowledged Today</div>
+            <div class="stat-trend">
+                <span style="color: var(--success)">95% response rate</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Notifications List -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">
+                    <i class="fas fa-list"></i>
+                    Alert History
+                </span>
+                <span style="font-size: 0.875rem; color: var(--text-secondary);">
+                    <span id="unreadCount">5</span> unread
+                </span>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-bar">
+                <div class="filter-group">
+                    <span class="filter-label">Type:</span>
+                    <div class="filter-chips">
+                        <button class="filter-chip active" data-filter="all">All</button>
+                        <button class="filter-chip critical" data-filter="critical">Critical</button>
+                        <button class="filter-chip warning" data-filter="warning">Warning</button>
+                        <button class="filter-chip info" data-filter="info">Info</button>
+                    </div>
+                </div>
+
+                <div class="filter-group">
+                    <span class="filter-label">Source:</span>
+                    <select class="filter-select" id="sourceFilter">
+                        <option value="all">All Sources</option>
+                        <option value="tinyg">TinyG Controller</option>
+                        <option value="mcc">MCC DAQ</option>
+                        <option value="sensors">Sensors</option>
+                        <option value="system">System</option>
+                        <option value="mqtt">MQTT</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <span class="filter-label">Time:</span>
+                    <select class="filter-select" id="timeFilter">
+                        <option value="1h">Last Hour</option>
+                        <option value="24h" selected>Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
+                </div>
+
+                <div class="filter-group" style="margin-left: auto;">
+                    <input type="text" class="filter-input" placeholder="Search alerts..." id="searchInput">
+                </div>
+            </div>
+
+            <!-- Notification List -->
+            <div class="notification-list" id="notificationList">
+                <!-- Notifications will be rendered here -->
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <!-- Recent Activity -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-clock"></i>
+                        Recent Activity
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="activity-timeline" id="activityTimeline">
+                        <!-- Activity items will be rendered here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alert Rules -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-sliders-h"></i>
+                        Alert Rules
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div id="alertRules">
+                        <!-- Alert rules will be rendered here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script>
+    // Sample notification data
+    const notifications = [
+        {
+            id: 1,
+            type: 'critical',
+            title: 'Emergency Stop Triggered',
+            message: 'E-Stop activated on TinyG controller. Machine halted immediately. Check for obstructions.',
+            source: 'TinyG Controller',
+            machine: 'CNC-001',
+            time: new Date(Date.now() - 5 * 60000),
+            unread: true,
+            acknowledged: false
+        },
+        {
+            id: 2,
+            type: 'critical',
+            title: 'Temperature Exceeds Limit',
+            message: 'Spindle temperature reached 85°C, exceeding safe operating threshold of 80°C.',
+            source: 'MCC DAQ',
+            machine: 'CNC-001',
+            time: new Date(Date.now() - 12 * 60000),
+            unread: true,
+            acknowledged: false
+        },
+        {
+            id: 3,
+            type: 'warning',
+            title: 'Tool Life Warning',
+            message: 'End mill T03 at 95% of expected tool life. Schedule replacement.',
+            source: 'System',
+            machine: 'CNC-001',
+            time: new Date(Date.now() - 25 * 60000),
+            unread: true,
+            acknowledged: false
+        },
+        {
+            id: 4,
+            type: 'warning',
+            title: 'Vibration Anomaly Detected',
+            message: 'Unusual vibration pattern detected on X-axis. RMS increased 40% from baseline.',
+            source: 'Sensors',
+            machine: 'CNC-001',
+            time: new Date(Date.now() - 45 * 60000),
+            unread: true,
+            acknowledged: false
+        },
+        {
+            id: 5,
+            type: 'info',
+            title: 'Program Completed Successfully',
+            message: 'G-code program "Part_A_v3.nc" completed. Runtime: 45m 23s. Parts produced: 12.',
+            source: 'TinyG Controller',
+            machine: 'CNC-001',
+            time: new Date(Date.now() - 60 * 60000),
+            unread: true,
+            acknowledged: false
+        },
+        {
+            id: 6,
+            type: 'warning',
+            title: 'MQTT Connection Unstable',
+            message: 'MQTT broker connection experiencing intermittent drops. 3 reconnections in last 10 minutes.',
+            source: 'MQTT',
+            machine: 'System',
+            time: new Date(Date.now() - 90 * 60000),
+            unread: false,
+            acknowledged: true
+        },
+        {
+            id: 7,
+            type: 'info',
+            title: 'Scheduled Maintenance Reminder',
+            message: 'Lubrication maintenance due for CNC-001 in 2 days. Last performed: Dec 15, 2024.',
+            source: 'System',
+            machine: 'CNC-001',
+            time: new Date(Date.now() - 120 * 60000),
+            unread: false,
+            acknowledged: true
+        },
+        {
+            id: 8,
+            type: 'critical',
+            title: 'Limit Switch Triggered',
+            message: 'Z-axis minimum limit switch activated. Motion stopped. Check work offset.',
+            source: 'TinyG Controller',
+            machine: 'CNC-001',
+            time: new Date(Date.now() - 180 * 60000),
+            unread: false,
+            acknowledged: true
+        },
+        {
+            id: 9,
+            type: 'info',
+            title: 'New G-Code Uploaded',
+            message: 'Program "Bracket_Rev2.nc" uploaded by operator. Verified and ready for execution.',
+            source: 'System',
+            machine: 'CNC-001',
+            time: new Date(Date.now() - 240 * 60000),
+            unread: false,
+            acknowledged: true
+        },
+        {
+            id: 10,
+            type: 'warning',
+            title: 'Power Quality Alert',
+            message: 'Voltage fluctuation detected: 118V (nominal 120V). Consider checking power supply.',
+            source: 'MCC DAQ',
+            machine: 'CNC-001',
+            time: new Date(Date.now() - 300 * 60000),
+            unread: false,
+            acknowledged: true
+        }
+    ];
+
+    const activityData = [
+        { type: 'critical', time: '2 min ago', text: 'E-Stop triggered on CNC-001' },
+        { type: 'success', time: '15 min ago', text: 'Alert #1842 acknowledged by operator' },
+        { type: 'warning', time: '25 min ago', text: 'Tool life warning generated' },
+        { type: 'info', time: '1 hour ago', text: 'Program completed successfully' },
+        { type: 'success', time: '2 hours ago', text: '3 warnings resolved' }
+    ];
+
+    const alertRules = [
+        { name: 'Temperature Limits', condition: '> 80°C', icon: 'thermometer-half', color: 'critical', enabled: true },
+        { name: 'Vibration Threshold', condition: '> 2.5g RMS', icon: 'wave-square', color: 'warning', enabled: true },
+        { name: 'Tool Life Monitor', condition: '> 90%', icon: 'tools', color: 'warning', enabled: true },
+        { name: 'Connection Status', condition: 'Disconnect > 30s', icon: 'plug', color: 'info', enabled: true },
+        { name: 'Feed Rate Override', condition: '< 50%', icon: 'tachometer-alt', color: 'info', enabled: false }
+    ];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        renderNotifications();
+        renderActivity();
+        renderAlertRules();
+        setupFilters();
+        setupWebSocket();
+    });
+
+    // Render notifications
+    function renderNotifications(filter = 'all') {
+        const container = document.getElementById('notificationList');
+        let filtered = notifications;
+
+        if (filter !== 'all') {
+            filtered = notifications.filter(n => n.type === filter);
+        }
+
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        if (searchTerm) {
+            filtered = filtered.filter(n =>
+                n.title.toLowerCase().includes(searchTerm) ||
+                n.message.toLowerCase().includes(searchTerm)
+            );
+        }
+
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-bell-slash"></i>
+                    <p>No notifications found</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = filtered.map(n => `
+            <div class="notification-item ${n.unread ? 'unread' : ''}" data-id="${n.id}">
+                <div class="notification-icon ${n.type}">
+                    <i class="fas fa-${getIcon(n.type)}"></i>
+                </div>
+                <div class="notification-content">
+                    <div class="notification-header">
+                        <span class="notification-title">${n.title}</span>
+                        <span class="notification-time">${formatTime(n.time)}</span>
+                    </div>
+                    <div class="notification-message">${n.message}</div>
+                    <div class="notification-meta">
+                        <span><i class="fas fa-server"></i> ${n.source}</span>
+                        <span><i class="fas fa-cog"></i> ${n.machine}</span>
+                        ${n.acknowledged ? '<span class="badge badge-success">Acknowledged</span>' : ''}
+                    </div>
+                </div>
+                <div class="notification-actions">
+                    <button class="action-btn ack" title="Acknowledge" onclick="acknowledgeAlert(${n.id})">
+                        <i class="fas fa-check"></i>
+                    </button>
+                    <button class="action-btn dismiss" title="Dismiss" onclick="dismissAlert(${n.id})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Render activity timeline
+    function renderActivity() {
+        const container = document.getElementById('activityTimeline');
+        container.innerHTML = activityData.map(a => `
+            <div class="activity-item">
+                <div class="activity-dot ${a.type}"></div>
+                <div class="activity-time">${a.time}</div>
+                <div class="activity-text">${a.text}</div>
+            </div>
+        `).join('');
+    }
+
+    // Render alert rules
+    function renderAlertRules() {
+        const container = document.getElementById('alertRules');
+        container.innerHTML = alertRules.map((rule, idx) => `
+            <div class="rule-item">
+                <div class="rule-info">
+                    <div class="rule-icon ${rule.color}" style="background: rgba(${getColorRGB(rule.color)}, 0.2); color: var(--${rule.color});">
+                        <i class="fas fa-${rule.icon}"></i>
+                    </div>
+                    <div>
+                        <div class="rule-name">${rule.name}</div>
+                        <div class="rule-condition">${rule.condition}</div>
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" ${rule.enabled ? 'checked' : ''} onchange="toggleRule(${idx})">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        `).join('');
+    }
+
+    // Setup filters
+    function setupFilters() {
+        document.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', function() {
+                document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                renderNotifications(this.dataset.filter);
+            });
+        });
+
+        document.getElementById('searchInput').addEventListener('input', function() {
+            const activeFilter = document.querySelector('.filter-chip.active').dataset.filter;
+            renderNotifications(activeFilter);
+        });
+
+        document.getElementById('sourceFilter').addEventListener('change', function() {
+            // In a real implementation, this would filter by source
+            renderNotifications();
+        });
+    }
+
+    // WebSocket for real-time updates
+    function setupWebSocket() {
+        try {
+            const socket = io();
+
+            socket.on('connect', () => {
+                console.log('Connected to notification service');
+            });
+
+            socket.on('alert', (data) => {
+                addNotification(data);
+            });
+        } catch (e) {
+            console.log('WebSocket not available, using polling');
+        }
+    }
+
+    // Add new notification
+    function addNotification(data) {
+        notifications.unshift({
+            id: Date.now(),
+            type: data.type || 'info',
+            title: data.title,
+            message: data.message,
+            source: data.source || 'System',
+            machine: data.machine || 'CNC-001',
+            time: new Date(),
+            unread: true,
+            acknowledged: false
+        });
+
+        renderNotifications();
+        updateCounts();
+        showToast(data.title, data.type);
+    }
+
+    // Acknowledge alert
+    function acknowledgeAlert(id) {
+        const notification = notifications.find(n => n.id === id);
+        if (notification) {
+            notification.acknowledged = true;
+            notification.unread = false;
+            renderNotifications();
+            updateCounts();
+        }
+    }
+
+    // Dismiss alert
+    function dismissAlert(id) {
+        const idx = notifications.findIndex(n => n.id === id);
+        if (idx > -1) {
+            notifications.splice(idx, 1);
+            renderNotifications();
+            updateCounts();
+        }
+    }
+
+    // Mark all as read
+    function markAllRead() {
+        notifications.forEach(n => n.unread = false);
+        renderNotifications();
+        updateCounts();
+    }
+
+    // Toggle alert rule
+    function toggleRule(idx) {
+        alertRules[idx].enabled = !alertRules[idx].enabled;
+    }
+
+    // Update counts
+    function updateCounts() {
+        document.getElementById('criticalCount').textContent =
+            notifications.filter(n => n.type === 'critical' && !n.acknowledged).length;
+        document.getElementById('warningCount').textContent =
+            notifications.filter(n => n.type === 'warning' && !n.acknowledged).length;
+        document.getElementById('infoCount').textContent =
+            notifications.filter(n => n.type === 'info').length;
+        document.getElementById('unreadCount').textContent =
+            notifications.filter(n => n.unread).length;
+    }
+
+    // Show toast notification
+    function showToast(message, type) {
+        // Simple toast implementation
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            background: var(--bg-card);
+            border-left: 4px solid var(--${type});
+            border-radius: 0.5rem;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        `;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Helper functions
+    function getIcon(type) {
+        const icons = {
+            critical: 'exclamation-circle',
+            warning: 'exclamation-triangle',
+            info: 'info-circle',
+            success: 'check-circle'
+        };
+        return icons[type] || 'bell';
+    }
+
+    function getColorRGB(color) {
+        const colors = {
+            critical: '239, 68, 68',
+            warning: '245, 158, 11',
+            info: '59, 130, 246',
+            success: '16, 185, 129'
+        };
+        return colors[color] || '148, 163, 184';
+    }
+
+    function formatTime(date) {
+        const diff = Date.now() - date.getTime();
+        const mins = Math.floor(diff / 60000);
+
+        if (mins < 1) return 'Just now';
+        if (mins < 60) return `${mins}m ago`;
+
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}h ago`;
+
+        const days = Math.floor(hours / 24);
+        return `${days}d ago`;
+    }
+
+    function openSettings() {
+        alert('Notification settings panel would open here');
+    }
+</script>
+{% endblock %}

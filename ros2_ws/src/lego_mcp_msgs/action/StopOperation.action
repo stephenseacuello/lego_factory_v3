@@ -1,0 +1,50 @@
+# StopOperation.action - Stop/abort a running operation
+# LEGO MCP Manufacturing System v7.0
+
+# Goal
+string operation_id                # Operation to stop (empty = all on equipment)
+string equipment_id                # Equipment to stop
+string reason                      # Reason for stop
+
+uint8 stop_type                    # 0=pause, 1=stop, 2=abort, 3=emergency_stop
+# pause: Can be resumed
+# stop: Graceful stop, complete current move
+# abort: Immediate stop, may lose position
+# emergency_stop: Hardware e-stop, requires reset
+
+bool save_state                    # Save state for possible resume
+bool retract_tool                  # Retract tool/gripper before stopping
+bool return_home                   # Return to home position after stop
+
+---
+
+# Result
+bool success                       # Stop executed successfully
+string message                     # Success/error message
+
+# State at stop
+geometry_msgs/Pose stopped_pose    # Position where stopped
+float32[] joint_positions          # Joint positions at stop
+float32 operation_progress         # Progress when stopped (0-100)
+uint32 step_at_stop                # Step/line number at stop
+string state_file                  # Path to saved state file (if save_state)
+
+# Impact
+string[] affected_operations       # Operations affected by stop
+string[] affected_work_orders      # Work orders affected
+bool production_interrupted        # Production was interrupted
+float32 estimated_recovery_min     # Estimated time to recover
+
+# Required actions
+string[] required_actions          # Actions needed to resume
+bool manual_intervention_required  # Manual intervention needed
+string recovery_procedure          # Recovery procedure description
+
+---
+
+# Feedback
+uint8 phase                        # 0=initiating, 1=decelerating, 2=stopping, 3=securing, 4=complete
+string phase_name                  # Human-readable phase
+float32 progress_percent           # Stop progress (0-100)
+string status_message              # Current status
+bool equipment_secured             # Equipment is in safe state

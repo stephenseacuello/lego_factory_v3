@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Dashboard - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .nav-tabs { border-color: rgba(255,255,255,0.1); }
+        .nav-tabs .nav-link { color: #94a3b8; border: none; }
+        .nav-tabs .nav-link.active { background: var(--card-bg); color: #3b82f6; border-bottom: 2px solid #3b82f6; }
+        .nav-tabs .nav-link:hover { color: #e2e8f0; border-color: transparent; }
+        .metric-card { text-align: center; padding: 1.5rem; }
+        .metric-value { font-size: 2rem; font-weight: 700; }
+        .metric-label { color: #64748b; font-size: 0.85rem; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.05); vertical-align: middle; }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.1); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; border-color: #3b82f6; color: #e2e8f0; box-shadow: none; }
+        .btn-primary { background: #3b82f6; border-color: #3b82f6; }
+        .stock-level { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); overflow: hidden; }
+        .stock-level-bar { height: 100%; border-radius: 4px; }
+        .stock-critical { background: #ef4444; }
+        .stock-low { background: #f59e0b; }
+        .stock-ok { background: #22c55e; }
+        .stock-high { background: #3b82f6; }
+        .location-badge { padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; background: rgba(59,130,246,0.2); color: #3b82f6; }
+        .tool-status { display: inline-flex; align-items: center; gap: 0.5rem; }
+        .tool-life-bar { width: 60px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+        .tool-life-fill { height: 100%; border-radius: 3px; }
+        .alert-row { background: rgba(239,68,68,0.1); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Inventory Management</a>
+            <div class="d-flex align-items-center gap-2">
+                <input type="text" class="form-control form-control-sm" placeholder="Search inventory..." id="searchInput" style="width:200px" onkeyup="filterInventory()">
+                <button class="btn btn-outline-light btn-sm" onclick="loadInventory()"><i class="bi bi-arrow-clockwise"></i></button>
+                <button class="btn btn-warning btn-sm" onclick="showLowStock()"><i class="bi bi-exclamation-triangle me-1"></i>Low Stock</button>
+                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addItemModal">
+                    <i class="bi bi-plus-circle me-1"></i>Add Item
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Metrics Row -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body metric-card">
+                        <div class="metric-value text-info" id="totalItems">1,247</div>
+                        <div class="metric-label">Total Items</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body metric-card">
+                        <div class="metric-value text-success" id="inStockValue">$142K</div>
+                        <div class="metric-label">Inventory Value</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body metric-card">
+                        <div class="metric-value text-danger" id="lowStockCount">8</div>
+                        <div class="metric-label">Low Stock Alerts</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body metric-card">
+                        <div class="metric-value text-warning" id="pendingOrders">3</div>
+                        <div class="metric-label">Pending Orders</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body metric-card">
+                        <div class="metric-value" id="toolsActive">24</div>
+                        <div class="metric-label">Active Tools</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body metric-card">
+                        <div class="metric-value text-warning" id="toolsDue">4</div>
+                        <div class="metric-label">Tools Due Replace</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <ul class="nav nav-tabs mb-4" role="tablist">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#parts"><i class="bi bi-box-seam me-2"></i>Parts & Materials</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tools"><i class="bi bi-tools me-2"></i>Tool Inventory</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#consumables"><i class="bi bi-droplet me-2"></i>Consumables</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#orders"><i class="bi bi-cart me-2"></i>Purchase Orders</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Parts & Materials Tab -->
+            <div class="tab-pane fade show active" id="parts">
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between">
+                                <span><i class="bi bi-box-seam me-2"></i>Parts Inventory</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-light active" onclick="filterCategory('all')">All</button>
+                                    <button class="btn btn-outline-light" onclick="filterCategory('raw')">Raw Material</button>
+                                    <button class="btn btn-outline-light" onclick="filterCategory('wip')">WIP</button>
+                                    <button class="btn btn-outline-light" onclick="filterCategory('finished')">Finished</button>
+                                </div>
+                            </div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive" style="max-height:500px;overflow-y:auto">
+                                    <table class="table table-hover mb-0">
+                                        <thead class="sticky-top" style="background:var(--card-bg)">
+                                            <tr>
+                                                <th>Part Number</th>
+                                                <th>Description</th>
+                                                <th>Category</th>
+                                                <th>Location</th>
+                                                <th>Qty</th>
+                                                <th>Min</th>
+                                                <th>Stock Level</th>
+                                                <th>Unit Cost</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="partsTable">
+                                            <tr class="alert-row">
+                                                <td><code>AL-6061-T6-1X2</code></td>
+                                                <td>Aluminum 6061-T6 Bar 1"x2"x12"</td>
+                                                <td><span class="badge bg-info">Raw</span></td>
+                                                <td><span class="location-badge">A-1-2</span></td>
+                                                <td class="text-danger fw-bold">5</td>
+                                                <td>20</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-critical" style="width:25%"></div></div>
+                                                </td>
+                                                <td>$24.50</td>
+                                            </tr>
+                                            <tr>
+                                                <td><code>SS-304-ROD-0.5</code></td>
+                                                <td>Stainless Steel 304 Rod 0.5" dia</td>
+                                                <td><span class="badge bg-info">Raw</span></td>
+                                                <td><span class="location-badge">A-2-1</span></td>
+                                                <td>45</td>
+                                                <td>30</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-ok" style="width:75%"></div></div>
+                                                </td>
+                                                <td>$18.75</td>
+                                            </tr>
+                                            <tr class="alert-row">
+                                                <td><code>BEARING-6205-2RS</code></td>
+                                                <td>Ball Bearing 6205-2RS SKF</td>
+                                                <td><span class="badge bg-secondary">Component</span></td>
+                                                <td><span class="location-badge">B-3-2</span></td>
+                                                <td class="text-danger fw-bold">2</td>
+                                                <td>10</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-critical" style="width:20%"></div></div>
+                                                </td>
+                                                <td>$12.50</td>
+                                            </tr>
+                                            <tr>
+                                                <td><code>SEAL-O-RING-25</code></td>
+                                                <td>O-Ring Seal 25mm Viton</td>
+                                                <td><span class="badge bg-secondary">Component</span></td>
+                                                <td><span class="location-badge">C-1-4</span></td>
+                                                <td>150</td>
+                                                <td>50</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-high" style="width:100%"></div></div>
+                                                </td>
+                                                <td>$0.85</td>
+                                            </tr>
+                                            <tr>
+                                                <td><code>ACME-BRACKET-A1</code></td>
+                                                <td>Mounting Bracket Assembly A1</td>
+                                                <td><span class="badge bg-success">Finished</span></td>
+                                                <td><span class="location-badge">D-2-1</span></td>
+                                                <td>35</td>
+                                                <td>15</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-ok" style="width:70%"></div></div>
+                                                </td>
+                                                <td>$145.00</td>
+                                            </tr>
+                                            <tr class="alert-row">
+                                                <td><code>BRASS-360-HEX</code></td>
+                                                <td>Brass 360 Hex Bar 0.75"</td>
+                                                <td><span class="badge bg-info">Raw</span></td>
+                                                <td><span class="location-badge">A-1-5</span></td>
+                                                <td class="text-warning fw-bold">8</td>
+                                                <td>15</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-low" style="width:53%"></div></div>
+                                                </td>
+                                                <td>$32.00</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card mb-4">
+                            <div class="card-header"><i class="bi bi-pie-chart me-2"></i>Inventory by Category</div>
+                            <div class="card-body">
+                                <canvas id="categoryChart" height="200"></canvas>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-exclamation-triangle me-2"></i>Reorder Alerts</div>
+                            <div class="card-body p-0">
+                                <div class="list-group list-group-flush" id="reorderAlerts" style="background:transparent">
+                                    <div class="list-group-item bg-transparent text-light border-secondary">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <strong>AL-6061-T6-1X2</strong>
+                                                <div class="small text-danger">5 remaining (Min: 20)</div>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-warning">Order</button>
+                                        </div>
+                                    </div>
+                                    <div class="list-group-item bg-transparent text-light border-secondary">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <strong>BEARING-6205-2RS</strong>
+                                                <div class="small text-danger">2 remaining (Min: 10)</div>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-warning">Order</button>
+                                        </div>
+                                    </div>
+                                    <div class="list-group-item bg-transparent text-light border-secondary">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <strong>BRASS-360-HEX</strong>
+                                                <div class="small text-warning">8 remaining (Min: 15)</div>
+                                            </div>
+                                            <button class="btn btn-sm btn-outline-warning">Order</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tool Inventory Tab -->
+            <div class="tab-pane fade" id="tools">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><i class="bi bi-tools me-2"></i>Tool Inventory & Life Tracking</span>
+                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addToolModal">
+                            <i class="bi bi-plus me-1"></i>Add Tool
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Tool ID</th>
+                                        <th>Description</th>
+                                        <th>Type</th>
+                                        <th>Machine</th>
+                                        <th>Position</th>
+                                        <th>Life Used</th>
+                                        <th>Life Remaining</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="toolsTable">
+                                    <tr>
+                                        <td><code>T001</code></td>
+                                        <td>10mm Carbide End Mill 4-Flute</td>
+                                        <td>End Mill</td>
+                                        <td>CNC-001</td>
+                                        <td>Pos 1</td>
+                                        <td>
+                                            <div class="tool-status">
+                                                <div class="tool-life-bar"><div class="tool-life-fill bg-success" style="width:35%"></div></div>
+                                                <span>35%</span>
+                                            </div>
+                                        </td>
+                                        <td>650 min</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-repeat"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr class="alert-row">
+                                        <td><code>T002</code></td>
+                                        <td>6mm Ball Nose Carbide</td>
+                                        <td>Ball Nose</td>
+                                        <td>CNC-001</td>
+                                        <td>Pos 3</td>
+                                        <td>
+                                            <div class="tool-status">
+                                                <div class="tool-life-bar"><div class="tool-life-fill bg-danger" style="width:92%"></div></div>
+                                                <span class="text-danger">92%</span>
+                                            </div>
+                                        </td>
+                                        <td class="text-danger">40 min</td>
+                                        <td><span class="badge bg-warning">Replace Soon</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-danger"><i class="bi bi-arrow-repeat"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>T003</code></td>
+                                        <td>12mm Face Mill Insert</td>
+                                        <td>Face Mill</td>
+                                        <td>CNC-002</td>
+                                        <td>Pos 1</td>
+                                        <td>
+                                            <div class="tool-status">
+                                                <div class="tool-life-bar"><div class="tool-life-fill bg-info" style="width:55%"></div></div>
+                                                <span>55%</span>
+                                            </div>
+                                        </td>
+                                        <td>450 min</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-repeat"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>T004</code></td>
+                                        <td>3.175mm Engraving V-Bit</td>
+                                        <td>Engraving</td>
+                                        <td>CNC-005</td>
+                                        <td>Pos 1</td>
+                                        <td>
+                                            <div class="tool-status">
+                                                <div class="tool-life-bar"><div class="tool-life-fill bg-success" style="width:20%"></div></div>
+                                                <span>20%</span>
+                                            </div>
+                                        </td>
+                                        <td>400 min</td>
+                                        <td><span class="badge bg-success">Active</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-warning"><i class="bi bi-arrow-repeat"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr class="alert-row">
+                                        <td><code>T005</code></td>
+                                        <td>8mm Drill Carbide</td>
+                                        <td>Drill</td>
+                                        <td>CNC-002</td>
+                                        <td>Pos 5</td>
+                                        <td>
+                                            <div class="tool-status">
+                                                <div class="tool-life-bar"><div class="tool-life-fill bg-warning" style="width:85%"></div></div>
+                                                <span class="text-warning">85%</span>
+                                            </div>
+                                        </td>
+                                        <td class="text-warning">75 min</td>
+                                        <td><span class="badge bg-warning">Replace Soon</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-warning"><i class="bi bi-arrow-repeat"></i></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Consumables Tab -->
+            <div class="tab-pane fade" id="consumables">
+                <div class="row g-4">
+                    <div class="col-lg-8">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-droplet me-2"></i>Consumables Inventory</div>
+                            <div class="card-body p-0">
+                                <div class="table-responsive">
+                                    <table class="table table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Item</th>
+                                                <th>Description</th>
+                                                <th>Unit</th>
+                                                <th>Current</th>
+                                                <th>Min Level</th>
+                                                <th>Stock Level</th>
+                                                <th>Est. Days</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><code>COOLANT-5W</code></td>
+                                                <td>Cutting Fluid 5% Water Soluble</td>
+                                                <td>Gallon</td>
+                                                <td>25</td>
+                                                <td>10</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-ok" style="width:80%"></div></div>
+                                                </td>
+                                                <td>45 days</td>
+                                            </tr>
+                                            <tr class="alert-row">
+                                                <td><code>LUBE-WAY-32</code></td>
+                                                <td>Way Oil ISO 32</td>
+                                                <td>Quart</td>
+                                                <td class="text-danger">3</td>
+                                                <td>8</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-critical" style="width:30%"></div></div>
+                                                </td>
+                                                <td class="text-danger">5 days</td>
+                                            </tr>
+                                            <tr>
+                                                <td><code>FILTER-COOL-10</code></td>
+                                                <td>Coolant Filter 10 micron</td>
+                                                <td>Each</td>
+                                                <td>12</td>
+                                                <td>6</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-ok" style="width:70%"></div></div>
+                                                </td>
+                                                <td>60 days</td>
+                                            </tr>
+                                            <tr>
+                                                <td><code>GREASE-EP2</code></td>
+                                                <td>Grease EP2 Lithium Complex</td>
+                                                <td>Cartridge</td>
+                                                <td>8</td>
+                                                <td>4</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-ok" style="width:65%"></div></div>
+                                                </td>
+                                                <td>90 days</td>
+                                            </tr>
+                                            <tr class="alert-row">
+                                                <td><code>WIPE-SHOP</code></td>
+                                                <td>Shop Wipes Industrial</td>
+                                                <td>Box</td>
+                                                <td class="text-warning">4</td>
+                                                <td>6</td>
+                                                <td>
+                                                    <div class="stock-level"><div class="stock-level-bar stock-low" style="width:45%"></div></div>
+                                                </td>
+                                                <td class="text-warning">12 days</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="card">
+                            <div class="card-header"><i class="bi bi-graph-up me-2"></i>Consumption Trends</div>
+                            <div class="card-body">
+                                <canvas id="consumptionChart" height="250"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Purchase Orders Tab -->
+            <div class="tab-pane fade" id="orders">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><i class="bi bi-cart me-2"></i>Purchase Orders</span>
+                        <button class="btn btn-sm btn-primary" onclick="createPO()">
+                            <i class="bi bi-plus me-1"></i>Create PO
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>PO Number</th>
+                                        <th>Supplier</th>
+                                        <th>Items</th>
+                                        <th>Total</th>
+                                        <th>Order Date</th>
+                                        <th>Expected</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><code>PO-2024-0125</code></td>
+                                        <td>McMaster-Carr</td>
+                                        <td>5 items</td>
+                                        <td>$1,245.00</td>
+                                        <td>2024-01-12</td>
+                                        <td>2024-01-17</td>
+                                        <td><span class="badge bg-info">In Transit</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-success"><i class="bi bi-check"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>PO-2024-0124</code></td>
+                                        <td>SKF Bearings</td>
+                                        <td>2 items</td>
+                                        <td>$325.00</td>
+                                        <td>2024-01-10</td>
+                                        <td>2024-01-18</td>
+                                        <td><span class="badge bg-warning">Processing</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>PO-2024-0123</code></td>
+                                        <td>Grainger</td>
+                                        <td>8 items</td>
+                                        <td>$567.50</td>
+                                        <td>2024-01-08</td>
+                                        <td>2024-01-15</td>
+                                        <td><span class="badge bg-success">Received</span></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Item Modal -->
+    <div class="modal fade" id="addItemModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title">Add Inventory Item</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Part Number</label>
+                        <input type="text" class="form-control" id="newPartNumber">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <input type="text" class="form-control" id="newDescription">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Category</label>
+                            <select class="form-select" id="newCategory">
+                                <option>Raw Material</option>
+                                <option>Component</option>
+                                <option>WIP</option>
+                                <option>Finished</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Location</label>
+                            <input type="text" class="form-control" id="newLocation" placeholder="A-1-1">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Quantity</label>
+                            <input type="number" class="form-control" id="newQty" value="0">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Min Level</label>
+                            <input type="number" class="form-control" id="newMin" value="10">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Unit Cost</label>
+                            <input type="number" class="form-control" id="newCost" step="0.01">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="addItem()">Add Item</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let categoryChart, consumptionChart;
+
+        function initCharts() {
+            // Category Chart
+            const catCtx = document.getElementById('categoryChart').getContext('2d');
+            categoryChart = new Chart(catCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Raw Material', 'Components', 'WIP', 'Finished'],
+                    datasets: [{
+                        data: [35, 28, 12, 25],
+                        backgroundColor: ['#3b82f6', '#8b5cf6', '#f59e0b', '#22c55e']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8' } } }
+                }
+            });
+
+            // Consumption Chart
+            const consCtx = document.getElementById('consumptionChart').getContext('2d');
+            consumptionChart = new Chart(consCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Coolant (gal)',
+                        data: [2.5, 3.0, 2.8, 3.2, 2.9, 1.5, 0.5],
+                        borderColor: '#3b82f6',
+                        fill: false,
+                        tension: 0.4
+                    }, {
+                        label: 'Lube (qt)',
+                        data: [0.5, 0.8, 0.6, 0.7, 0.9, 0.3, 0.1],
+                        borderColor: '#f59e0b',
+                        fill: false,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        function loadInventory() {
+            console.log('Loading inventory...');
+        }
+
+        function filterInventory() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            // Filter table rows
+        }
+
+        function filterCategory(cat) {
+            console.log('Filter by category:', cat);
+        }
+
+        function showLowStock() {
+            alert('Showing 8 items below minimum stock level');
+        }
+
+        function addItem() {
+            alert('Item added to inventory');
+            bootstrap.Modal.getInstance(document.getElementById('addItemModal')).hide();
+        }
+
+        function createPO() {
+            alert('Creating new purchase order...');
+        }
+
+        initCharts();
+    </script>
+</body>
+</html>

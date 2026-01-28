@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+
+{% block title %}Process Monitor{% endblock %}
+
+{% block extra_css %}
+<style>
+.routing-progress {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 0;
+}
+
+.routing-step {
+    flex: 1;
+    height: 32px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-width: 60px;
+}
+
+.routing-step:hover {
+    transform: scaleY(1.1);
+}
+
+.routing-step.pending {
+    background: #e0e0e0;
+    color: #666;
+}
+
+.routing-step.running {
+    background: #2196F3;
+    animation: pulse-blue 1.5s infinite;
+}
+
+.routing-step.complete {
+    background: #4CAF50;
+}
+
+.routing-step.failed {
+    background: #f44336;
+}
+
+@keyframes pulse-blue {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.routing-arrow {
+    color: #ccc;
+    font-size: 12px;
+}
+
+.wo-card {
+    border-left: 4px solid #2196F3;
+    transition: all 0.2s;
+}
+
+.wo-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.wo-card.status-completed {
+    border-left-color: #4CAF50;
+}
+
+.wo-card.status-in-progress {
+    border-left-color: #2196F3;
+}
+
+.wo-card.status-released {
+    border-left-color: #FF9800;
+}
+
+.params-table th {
+    width: 40%;
+}
+
+.deviation-ok { color: #4CAF50; }
+.deviation-warn { color: #FF9800; }
+.deviation-error { color: #f44336; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">Process Monitor</h2>
+            <p class="text-muted mb-0">Real-time routing and recipe execution monitoring</p>
+        </div>
+        <div>
+            <div class="btn-group">
+                <button class="btn btn-outline-secondary" onclick="refreshData()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <button class="btn btn-outline-primary" onclick="toggleAutoRefresh()">
+                    <i class="bi bi-play" id="auto-refresh-icon"></i> Auto
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-active">--</div>
+                <div class="stat-label">Active Work Orders</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card success">
+                <div class="stat-value" id="stat-complete">--</div>
+                <div class="stat-label">Completed Today</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card warning">
+                <div class="stat-value" id="stat-deviations">--</div>
+                <div class="stat-label">Process Deviations</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-yield">--%</div>
+                <div class="stat-label">First Pass Yield</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body py-2">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <label class="form-label mb-0 me-2">Status:</label>
+                </div>
+                <div class="col-auto">
+                    <div class="btn-group btn-group-sm">
+                        <input type="checkbox" class="btn-check" id="filter-released" checked>
+                        <label class="btn btn-outline-warning" for="filter-released">Released</label>
+                        <input type="checkbox" class="btn-check" id="filter-in-progress" checked>
+                        <label class="btn btn-outline-primary" for="filter-in-progress">In Progress</label>
+                        <input type="checkbox" class="btn-check" id="filter-completed">
+                        <label class="btn btn-outline-success" for="filter-completed">Completed</label>
+                    </div>
+                </div>
+                <div class="col-auto ms-auto">
+                    <input type="text" class="form-control form-control-sm" placeholder="Search WO..." id="search-input" style="width: 200px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Work Orders Grid -->
+    <div id="wo-grid" class="row">
+        <!-- Loaded dynamically -->
+    </div>
+</div>
+
+<!-- Step Detail Modal -->
+<div class="modal fade" id="stepModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="step-modal-title">Step Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Execution Details</h6>
+                        <table class="table table-sm">
+                            <tr><th>Operation</th><td id="step-operation">--</td></tr>
+                            <tr><th>Machine</th><td id="step-machine">--</td></tr>
+                            <tr><th>Worker</th><td id="step-worker">--</td></tr>
+                            <tr><th>Started</th><td id="step-started">--</td></tr>
+                            <tr><th>Completed</th><td id="step-completed">--</td></tr>
+                            <tr><th>Duration</th><td id="step-duration">--</td></tr>
+                            <tr><th>Quality</th><td id="step-quality">--</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Recipe Parameters</h6>
+                        <table class="table table-sm params-table" id="params-table">
+                            <thead>
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Setpoint</th>
+                                    <th>Actual</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="params-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Defects Section -->
+                <div class="mt-3" id="defects-section" style="display: none;">
+                    <h6>Defects Found</h6>
+                    <div id="defects-list" class="alert alert-danger"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let autoRefresh = false;
+let refreshInterval = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadWorkOrders();
+    setupWebSocket();
+
+    // Filter change handlers
+    document.querySelectorAll('.btn-check').forEach(cb => {
+        cb.addEventListener('change', loadWorkOrders);
+    });
+
+    document.getElementById('search-input').addEventListener('input', loadWorkOrders);
+});
+
+function setupWebSocket() {
+    const socket = io('/dashboard');
+
+    socket.on('job_update', function(data) {
+        loadWorkOrders();
+    });
+
+    socket.on('wo_update', function(data) {
+        loadWorkOrders();
+    });
+}
+
+async function loadWorkOrders() {
+    try {
+        const response = await fetch('/api/mes/work-orders');
+        const data = await response.json();
+
+        let workOrders = data.work_orders || [];
+
+        // Apply filters
+        const showReleased = document.getElementById('filter-released').checked;
+        const showInProgress = document.getElementById('filter-in-progress').checked;
+        const showCompleted = document.getElementById('filter-completed').checked;
+        const search = document.getElementById('search-input').value.toLowerCase();
+
+        workOrders = workOrders.filter(wo => {
+            const status = wo.status?.toLowerCase();
+            if (status === 'released' && !showReleased) return false;
+            if (status === 'in_progress' && !showInProgress) return false;
+            if (status === 'completed' && !showCompleted) return false;
+
+            if (search && !wo.wo_number.toLowerCase().includes(search)) return false;
+
+            return true;
+        });
+
+        // Update stats
+        document.getElementById('stat-active').textContent =
+            workOrders.filter(wo => wo.status === 'in_progress').length;
+        document.getElementById('stat-complete').textContent =
+            workOrders.filter(wo => wo.status === 'completed').length;
+
+        // Render grid
+        renderWorkOrders(workOrders);
+
+    } catch (error) {
+        console.error('Failed to load work orders:', error);
+    }
+}
+
+function renderWorkOrders(workOrders) {
+    const grid = document.getElementById('wo-grid');
+
+    if (workOrders.length === 0) {
+        grid.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-clipboard-x display-1 text-muted"></i>
+                <p class="mt-3 text-muted">No work orders match your filters</p>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = workOrders.map(wo => {
+        const jobs = wo.jobs || [];
+        const routing = buildRouting(jobs);
+
+        return `
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card wo-card status-${wo.status}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${wo.wo_number}</strong>
+                            <span class="badge ${getStatusBadge(wo.status)} ms-2">${wo.status}</span>
+                        </div>
+                        <small class="text-muted">${wo.quantity || 0} pcs</small>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">
+                            <strong>${wo.product_id || 'Unknown Product'}</strong>
+                            ${wo.customer_name ? `<br><small class="text-muted">${wo.customer_name}</small>` : ''}
+                        </p>
+
+                        <!-- Routing Progress -->
+                        <div class="routing-progress">
+                            ${routing.map((step, idx) => `
+                                ${idx > 0 ? '<span class="routing-arrow"><i class="bi bi-chevron-right"></i></span>' : ''}
+                                <div class="routing-step ${step.status}"
+                                     onclick="showStepDetails('${wo.wo_number}', ${idx})"
+                                     title="${step.name}">
+                                    ${step.shortName}
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="d-flex justify-content-between text-muted small mt-2">
+                            <span><i class="bi bi-calendar"></i> Due: ${wo.due_date ? new Date(wo.due_date).toLocaleDateString() : '-'}</span>
+                            <span>${getProgressText(jobs)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function buildRouting(jobs) {
+    if (!jobs || jobs.length === 0) {
+        return [{ name: 'No operations', shortName: '-', status: 'pending' }];
+    }
+
+    return jobs.map(job => {
+        const name = job.runtime_data?.operation_name || job.job_id;
+        const shortName = name.length > 8 ? name.substring(0, 8) + '...' : name;
+
+        let status = 'pending';
+        switch(job.status) {
+            case 'RUNNING': status = 'running'; break;
+            case 'COMPLETED': status = 'complete'; break;
+            case 'FAILED': status = 'failed'; break;
+        }
+
+        return { name, shortName, status, job };
+    });
+}
+
+function getStatusBadge(status) {
+    switch(status?.toLowerCase()) {
+        case 'completed': return 'bg-success';
+        case 'in_progress': return 'bg-primary';
+        case 'released': return 'bg-warning text-dark';
+        case 'draft': return 'bg-secondary';
+        default: return 'bg-secondary';
+    }
+}
+
+function getProgressText(jobs) {
+    if (!jobs || jobs.length === 0) return '0/0 steps';
+    const completed = jobs.filter(j => j.status === 'COMPLETED').length;
+    return `${completed}/${jobs.length} steps`;
+}
+
+async function showStepDetails(woNumber, stepIdx) {
+    try {
+        // Get work order details
+        const response = await fetch(`/api/mes/work-orders/${woNumber}`);
+        const data = await response.json();
+
+        const wo = data.work_order;
+        const jobs = wo?.jobs || [];
+        const job = jobs[stepIdx];
+
+        if (!job) {
+            alert('Step not found');
+            return;
+        }
+
+        // Populate modal
+        document.getElementById('step-modal-title').textContent =
+            job.runtime_data?.operation_name || job.job_id;
+        document.getElementById('step-operation').textContent =
+            job.runtime_data?.operation_name || '-';
+        document.getElementById('step-machine').textContent = job.machine_id || '-';
+        document.getElementById('step-worker').textContent = job.runtime_data?.worker_id || '-';
+        document.getElementById('step-started').textContent =
+            job.actual_start ? new Date(job.actual_start).toLocaleString() : '-';
+        document.getElementById('step-completed').textContent =
+            job.actual_end ? new Date(job.actual_end).toLocaleString() : '-';
+
+        if (job.actual_start && job.actual_end) {
+            const duration = (new Date(job.actual_end) - new Date(job.actual_start)) / 60000;
+            document.getElementById('step-duration').textContent = `${duration.toFixed(1)} min`;
+        } else {
+            document.getElementById('step-duration').textContent = '-';
+        }
+
+        document.getElementById('step-quality').textContent = job.status || '-';
+
+        // Parameters
+        const paramsBody = document.getElementById('params-body');
+        const params = job.runtime_data?.parameters || {};
+        const actuals = job.runtime_data?.actuals || {};
+
+        if (Object.keys(params).length > 0) {
+            paramsBody.innerHTML = Object.entries(params).map(([key, value]) => {
+                const actual = actuals[key];
+                const deviation = actual !== undefined ? getDeviation(value, actual) : null;
+
+                return `
+                    <tr>
+                        <td>${key}</td>
+                        <td>${value}</td>
+                        <td>${actual !== undefined ? actual : '-'}</td>
+                        <td>${deviation ? `<span class="${deviation.class}"><i class="bi bi-${deviation.icon}"></i></span>` : '-'}</td>
+                    </tr>
+                `;
+            }).join('');
+        } else {
+            paramsBody.innerHTML = '<tr><td colspan="4" class="text-muted text-center">No parameters recorded</td></tr>';
+        }
+
+        // Defects
+        const defects = job.runtime_data?.defects || [];
+        if (defects.length > 0) {
+            document.getElementById('defects-section').style.display = 'block';
+            document.getElementById('defects-list').innerHTML = defects.map(d =>
+                `<i class="bi bi-exclamation-triangle"></i> ${d}`
+            ).join('<br>');
+        } else {
+            document.getElementById('defects-section').style.display = 'none';
+        }
+
+        // Show modal
+        new bootstrap.Modal(document.getElementById('stepModal')).show();
+
+    } catch (error) {
+        console.error('Failed to load step details:', error);
+    }
+}
+
+function getDeviation(setpoint, actual) {
+    if (typeof setpoint !== 'number' || typeof actual !== 'number') {
+        return null;
+    }
+
+    const deviation = Math.abs((actual - setpoint) / setpoint * 100);
+
+    if (deviation < 5) {
+        return { class: 'deviation-ok', icon: 'check-circle' };
+    } else if (deviation < 10) {
+        return { class: 'deviation-warn', icon: 'exclamation-triangle' };
+    } else {
+        return { class: 'deviation-error', icon: 'x-circle' };
+    }
+}
+
+function toggleAutoRefresh() {
+    autoRefresh = !autoRefresh;
+    const icon = document.getElementById('auto-refresh-icon');
+
+    if (autoRefresh) {
+        icon.className = 'bi bi-pause';
+        refreshInterval = setInterval(loadWorkOrders, 5000);
+    } else {
+        icon.className = 'bi bi-play';
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+            refreshInterval = null;
+        }
+    }
+}
+
+function refreshData() {
+    loadWorkOrders();
+}
+</script>
+{% endblock %}

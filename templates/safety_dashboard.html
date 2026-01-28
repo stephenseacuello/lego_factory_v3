@@ -1,0 +1,856 @@
+{% extends "base.html" %}
+{% block title %}Safety Dashboard - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #10b981;
+        --accent-red: #ef4444;
+        --accent-yellow: #f59e0b;
+        --accent-purple: #8b5cf6;
+    }
+
+    .safety-container {
+        padding: 1.5rem;
+        background: var(--bg-dark);
+        min-height: calc(100vh - 60px);
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .page-title i {
+        color: var(--accent-green);
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+        border: none;
+    }
+
+    .btn-primary {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #2563eb;
+    }
+
+    .btn-danger {
+        background: var(--accent-red);
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: #dc2626;
+    }
+
+    .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    /* Safety Score Banner */
+    .safety-score-banner {
+        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+        border-radius: 1rem;
+        padding: 2rem;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .score-info h2 {
+        color: white;
+        font-size: 1.25rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .score-display {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+    }
+
+    .score-value {
+        font-size: 4rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .score-label {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 1.25rem;
+    }
+
+    .score-trend {
+        color: #86efac;
+        font-size: 0.875rem;
+        margin-top: 0.5rem;
+    }
+
+    .days-safe {
+        text-align: center;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 1rem;
+        padding: 1.5rem 2rem;
+    }
+
+    .days-count {
+        font-size: 3.5rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .days-label {
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.875rem;
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .kpi-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .kpi-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .kpi-icon.red { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .kpi-icon.yellow { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+    .kpi-icon.green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+    .kpi-icon.blue { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .kpi-label {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Main Content Grid */
+    .content-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .card {
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .card-body {
+        padding: 1.25rem;
+    }
+
+    /* Incidents Table */
+    .incidents-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .incidents-table th,
+    .incidents-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .incidents-table th {
+        color: var(--text-secondary);
+        font-weight: 500;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    .incidents-table td {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .severity-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .severity-critical { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .severity-high { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .severity-medium { background: rgba(59, 130, 246, 0.2); color: #93c5fd; }
+    .severity-low { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-open { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
+    .status-investigating { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    .status-resolved { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
+
+    /* Training Compliance */
+    .training-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .training-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+    }
+
+    .training-info h4 {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .training-info span {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+    }
+
+    .compliance-bar {
+        width: 120px;
+        height: 8px;
+        background: var(--bg-card);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .compliance-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+
+    .compliance-fill.high { background: var(--accent-green); }
+    .compliance-fill.medium { background: var(--accent-yellow); }
+    .compliance-fill.low { background: var(--accent-red); }
+
+    .compliance-percent {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        min-width: 45px;
+        text-align: right;
+    }
+
+    /* Hazard Map */
+    .hazard-map {
+        height: 300px;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .map-zone {
+        position: absolute;
+        border: 2px dashed;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .zone-cnc {
+        top: 10%; left: 5%; width: 40%; height: 35%;
+        border-color: var(--accent-green);
+        background: rgba(16, 185, 129, 0.1);
+    }
+
+    .zone-assembly {
+        top: 10%; right: 5%; width: 40%; height: 35%;
+        border-color: var(--accent-yellow);
+        background: rgba(245, 158, 11, 0.1);
+    }
+
+    .zone-warehouse {
+        bottom: 10%; left: 5%; width: 55%; height: 35%;
+        border-color: var(--accent-blue);
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .zone-maintenance {
+        bottom: 10%; right: 5%; width: 30%; height: 35%;
+        border-color: var(--accent-red);
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .hazard-marker {
+        position: absolute;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        color: white;
+        cursor: pointer;
+        animation: pulse 2s infinite;
+    }
+
+    .hazard-marker.warning { background: var(--accent-yellow); }
+    .hazard-marker.danger { background: var(--accent-red); }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+
+    /* PPE Compliance */
+    .ppe-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .ppe-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+    }
+
+    .ppe-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--accent-blue);
+    }
+
+    .ppe-info h4 {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .ppe-status {
+        font-size: 0.75rem;
+    }
+
+    .ppe-status.compliant { color: var(--accent-green); }
+    .ppe-status.warning { color: var(--accent-yellow); }
+    .ppe-status.non-compliant { color: var(--accent-red); }
+
+    /* Emergency Procedures */
+    .emergency-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .emergency-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        background: var(--bg-dark);
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .emergency-item:hover {
+        background: var(--bg-card-hover);
+    }
+
+    .emergency-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+    }
+
+    .emergency-icon.fire { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .emergency-icon.medical { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+    .emergency-icon.spill { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); }
+    .emergency-icon.evacuation { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+
+    .emergency-info h4 {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .emergency-info span {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+    }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 1rem;
+    }
+
+    .tab {
+        padding: 0.75rem 1.25rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .tab.active {
+        color: var(--accent-blue);
+        border-bottom-color: var(--accent-blue);
+    }
+
+    .tab:hover:not(.active) {
+        color: var(--text-primary);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="safety-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="fas fa-shield-alt"></i>
+            Safety Dashboard
+        </h1>
+        <div class="header-actions">
+            <button class="btn btn-danger" onclick="reportIncident()">
+                <i class="fas fa-exclamation-triangle"></i>
+                Report Incident
+            </button>
+            <button class="btn btn-primary" onclick="exportReport()">
+                <i class="fas fa-file-export"></i>
+                Export Report
+            </button>
+        </div>
+    </div>
+
+    <!-- Safety Score Banner -->
+    <div class="safety-score-banner">
+        <div class="score-info">
+            <h2>Overall Safety Score</h2>
+            <div class="score-display">
+                <span class="score-value">94</span>
+                <span class="score-label">/ 100</span>
+            </div>
+            <div class="score-trend">
+                <i class="fas fa-arrow-up"></i> +3 points from last month
+            </div>
+        </div>
+        <div class="days-safe">
+            <div class="days-count">127</div>
+            <div class="days-label">Days Without Lost Time Incident</div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <div class="kpi-icon red">
+                    <i class="fas fa-exclamation-circle"></i>
+                </div>
+            </div>
+            <div class="kpi-value">3</div>
+            <div class="kpi-label">Open Incidents</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <div class="kpi-icon yellow">
+                    <i class="fas fa-search"></i>
+                </div>
+            </div>
+            <div class="kpi-value">7</div>
+            <div class="kpi-label">Near Misses (MTD)</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <div class="kpi-icon green">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+            </div>
+            <div class="kpi-value">92%</div>
+            <div class="kpi-label">Training Compliance</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <div class="kpi-icon blue">
+                    <i class="fas fa-clipboard-check"></i>
+                </div>
+            </div>
+            <div class="kpi-value">156</div>
+            <div class="kpi-label">Audits Completed (YTD)</div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content-grid">
+        <!-- Left Column -->
+        <div class="left-column">
+            <!-- Incidents Card -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-clipboard-list"></i>
+                        Safety Incidents
+                    </span>
+                    <div class="tabs" style="border: none; margin: 0;">
+                        <span class="tab active" data-tab="all">All</span>
+                        <span class="tab" data-tab="open">Open</span>
+                        <span class="tab" data-tab="resolved">Resolved</span>
+                    </div>
+                </div>
+                <div class="card-body" style="padding: 0;">
+                    <table class="incidents-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Location</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incidents-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Hazard Map -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-map-marked-alt"></i>
+                        Hazard Map
+                    </span>
+                    <button class="btn btn-secondary" onclick="addHazard()">
+                        <i class="fas fa-plus"></i>
+                        Add Hazard
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="hazard-map">
+                        <div class="map-zone zone-cnc">CNC Milling Zone</div>
+                        <div class="map-zone zone-assembly">Assembly Area</div>
+                        <div class="map-zone zone-warehouse">Warehouse</div>
+                        <div class="map-zone zone-maintenance">Maintenance</div>
+
+                        <div class="hazard-marker warning" style="top: 25%; left: 20%;" title="Slippery Floor">
+                            <i class="fas fa-exclamation"></i>
+                        </div>
+                        <div class="hazard-marker danger" style="top: 70%; right: 15%;" title="High Voltage">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <div class="hazard-marker warning" style="bottom: 25%; left: 35%;" title="Forklift Traffic">
+                            <i class="fas fa-truck"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="right-column">
+            <!-- Training Compliance -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-graduation-cap"></i>
+                        Training Compliance
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="training-list" id="training-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- PPE Compliance -->
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-hard-hat"></i>
+                        PPE Compliance
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="ppe-grid" id="ppe-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emergency Procedures -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <i class="fas fa-first-aid"></i>
+                        Emergency Procedures
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="emergency-list">
+                        <div class="emergency-item" onclick="viewProcedure('fire')">
+                            <div class="emergency-icon fire">
+                                <i class="fas fa-fire"></i>
+                            </div>
+                            <div class="emergency-info">
+                                <h4>Fire Emergency</h4>
+                                <span>Last drill: 15 days ago</span>
+                            </div>
+                        </div>
+                        <div class="emergency-item" onclick="viewProcedure('medical')">
+                            <div class="emergency-icon medical">
+                                <i class="fas fa-medkit"></i>
+                            </div>
+                            <div class="emergency-info">
+                                <h4>Medical Emergency</h4>
+                                <span>AED locations: 4</span>
+                            </div>
+                        </div>
+                        <div class="emergency-item" onclick="viewProcedure('spill')">
+                            <div class="emergency-icon spill">
+                                <i class="fas fa-flask"></i>
+                            </div>
+                            <div class="emergency-info">
+                                <h4>Chemical Spill</h4>
+                                <span>Spill kits: 6 locations</span>
+                            </div>
+                        </div>
+                        <div class="emergency-item" onclick="viewProcedure('evacuation')">
+                            <div class="emergency-icon evacuation">
+                                <i class="fas fa-door-open"></i>
+                            </div>
+                            <div class="emergency-info">
+                                <h4>Evacuation</h4>
+                                <span>Assembly points: 2</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Sample data
+    const incidents = [
+        { id: 'INC-2024-001', date: '2024-01-08', type: 'Near Miss', location: 'CNC Zone', severity: 'medium', status: 'investigating' },
+        { id: 'INC-2024-002', date: '2024-01-05', type: 'Minor Injury', location: 'Assembly', severity: 'low', status: 'resolved' },
+        { id: 'INC-2024-003', date: '2024-01-03', type: 'Equipment', location: 'Maintenance', severity: 'high', status: 'open' },
+        { id: 'INC-2024-004', date: '2023-12-28', type: 'Near Miss', location: 'Warehouse', severity: 'medium', status: 'resolved' },
+        { id: 'INC-2024-005', date: '2023-12-20', type: 'PPE Violation', location: 'CNC Zone', severity: 'low', status: 'resolved' },
+    ];
+
+    const training = [
+        { name: 'Lockout/Tagout', required: 45, completed: 43, due: 'Monthly' },
+        { name: 'Hazard Communication', required: 45, completed: 42, due: 'Annual' },
+        { name: 'Machine Guarding', required: 30, completed: 30, due: 'Quarterly' },
+        { name: 'Fire Safety', required: 45, completed: 38, due: 'Annual' },
+        { name: 'First Aid/CPR', required: 15, completed: 14, due: 'Bi-annual' },
+    ];
+
+    const ppe = [
+        { name: 'Safety Glasses', icon: 'fa-glasses', compliance: 98, status: 'compliant' },
+        { name: 'Steel-Toe Boots', icon: 'fa-shoe-prints', compliance: 100, status: 'compliant' },
+        { name: 'Hearing Protection', icon: 'fa-deaf', compliance: 85, status: 'warning' },
+        { name: 'Safety Gloves', icon: 'fa-hand-paper', compliance: 92, status: 'compliant' },
+    ];
+
+    function renderIncidents() {
+        const tbody = document.getElementById('incidents-body');
+        tbody.innerHTML = incidents.map(inc => `
+            <tr>
+                <td><strong>${inc.id}</strong></td>
+                <td>${inc.date}</td>
+                <td>${inc.type}</td>
+                <td>${inc.location}</td>
+                <td><span class="severity-badge severity-${inc.severity}">${inc.severity}</span></td>
+                <td><span class="status-badge status-${inc.status}">${inc.status}</span></td>
+            </tr>
+        `).join('');
+    }
+
+    function renderTraining() {
+        const list = document.getElementById('training-list');
+        list.innerHTML = training.map(t => {
+            const percent = Math.round((t.completed / t.required) * 100);
+            const fillClass = percent >= 95 ? 'high' : percent >= 80 ? 'medium' : 'low';
+            return `
+                <div class="training-item">
+                    <div class="training-info">
+                        <h4>${t.name}</h4>
+                        <span>${t.completed}/${t.required} employees • ${t.due}</span>
+                    </div>
+                    <div class="compliance-bar">
+                        <div class="compliance-fill ${fillClass}" style="width: ${percent}%"></div>
+                    </div>
+                    <span class="compliance-percent">${percent}%</span>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderPPE() {
+        const grid = document.getElementById('ppe-grid');
+        grid.innerHTML = ppe.map(p => `
+            <div class="ppe-item">
+                <div class="ppe-icon">
+                    <i class="fas ${p.icon}"></i>
+                </div>
+                <div class="ppe-info">
+                    <h4>${p.name}</h4>
+                    <span class="ppe-status ${p.status}">${p.compliance}% Compliant</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            // Filter logic would go here
+        });
+    });
+
+    function reportIncident() {
+        alert('Opening incident report form...');
+    }
+
+    function exportReport() {
+        alert('Generating safety report PDF...');
+    }
+
+    function addHazard() {
+        alert('Opening hazard entry form...');
+    }
+
+    function viewProcedure(type) {
+        alert(`Opening ${type} emergency procedure...`);
+    }
+
+    // Initialize
+    renderIncidents();
+    renderTraining();
+    renderPPE();
+</script>
+{% endblock %}

@@ -1,0 +1,857 @@
+{% extends "base.html" %}
+
+{% block title %}CNC Operator Dashboard - LEGO Factory{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item active">Operator Dashboard</li>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --navy-900: #0a1628;
+        --navy-800: #0f2744;
+        --navy-700: #1a365d;
+        --navy-600: #2c5282;
+        --gold-500: #d69e2e;
+        --gold-400: #ecc94b;
+    }
+
+    .dashboard-header {
+        background: linear-gradient(135deg, var(--navy-700) 0%, var(--navy-800) 100%);
+        padding: 1.5rem;
+        border-radius: 0.5rem;
+        color: white;
+        margin-bottom: 1.5rem;
+        border-top: 3px solid var(--gold-500);
+    }
+
+    .dashboard-header h2 {
+        margin: 0;
+        font-weight: 700;
+    }
+
+    .dashboard-header .subtitle {
+        color: rgba(255,255,255,0.7);
+        font-size: 0.9rem;
+    }
+
+    .machine-selector {
+        background: var(--navy-600);
+        color: white;
+        border: 1px solid var(--navy-500);
+        padding: 0.5rem 1rem;
+        border-radius: 0.25rem;
+    }
+
+    .status-panel {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .status-item {
+        background: white;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .status-item .label {
+        font-size: 0.75rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-item .value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .status-item.online .value { color: #38a169; }
+    .status-item.warning .value { color: #dd6b20; }
+    .status-item.offline .value { color: #c53030; }
+
+    .position-display {
+        background: linear-gradient(180deg, #f8f9fa 0%, #e9ecef 100%);
+        border: 2px solid #dee2e6;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        display: flex;
+        justify-content: space-around;
+        margin-bottom: 1rem;
+    }
+
+    .axis-display {
+        text-align: center;
+        padding: 0.5rem 1rem;
+        background: rgba(255,255,255,0.5);
+        border-radius: 0.25rem;
+        min-width: 100px;
+    }
+
+    .axis-label {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--navy-600);
+        text-transform: uppercase;
+    }
+
+    .axis-value {
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--navy-900);
+    }
+
+    .axis-unit {
+        font-size: 0.7rem;
+        color: #6c757d;
+    }
+
+    .jog-pad {
+        background: linear-gradient(180deg, #e9ecef 0%, #dee2e6 100%);
+        border: 2px solid #ced4da;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .jog-row {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .jog-btn {
+        width: 55px;
+        height: 48px;
+        font-size: 1.2rem;
+        font-weight: 700;
+        border: 1px solid var(--navy-800);
+        border-radius: 0.25rem;
+        background: linear-gradient(180deg, var(--navy-600) 0%, var(--navy-700) 100%);
+        color: white;
+        cursor: pointer;
+        transition: all 0.1s;
+    }
+
+    .jog-btn:hover {
+        background: linear-gradient(180deg, #3182ce 0%, var(--navy-600) 100%);
+    }
+
+    .jog-btn:active {
+        transform: translateY(2px);
+    }
+
+    .jog-btn.home {
+        background: linear-gradient(180deg, #38a169 0%, #276749 100%);
+        border-color: #22543d;
+    }
+
+    .jog-btn.z-axis {
+        background: linear-gradient(180deg, #805ad5 0%, #553c9a 100%);
+        border-color: #44337a;
+    }
+
+    .gcode-console {
+        background: #1a1a2e;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        font-family: 'Consolas', 'Monaco', monospace;
+    }
+
+    .console-output {
+        height: 200px;
+        overflow-y: auto;
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+        background: rgba(0,0,0,0.3);
+        border-radius: 0.25rem;
+    }
+
+    .console-line {
+        font-size: 0.85rem;
+        margin: 2px 0;
+    }
+
+    .console-sent { color: #68d391; }
+    .console-received { color: #63b3ed; }
+    .console-error { color: #fc8181; }
+    .console-info { color: #a0aec0; }
+
+    .console-input {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .console-input input {
+        flex: 1;
+        padding: 0.5rem;
+        border: 1px solid #4a5568;
+        border-radius: 0.25rem;
+        background: #2d3748;
+        color: white;
+        font-family: 'Consolas', 'Monaco', monospace;
+    }
+
+    .sensor-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+    }
+
+    .sensor-card {
+        background: #f8f9fa;
+        border-radius: 0.375rem;
+        padding: 0.75rem;
+        text-align: center;
+    }
+
+    .sensor-card .sensor-name {
+        font-size: 0.7rem;
+        color: #6c757d;
+        text-transform: uppercase;
+    }
+
+    .sensor-card .sensor-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #2d3748;
+    }
+
+    .quick-link {
+        display: inline-block;
+        padding: 0.375rem 0.75rem;
+        background: rgba(214,158,46,0.15);
+        color: var(--gold-500);
+        border-radius: 0.25rem;
+        text-decoration: none;
+        font-size: 0.85rem;
+        margin: 0.25rem;
+    }
+
+    .quick-link:hover {
+        background: rgba(214,158,46,0.25);
+        color: var(--gold-400);
+    }
+
+    @media (max-width: 768px) {
+        .status-panel {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .sensor-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Dashboard Header -->
+<div class="dashboard-header">
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h2>CNC SCADA OPERATOR DASHBOARD</h2>
+            <p class="subtitle mb-0">Real-Time Machine Monitoring & Control | Bantam Desktop Explorer</p>
+        </div>
+        <div class="text-end">
+            <label class="d-block small text-white-50 mb-1">Active Machine</label>
+            <select class="machine-selector" id="machineSelector" onchange="selectMachine(this.value)">
+                <option value="">Loading machines...</option>
+            </select>
+            <div class="mt-2">
+                <a href="{{ url_for('scada_web.sensors') }}" class="quick-link">Sensors</a>
+                <a href="{{ url_for('scada_web.gcode_manager') }}" class="quick-link">G-code</a>
+                <a href="{{ url_for('unity_web.viewer') }}" class="quick-link">Digital Twin</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Panel -->
+<div class="status-panel">
+    <div class="status-item online">
+        <div class="label">TinyG Controller</div>
+        <div class="value" id="tinygStatus">Connected</div>
+    </div>
+    <div class="status-item online">
+        <div class="label">MCC DAQ</div>
+        <div class="value" id="mccStatus">Recording</div>
+    </div>
+    <div class="status-item online">
+        <div class="label">Sensors</div>
+        <div class="value" id="sensorStatus">5 Online</div>
+    </div>
+    <div class="status-item">
+        <div class="label">OEE</div>
+        <div class="value" id="oeeValue" style="color: #38a169;">85.2%</div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column: Machine Control -->
+    <div class="col-lg-4">
+        <!-- Position Display (DRO) -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-crosshair me-2"></i>Position (DRO)
+                <span class="badge bg-primary float-end" id="wcsLabel">G54</span>
+            </div>
+            <div class="card-body">
+                <div class="position-display">
+                    <div class="axis-display">
+                        <div class="axis-label">X</div>
+                        <div class="axis-value" id="posX">0.000</div>
+                        <div class="axis-unit">mm</div>
+                    </div>
+                    <div class="axis-display">
+                        <div class="axis-label">Y</div>
+                        <div class="axis-value" id="posY">0.000</div>
+                        <div class="axis-unit">mm</div>
+                    </div>
+                    <div class="axis-display">
+                        <div class="axis-label">Z</div>
+                        <div class="axis-value" id="posZ">0.000</div>
+                        <div class="axis-unit">mm</div>
+                    </div>
+                </div>
+
+                <!-- Jog Controls -->
+                <div class="jog-pad">
+                    <div class="jog-row">
+                        <button class="jog-btn" onclick="jog('Y', 1)">Y+</button>
+                    </div>
+                    <div class="jog-row">
+                        <button class="jog-btn" onclick="jog('X', -1)">X-</button>
+                        <button class="jog-btn home" onclick="homeAll()">H</button>
+                        <button class="jog-btn" onclick="jog('X', 1)">X+</button>
+                    </div>
+                    <div class="jog-row">
+                        <button class="jog-btn" onclick="jog('Y', -1)">Y-</button>
+                    </div>
+                    <div class="jog-row mt-2">
+                        <button class="jog-btn z-axis" onclick="jog('Z', 1)">Z+</button>
+                        <button class="jog-btn z-axis" onclick="jog('Z', -1)">Z-</button>
+                    </div>
+                </div>
+
+                <div class="row mt-3">
+                    <div class="col-6">
+                        <label class="form-label small">Step (mm)</label>
+                        <select class="form-select form-select-sm" id="jogStep">
+                            <option value="0.1">0.1</option>
+                            <option value="1" selected>1.0</option>
+                            <option value="10">10.0</option>
+                            <option value="100">100.0</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small">Feed (mm/min)</label>
+                        <select class="form-select form-select-sm" id="jogFeed">
+                            <option value="100">100</option>
+                            <option value="500" selected>500</option>
+                            <option value="1000">1000</option>
+                            <option value="2000">2000</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Machine Controls -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-toggles me-2"></i>Machine Controls
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <div class="btn-group">
+                        <button class="btn btn-success" onclick="cycleStart()">
+                            <i class="bi bi-play-fill"></i> Cycle Start
+                        </button>
+                        <button class="btn btn-warning" onclick="feedHold()">
+                            <i class="bi bi-pause-fill"></i> Feed Hold
+                        </button>
+                    </div>
+                    <button class="btn btn-danger" onclick="eStop()">
+                        <i class="bi bi-exclamation-octagon-fill"></i> E-STOP
+                    </button>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-secondary" onclick="spindleOn()">
+                            <i class="bi bi-disc"></i> Spindle ON
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="spindleOff()">
+                            Spindle OFF
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle Column: G-code & Console -->
+    <div class="col-lg-4">
+        <!-- G-code Console -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-terminal me-2"></i>MDI Console</span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="clearConsole()">Clear</button>
+            </div>
+            <div class="card-body p-0">
+                <div class="gcode-console">
+                    <div class="console-output" id="consoleOutput">
+                        <div class="console-line console-info">> System ready</div>
+                        <div class="console-line console-info">> TinyG connected on /dev/ttyUSB0</div>
+                        <div class="console-line console-sent">> G28.2 X0 Y0 Z0</div>
+                        <div class="console-line console-received">< ok</div>
+                    </div>
+                    <div class="console-input">
+                        <input type="text" id="mdiInput" placeholder="Enter G-code command..."
+                               onkeypress="if(event.key==='Enter')sendMDI()">
+                        <button class="btn btn-primary btn-sm" onclick="sendMDI()">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Job -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-file-play me-2"></i>Active Job
+            </div>
+            <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">File:</span>
+                    <strong id="activeJobFile">lego_2x4_brick.nc</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Line:</span>
+                    <span id="activeJobLine">156 / 423</span>
+                </div>
+                <div class="progress mb-2" style="height: 20px;">
+                    <div class="progress-bar" id="jobProgress" style="width: 37%">37%</div>
+                </div>
+                <div class="d-flex justify-content-between small text-muted">
+                    <span>Elapsed: <span id="jobElapsed">5:23</span></span>
+                    <span>Remaining: <span id="jobRemaining">~9:12</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overrides -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-sliders me-2"></i>Overrides
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label d-flex justify-content-between">
+                        <span>Feed Rate</span>
+                        <span id="feedOverrideValue">100%</span>
+                    </label>
+                    <input type="range" class="form-range" id="feedOverride" min="10" max="200" value="100"
+                           oninput="updateOverride('feed', this.value)">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label d-flex justify-content-between">
+                        <span>Spindle Speed</span>
+                        <span id="spindleOverrideValue">100%</span>
+                    </label>
+                    <input type="range" class="form-range" id="spindleOverride" min="10" max="200" value="100"
+                           oninput="updateOverride('spindle', this.value)">
+                </div>
+                <div>
+                    <label class="form-label d-flex justify-content-between">
+                        <span>Rapid</span>
+                        <span id="rapidOverrideValue">100%</span>
+                    </label>
+                    <input type="range" class="form-range" id="rapidOverride" min="25" max="100" value="100"
+                           oninput="updateOverride('rapid', this.value)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Sensors & Data -->
+    <div class="col-lg-4">
+        <!-- MCC DAQ Status -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-lightning-charge me-2"></i>MCC DAQ (USB-1608G)</span>
+                <span class="badge bg-success">Recording</span>
+            </div>
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="sensor-card">
+                            <div class="sensor-name">Spindle Current</div>
+                            <div class="sensor-value" id="spindleCurrent">2.45 A</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="sensor-card">
+                            <div class="sensor-name">X Motor</div>
+                            <div class="sensor-value" id="xMotorCurrent">0.82 A</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="sensor-card">
+                            <div class="sensor-name">Y Motor</div>
+                            <div class="sensor-value" id="yMotorCurrent">0.91 A</div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="sensor-card">
+                            <div class="sensor-name">Z Motor</div>
+                            <div class="sensor-value" id="zMotorCurrent">1.23 A</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-group w-100 mt-3">
+                    <button class="btn btn-sm btn-outline-primary" onclick="startMCC()">Start</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="stopMCC()">Stop</button>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="testMCC()">Test</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- IMU Sensors -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="bi bi-compass me-2"></i>IMU Sensors
+            </div>
+            <div class="card-body">
+                <div class="sensor-grid">
+                    <div class="sensor-card">
+                        <div class="sensor-name">Accel X</div>
+                        <div class="sensor-value" id="accelX">0.02</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-name">Accel Y</div>
+                        <div class="sensor-value" id="accelY">0.01</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-name">Accel Z</div>
+                        <div class="sensor-value" id="accelZ">9.81</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-name">Gyro X</div>
+                        <div class="sensor-value" id="gyroX">0.5</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-name">Gyro Y</div>
+                        <div class="sensor-value" id="gyroY">-0.3</div>
+                    </div>
+                    <div class="sensor-card">
+                        <div class="sensor-name">Gyro Z</div>
+                        <div class="sensor-value" id="gyroZ">0.1</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Recording -->
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-record-circle me-2"></i>Session Recording
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label small">Session Name</label>
+                    <input type="text" class="form-control form-control-sm" id="sessionName"
+                           placeholder="e.g., lego_brick_roughing_001">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small">Data Sources</label>
+                    <div class="d-flex gap-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="srcTinyG" checked>
+                            <label class="form-check-label small">TinyG</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="srcSensors" checked>
+                            <label class="form-check-label small">Sensors</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="srcMCC" checked>
+                            <label class="form-check-label small">MCC</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-group w-100">
+                    <button class="btn btn-success" onclick="startSession()">
+                        <i class="bi bi-record-fill"></i> Start
+                    </button>
+                    <button class="btn btn-danger" onclick="stopSession()">
+                        <i class="bi bi-stop-fill"></i> Stop
+                    </button>
+                </div>
+                <div class="mt-2 small text-muted text-center" id="sessionStatus">
+                    No active session
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Machine state
+    let machineState = {
+        position: { x: 0, y: 0, z: 0 },
+        connected: true,
+        recording: false,
+        currentMachine: null
+    };
+
+    // Available machines (loaded from config)
+    let machines = {};
+
+    // Load machines from config
+    async function loadMachines() {
+        try {
+            const response = await fetch('/api/scada/machines');
+            if (response.ok) {
+                const data = await response.json();
+                populateMachines(data.machines || []);
+            } else {
+                loadDemoMachines();
+            }
+        } catch (error) {
+            console.log('Using demo machine data');
+            loadDemoMachines();
+        }
+    }
+
+    function loadDemoMachines() {
+        // Machines from config/machines.json
+        const machineList = [
+            { machine_id: 'bantam-explorer', name: 'Bantam Desktop Explorer CNC', machine_type: 'cnc_mill' },
+            { machine_id: 'coastrunner-cr1', name: 'CoastRunner CR-1', machine_type: 'cnc_mill' },
+            { machine_id: 'rownd-lathe', name: 'Rownd Lathe', machine_type: 'cnc_lathe' },
+            { machine_id: 'labfab-runner', name: 'LabFab Runner CNC', machine_type: 'cnc_mill' },
+            { machine_id: 'longer-ray-laser', name: 'Longer Ray5 20W Laser', machine_type: 'laser_cutter' },
+            { machine_id: 'creality-cr30', name: 'Creality CR-30 PrintMill', machine_type: 'printer_3d' },
+            { machine_id: 'bambu-ps1', name: 'Bambu Lab P1S', machine_type: 'printer_3d' },
+            { machine_id: 'niryo-ned2', name: 'Niryo Ned2 Robot', machine_type: 'robot_arm' },
+            { machine_id: 'niryo-conveyor', name: 'Niryo Conveyor Belt', machine_type: 'conveyor' },
+            { machine_id: 'xarm-lite6', name: 'xArm Lite 6', machine_type: 'robot_arm' }
+        ];
+        populateMachines(machineList);
+    }
+
+    function populateMachines(machineList) {
+        machines = {};
+        machineList.forEach(m => {
+            machines[m.machine_id] = {
+                name: m.name,
+                machine_type: m.machine_type
+            };
+        });
+
+        const select = document.getElementById('machineSelector');
+        select.innerHTML = machineList.map(m =>
+            `<option value="${m.machine_id}">${m.name}</option>`
+        ).join('');
+
+        // Select first machine by default
+        if (machineList.length > 0) {
+            selectMachine(machineList[0].machine_id);
+        }
+    }
+
+    function selectMachine(machineId) {
+        machineState.currentMachine = machineId;
+        const machine = machines[machineId];
+        if (machine) {
+            // Update subtitle with machine name
+            document.querySelector('.dashboard-header .subtitle').textContent =
+                `Real-Time Machine Monitoring & Control | ${machine.name}`;
+
+            // Update console
+            addConsoleLine(`Machine selected: ${machine.name}`, 'info');
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadMachines();
+    });
+
+    // Jog function
+    function jog(axis, direction) {
+        const step = parseFloat(document.getElementById('jogStep').value);
+        const feed = parseInt(document.getElementById('jogFeed').value);
+        const distance = step * direction;
+
+        addConsoleLine(`G91 G1 ${axis}${distance} F${feed}`, 'sent');
+
+        const machineId = machineState.currentMachine || 'bantam-explorer';
+        fetch(`/api/scada/machines/${machineId}/jog`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ axis, distance, feed_rate: feed })
+        }).then(r => r.json()).then(data => {
+            addConsoleLine('ok', 'received');
+            updatePosition(axis, distance);
+        }).catch(() => {
+            // Demo mode
+            addConsoleLine('ok', 'received');
+            updatePosition(axis, distance);
+        });
+    }
+
+    function updatePosition(axis, delta) {
+        machineState.position[axis.toLowerCase()] += delta;
+        document.getElementById(`pos${axis}`).textContent =
+            machineState.position[axis.toLowerCase()].toFixed(3);
+    }
+
+    function homeAll() {
+        addConsoleLine('G28.2 X0 Y0 Z0', 'sent');
+        setTimeout(() => {
+            addConsoleLine('ok', 'received');
+            machineState.position = { x: 0, y: 0, z: 0 };
+            document.getElementById('posX').textContent = '0.000';
+            document.getElementById('posY').textContent = '0.000';
+            document.getElementById('posZ').textContent = '0.000';
+        }, 500);
+    }
+
+    function sendMDI() {
+        const input = document.getElementById('mdiInput');
+        const cmd = input.value.trim().toUpperCase();
+        if (!cmd) return;
+
+        addConsoleLine(cmd, 'sent');
+        input.value = '';
+
+        const machineId = machineState.currentMachine || 'bantam-explorer';
+        fetch(`/api/scada/machines/${machineId}/mdi`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command: cmd })
+        }).then(r => r.json()).then(data => {
+            addConsoleLine(data.response || 'ok', 'received');
+        }).catch(() => {
+            addConsoleLine('ok', 'received');
+        });
+    }
+
+    function addConsoleLine(text, type) {
+        const output = document.getElementById('consoleOutput');
+        const prefix = type === 'sent' ? '>' : '<';
+        output.innerHTML += `<div class="console-line console-${type}">${prefix} ${text}</div>`;
+        output.scrollTop = output.scrollHeight;
+    }
+
+    function clearConsole() {
+        document.getElementById('consoleOutput').innerHTML =
+            '<div class="console-line console-info">> Console cleared</div>';
+    }
+
+    function updateOverride(type, value) {
+        document.getElementById(`${type}OverrideValue`).textContent = value + '%';
+    }
+
+    function cycleStart() {
+        addConsoleLine('~', 'sent');
+        addConsoleLine('ok - cycle started', 'received');
+    }
+
+    function feedHold() {
+        addConsoleLine('!', 'sent');
+        addConsoleLine('ok - feed hold', 'received');
+    }
+
+    function eStop() {
+        addConsoleLine('ctrl-x (RESET)', 'sent');
+        addConsoleLine('ALARM - E-STOP activated', 'error');
+    }
+
+    function spindleOn() {
+        addConsoleLine('M3 S12000', 'sent');
+        addConsoleLine('ok', 'received');
+    }
+
+    function spindleOff() {
+        addConsoleLine('M5', 'sent');
+        addConsoleLine('ok', 'received');
+    }
+
+    function startMCC() {
+        document.getElementById('mccStatus').textContent = 'Recording';
+        document.getElementById('mccStatus').parentElement.classList.add('online');
+    }
+
+    function stopMCC() {
+        document.getElementById('mccStatus').textContent = 'Stopped';
+        document.getElementById('mccStatus').parentElement.classList.remove('online');
+    }
+
+    function startSession() {
+        const name = document.getElementById('sessionName').value || 'session_' + Date.now();
+        document.getElementById('sessionStatus').innerHTML =
+            `<span class="text-success"><i class="bi bi-record-fill"></i> Recording: ${name}</span>`;
+        machineState.recording = true;
+    }
+
+    function stopSession() {
+        document.getElementById('sessionStatus').textContent = 'Session saved';
+        machineState.recording = false;
+    }
+
+    // Simulate sensor updates
+    function updateSensors() {
+        // Simulate small variations
+        const sensors = ['accelX', 'accelY', 'gyroX', 'gyroY', 'gyroZ'];
+        sensors.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                const base = parseFloat(el.textContent) || 0;
+                const variation = (Math.random() - 0.5) * 0.1;
+                el.textContent = (base + variation).toFixed(2);
+            }
+        });
+
+        // Simulate motor currents during operation
+        if (machineState.recording) {
+            document.getElementById('spindleCurrent').textContent =
+                (2.4 + Math.random() * 0.3).toFixed(2) + ' A';
+            document.getElementById('xMotorCurrent').textContent =
+                (0.8 + Math.random() * 0.2).toFixed(2) + ' A';
+            document.getElementById('yMotorCurrent').textContent =
+                (0.9 + Math.random() * 0.2).toFixed(2) + ' A';
+            document.getElementById('zMotorCurrent').textContent =
+                (1.2 + Math.random() * 0.3).toFixed(2) + ' A';
+        }
+    }
+
+    // Update sensors every 500ms
+    setInterval(updateSensors, 500);
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (document.activeElement.tagName === 'INPUT') return;
+
+        switch(e.key) {
+            case 'ArrowUp': jog('Y', 1); break;
+            case 'ArrowDown': jog('Y', -1); break;
+            case 'ArrowLeft': jog('X', -1); break;
+            case 'ArrowRight': jog('X', 1); break;
+            case 'PageUp': jog('Z', 1); break;
+            case 'PageDown': jog('Z', -1); break;
+            case 'Home': homeAll(); break;
+            case 'Escape': feedHold(); break;
+        }
+    });
+</script>
+{% endblock %}

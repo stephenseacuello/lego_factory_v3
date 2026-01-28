@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Management - LEGO Factory</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 600; }
+        .stat-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        .stat-value { font-size: 2rem; font-weight: 700; }
+        .stat-label { color: #64748b; font-size: 0.85rem; }
+        .table { color: #e2e8f0; }
+        .table thead th { border-color: rgba(255,255,255,0.1); color: #94a3b8; font-weight: 500; }
+        .table td { border-color: rgba(255,255,255,0.05); }
+        .form-control, .form-select { background: #1e293b; border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+        .form-control:focus, .form-select:focus { background: #1e293b; color: #e2e8f0; border-color: #3b82f6; }
+        .modal-content { background: var(--card-bg); color: #e2e8f0; }
+        .modal-header, .modal-footer { border-color: rgba(255,255,255,0.1); }
+        .nav-pills .nav-link { color: #94a3b8; border-radius: 8px; }
+        .nav-pills .nav-link.active { background: #3b82f6; }
+        .criticality-high { background: rgba(239,68,68,0.2); color: #f87171; }
+        .criticality-medium { background: rgba(245,158,11,0.2); color: #fbbf24; }
+        .criticality-low { background: rgba(16,185,129,0.2); color: #34d399; }
+        .asset-card { background: var(--card-bg); border-radius: 12px; padding: 1.5rem; border: 1px solid rgba(255,255,255,0.1); margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>Asset Management (CMMS)</a>
+            <button class="btn btn-outline-light btn-sm" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- Stats -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-primary" id="statAssets">247</div>
+                    <div class="stat-label">Total Assets</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-success" id="statOperational">231</div>
+                    <div class="stat-label">Operational</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-warning" id="statMaintenance">12</div>
+                    <div class="stat-label">In Maintenance</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-danger" id="statDown">4</div>
+                    <div class="stat-label">Down</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value text-info" id="statCritical">45</div>
+                    <div class="stat-label">Critical Assets</div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="stat-card">
+                    <div class="stat-value" id="statValue">$4.2M</div>
+                    <div class="stat-label">Total Asset Value</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-pills mb-4">
+            <li class="nav-item"><a class="nav-link active" data-bs-toggle="pill" href="#assets"><i class="bi bi-hdd-stack me-1"></i>Assets</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#meters"><i class="bi bi-speedometer me-1"></i>Meters</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#spares"><i class="bi bi-box-seam me-1"></i>Spare Parts</a></li>
+            <li class="nav-item"><a class="nav-link" data-bs-toggle="pill" href="#hierarchy"><i class="bi bi-diagram-3 me-1"></i>Hierarchy</a></li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Assets Tab -->
+            <div class="tab-pane fade show active" id="assets">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><i class="bi bi-hdd-stack me-2"></i>Asset Registry</span>
+                        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addAssetModal">
+                            <i class="bi bi-plus-lg me-1"></i>Add Asset
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Asset ID</th>
+                                        <th>Name</th>
+                                        <th>Type</th>
+                                        <th>Location</th>
+                                        <th>Criticality</th>
+                                        <th>Status</th>
+                                        <th>Last PM</th>
+                                        <th>Next PM</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>AST-001</td>
+                                        <td>Injection Molding Machine #1</td>
+                                        <td>Production</td>
+                                        <td>Building A - Line 1</td>
+                                        <td><span class="badge criticality-high">High</span></td>
+                                        <td><span class="badge bg-success">Operational</span></td>
+                                        <td>2024-01-10</td>
+                                        <td>2024-02-10</td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>AST-002</td>
+                                        <td>Injection Molding Machine #2</td>
+                                        <td>Production</td>
+                                        <td>Building A - Line 1</td>
+                                        <td><span class="badge criticality-high">High</span></td>
+                                        <td><span class="badge bg-warning">Maintenance</span></td>
+                                        <td>2024-01-08</td>
+                                        <td>2024-02-08</td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>AST-015</td>
+                                        <td>Brick Assembly Robot</td>
+                                        <td>Automation</td>
+                                        <td>Building A - Line 2</td>
+                                        <td><span class="badge criticality-high">High</span></td>
+                                        <td><span class="badge bg-success">Operational</span></td>
+                                        <td>2024-01-15</td>
+                                        <td>2024-02-15</td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>AST-027</td>
+                                        <td>Packaging Line Conveyor</td>
+                                        <td>Material Handling</td>
+                                        <td>Building B - Packaging</td>
+                                        <td><span class="badge criticality-medium">Medium</span></td>
+                                        <td><span class="badge bg-success">Operational</span></td>
+                                        <td>2024-01-05</td>
+                                        <td>2024-04-05</td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>AST-045</td>
+                                        <td>Air Compressor #2</td>
+                                        <td>Utilities</td>
+                                        <td>Building C - Utilities</td>
+                                        <td><span class="badge criticality-medium">Medium</span></td>
+                                        <td><span class="badge bg-danger">Down</span></td>
+                                        <td>2024-01-12</td>
+                                        <td>2024-03-12</td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>AST-089</td>
+                                        <td>Quality Camera System</td>
+                                        <td>Inspection</td>
+                                        <td>Building A - QC Station</td>
+                                        <td><span class="badge criticality-low">Low</span></td>
+                                        <td><span class="badge bg-success">Operational</span></td>
+                                        <td>2024-01-01</td>
+                                        <td>2024-07-01</td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Meters Tab -->
+            <div class="tab-pane fade" id="meters">
+                <div class="card">
+                    <div class="card-header"><i class="bi bi-speedometer me-2"></i>Asset Meters & Readings</div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Asset</th>
+                                        <th>Meter Type</th>
+                                        <th>Current Reading</th>
+                                        <th>Unit</th>
+                                        <th>Last Updated</th>
+                                        <th>PM Trigger</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>AST-001 - Injection Molding #1</td>
+                                        <td>Cycle Count</td>
+                                        <td>1,247,856</td>
+                                        <td>Cycles</td>
+                                        <td>10 min ago</td>
+                                        <td>1,250,000</td>
+                                        <td><span class="badge bg-warning">PM Due Soon</span></td>
+                                        <td><button class="btn btn-sm btn-outline-primary">Update</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>AST-001 - Injection Molding #1</td>
+                                        <td>Runtime Hours</td>
+                                        <td>8,542</td>
+                                        <td>Hours</td>
+                                        <td>10 min ago</td>
+                                        <td>10,000</td>
+                                        <td><span class="badge bg-success">OK</span></td>
+                                        <td><button class="btn btn-sm btn-outline-primary">Update</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>AST-015 - Assembly Robot</td>
+                                        <td>Runtime Hours</td>
+                                        <td>4,256</td>
+                                        <td>Hours</td>
+                                        <td>5 min ago</td>
+                                        <td>5,000</td>
+                                        <td><span class="badge bg-warning">PM Due Soon</span></td>
+                                        <td><button class="btn btn-sm btn-outline-primary">Update</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>AST-045 - Air Compressor #2</td>
+                                        <td>Runtime Hours</td>
+                                        <td>12,458</td>
+                                        <td>Hours</td>
+                                        <td>2 days ago</td>
+                                        <td>15,000</td>
+                                        <td><span class="badge bg-success">OK</span></td>
+                                        <td><button class="btn btn-sm btn-outline-primary">Update</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spares Tab -->
+            <div class="tab-pane fade" id="spares">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between">
+                        <span><i class="bi bi-box-seam me-2"></i>Spare Parts by Asset</span>
+                        <button class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>Add Spare Part</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Part Number</th>
+                                        <th>Description</th>
+                                        <th>Asset(s)</th>
+                                        <th>Stock Qty</th>
+                                        <th>Min Level</th>
+                                        <th>Lead Time</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>SP-001</td>
+                                        <td>Injection Nozzle Assembly</td>
+                                        <td>AST-001, AST-002</td>
+                                        <td>3</td>
+                                        <td>2</td>
+                                        <td>14 days</td>
+                                        <td><span class="badge bg-success">In Stock</span></td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>SP-012</td>
+                                        <td>Hydraulic Pump Seal Kit</td>
+                                        <td>AST-001, AST-002, AST-003</td>
+                                        <td>1</td>
+                                        <td>2</td>
+                                        <td>7 days</td>
+                                        <td><span class="badge bg-danger">Below Min</span></td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>SP-034</td>
+                                        <td>Robot Gripper Fingers</td>
+                                        <td>AST-015, AST-016</td>
+                                        <td>8</td>
+                                        <td>4</td>
+                                        <td>21 days</td>
+                                        <td><span class="badge bg-success">In Stock</span></td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>SP-056</td>
+                                        <td>Conveyor Belt Section</td>
+                                        <td>AST-027, AST-028</td>
+                                        <td>0</td>
+                                        <td>1</td>
+                                        <td>28 days</td>
+                                        <td><span class="badge bg-danger">Out of Stock</span></td>
+                                        <td><button class="btn btn-sm btn-outline-light"><i class="bi bi-eye"></i></button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hierarchy Tab -->
+            <div class="tab-pane fade" id="hierarchy">
+                <div class="card">
+                    <div class="card-header"><i class="bi bi-diagram-3 me-2"></i>Asset Hierarchy</div>
+                    <div class="card-body">
+                        <div class="ps-0">
+                            <div class="asset-card">
+                                <i class="bi bi-building me-2"></i><strong>LEGO Factory - Main Site</strong>
+                                <div class="ps-4 mt-3">
+                                    <div class="asset-card">
+                                        <i class="bi bi-building me-2"></i><strong>Building A - Production</strong>
+                                        <div class="ps-4 mt-3">
+                                            <div class="asset-card">
+                                                <i class="bi bi-gear me-2"></i>Line 1 - Brick Molding
+                                                <span class="badge bg-success ms-2">12 Assets</span>
+                                            </div>
+                                            <div class="asset-card">
+                                                <i class="bi bi-gear me-2"></i>Line 2 - Specialty Parts
+                                                <span class="badge bg-success ms-2">8 Assets</span>
+                                            </div>
+                                            <div class="asset-card">
+                                                <i class="bi bi-gear me-2"></i>QC Station
+                                                <span class="badge bg-success ms-2">5 Assets</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="asset-card">
+                                        <i class="bi bi-building me-2"></i><strong>Building B - Packaging</strong>
+                                        <div class="ps-4 mt-3">
+                                            <div class="asset-card">
+                                                <i class="bi bi-gear me-2"></i>Packaging Line 1
+                                                <span class="badge bg-success ms-2">6 Assets</span>
+                                            </div>
+                                            <div class="asset-card">
+                                                <i class="bi bi-gear me-2"></i>Packaging Line 2
+                                                <span class="badge bg-success ms-2">6 Assets</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="asset-card">
+                                        <i class="bi bi-building me-2"></i><strong>Building C - Utilities</strong>
+                                        <span class="badge bg-warning ms-2">1 Down</span>
+                                        <div class="ps-4 mt-3">
+                                            <div class="asset-card">
+                                                <i class="bi bi-gear me-2"></i>Compressed Air System
+                                                <span class="badge bg-warning ms-2">4 Assets</span>
+                                            </div>
+                                            <div class="asset-card">
+                                                <i class="bi bi-gear me-2"></i>Chilled Water System
+                                                <span class="badge bg-success ms-2">3 Assets</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Asset Modal -->
+    <div class="modal fade" id="addAssetModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Asset</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Asset ID</label>
+                                <input type="text" class="form-control" placeholder="AST-XXX" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Asset Name</label>
+                                <input type="text" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Type</label>
+                                <select class="form-select">
+                                    <option>Production</option>
+                                    <option>Automation</option>
+                                    <option>Material Handling</option>
+                                    <option>Utilities</option>
+                                    <option>Inspection</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Location</label>
+                                <select class="form-select">
+                                    <option>Building A - Line 1</option>
+                                    <option>Building A - Line 2</option>
+                                    <option>Building B - Packaging</option>
+                                    <option>Building C - Utilities</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Criticality</label>
+                                <select class="form-select">
+                                    <option value="high">High</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="low">Low</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Purchase Value ($)</label>
+                                <input type="number" class="form-control">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary">Add Asset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function loadData() {
+            console.log('Refreshing asset data...');
+        }
+    </script>
+</body>
+</html>

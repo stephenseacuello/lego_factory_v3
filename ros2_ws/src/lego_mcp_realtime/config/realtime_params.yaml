@@ -1,0 +1,151 @@
+# LEGO MCP Real-Time Node Configuration
+# Reference: IEC 61784-3, IEEE 1588-2019
+
+lego_mcp_realtime:
+  ros__parameters:
+    # Node Identity
+    node_name: "lego_mcp_rt_node"
+    namespace: "lego_mcp"
+
+    # Real-Time Scheduling (POSIX 1003.1b)
+    realtime:
+      # SCHED_FIFO priority (1-99, higher = more priority)
+      rt_priority: 80
+
+      # CPU cores isolated for RT (use isolcpus kernel param)
+      cpu_affinity: [2, 3]
+
+      # Lock all memory (mlockall)
+      lock_memory: true
+
+      # Stack size for RT threads (bytes)
+      rt_stack_size: 8388608  # 8MB
+
+    # IEEE 1588 PTP Clock Synchronization
+    ptp:
+      enabled: true
+
+      # PTP profile (P2P or E2E)
+      profile: "P2P"
+
+      # Network interface for PTP
+      interface: "eth0"
+
+      # PTP domain (0-127)
+      domain: 0
+
+      # Clock class (248 = default, 6 = GPS-synced)
+      clock_class: 248
+
+      # Priority for BMC algorithm
+      priority1: 128
+      priority2: 128
+
+      # Sync interval (log2, -3 = 125ms)
+      sync_interval: -3
+
+      # Announce interval (log2, 0 = 1s)
+      announce_interval: 0
+
+      # Maximum acceptable offset (nanoseconds)
+      max_offset_ns: 1000  # 1μs
+
+      # Servo parameters
+      servo:
+        kp: 0.7
+        ki: 0.3
+        max_freq_ppb: 100000  # 100 ppm
+
+    # Callback Timing Configuration
+    timing:
+      # Control loop (safety-critical motion)
+      control:
+        period_ms: 1      # 1kHz
+        wcet_us: 500      # 500μs budget
+        priority: 90      # RT priority
+
+      # Sensing loop (sensor processing)
+      sensing:
+        period_ms: 5      # 200Hz
+        wcet_us: 2000     # 2ms budget
+        priority: 80
+
+      # Planning loop (motion planning)
+      planning:
+        period_ms: 100    # 10Hz
+        wcet_us: 50000    # 50ms budget
+        priority: 70
+
+      # Diagnostics loop (monitoring)
+      diagnostics:
+        period_ms: 1000   # 1Hz
+        wcet_us: 10000    # 10ms budget
+        priority: 50
+
+    # WCET Monitoring
+    wcet:
+      enabled: true
+
+      # Action on WCET violation
+      # "log" - log warning only
+      # "skip" - skip to next cycle
+      # "degrade" - enter degraded mode
+      violation_action: "degrade"
+
+      # Consecutive overruns before degraded mode
+      max_consecutive_overruns: 3
+
+      # WCET margin factor (actual budget = specified * margin)
+      margin_factor: 1.2
+
+      # Enable histogram collection
+      collect_histogram: true
+      histogram_bins: 100
+
+    # Watchdog Configuration
+    watchdog:
+      enabled: true
+      timeout_ms: 100
+
+      # Action on timeout
+      # "log" - log error only
+      # "reset" - attempt reset
+      # "estop" - trigger emergency stop
+      timeout_action: "log"
+
+    # Degraded Mode Configuration
+    degraded_mode:
+      # Extended WCET multiplier
+      wcet_multiplier: 2.0
+
+      # Reduced control rate (Hz)
+      reduced_control_rate: 100
+
+      # Auto-recovery timeout (seconds, 0 = manual only)
+      auto_recovery_timeout: 30
+
+    # Diagnostics Publishing
+    diagnostics:
+      enabled: true
+      topic: "/diagnostics"
+      publish_rate_hz: 1.0
+
+      # Include detailed timing stats
+      include_timing_stats: true
+
+      # Include histogram data
+      include_histograms: false
+
+    # Logging Configuration
+    logging:
+      # Log level for RT events
+      rt_log_level: "info"
+
+      # Log WCET violations
+      log_wcet_violations: true
+
+      # Log timing statistics period (seconds)
+      stats_log_period: 60
+
+      # Enable trace output (high overhead)
+      enable_trace: false

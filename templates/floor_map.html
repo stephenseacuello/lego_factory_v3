@@ -1,0 +1,794 @@
+{% extends "base.html" %}
+{% block title %}Floor Map - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #22c55e;
+        --accent-yellow: #eab308;
+        --accent-red: #ef4444;
+        --accent-purple: #a855f7;
+    }
+
+    .floor-container {
+        padding: 24px;
+        background: var(--bg-dark);
+        min-height: 100vh;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .header-controls {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+    }
+
+    .zoom-controls {
+        display: flex;
+        gap: 4px;
+        background: var(--bg-card);
+        padding: 4px;
+        border-radius: 8px;
+    }
+
+    .zoom-btn {
+        width: 36px;
+        height: 36px;
+        background: var(--bg-dark);
+        border: none;
+        border-radius: 6px;
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 18px;
+    }
+
+    .zoom-btn:hover {
+        background: var(--accent-blue);
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+    }
+
+    .btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
+
+    /* Stats Bar */
+    .stats-bar {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 24px;
+        padding: 16px 24px;
+        background: var(--bg-card);
+        border-radius: 12px;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .stat-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+
+    .stat-dot.running { background: var(--accent-green); }
+    .stat-dot.idle { background: var(--accent-yellow); }
+    .stat-dot.down { background: var(--accent-red); }
+    .stat-dot.maintenance { background: var(--accent-purple); }
+
+    .stat-count {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .stat-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    /* Main Layout */
+    .main-layout {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 24px;
+    }
+
+    /* Floor Map */
+    .floor-map-section {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .map-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .map-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .floor-selector {
+        display: flex;
+        gap: 8px;
+    }
+
+    .floor-btn {
+        padding: 6px 16px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        cursor: pointer;
+    }
+
+    .floor-btn.active {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+        color: white;
+    }
+
+    .map-container {
+        position: relative;
+        height: 600px;
+        background: #0c1222;
+        overflow: hidden;
+    }
+
+    /* Grid Lines */
+    .grid-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image:
+            linear-gradient(rgba(51, 65, 85, 0.3) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(51, 65, 85, 0.3) 1px, transparent 1px);
+        background-size: 50px 50px;
+        pointer-events: none;
+    }
+
+    /* Zones */
+    .zone {
+        position: absolute;
+        border: 2px dashed rgba(148, 163, 184, 0.3);
+        border-radius: 8px;
+        padding: 8px;
+    }
+
+    .zone-label {
+        position: absolute;
+        top: 8px;
+        left: 12px;
+        font-size: 11px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    /* Machines */
+    .machine {
+        position: absolute;
+        width: 100px;
+        height: 80px;
+        background: var(--bg-card);
+        border-radius: 8px;
+        border: 2px solid var(--border-color);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+    }
+
+    .machine:hover {
+        transform: scale(1.05);
+        z-index: 10;
+    }
+
+    .machine.running { border-color: var(--accent-green); box-shadow: 0 0 20px rgba(34, 197, 94, 0.3); }
+    .machine.idle { border-color: var(--accent-yellow); box-shadow: 0 0 20px rgba(234, 179, 8, 0.3); }
+    .machine.down { border-color: var(--accent-red); box-shadow: 0 0 20px rgba(239, 68, 68, 0.3); }
+    .machine.maintenance { border-color: var(--accent-purple); box-shadow: 0 0 20px rgba(168, 85, 247, 0.3); }
+
+    .machine-icon {
+        font-size: 24px;
+        margin-bottom: 4px;
+    }
+
+    .machine-id {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .machine-status {
+        font-size: 9px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .machine-indicator {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    .machine.running .machine-indicator { background: var(--accent-green); }
+    .machine.idle .machine-indicator { background: var(--accent-yellow); }
+    .machine.down .machine-indicator { background: var(--accent-red); }
+    .machine.maintenance .machine-indicator { background: var(--accent-purple); }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    /* Workstations & Other Elements */
+    .workstation {
+        position: absolute;
+        width: 60px;
+        height: 60px;
+        background: var(--bg-dark);
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+    }
+
+    .aisle {
+        position: absolute;
+        background: rgba(59, 130, 246, 0.1);
+        border: 1px dashed rgba(59, 130, 246, 0.3);
+    }
+
+    /* Sidebar */
+    .sidebar-section {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .info-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .info-header {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .info-body {
+        padding: 16px 20px;
+    }
+
+    /* Selected Machine Detail */
+    .machine-detail {
+        display: none;
+    }
+
+    .machine-detail.active {
+        display: block;
+    }
+
+    .detail-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .detail-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+    }
+
+    .detail-name {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .detail-type {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .detail-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .detail-stat {
+        background: var(--bg-dark);
+        padding: 12px;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .detail-stat-value {
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .detail-stat-label {
+        font-size: 11px;
+        color: var(--text-secondary);
+    }
+
+    .detail-actions {
+        display: flex;
+        gap: 8px;
+    }
+
+    .detail-actions .btn {
+        flex: 1;
+        padding: 10px;
+        font-size: 13px;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .action-btn {
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+        border-color: var(--accent-blue);
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .action-icon {
+        font-size: 24px;
+        margin-bottom: 8px;
+    }
+
+    .action-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    /* Legend */
+    .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        padding: 16px 20px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .legend-color {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 2px solid;
+    }
+
+    @media (max-width: 1200px) {
+        .main-layout { grid-template-columns: 1fr; }
+        .map-container { height: 500px; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="floor-container">
+    <div class="page-header">
+        <h1 class="page-title">Factory Floor Map</h1>
+        <div class="header-controls">
+            <div class="zoom-controls">
+                <button class="zoom-btn" onclick="zoomIn()">+</button>
+                <button class="zoom-btn" onclick="zoomOut()">−</button>
+                <button class="zoom-btn" onclick="resetZoom()">⟲</button>
+            </div>
+            <button class="btn btn-secondary">Edit Layout</button>
+        </div>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="stat-dot running"></span>
+            <span class="stat-count" id="runningCount">4</span>
+            <span class="stat-label">Running</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-dot idle"></span>
+            <span class="stat-count" id="idleCount">2</span>
+            <span class="stat-label">Idle</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-dot down"></span>
+            <span class="stat-count" id="downCount">1</span>
+            <span class="stat-label">Down</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-dot maintenance"></span>
+            <span class="stat-count" id="maintCount">1</span>
+            <span class="stat-label">Maintenance</span>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <!-- Floor Map -->
+        <div class="floor-map-section">
+            <div class="map-header">
+                <h3 class="map-title">Production Floor - Building A</h3>
+                <div class="floor-selector">
+                    <button class="floor-btn active">Floor 1</button>
+                    <button class="floor-btn">Floor 2</button>
+                </div>
+            </div>
+            <div class="map-container" id="mapContainer">
+                <div class="grid-overlay"></div>
+
+                <!-- Zones -->
+                <div class="zone" style="left: 30px; top: 30px; width: 320px; height: 250px;">
+                    <span class="zone-label">CNC Milling Zone</span>
+                </div>
+                <div class="zone" style="left: 380px; top: 30px; width: 260px; height: 250px;">
+                    <span class="zone-label">CNC Turning Zone</span>
+                </div>
+                <div class="zone" style="left: 30px; top: 320px; width: 200px; height: 200px;">
+                    <span class="zone-label">Inspection</span>
+                </div>
+                <div class="zone" style="left: 260px; top: 320px; width: 380px; height: 200px;">
+                    <span class="zone-label">Assembly Area</span>
+                </div>
+
+                <!-- Aisles -->
+                <div class="aisle" style="left: 0; top: 290px; width: 100%; height: 30px;"></div>
+
+                <!-- Machines -->
+                <div class="machine running" style="left: 50px; top: 70px;" onclick="selectMachine('CNC-001')" data-id="CNC-001">
+                    <span class="machine-indicator"></span>
+                    <span class="machine-icon">⚙️</span>
+                    <span class="machine-id">CNC-001</span>
+                    <span class="machine-status">Running</span>
+                </div>
+                <div class="machine running" style="left: 170px; top: 70px;" onclick="selectMachine('CNC-002')" data-id="CNC-002">
+                    <span class="machine-indicator"></span>
+                    <span class="machine-icon">⚙️</span>
+                    <span class="machine-id">CNC-002</span>
+                    <span class="machine-status">Running</span>
+                </div>
+                <div class="machine idle" style="left: 50px; top: 170px;" onclick="selectMachine('CNC-005')" data-id="CNC-005">
+                    <span class="machine-indicator"></span>
+                    <span class="machine-icon">🔧</span>
+                    <span class="machine-id">CNC-005</span>
+                    <span class="machine-status">Idle</span>
+                </div>
+                <div class="machine running" style="left: 170px; top: 170px;" onclick="selectMachine('CNC-006')" data-id="CNC-006">
+                    <span class="machine-indicator"></span>
+                    <span class="machine-icon">⚙️</span>
+                    <span class="machine-id">CNC-006</span>
+                    <span class="machine-status">Running</span>
+                </div>
+                <div class="machine running" style="left: 400px; top: 70px;" onclick="selectMachine('CNC-003')" data-id="CNC-003">
+                    <span class="machine-indicator"></span>
+                    <span class="machine-icon">🔩</span>
+                    <span class="machine-id">CNC-003</span>
+                    <span class="machine-status">Running</span>
+                </div>
+                <div class="machine maintenance" style="left: 520px; top: 70px;" onclick="selectMachine('CNC-004')" data-id="CNC-004">
+                    <span class="machine-indicator"></span>
+                    <span class="machine-icon">🔩</span>
+                    <span class="machine-id">CNC-004</span>
+                    <span class="machine-status">Maint</span>
+                </div>
+                <div class="machine down" style="left: 400px; top: 170px;" onclick="selectMachine('EDM-001')" data-id="EDM-001">
+                    <span class="machine-indicator"></span>
+                    <span class="machine-icon">⚡</span>
+                    <span class="machine-id">EDM-001</span>
+                    <span class="machine-status">Down</span>
+                </div>
+                <div class="machine idle" style="left: 520px; top: 170px;" onclick="selectMachine('GRIND-001')" data-id="GRIND-001">
+                    <span class="machine-indicator"></span>
+                    <span class="machine-icon">💠</span>
+                    <span class="machine-id">GRIND-001</span>
+                    <span class="machine-status">Idle</span>
+                </div>
+
+                <!-- Workstations -->
+                <div class="workstation" style="left: 60px; top: 360px;">📊</div>
+                <div class="workstation" style="left: 140px; top: 360px;">🔬</div>
+                <div class="workstation" style="left: 300px; top: 360px;">🛠️</div>
+                <div class="workstation" style="left: 380px; top: 360px;">📦</div>
+                <div class="workstation" style="left: 460px; top: 360px;">🏭</div>
+            </div>
+            <div class="legend">
+                <div class="legend-item">
+                    <span class="legend-color" style="border-color: var(--accent-green); background: rgba(34, 197, 94, 0.2);"></span>
+                    <span>Running</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="border-color: var(--accent-yellow); background: rgba(234, 179, 8, 0.2);"></span>
+                    <span>Idle</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="border-color: var(--accent-red); background: rgba(239, 68, 68, 0.2);"></span>
+                    <span>Down</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color" style="border-color: var(--accent-purple); background: rgba(168, 85, 247, 0.2);"></span>
+                    <span>Maintenance</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar-section">
+            <!-- Machine Detail -->
+            <div class="info-card machine-detail" id="machineDetail">
+                <div class="info-header">Machine Details</div>
+                <div class="info-body">
+                    <div class="detail-header" id="detailHeader">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div class="detail-stats" id="detailStats">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div class="detail-actions">
+                        <button class="btn btn-secondary">View Dashboard</button>
+                        <button class="btn btn-secondary">History</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="info-card">
+                <div class="info-header">Quick Actions</div>
+                <div class="info-body">
+                    <div class="quick-actions">
+                        <div class="action-btn" onclick="findMachine()">
+                            <div class="action-icon">🔍</div>
+                            <div class="action-label">Find Machine</div>
+                        </div>
+                        <div class="action-btn" onclick="showAlerts()">
+                            <div class="action-icon">🔔</div>
+                            <div class="action-label">Active Alerts</div>
+                        </div>
+                        <div class="action-btn" onclick="viewSchedule()">
+                            <div class="action-icon">📅</div>
+                            <div class="action-label">PM Schedule</div>
+                        </div>
+                        <div class="action-btn" onclick="exportLayout()">
+                            <div class="action-icon">📤</div>
+                            <div class="action-label">Export Layout</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Events -->
+            <div class="info-card">
+                <div class="info-header">Recent Events</div>
+                <div class="info-body" style="padding: 0;">
+                    <div id="eventList" style="max-height: 200px; overflow-y: auto;">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const machines = {
+        'CNC-001': { name: 'CNC Mill #1', type: 'Vertical Mill', status: 'running', oee: 87, spindle: 8200, feed: 2100, temp: 42, job: 'WO-2024-0042' },
+        'CNC-002': { name: 'CNC Mill #2', type: 'Vertical Mill', status: 'running', oee: 82, spindle: 7800, feed: 1950, temp: 45, job: 'WO-2024-0038' },
+        'CNC-003': { name: 'CNC Lathe #1', type: 'Turning Center', status: 'running', oee: 91, spindle: 3200, feed: 0.25, temp: 38, job: 'WO-2024-0041' },
+        'CNC-004': { name: 'CNC Lathe #2', type: 'Turning Center', status: 'maintenance', oee: 0, spindle: 0, feed: 0, temp: 22, job: 'PM-2024-018' },
+        'CNC-005': { name: '5-Axis Mill', type: '5-Axis VMC', status: 'idle', oee: 0, spindle: 0, feed: 0, temp: 28, job: 'Waiting' },
+        'CNC-006': { name: 'CNC Mill #3', type: 'Horizontal Mill', status: 'running', oee: 78, spindle: 6500, feed: 1800, temp: 48, job: 'WO-2024-0039' },
+        'EDM-001': { name: 'Wire EDM', type: 'Wire EDM', status: 'down', oee: 0, spindle: 0, feed: 0, temp: 25, job: 'Fault: Power Supply' },
+        'GRIND-001': { name: 'Surface Grinder', type: 'Surface Grinder', status: 'idle', oee: 0, spindle: 0, feed: 0, temp: 24, job: 'Waiting' }
+    };
+
+    const events = [
+        { time: '2 min ago', machine: 'CNC-001', event: 'Tool change completed', type: 'info' },
+        { time: '15 min ago', machine: 'EDM-001', event: 'Power supply fault', type: 'error' },
+        { time: '32 min ago', machine: 'CNC-004', event: 'PM started', type: 'warning' },
+        { time: '1 hr ago', machine: 'CNC-002', event: 'Job completed', type: 'success' },
+        { time: '1.5 hr ago', machine: 'CNC-003', event: 'Coolant refilled', type: 'info' }
+    ];
+
+    let zoomLevel = 1;
+    let selectedMachine = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        renderEvents();
+        updateStatusCounts();
+    });
+
+    function selectMachine(id) {
+        selectedMachine = id;
+        const machine = machines[id];
+
+        document.getElementById('machineDetail').classList.add('active');
+
+        const statusColors = {
+            running: 'var(--accent-green)',
+            idle: 'var(--accent-yellow)',
+            down: 'var(--accent-red)',
+            maintenance: 'var(--accent-purple)'
+        };
+
+        document.getElementById('detailHeader').innerHTML = `
+            <div class="detail-icon" style="background: ${statusColors[machine.status]}20; color: ${statusColors[machine.status]}">
+                ${machine.type.includes('Mill') ? '⚙️' : machine.type.includes('Lathe') ? '🔩' : machine.type.includes('EDM') ? '⚡' : '💠'}
+            </div>
+            <div>
+                <div class="detail-name">${machine.name}</div>
+                <div class="detail-type">${machine.type} | ${id}</div>
+            </div>
+        `;
+
+        document.getElementById('detailStats').innerHTML = `
+            <div class="detail-stat">
+                <div class="detail-stat-value" style="color: ${machine.oee >= 85 ? 'var(--accent-green)' : machine.oee >= 70 ? 'var(--accent-yellow)' : 'var(--text-secondary)'}">${machine.oee}%</div>
+                <div class="detail-stat-label">OEE</div>
+            </div>
+            <div class="detail-stat">
+                <div class="detail-stat-value">${machine.spindle}</div>
+                <div class="detail-stat-label">RPM</div>
+            </div>
+            <div class="detail-stat">
+                <div class="detail-stat-value">${machine.temp}°C</div>
+                <div class="detail-stat-label">Temp</div>
+            </div>
+            <div class="detail-stat">
+                <div class="detail-stat-value" style="font-size: 12px;">${machine.job}</div>
+                <div class="detail-stat-label">Current Job</div>
+            </div>
+        `;
+
+        // Highlight selected machine
+        document.querySelectorAll('.machine').forEach(m => m.style.outline = 'none');
+        document.querySelector(`.machine[data-id="${id}"]`).style.outline = '3px solid var(--accent-blue)';
+    }
+
+    function renderEvents() {
+        document.getElementById('eventList').innerHTML = events.map(e => `
+            <div style="display: flex; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--border-color);">
+                <span style="width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; background: ${e.type === 'error' ? 'var(--accent-red)' : e.type === 'warning' ? 'var(--accent-yellow)' : e.type === 'success' ? 'var(--accent-green)' : 'var(--accent-blue)'}"></span>
+                <div style="flex: 1;">
+                    <div style="font-size: 13px; color: var(--text-primary);">${e.event}</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">${e.machine} • ${e.time}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function updateStatusCounts() {
+        const counts = { running: 0, idle: 0, down: 0, maintenance: 0 };
+        Object.values(machines).forEach(m => counts[m.status]++);
+
+        document.getElementById('runningCount').textContent = counts.running;
+        document.getElementById('idleCount').textContent = counts.idle;
+        document.getElementById('downCount').textContent = counts.down;
+        document.getElementById('maintCount').textContent = counts.maintenance;
+    }
+
+    function zoomIn() {
+        zoomLevel = Math.min(zoomLevel + 0.2, 2);
+        applyZoom();
+    }
+
+    function zoomOut() {
+        zoomLevel = Math.max(zoomLevel - 0.2, 0.5);
+        applyZoom();
+    }
+
+    function resetZoom() {
+        zoomLevel = 1;
+        applyZoom();
+    }
+
+    function applyZoom() {
+        document.getElementById('mapContainer').style.transform = `scale(${zoomLevel})`;
+        document.getElementById('mapContainer').style.transformOrigin = 'top left';
+    }
+
+    function findMachine() {
+        const id = prompt('Enter machine ID (e.g., CNC-001):');
+        if (id && machines[id]) {
+            selectMachine(id);
+        }
+    }
+
+    function showAlerts() {
+        window.location.href = '/portal/notifications';
+    }
+
+    function viewSchedule() {
+        window.location.href = '/portal/maintenance';
+    }
+
+    function exportLayout() {
+        alert('Exporting floor layout...');
+    }
+
+    // Simulate status updates
+    setInterval(() => {
+        document.querySelectorAll('.machine.running .machine-indicator').forEach(ind => {
+            ind.style.opacity = ind.style.opacity === '0.5' ? '1' : '0.5';
+        });
+    }, 1000);
+</script>
+{% endblock %}

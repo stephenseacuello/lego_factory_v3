@@ -1,0 +1,865 @@
+{% extends "base.html" %}
+{% block title %}Shift Handover - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #22c55e;
+        --accent-yellow: #eab308;
+        --accent-red: #ef4444;
+        --accent-purple: #a855f7;
+        --accent-orange: #f97316;
+    }
+
+    .handover-container {
+        padding: 24px;
+        background: var(--bg-dark);
+        min-height: 100vh;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .shift-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--accent-blue);
+        border-radius: 20px;
+        margin-left: 16px;
+    }
+
+    .shift-badge .label {
+        font-size: 12px;
+        color: rgba(255,255,255,0.8);
+    }
+
+    .shift-badge .value {
+        font-weight: 600;
+        color: white;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #2563eb;
+    }
+
+    .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-success {
+        background: var(--accent-green);
+        color: white;
+    }
+
+    /* Layout */
+    .handover-layout {
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        gap: 24px;
+    }
+
+    /* Current Shift Summary */
+    .shift-summary {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+    }
+
+    .summary-card {
+        text-align: center;
+        padding: 16px;
+        background: var(--bg-dark);
+        border-radius: 8px;
+    }
+
+    .summary-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .summary-label {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    /* Handover Form */
+    .handover-form {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 24px;
+    }
+
+    .form-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 20px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-section {
+        margin-bottom: 24px;
+    }
+
+    .section-label {
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .section-label .required {
+        color: var(--accent-red);
+    }
+
+    .form-input,
+    .form-textarea,
+    .form-select {
+        width: 100%;
+        padding: 12px 16px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .form-input:focus,
+    .form-textarea:focus,
+    .form-select:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .form-textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    /* Issue Tags */
+    .issue-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .issue-tag {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 20px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .issue-tag:hover {
+        border-color: var(--accent-blue);
+    }
+
+    .issue-tag.selected {
+        background: rgba(59, 130, 246, 0.2);
+        border-color: var(--accent-blue);
+    }
+
+    .issue-tag .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .issue-tag .dot.safety { background: var(--accent-red); }
+    .issue-tag .dot.quality { background: var(--accent-purple); }
+    .issue-tag .dot.maintenance { background: var(--accent-orange); }
+    .issue-tag .dot.production { background: var(--accent-blue); }
+    .issue-tag .dot.material { background: var(--accent-yellow); }
+
+    /* Machine Checklist */
+    .checklist {
+        display: grid;
+        gap: 12px;
+    }
+
+    .checklist-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--bg-dark);
+        border-radius: 8px;
+    }
+
+    .checklist-item input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        accent-color: var(--accent-green);
+    }
+
+    .checklist-item .machine-name {
+        flex: 1;
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    .checklist-item .status-select {
+        padding: 6px 12px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-size: 13px;
+    }
+
+    /* Sidebar - History */
+    .history-panel {
+        background: var(--bg-card);
+        border-radius: 12px;
+        height: fit-content;
+    }
+
+    .history-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .history-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .history-list {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .history-item {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .history-item:hover {
+        background: var(--bg-card-hover);
+    }
+
+    .history-item:last-child {
+        border-bottom: none;
+    }
+
+    .history-shift {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .shift-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .shift-date {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .history-preview {
+        font-size: 13px;
+        color: var(--text-secondary);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .history-meta {
+        display: flex;
+        gap: 12px;
+        margin-top: 8px;
+    }
+
+    .meta-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 10px;
+    }
+
+    .meta-badge.issues {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--accent-red);
+    }
+
+    .meta-badge.actions {
+        background: rgba(234, 179, 8, 0.2);
+        color: var(--accent-yellow);
+    }
+
+    .meta-badge.ok {
+        background: rgba(34, 197, 94, 0.2);
+        color: var(--accent-green);
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .modal-overlay.show {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--bg-card);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 80vh;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 24px;
+        cursor: pointer;
+    }
+
+    .modal-body {
+        padding: 24px;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .detail-section {
+        margin-bottom: 20px;
+    }
+
+    .detail-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+
+    .detail-value {
+        color: var(--text-primary);
+        line-height: 1.6;
+    }
+
+    .detail-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .detail-list li {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .detail-list li:last-child {
+        border-bottom: none;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+        .handover-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .summary-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="handover-container">
+    <div class="page-header">
+        <div style="display: flex; align-items: center;">
+            <h1 class="page-title">Shift Handover</h1>
+            <div class="shift-badge">
+                <span class="label">Current:</span>
+                <span class="value" id="currentShift">Day Shift (06:00 - 14:00)</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="viewHistory()">View Full History</button>
+            <button class="btn btn-success" onclick="submitHandover()">Submit Handover</button>
+        </div>
+    </div>
+
+    <!-- Shift Summary -->
+    <div class="shift-summary">
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="summary-value" style="color: var(--accent-green)">1,247</div>
+                <div class="summary-label">Parts Produced</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" style="color: var(--accent-blue)">87.3%</div>
+                <div class="summary-label">Shift OEE</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" style="color: var(--accent-yellow)">3</div>
+                <div class="summary-label">Open Issues</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-value" style="color: var(--accent-red)">45 min</div>
+                <div class="summary-label">Total Downtime</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="handover-layout">
+        <!-- Main Form -->
+        <div class="handover-form">
+            <h2 class="form-title">Handover Report</h2>
+
+            <!-- General Notes -->
+            <div class="form-section">
+                <label class="section-label">
+                    General Notes <span class="required">*</span>
+                </label>
+                <textarea class="form-textarea" id="generalNotes"
+                    placeholder="Summarize the shift - key accomplishments, challenges, and anything the next shift needs to know..."></textarea>
+            </div>
+
+            <!-- Issue Categories -->
+            <div class="form-section">
+                <label class="section-label">Issue Categories</label>
+                <div class="issue-tags">
+                    <div class="issue-tag" data-category="safety">
+                        <span class="dot safety"></span>
+                        <span>Safety</span>
+                    </div>
+                    <div class="issue-tag" data-category="quality">
+                        <span class="dot quality"></span>
+                        <span>Quality</span>
+                    </div>
+                    <div class="issue-tag" data-category="maintenance">
+                        <span class="dot maintenance"></span>
+                        <span>Maintenance</span>
+                    </div>
+                    <div class="issue-tag" data-category="production">
+                        <span class="dot production"></span>
+                        <span>Production</span>
+                    </div>
+                    <div class="issue-tag" data-category="material">
+                        <span class="dot material"></span>
+                        <span>Material</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Outstanding Issues -->
+            <div class="form-section">
+                <label class="section-label">Outstanding Issues</label>
+                <textarea class="form-textarea" id="outstandingIssues"
+                    placeholder="List any unresolved issues that need attention..."></textarea>
+            </div>
+
+            <!-- Action Items -->
+            <div class="form-section">
+                <label class="section-label">Action Items for Next Shift</label>
+                <textarea class="form-textarea" id="actionItems"
+                    placeholder="Specific tasks or follow-ups needed..."></textarea>
+            </div>
+
+            <!-- Machine Status -->
+            <div class="form-section">
+                <label class="section-label">Machine Status Checklist</label>
+                <div class="checklist">
+                    <div class="checklist-item">
+                        <input type="checkbox" id="cnc001" checked>
+                        <label class="machine-name" for="cnc001">CNC Mill #1</label>
+                        <select class="status-select">
+                            <option value="running" selected>Running</option>
+                            <option value="idle">Idle</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="down">Down</option>
+                        </select>
+                    </div>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="cnc002" checked>
+                        <label class="machine-name" for="cnc002">CNC Mill #2</label>
+                        <select class="status-select">
+                            <option value="running" selected>Running</option>
+                            <option value="idle">Idle</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="down">Down</option>
+                        </select>
+                    </div>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="cnc003">
+                        <label class="machine-name" for="cnc003">CNC Lathe #1</label>
+                        <select class="status-select">
+                            <option value="running">Running</option>
+                            <option value="idle">Idle</option>
+                            <option value="maintenance" selected>Maintenance</option>
+                            <option value="down">Down</option>
+                        </select>
+                    </div>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="cnc004" checked>
+                        <label class="machine-name" for="cnc004">CNC Lathe #2</label>
+                        <select class="status-select">
+                            <option value="running" selected>Running</option>
+                            <option value="idle">Idle</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="down">Down</option>
+                        </select>
+                    </div>
+                    <div class="checklist-item">
+                        <input type="checkbox" id="cnc005" checked>
+                        <label class="machine-name" for="cnc005">5-Axis Mill</label>
+                        <select class="status-select">
+                            <option value="running">Running</option>
+                            <option value="idle" selected>Idle</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="down">Down</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Operator Signature -->
+            <div class="form-section">
+                <label class="section-label">Operator <span class="required">*</span></label>
+                <input type="text" class="form-input" id="operatorName" placeholder="Enter your name">
+            </div>
+        </div>
+
+        <!-- History Sidebar -->
+        <div class="history-panel">
+            <div class="history-header">
+                <h3 class="history-title">Recent Handovers</h3>
+            </div>
+            <div class="history-list" id="historyList">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title" id="modalTitle">Handover Details</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            <!-- Populated by JavaScript -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Sample handover history
+    const handoverHistory = [
+        {
+            id: 1,
+            shift: 'Night Shift',
+            date: '2024-01-15 22:00',
+            operator: 'John Smith',
+            notes: 'Smooth shift overall. Completed batch order #4521. CNC Mill #2 showed minor vibration at high RPM - logged for maintenance review.',
+            issues: ['Vibration on CNC Mill #2 above 8000 RPM'],
+            actions: ['Check spindle bearings on Mill #2', 'Verify coolant levels on all machines'],
+            machines: { 'CNC-001': 'running', 'CNC-002': 'running', 'CNC-003': 'running', 'CNC-004': 'idle' },
+            stats: { parts: 892, oee: 84.2, downtime: 23 }
+        },
+        {
+            id: 2,
+            shift: 'Evening Shift',
+            date: '2024-01-15 14:00',
+            operator: 'Maria Garcia',
+            notes: 'Production targets met. Tooling change completed on Lathe #1. New operator training in progress.',
+            issues: [],
+            actions: ['Continue training for new operator', 'Order replacement inserts for Lathe #1'],
+            machines: { 'CNC-001': 'running', 'CNC-002': 'maintenance', 'CNC-003': 'running', 'CNC-004': 'running' },
+            stats: { parts: 1105, oee: 89.1, downtime: 15 }
+        },
+        {
+            id: 3,
+            shift: 'Day Shift',
+            date: '2024-01-15 06:00',
+            operator: 'Robert Chen',
+            notes: 'Started new work order #4520. Quality issue detected on part batch - adjusted tooling offset. All machines operational by end of shift.',
+            issues: ['Tool wear caused dimensional variance', 'Material delivery delayed by 1 hour'],
+            actions: ['Verify first article on next batch', 'Update tool change intervals'],
+            machines: { 'CNC-001': 'running', 'CNC-002': 'running', 'CNC-003': 'running', 'CNC-004': 'running' },
+            stats: { parts: 1230, oee: 86.5, downtime: 32 }
+        },
+        {
+            id: 4,
+            shift: 'Night Shift',
+            date: '2024-01-14 22:00',
+            operator: 'Sarah Johnson',
+            notes: 'Preventive maintenance completed on 5-Axis Mill. All systems normal.',
+            issues: [],
+            actions: [],
+            machines: { 'CNC-001': 'running', 'CNC-002': 'running', 'CNC-003': 'running', 'CNC-004': 'running' },
+            stats: { parts: 756, oee: 91.2, downtime: 8 }
+        }
+    ];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        renderHistory();
+        setupIssueTags();
+        updateCurrentShift();
+    });
+
+    function renderHistory() {
+        const container = document.getElementById('historyList');
+        container.innerHTML = handoverHistory.map(h => `
+            <div class="history-item" onclick="showDetail(${h.id})">
+                <div class="history-shift">
+                    <span class="shift-name">${h.shift}</span>
+                    <span class="shift-date">${h.date}</span>
+                </div>
+                <div class="history-preview">${h.notes}</div>
+                <div class="history-meta">
+                    ${h.issues.length > 0
+                        ? `<span class="meta-badge issues">${h.issues.length} issue${h.issues.length > 1 ? 's' : ''}</span>`
+                        : '<span class="meta-badge ok">No issues</span>'}
+                    ${h.actions.length > 0
+                        ? `<span class="meta-badge actions">${h.actions.length} action${h.actions.length > 1 ? 's' : ''}</span>`
+                        : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function setupIssueTags() {
+        document.querySelectorAll('.issue-tag').forEach(tag => {
+            tag.addEventListener('click', function() {
+                this.classList.toggle('selected');
+            });
+        });
+    }
+
+    function updateCurrentShift() {
+        const hour = new Date().getHours();
+        let shift;
+        if (hour >= 6 && hour < 14) {
+            shift = 'Day Shift (06:00 - 14:00)';
+        } else if (hour >= 14 && hour < 22) {
+            shift = 'Evening Shift (14:00 - 22:00)';
+        } else {
+            shift = 'Night Shift (22:00 - 06:00)';
+        }
+        document.getElementById('currentShift').textContent = shift;
+    }
+
+    function showDetail(id) {
+        const handover = handoverHistory.find(h => h.id === id);
+        if (!handover) return;
+
+        document.getElementById('modalTitle').textContent =
+            `${handover.shift} - ${handover.date}`;
+
+        document.getElementById('modalBody').innerHTML = `
+            <div class="detail-section">
+                <div class="detail-label">Operator</div>
+                <div class="detail-value">${handover.operator}</div>
+            </div>
+            <div class="detail-section">
+                <div class="detail-label">Shift Statistics</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px;">
+                    <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 20px; font-weight: 600; color: var(--accent-green);">${handover.stats.parts}</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Parts</div>
+                    </div>
+                    <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 20px; font-weight: 600; color: var(--accent-blue);">${handover.stats.oee}%</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">OEE</div>
+                    </div>
+                    <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 20px; font-weight: 600; color: var(--accent-yellow);">${handover.stats.downtime}m</div>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Downtime</div>
+                    </div>
+                </div>
+            </div>
+            <div class="detail-section">
+                <div class="detail-label">General Notes</div>
+                <div class="detail-value">${handover.notes}</div>
+            </div>
+            ${handover.issues.length > 0 ? `
+            <div class="detail-section">
+                <div class="detail-label">Outstanding Issues</div>
+                <ul class="detail-list">
+                    ${handover.issues.map(i => `<li>${i}</li>`).join('')}
+                </ul>
+            </div>
+            ` : ''}
+            ${handover.actions.length > 0 ? `
+            <div class="detail-section">
+                <div class="detail-label">Action Items</div>
+                <ul class="detail-list">
+                    ${handover.actions.map(a => `<li>${a}</li>`).join('')}
+                </ul>
+            </div>
+            ` : ''}
+        `;
+
+        document.getElementById('detailModal').classList.add('show');
+    }
+
+    function closeModal() {
+        document.getElementById('detailModal').classList.remove('show');
+    }
+
+    function submitHandover() {
+        const notes = document.getElementById('generalNotes').value;
+        const operator = document.getElementById('operatorName').value;
+
+        if (!notes.trim()) {
+            alert('Please enter general notes for the handover.');
+            return;
+        }
+        if (!operator.trim()) {
+            alert('Please enter your name.');
+            return;
+        }
+
+        // Collect selected categories
+        const categories = [];
+        document.querySelectorAll('.issue-tag.selected').forEach(tag => {
+            categories.push(tag.dataset.category);
+        });
+
+        // Collect machine statuses
+        const machines = {};
+        document.querySelectorAll('.checklist-item').forEach(item => {
+            const name = item.querySelector('.machine-name').textContent;
+            const status = item.querySelector('.status-select').value;
+            machines[name] = status;
+        });
+
+        console.log('Submitting handover:', {
+            notes,
+            operator,
+            categories,
+            issues: document.getElementById('outstandingIssues').value,
+            actions: document.getElementById('actionItems').value,
+            machines
+        });
+
+        alert('Handover submitted successfully! The next shift has been notified.');
+
+        // Clear form
+        document.getElementById('generalNotes').value = '';
+        document.getElementById('outstandingIssues').value = '';
+        document.getElementById('actionItems').value = '';
+        document.getElementById('operatorName').value = '';
+        document.querySelectorAll('.issue-tag').forEach(t => t.classList.remove('selected'));
+    }
+
+    function viewHistory() {
+        window.location.href = '/portal/audit-log?filter=shift-handover';
+    }
+
+    // Close modal on outside click
+    document.getElementById('detailModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+</script>
+{% endblock %}

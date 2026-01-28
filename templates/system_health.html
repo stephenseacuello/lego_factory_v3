@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Health - Flask CNC SCADA</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --dark-bg: #1e293b; --card-bg: #334155; }
+        body { background: #0f172a; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        .navbar-dark { background: var(--dark-bg) !important; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .card { background: var(--card-bg); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; }
+        .card-header { background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.1); }
+
+        /* Status indicators */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        .status-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .status-online { background: rgba(16,185,129,0.15); color: #34d399; }
+        .status-online .dot { background: #10b981; box-shadow: 0 0 8px #10b981; }
+        .status-warning { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .status-warning .dot { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; }
+        .status-offline { background: rgba(239,68,68,0.15); color: #f87171; }
+        .status-offline .dot { background: #ef4444; }
+        .status-unknown { background: rgba(100,116,139,0.15); color: #94a3b8; }
+        .status-unknown .dot { background: #64748b; }
+
+        /* Service cards */
+        .service-card {
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            transition: all 0.2s;
+        }
+        .service-card:hover { background: rgba(59,130,246,0.1); }
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .service-name { font-weight: 600; }
+        .service-details {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+
+        /* Resource gauges */
+        .resource-gauge {
+            text-align: center;
+            padding: 1.5rem;
+        }
+        .gauge-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            margin: 0 auto 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .gauge-circle::before {
+            content: '';
+            position: absolute;
+            inset: 6px;
+            border-radius: 50%;
+            background: var(--card-bg);
+        }
+        .gauge-value {
+            position: relative;
+            z-index: 1;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .gauge-label { color: #64748b; font-size: 0.85rem; }
+
+        /* Uptime bar */
+        .uptime-bar {
+            display: flex;
+            gap: 2px;
+            height: 24px;
+            margin-bottom: 0.5rem;
+        }
+        .uptime-segment {
+            flex: 1;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .uptime-segment:hover { transform: scaleY(1.2); }
+        .uptime-up { background: #10b981; }
+        .uptime-partial { background: #f59e0b; }
+        .uptime-down { background: #ef4444; }
+
+        /* Log viewer */
+        .log-viewer {
+            background: #0f172a;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-line {
+            padding: 0.25rem 0.75rem;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .log-line:hover { background: rgba(255,255,255,0.03); }
+        .log-time { color: #64748b; margin-right: 1rem; }
+        .log-level-info { color: #60a5fa; }
+        .log-level-warn { color: #fbbf24; }
+        .log-level-error { color: #f87171; }
+        .log-level-debug { color: #94a3b8; }
+
+        /* Metric row */
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .metric-row:last-child { border-bottom: none; }
+        .metric-name { color: #94a3b8; }
+        .metric-value { font-weight: 600; }
+
+        /* Chart container */
+        .chart-container { height: 200px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/portal"><i class="bi bi-arrow-left me-2"></i>System Health</a>
+            <div class="d-flex align-items-center gap-3">
+                <span class="status-badge status-online">
+                    <span class="dot"></span>All Systems Operational
+                </span>
+                <button class="btn btn-outline-light btn-sm" onclick="refreshAll()">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid p-4">
+        <!-- System Overview -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-3 col-md-6">
+                <div class="card h-100">
+                    <div class="card-body resource-gauge">
+                        <div class="gauge-circle" id="cpuGauge" style="background: conic-gradient(#3b82f6 0deg, #3b82f6 126deg, rgba(255,255,255,0.1) 126deg)">
+                            <span class="gauge-value" id="cpuValue">35%</span>
+                        </div>
+                        <div class="gauge-label">CPU Usage</div>
+                        <small class="text-muted">4 cores @ 2.4 GHz</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="card h-100">
+                    <div class="card-body resource-gauge">
+                        <div class="gauge-circle" id="memGauge" style="background: conic-gradient(#10b981 0deg, #10b981 234deg, rgba(255,255,255,0.1) 234deg)">
+                            <span class="gauge-value" id="memValue">65%</span>
+                        </div>
+                        <div class="gauge-label">Memory Usage</div>
+                        <small class="text-muted">5.2 GB / 8 GB</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="card h-100">
+                    <div class="card-body resource-gauge">
+                        <div class="gauge-circle" id="diskGauge" style="background: conic-gradient(#f59e0b 0deg, #f59e0b 180deg, rgba(255,255,255,0.1) 180deg)">
+                            <span class="gauge-value" id="diskValue">50%</span>
+                        </div>
+                        <div class="gauge-label">Disk Usage</div>
+                        <small class="text-muted">128 GB / 256 GB</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6">
+                <div class="card h-100">
+                    <div class="card-body resource-gauge">
+                        <div class="gauge-circle" style="background: conic-gradient(#22d3ee 0deg, #22d3ee 36deg, rgba(255,255,255,0.1) 36deg)">
+                            <span class="gauge-value">10%</span>
+                        </div>
+                        <div class="gauge-label">Network I/O</div>
+                        <small class="text-muted">12.5 MB/s avg</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <!-- Services Status -->
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-server me-2"></i>Services</span>
+                        <small class="text-success">12/12 Online</small>
+                    </div>
+                    <div class="card-body" id="servicesContainer">
+                        <!-- Services loaded here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Database & Queue -->
+            <div class="col-lg-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-database me-2"></i>Database Performance
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="metric-row">
+                                    <span class="metric-name">Connections</span>
+                                    <span class="metric-value">24 / 100</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-name">Query/sec</span>
+                                    <span class="metric-value">156</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-name">Avg Query Time</span>
+                                    <span class="metric-value text-success">12ms</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="metric-row">
+                                    <span class="metric-name">Cache Hit Rate</span>
+                                    <span class="metric-value text-success">94.2%</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-name">Replication Lag</span>
+                                    <span class="metric-value">0ms</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-name">Status</span>
+                                    <span class="status-badge status-online"><span class="dot"></span>Healthy</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-stack me-2"></i>Message Queue
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="metric-row">
+                                    <span class="metric-name">Pending Messages</span>
+                                    <span class="metric-value">47</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-name">Messages/min</span>
+                                    <span class="metric-value">324</span>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="metric-row">
+                                    <span class="metric-name">Avg Latency</span>
+                                    <span class="metric-value text-success">8ms</span>
+                                </div>
+                                <div class="metric-row">
+                                    <span class="metric-name">Dead Letters</span>
+                                    <span class="metric-value text-warning">3</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Uptime & Performance -->
+        <div class="row g-4 mt-2">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-clock-history me-2"></i>Uptime (Last 30 Days)</span>
+                        <span class="text-success fw-bold">99.95%</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="uptime-bar" id="uptimeBar">
+                            <!-- Uptime segments loaded here -->
+                        </div>
+                        <div class="d-flex justify-content-between text-muted small">
+                            <span>30 days ago</span>
+                            <span>Today</span>
+                        </div>
+
+                        <div class="chart-container mt-4">
+                            <canvas id="responseTimeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <i class="bi bi-wifi me-2"></i>Connections
+                    </div>
+                    <div class="card-body">
+                        <div class="metric-row">
+                            <span class="metric-name">WebSocket Clients</span>
+                            <span class="metric-value text-primary">18</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-name">API Requests/min</span>
+                            <span class="metric-value">245</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-name">Serial Ports</span>
+                            <span class="metric-value text-success">3 active</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-name">MQTT Connections</span>
+                            <span class="metric-value text-success">5</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-name">InfluxDB</span>
+                            <span class="status-badge status-online"><span class="dot"></span>Connected</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-name">Redis</span>
+                            <span class="status-badge status-online"><span class="dot"></span>Connected</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Logs -->
+        <div class="row g-4 mt-2">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-terminal me-2"></i>Recent System Logs</span>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-2" onclick="filterLogs('all')">All</button>
+                            <button class="btn btn-sm btn-outline-info" onclick="filterLogs('info')">Info</button>
+                            <button class="btn btn-sm btn-outline-warning" onclick="filterLogs('warn')">Warn</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="filterLogs('error')">Error</button>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="log-viewer" id="logViewer">
+                            <!-- Logs loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <script src="/static/js/realtime.js"></script>
+    <script>
+        // Initialize real-time
+        const rt = new CNCRealtime();
+        createConnectionIndicator(rt);
+
+        // Services data
+        const services = [
+            { name: 'Flask Web Server', status: 'online', uptime: '15d 4h', cpu: '2.3%', mem: '156 MB' },
+            { name: 'TinyG Controller', status: 'online', uptime: '15d 4h', cpu: '0.8%', mem: '24 MB' },
+            { name: 'MCC Motor Controller', status: 'online', uptime: '15d 4h', cpu: '0.5%', mem: '18 MB' },
+            { name: 'Sensor Service', status: 'online', uptime: '15d 4h', cpu: '1.2%', mem: '45 MB' },
+            { name: 'MQTT Broker', status: 'online', uptime: '15d 4h', cpu: '0.3%', mem: '32 MB' },
+            { name: 'InfluxDB Writer', status: 'online', uptime: '15d 4h', cpu: '1.8%', mem: '128 MB' },
+            { name: 'WebSocket Server', status: 'online', uptime: '15d 4h', cpu: '0.6%', mem: '42 MB' },
+            { name: 'Scheduler Service', status: 'online', uptime: '15d 4h', cpu: '0.4%', mem: '28 MB' },
+            { name: 'Analytics Engine', status: 'warning', uptime: '2d 8h', cpu: '4.5%', mem: '256 MB' },
+            { name: 'Predictive ML', status: 'online', uptime: '5d 12h', cpu: '3.2%', mem: '512 MB' },
+            { name: 'MCP Server', status: 'online', uptime: '15d 4h', cpu: '0.2%', mem: '36 MB' },
+            { name: 'Redis Cache', status: 'online', uptime: '15d 4h', cpu: '0.1%', mem: '64 MB' }
+        ];
+
+        const logs = [
+            { time: '12:45:32', level: 'info', message: 'TinyG status update received: position X=125.4 Y=89.2 Z=-5.0' },
+            { time: '12:45:31', level: 'info', message: 'WebSocket: Client connected from 192.168.1.45' },
+            { time: '12:45:28', level: 'debug', message: 'Sensor data batch written to InfluxDB: 24 points' },
+            { time: '12:45:25', level: 'warn', message: 'Analytics Engine: High memory usage detected (78%)' },
+            { time: '12:45:20', level: 'info', message: 'MQTT: Published to cnc/sensors/temperature' },
+            { time: '12:45:15', level: 'info', message: 'API request: GET /api/tinyg/status - 200 OK (12ms)' },
+            { time: '12:45:10', level: 'error', message: 'Sensor S-003 timeout - retrying connection' },
+            { time: '12:45:05', level: 'info', message: 'Scheduler: Work order WO-2025-042 dispatched to CNC-001' },
+            { time: '12:45:00', level: 'info', message: 'Health check completed: All services operational' },
+            { time: '12:44:55', level: 'debug', message: 'Cache hit for user session: admin@labfab.local' },
+            { time: '12:44:50', level: 'info', message: 'MCC current reading: Spindle=2.4A, X=0.8A, Y=0.6A' },
+            { time: '12:44:45', level: 'warn', message: 'Disk usage at 52% - consider cleanup' }
+        ];
+
+        function init() {
+            renderServices();
+            renderUptimeBar();
+            renderLogs();
+            initCharts();
+            startLiveUpdates();
+        }
+
+        function renderServices() {
+            const container = document.getElementById('servicesContainer');
+            container.innerHTML = services.map(s => `
+                <div class="service-card">
+                    <div class="service-header">
+                        <span class="service-name">${s.name}</span>
+                        <span class="status-badge status-${s.status}">
+                            <span class="dot"></span>${s.status === 'online' ? 'Online' : s.status === 'warning' ? 'Warning' : 'Offline'}
+                        </span>
+                    </div>
+                    <div class="service-details">
+                        <span><i class="bi bi-clock me-1"></i>${s.uptime}</span>
+                        <span><i class="bi bi-cpu me-1"></i>${s.cpu}</span>
+                        <span><i class="bi bi-memory me-1"></i>${s.mem}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderUptimeBar() {
+            const bar = document.getElementById('uptimeBar');
+            // Generate 30 days of uptime data
+            const segments = [];
+            for (let i = 0; i < 30; i++) {
+                const rand = Math.random();
+                let status = 'up';
+                if (rand > 0.98) status = 'down';
+                else if (rand > 0.95) status = 'partial';
+                segments.push(`<div class="uptime-segment uptime-${status}" title="Day ${30-i}: ${status}"></div>`);
+            }
+            bar.innerHTML = segments.join('');
+        }
+
+        function renderLogs(filter = 'all') {
+            const viewer = document.getElementById('logViewer');
+            const filtered = filter === 'all' ? logs : logs.filter(l => l.level === filter);
+            viewer.innerHTML = filtered.map(log => `
+                <div class="log-line">
+                    <span class="log-time">${log.time}</span>
+                    <span class="log-level-${log.level}">[${log.level.toUpperCase()}]</span>
+                    ${log.message}
+                </div>
+            `).join('');
+        }
+
+        function filterLogs(level) {
+            renderLogs(level);
+        }
+
+        function initCharts() {
+            const ctx = document.getElementById('responseTimeChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                    datasets: [{
+                        label: 'Avg Response Time (ms)',
+                        data: [12, 14, 11, 10, 9, 8, 10, 15, 18, 22, 25, 28, 24, 20, 18, 16, 14, 15, 17, 19, 16, 14, 13, 12],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }, {
+                        label: 'P95 Response Time (ms)',
+                        data: [35, 42, 38, 32, 28, 25, 30, 45, 55, 68, 75, 82, 70, 58, 52, 48, 42, 45, 50, 56, 48, 40, 38, 35],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'transparent',
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8' } } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: '#94a3b8', maxTicksLimit: 12 } }
+                    }
+                }
+            });
+        }
+
+        function updateGauge(id, value, color) {
+            const gauge = document.getElementById(id);
+            const degrees = (value / 100) * 360;
+            gauge.style.background = `conic-gradient(${color} 0deg, ${color} ${degrees}deg, rgba(255,255,255,0.1) ${degrees}deg)`;
+        }
+
+        function startLiveUpdates() {
+            setInterval(() => {
+                // Simulate live CPU/memory updates
+                const cpu = 30 + Math.random() * 20;
+                const mem = 60 + Math.random() * 15;
+
+                document.getElementById('cpuValue').textContent = cpu.toFixed(0) + '%';
+                document.getElementById('memValue').textContent = mem.toFixed(0) + '%';
+
+                updateGauge('cpuGauge', cpu, '#3b82f6');
+                updateGauge('memGauge', mem, '#10b981');
+            }, 5000);
+        }
+
+        function refreshAll() {
+            renderServices();
+            renderLogs();
+            showToast('System health refreshed', 'success');
+        }
+
+        function showToast(message, type) {
+            const toast = document.createElement('div');
+            toast.className = `alert alert-${type} position-fixed`;
+            toast.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 280px;';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Real-time system events
+        rt.on('system:event', (data) => {
+            console.log('System event:', data);
+        });
+
+        init();
+    </script>
+</body>
+</html>

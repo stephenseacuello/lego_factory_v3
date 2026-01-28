@@ -1,0 +1,809 @@
+{% extends "base.html" %}
+{% block title %}Recipe Management - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #22c55e;
+        --accent-yellow: #eab308;
+        --accent-red: #ef4444;
+        --accent-purple: #a855f7;
+    }
+
+    .recipe-container {
+        padding: 24px;
+        background: var(--bg-dark);
+        min-height: 100vh;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-title {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
+    .btn-success { background: var(--accent-green); color: white; }
+    .btn-sm { padding: 6px 12px; font-size: 13px; }
+
+    /* Layout */
+    .main-layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 24px;
+    }
+
+    /* Recipe List */
+    .recipe-list-section {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .list-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .list-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 12px;
+    }
+
+    .search-input {
+        width: 100%;
+        padding: 10px 14px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .category-filter {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+    }
+
+    .filter-chip {
+        padding: 6px 12px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 20px;
+        color: var(--text-secondary);
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .filter-chip.active {
+        background: var(--accent-blue);
+        border-color: var(--accent-blue);
+        color: white;
+    }
+
+    .recipe-list {
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    .recipe-item {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .recipe-item:hover,
+    .recipe-item.active {
+        background: var(--bg-card-hover);
+    }
+
+    .recipe-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+
+    .recipe-meta {
+        display: flex;
+        gap: 12px;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .recipe-badge {
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+    }
+
+    .recipe-badge.material { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .recipe-badge.active { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+
+    /* Detail Panel */
+    .detail-section {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .detail-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .detail-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .detail-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .detail-body {
+        padding: 20px;
+    }
+
+    /* Recipe Header */
+    .recipe-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 24px;
+    }
+
+    .recipe-info h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 8px;
+    }
+
+    .recipe-info-meta {
+        display: flex;
+        gap: 16px;
+        font-size: 14px;
+        color: var(--text-secondary);
+    }
+
+    .recipe-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    /* Parameters Grid */
+    .params-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+    }
+
+    .param-card {
+        background: var(--bg-dark);
+        border-radius: 8px;
+        padding: 16px;
+    }
+
+    .param-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+    }
+
+    .param-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .param-unit {
+        font-size: 14px;
+        color: var(--text-secondary);
+        margin-left: 4px;
+    }
+
+    .param-input {
+        width: 100%;
+        padding: 8px 12px;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    /* Tool Table */
+    .tool-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .tool-table th,
+    .tool-table td {
+        padding: 12px 16px;
+        text-align: left;
+    }
+
+    .tool-table th {
+        background: var(--bg-dark);
+        color: var(--text-secondary);
+        font-size: 12px;
+        text-transform: uppercase;
+        font-weight: 500;
+    }
+
+    .tool-table td {
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    /* Version History */
+    .version-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .version-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 16px;
+        background: var(--bg-dark);
+        border-radius: 8px;
+    }
+
+    .version-badge {
+        padding: 4px 10px;
+        background: var(--accent-blue);
+        color: white;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .version-badge.current {
+        background: var(--accent-green);
+    }
+
+    .version-info {
+        flex: 1;
+    }
+
+    .version-date {
+        font-size: 13px;
+        color: var(--text-primary);
+    }
+
+    .version-author {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .version-changes {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    /* Comparison */
+    .compare-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .compare-column {
+        background: var(--bg-dark);
+        border-radius: 8px;
+        padding: 16px;
+    }
+
+    .compare-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .compare-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        font-size: 13px;
+    }
+
+    .compare-label {
+        color: var(--text-secondary);
+    }
+
+    .compare-value {
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    .compare-value.changed {
+        color: var(--accent-yellow);
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+    }
+
+    .modal-overlay.show { display: flex; }
+
+    .modal-content {
+        background: var(--bg-card);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 85vh;
+        overflow: hidden;
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 24px;
+        cursor: pointer;
+    }
+
+    .modal-body {
+        padding: 24px;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 6px;
+    }
+
+    .form-input,
+    .form-select {
+        width: 100%;
+        padding: 10px 14px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    @media (max-width: 1200px) {
+        .main-layout { grid-template-columns: 1fr; }
+        .params-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="recipe-container">
+    <div class="page-header">
+        <h1 class="page-title">Recipe Management</h1>
+        <div>
+            <button class="btn btn-secondary" style="margin-right: 12px;">Import Recipe</button>
+            <button class="btn btn-primary" onclick="openCreateModal()">+ New Recipe</button>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <!-- Recipe List -->
+        <div class="recipe-list-section">
+            <div class="list-header">
+                <h3 class="list-title">Recipes</h3>
+                <input type="text" class="search-input" placeholder="Search recipes..." id="recipeSearch">
+                <div class="category-filter">
+                    <span class="filter-chip active" data-filter="all">All</span>
+                    <span class="filter-chip" data-filter="aluminum">Aluminum</span>
+                    <span class="filter-chip" data-filter="steel">Steel</span>
+                    <span class="filter-chip" data-filter="titanium">Titanium</span>
+                </div>
+            </div>
+            <div class="recipe-list" id="recipeList">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+
+        <!-- Detail Panel -->
+        <div class="detail-section" id="detailSection">
+            <div class="detail-card">
+                <div class="recipe-header" id="recipeHeader">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Cutting Parameters -->
+            <div class="detail-card">
+                <div class="detail-header">
+                    <h3 class="detail-title">Cutting Parameters</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="editParams()">Edit</button>
+                </div>
+                <div class="detail-body">
+                    <div class="params-grid" id="paramsGrid">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tool List -->
+            <div class="detail-card">
+                <div class="detail-header">
+                    <h3 class="detail-title">Tool Requirements</h3>
+                </div>
+                <div class="detail-body" style="padding: 0;">
+                    <table class="tool-table">
+                        <thead>
+                            <tr>
+                                <th>Tool #</th>
+                                <th>Description</th>
+                                <th>Diameter</th>
+                                <th>Speed</th>
+                                <th>Feed</th>
+                            </tr>
+                        </thead>
+                        <tbody id="toolTable">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Version History -->
+            <div class="detail-card">
+                <div class="detail-header">
+                    <h3 class="detail-title">Version History</h3>
+                    <button class="btn btn-secondary btn-sm" onclick="compareVersions()">Compare</button>
+                </div>
+                <div class="detail-body">
+                    <div class="version-list" id="versionList">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Recipe Modal -->
+<div class="modal-overlay" id="createModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Create New Recipe</h3>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Recipe Name</label>
+                <input type="text" class="form-input" placeholder="e.g., AL6061-BRACKET-001">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Material</label>
+                    <select class="form-select">
+                        <option>Aluminum 6061-T6</option>
+                        <option>Steel 4140</option>
+                        <option>Stainless 316</option>
+                        <option>Titanium Grade 5</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Machine Type</label>
+                    <select class="form-select">
+                        <option>3-Axis Mill</option>
+                        <option>5-Axis Mill</option>
+                        <option>Lathe</option>
+                        <option>Mill-Turn</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Spindle Speed (RPM)</label>
+                    <input type="number" class="form-input" placeholder="8000">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Feed Rate (mm/min)</label>
+                    <input type="number" class="form-input" placeholder="2000">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Depth of Cut (mm)</label>
+                    <input type="number" class="form-input" placeholder="2.5" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Width of Cut (mm)</label>
+                    <input type="number" class="form-input" placeholder="5.0" step="0.1">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-input" rows="3" placeholder="Special instructions or notes..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveRecipe()">Create Recipe</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const recipes = [
+        { id: 1, name: 'AL6061-BRACKET-001', material: 'Aluminum 6061-T6', machine: '3-Axis Mill', version: 'v3.2', status: 'active', speed: 8000, feed: 2000, doc: 2.5, woc: 5.0, coolant: 'Flood', tools: [
+            { num: 'T01', desc: 'Face Mill 50mm', dia: 50, speed: 5000, feed: 1200 },
+            { num: 'T02', desc: 'End Mill 10mm', dia: 10, speed: 8000, feed: 2000 },
+            { num: 'T03', desc: 'Drill 8.5mm', dia: 8.5, speed: 3000, feed: 200 }
+        ], versions: [
+            { num: 'v3.2', date: 'Jan 15, 2024', author: 'R. Chen', changes: 'Increased feed rate 10%', current: true },
+            { num: 'v3.1', date: 'Jan 10, 2024', author: 'J. Smith', changes: 'Adjusted DOC for finish pass' },
+            { num: 'v3.0', date: 'Dec 28, 2023', author: 'M. Garcia', changes: 'Added coolant requirements' }
+        ]},
+        { id: 2, name: 'SS316-HOUSING-002', material: 'Stainless 316', machine: '5-Axis Mill', version: 'v2.1', status: 'active', speed: 4500, feed: 800, doc: 1.5, woc: 3.0, coolant: 'High Pressure', tools: [
+            { num: 'T01', desc: 'Face Mill 40mm', dia: 40, speed: 3000, feed: 600 },
+            { num: 'T02', desc: 'Ball Mill 8mm', dia: 8, speed: 4500, feed: 800 }
+        ], versions: [
+            { num: 'v2.1', date: 'Jan 12, 2024', author: 'R. Chen', changes: 'Optimized 5-axis toolpath', current: true }
+        ]},
+        { id: 3, name: 'TI-FITTING-003', material: 'Titanium Grade 5', machine: '3-Axis Mill', version: 'v1.5', status: 'active', speed: 2500, feed: 400, doc: 0.8, woc: 2.0, coolant: 'High Pressure + Mist', tools: [
+            { num: 'T01', desc: 'End Mill 6mm Carbide', dia: 6, speed: 2500, feed: 400 }
+        ], versions: [
+            { num: 'v1.5', date: 'Jan 8, 2024', author: 'S. Johnson', changes: 'Reduced speed for tool life', current: true }
+        ]},
+        { id: 4, name: 'STEEL4140-SHAFT-001', material: 'Steel 4140', machine: 'Lathe', version: 'v4.0', status: 'active', speed: 3500, feed: 600, doc: 2.0, woc: 0, coolant: 'Flood', tools: [
+            { num: 'T01', desc: 'OD Roughing', dia: 0, speed: 3000, feed: 800 },
+            { num: 'T02', desc: 'OD Finishing', dia: 0, speed: 4000, feed: 200 }
+        ], versions: [
+            { num: 'v4.0', date: 'Jan 5, 2024', author: 'M. Garcia', changes: 'New tooling for better finish', current: true }
+        ]}
+    ];
+
+    let selectedRecipe = recipes[0];
+
+    document.addEventListener('DOMContentLoaded', function() {
+        renderRecipeList();
+        selectRecipe(recipes[0]);
+        setupFilters();
+    });
+
+    function renderRecipeList() {
+        document.getElementById('recipeList').innerHTML = recipes.map(r => `
+            <div class="recipe-item ${r.id === selectedRecipe?.id ? 'active' : ''}" onclick="selectRecipe(recipes.find(x => x.id === ${r.id}))">
+                <div class="recipe-name">${r.name}</div>
+                <div class="recipe-meta">
+                    <span class="recipe-badge material">${r.material.split(' ')[0]}</span>
+                    <span>${r.machine}</span>
+                    <span>${r.version}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function selectRecipe(recipe) {
+        selectedRecipe = recipe;
+        renderRecipeList();
+        renderHeader(recipe);
+        renderParams(recipe);
+        renderTools(recipe);
+        renderVersions(recipe);
+    }
+
+    function renderHeader(r) {
+        document.getElementById('recipeHeader').innerHTML = `
+            <div class="recipe-info">
+                <h2>${r.name}</h2>
+                <div class="recipe-info-meta">
+                    <span>${r.material}</span>
+                    <span>|</span>
+                    <span>${r.machine}</span>
+                    <span>|</span>
+                    <span>${r.version}</span>
+                </div>
+            </div>
+            <div class="recipe-actions">
+                <button class="btn btn-secondary">Duplicate</button>
+                <button class="btn btn-success">Apply to Machine</button>
+            </div>
+        `;
+    }
+
+    function renderParams(r) {
+        const params = [
+            { label: 'Spindle Speed', value: r.speed, unit: 'RPM' },
+            { label: 'Feed Rate', value: r.feed, unit: 'mm/min' },
+            { label: 'Depth of Cut', value: r.doc, unit: 'mm' },
+            { label: 'Width of Cut', value: r.woc, unit: 'mm' },
+            { label: 'Coolant', value: r.coolant, unit: '' },
+            { label: 'Surface Speed', value: Math.round(r.speed * 0.05), unit: 'm/min' }
+        ];
+
+        document.getElementById('paramsGrid').innerHTML = params.map(p => `
+            <div class="param-card">
+                <div class="param-label">${p.label}</div>
+                <div class="param-value">${p.value}<span class="param-unit">${p.unit}</span></div>
+            </div>
+        `).join('');
+    }
+
+    function renderTools(r) {
+        document.getElementById('toolTable').innerHTML = r.tools.map(t => `
+            <tr>
+                <td>${t.num}</td>
+                <td>${t.desc}</td>
+                <td>${t.dia > 0 ? t.dia + ' mm' : '-'}</td>
+                <td>${t.speed} RPM</td>
+                <td>${t.feed} mm/min</td>
+            </tr>
+        `).join('');
+    }
+
+    function renderVersions(r) {
+        document.getElementById('versionList').innerHTML = r.versions.map(v => `
+            <div class="version-item">
+                <span class="version-badge ${v.current ? 'current' : ''}">${v.num}</span>
+                <div class="version-info">
+                    <div class="version-date">${v.date}</div>
+                    <div class="version-author">by ${v.author}</div>
+                </div>
+                <div class="version-changes">${v.changes}</div>
+                ${!v.current ? '<button class="btn btn-secondary btn-sm">Restore</button>' : ''}
+            </div>
+        `).join('');
+    }
+
+    function setupFilters() {
+        document.querySelectorAll('.filter-chip').forEach(chip => {
+            chip.addEventListener('click', function() {
+                document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+                this.classList.add('active');
+                filterRecipes(this.dataset.filter);
+            });
+        });
+
+        document.getElementById('recipeSearch').addEventListener('input', function(e) {
+            filterRecipes(document.querySelector('.filter-chip.active').dataset.filter, e.target.value);
+        });
+    }
+
+    function filterRecipes(category, search = '') {
+        let filtered = recipes;
+        if (category !== 'all') {
+            filtered = filtered.filter(r => r.material.toLowerCase().includes(category));
+        }
+        if (search) {
+            filtered = filtered.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
+        }
+        renderFilteredList(filtered);
+    }
+
+    function renderFilteredList(filtered) {
+        document.getElementById('recipeList').innerHTML = filtered.map(r => `
+            <div class="recipe-item ${r.id === selectedRecipe?.id ? 'active' : ''}" onclick="selectRecipe(recipes.find(x => x.id === ${r.id}))">
+                <div class="recipe-name">${r.name}</div>
+                <div class="recipe-meta">
+                    <span class="recipe-badge material">${r.material.split(' ')[0]}</span>
+                    <span>${r.machine}</span>
+                    <span>${r.version}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function openCreateModal() {
+        document.getElementById('createModal').classList.add('show');
+    }
+
+    function closeModal() {
+        document.getElementById('createModal').classList.remove('show');
+    }
+
+    function saveRecipe() {
+        alert('Recipe created successfully!');
+        closeModal();
+    }
+
+    function editParams() {
+        alert('Edit parameters mode activated');
+    }
+
+    function compareVersions() {
+        alert('Version comparison view');
+    }
+
+    document.getElementById('createModal').addEventListener('click', function(e) {
+        if (e.target === this) closeModal();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,814 @@
+{% extends "base.html" %}
+{% block title %}Work Order Detail - Flask CNC{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --accent-blue: #3b82f6;
+        --accent-green: #22c55e;
+        --accent-yellow: #eab308;
+        --accent-red: #ef4444;
+        --accent-purple: #a855f7;
+    }
+
+    .wo-container {
+        padding: 24px;
+        background: var(--bg-dark);
+        min-height: 100vh;
+    }
+
+    /* Breadcrumb */
+    .breadcrumb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        font-size: 14px;
+    }
+
+    .breadcrumb a {
+        color: var(--text-secondary);
+        text-decoration: none;
+    }
+
+    .breadcrumb a:hover {
+        color: var(--accent-blue);
+    }
+
+    .breadcrumb .current {
+        color: var(--text-primary);
+    }
+
+    /* Header */
+    .wo-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 24px;
+    }
+
+    .wo-title-section {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .wo-number {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .wo-status {
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .wo-status.in-progress { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .wo-status.pending { background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow); }
+    .wo-status.completed { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+    .wo-status.on-hold { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+
+    .wo-part {
+        font-size: 18px;
+        color: var(--text-secondary);
+        margin-top: 4px;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-primary { background: var(--accent-blue); color: white; }
+    .btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
+    .btn-success { background: var(--accent-green); color: white; }
+    .btn-danger { background: var(--accent-red); color: white; }
+
+    /* Progress Bar */
+    .progress-section {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 24px;
+    }
+
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+
+    .progress-label {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+
+    .progress-value {
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--accent-green);
+    }
+
+    .progress-bar {
+        height: 12px;
+        background: var(--bg-dark);
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 16px;
+    }
+
+    .progress-fill {
+        height: 100%;
+        border-radius: 6px;
+        background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));
+        transition: width 0.3s;
+    }
+
+    .progress-stats {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .progress-stat {
+        text-align: center;
+    }
+
+    .progress-stat-value {
+        font-size: 20px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .progress-stat-label {
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    /* Layout */
+    .wo-layout {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 24px;
+    }
+
+    /* Tabs */
+    .tabs-section {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .tabs-header {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .tab-btn {
+        padding: 14px 24px;
+        background: transparent;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-weight: 500;
+        position: relative;
+    }
+
+    .tab-btn.active {
+        color: var(--accent-blue);
+    }
+
+    .tab-btn.active::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--accent-blue);
+    }
+
+    .tab-content {
+        display: none;
+        padding: 20px;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Operations Timeline */
+    .operations-timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+
+    .operations-timeline::before {
+        content: '';
+        position: absolute;
+        left: 10px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border-color);
+    }
+
+    .operation-item {
+        position: relative;
+        padding: 16px;
+        background: var(--bg-dark);
+        border-radius: 8px;
+        margin-bottom: 16px;
+    }
+
+    .operation-item::before {
+        content: '';
+        position: absolute;
+        left: -24px;
+        top: 20px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        border: 2px solid var(--bg-dark);
+    }
+
+    .operation-item.completed::before { background: var(--accent-green); }
+    .operation-item.in-progress::before { background: var(--accent-blue); }
+    .operation-item.pending::before { background: var(--text-secondary); }
+
+    .operation-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .operation-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .operation-status {
+        font-size: 12px;
+        padding: 3px 10px;
+        border-radius: 12px;
+    }
+
+    .operation-status.completed { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); }
+    .operation-status.in-progress { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+    .operation-status.pending { background: rgba(148, 163, 184, 0.2); color: var(--text-secondary); }
+
+    .operation-details {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        font-size: 13px;
+    }
+
+    .operation-detail {
+        color: var(--text-secondary);
+    }
+
+    .operation-detail span {
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    /* Materials Table */
+    .materials-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .materials-table th,
+    .materials-table td {
+        padding: 12px 16px;
+        text-align: left;
+    }
+
+    .materials-table th {
+        background: var(--bg-dark);
+        color: var(--text-secondary);
+        font-size: 12px;
+        text-transform: uppercase;
+        font-weight: 500;
+    }
+
+    .materials-table td {
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .stock-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+    }
+
+    .stock-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .stock-dot.available { background: var(--accent-green); }
+    .stock-dot.low { background: var(--accent-yellow); }
+    .stock-dot.out { background: var(--accent-red); }
+
+    /* Documents */
+    .doc-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+    }
+
+    .doc-card {
+        background: var(--bg-dark);
+        border-radius: 8px;
+        padding: 16px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .doc-card:hover {
+        background: var(--bg-card-hover);
+    }
+
+    .doc-icon {
+        font-size: 32px;
+        margin-bottom: 8px;
+    }
+
+    .doc-name {
+        font-size: 13px;
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    .doc-size {
+        font-size: 11px;
+        color: var(--text-secondary);
+    }
+
+    /* Sidebar */
+    .sidebar-section {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .info-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .info-header {
+        padding: 14px 20px;
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .info-body {
+        padding: 16px 20px;
+    }
+
+    .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .info-row:last-child {
+        border-bottom: none;
+    }
+
+    .info-label {
+        color: var(--text-secondary);
+        font-size: 14px;
+    }
+
+    .info-value {
+        color: var(--text-primary);
+        font-weight: 500;
+        font-size: 14px;
+    }
+
+    /* Activity Feed */
+    .activity-feed {
+        max-height: 250px;
+        overflow-y: auto;
+    }
+
+    .activity-item {
+        display: flex;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        flex-shrink: 0;
+    }
+
+    .activity-content {
+        flex: 1;
+    }
+
+    .activity-text {
+        font-size: 13px;
+        color: var(--text-primary);
+    }
+
+    .activity-time {
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin-top: 2px;
+    }
+
+    @media (max-width: 1200px) {
+        .wo-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .operation-details {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wo-container">
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+        <a href="/portal/mes">Work Orders</a>
+        <span>/</span>
+        <span class="current">WO-2024-0042</span>
+    </div>
+
+    <!-- Header -->
+    <div class="wo-header">
+        <div class="wo-title-section">
+            <div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span class="wo-number">WO-2024-0042</span>
+                    <span class="wo-status in-progress">In Progress</span>
+                </div>
+                <div class="wo-part">Part: BRACKET-ASM-001 | Rev C | Qty: 500</div>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary">Print Traveler</button>
+            <button class="btn btn-secondary">Add Note</button>
+            <button class="btn btn-success">Complete Operation</button>
+        </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section">
+        <div class="progress-header">
+            <span class="progress-label">Overall Progress</span>
+            <span class="progress-value">68%</span>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 68%"></div>
+        </div>
+        <div class="progress-stats">
+            <div class="progress-stat">
+                <div class="progress-stat-value">340</div>
+                <div class="progress-stat-label">Completed</div>
+            </div>
+            <div class="progress-stat">
+                <div class="progress-stat-value">160</div>
+                <div class="progress-stat-label">Remaining</div>
+            </div>
+            <div class="progress-stat">
+                <div class="progress-stat-value">4</div>
+                <div class="progress-stat-label">Scrapped</div>
+            </div>
+            <div class="progress-stat">
+                <div class="progress-stat-value">Est. 3.5h</div>
+                <div class="progress-stat-label">Time Left</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="wo-layout">
+        <!-- Main Content -->
+        <div class="tabs-section">
+            <div class="tabs-header">
+                <button class="tab-btn active" data-tab="operations">Operations</button>
+                <button class="tab-btn" data-tab="materials">Materials</button>
+                <button class="tab-btn" data-tab="quality">Quality</button>
+                <button class="tab-btn" data-tab="documents">Documents</button>
+            </div>
+
+            <!-- Operations Tab -->
+            <div class="tab-content active" id="operations">
+                <div class="operations-timeline">
+                    <div class="operation-item completed">
+                        <div class="operation-header">
+                            <span class="operation-name">10 - Raw Material Issue</span>
+                            <span class="operation-status completed">Completed</span>
+                        </div>
+                        <div class="operation-details">
+                            <div class="operation-detail">WC: <span>STORES</span></div>
+                            <div class="operation-detail">Actual: <span>0.5h</span></div>
+                            <div class="operation-detail">Operator: <span>J. Smith</span></div>
+                            <div class="operation-detail">Date: <span>Jan 14, 8:30 AM</span></div>
+                        </div>
+                    </div>
+                    <div class="operation-item completed">
+                        <div class="operation-header">
+                            <span class="operation-name">20 - CNC Rough Milling</span>
+                            <span class="operation-status completed">Completed</span>
+                        </div>
+                        <div class="operation-details">
+                            <div class="operation-detail">WC: <span>CNC-001</span></div>
+                            <div class="operation-detail">Actual: <span>4.2h</span></div>
+                            <div class="operation-detail">Operator: <span>M. Garcia</span></div>
+                            <div class="operation-detail">Qty: <span>344 pcs</span></div>
+                        </div>
+                    </div>
+                    <div class="operation-item in-progress">
+                        <div class="operation-header">
+                            <span class="operation-name">30 - CNC Finish Milling</span>
+                            <span class="operation-status in-progress">In Progress</span>
+                        </div>
+                        <div class="operation-details">
+                            <div class="operation-detail">WC: <span>CNC-002</span></div>
+                            <div class="operation-detail">Setup: <span>0.75h</span></div>
+                            <div class="operation-detail">Operator: <span>R. Chen</span></div>
+                            <div class="operation-detail">Progress: <span>68%</span></div>
+                        </div>
+                    </div>
+                    <div class="operation-item pending">
+                        <div class="operation-header">
+                            <span class="operation-name">40 - Deburr & Clean</span>
+                            <span class="operation-status pending">Pending</span>
+                        </div>
+                        <div class="operation-details">
+                            <div class="operation-detail">WC: <span>DEBURR</span></div>
+                            <div class="operation-detail">Est: <span>1.5h</span></div>
+                            <div class="operation-detail">Operator: <span>-</span></div>
+                            <div class="operation-detail">Status: <span>Waiting</span></div>
+                        </div>
+                    </div>
+                    <div class="operation-item pending">
+                        <div class="operation-header">
+                            <span class="operation-name">50 - Final Inspection</span>
+                            <span class="operation-status pending">Pending</span>
+                        </div>
+                        <div class="operation-details">
+                            <div class="operation-detail">WC: <span>QC</span></div>
+                            <div class="operation-detail">Est: <span>1h</span></div>
+                            <div class="operation-detail">Inspector: <span>-</span></div>
+                            <div class="operation-detail">Status: <span>Waiting</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Materials Tab -->
+            <div class="tab-content" id="materials">
+                <table class="materials-table">
+                    <thead>
+                        <tr>
+                            <th>Part Number</th>
+                            <th>Description</th>
+                            <th>Qty Required</th>
+                            <th>Qty Issued</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>AL6061-T6-2x4x12</td>
+                            <td>Aluminum Bar Stock 2" x 4" x 12"</td>
+                            <td>125</td>
+                            <td>125</td>
+                            <td><span class="stock-status"><span class="stock-dot available"></span> Issued</span></td>
+                        </tr>
+                        <tr>
+                            <td>SCREW-M6x20-SS</td>
+                            <td>M6x20 Socket Head Cap Screw SS</td>
+                            <td>1000</td>
+                            <td>1000</td>
+                            <td><span class="stock-status"><span class="stock-dot available"></span> Issued</span></td>
+                        </tr>
+                        <tr>
+                            <td>INSERT-CNMG-432</td>
+                            <td>Carbide Insert CNMG 432</td>
+                            <td>8</td>
+                            <td>6</td>
+                            <td><span class="stock-status"><span class="stock-dot low"></span> Partial</span></td>
+                        </tr>
+                        <tr>
+                            <td>COOLANT-5GAL</td>
+                            <td>Cutting Coolant 5 Gallon</td>
+                            <td>2</td>
+                            <td>2</td>
+                            <td><span class="stock-status"><span class="stock-dot available"></span> Issued</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Quality Tab -->
+            <div class="tab-content" id="quality">
+                <div style="display: grid; gap: 16px;">
+                    <div style="background: var(--bg-dark); padding: 16px; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span style="font-weight: 600; color: var(--text-primary);">First Article Inspection</span>
+                            <span style="color: var(--accent-green);">Passed</span>
+                        </div>
+                        <div style="font-size: 13px; color: var(--text-secondary);">
+                            Inspected by: Quality Team | Date: Jan 14, 10:15 AM | All 12 dimensions within tolerance
+                        </div>
+                    </div>
+                    <div style="background: var(--bg-dark); padding: 16px; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span style="font-weight: 600; color: var(--text-primary);">In-Process Inspection (Op 20)</span>
+                            <span style="color: var(--accent-green);">Passed</span>
+                        </div>
+                        <div style="font-size: 13px; color: var(--text-secondary);">
+                            Sample: 10 pcs | Result: 0 defects | CPK: 1.45
+                        </div>
+                    </div>
+                    <div style="background: var(--bg-dark); padding: 16px; border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                            <span style="font-weight: 600; color: var(--text-primary);">In-Process Inspection (Op 30)</span>
+                            <span style="color: var(--accent-blue);">In Progress</span>
+                        </div>
+                        <div style="font-size: 13px; color: var(--text-secondary);">
+                            Next sample due at 400 pcs
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documents Tab -->
+            <div class="tab-content" id="documents">
+                <div class="doc-grid">
+                    <div class="doc-card">
+                        <div class="doc-icon">📄</div>
+                        <div class="doc-name">BRACKET-ASM-001.pdf</div>
+                        <div class="doc-size">Drawing Rev C | 2.4 MB</div>
+                    </div>
+                    <div class="doc-card">
+                        <div class="doc-icon">📋</div>
+                        <div class="doc-name">Setup Sheet.pdf</div>
+                        <div class="doc-size">CNC Setup | 1.1 MB</div>
+                    </div>
+                    <div class="doc-card">
+                        <div class="doc-icon">📊</div>
+                        <div class="doc-name">Inspection Report.xlsx</div>
+                        <div class="doc-size">FAI Report | 245 KB</div>
+                    </div>
+                    <div class="doc-card">
+                        <div class="doc-icon">⚙️</div>
+                        <div class="doc-name">Program.nc</div>
+                        <div class="doc-size">G-Code | 156 KB</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar-section">
+            <!-- Order Info -->
+            <div class="info-card">
+                <div class="info-header">Order Information</div>
+                <div class="info-body">
+                    <div class="info-row">
+                        <span class="info-label">Customer</span>
+                        <span class="info-value">Acme Industries</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Sales Order</span>
+                        <span class="info-value">SO-2024-1842</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Due Date</span>
+                        <span class="info-value" style="color: var(--accent-yellow)">Jan 18, 2024</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Priority</span>
+                        <span class="info-value">High</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Lot Number</span>
+                        <span class="info-value">L240115-042</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assigned Resources -->
+            <div class="info-card">
+                <div class="info-header">Assigned Resources</div>
+                <div class="info-body">
+                    <div class="info-row">
+                        <span class="info-label">Machine</span>
+                        <span class="info-value">CNC Mill #2</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Operator</span>
+                        <span class="info-value">Robert Chen</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Shift</span>
+                        <span class="info-value">Day (06:00-14:00)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Feed -->
+            <div class="info-card">
+                <div class="info-header">Recent Activity</div>
+                <div class="info-body">
+                    <div class="activity-feed">
+                        <div class="activity-item">
+                            <div class="activity-icon" style="background: rgba(59, 130, 246, 0.2); color: var(--accent-blue);">▶</div>
+                            <div class="activity-content">
+                                <div class="activity-text">Op 30 started by R. Chen</div>
+                                <div class="activity-time">Today, 11:45 AM</div>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="activity-icon" style="background: rgba(34, 197, 94, 0.2); color: var(--accent-green);">✓</div>
+                            <div class="activity-content">
+                                <div class="activity-text">Op 20 completed - 344 good</div>
+                                <div class="activity-time">Today, 11:30 AM</div>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="activity-icon" style="background: rgba(168, 85, 247, 0.2); color: var(--accent-purple);">📋</div>
+                            <div class="activity-content">
+                                <div class="activity-text">In-process inspection passed</div>
+                                <div class="activity-time">Today, 10:15 AM</div>
+                            </div>
+                        </div>
+                        <div class="activity-item">
+                            <div class="activity-icon" style="background: rgba(234, 179, 8, 0.2); color: var(--accent-yellow);">⚠</div>
+                            <div class="activity-content">
+                                <div class="activity-text">4 pcs scrapped - tool breakage</div>
+                                <div class="activity-time">Today, 9:22 AM</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Tab functionality
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+            document.getElementById(this.dataset.tab).classList.add('active');
+        });
+    });
+</script>
+{% endblock %}

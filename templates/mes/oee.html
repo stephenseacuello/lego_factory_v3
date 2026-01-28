@@ -1,0 +1,870 @@
+{% extends "base.html" %}
+
+{% block title %}OEE - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">OEE</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-pie-chart me-2"></i>OEE Dashboard</h2>
+    <div class="d-flex align-items-center gap-2">
+        <select class="form-select form-select-sm" id="machineSelect" style="width: 200px;">
+            <option value="">All Machines</option>
+            <!-- Populated dynamically -->
+        </select>
+        <select class="form-select form-select-sm" id="periodSelect" style="width: 150px;">
+            <option value="today">Today</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="week" selected>This Week</option>
+            <option value="month">This Month</option>
+            <option value="custom">Custom Range</option>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" onclick="oeeDashboard.refresh()">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        <button class="btn btn-outline-primary btn-sm" onclick="oeeDashboard.exportReport()">
+            <i class="bi bi-download"></i> Export
+        </button>
+    </div>
+</div>
+
+<!-- Date Range (for custom) -->
+<div class="row mb-4" id="customDateRange" style="display: none;">
+    <div class="col-md-4">
+        <div class="input-group">
+            <span class="input-group-text">From</span>
+            <input type="date" class="form-control" id="startDate">
+            <span class="input-group-text">To</span>
+            <input type="date" class="form-control" id="endDate">
+            <button class="btn btn-primary" onclick="oeeDashboard.loadOEE()">Apply</button>
+        </div>
+    </div>
+</div>
+
+<!-- Main OEE Display -->
+<div class="row g-4 mb-4">
+    <!-- OEE Gauge -->
+    <div class="col-lg-4">
+        <div class="card h-100" id="oeeGaugeCard">
+            <div class="card-body text-center py-4">
+                <div class="position-relative" style="height: 200px;">
+                    <canvas id="oeeGauge"></canvas>
+                    <div class="position-absolute top-50 start-50 translate-middle text-center" style="margin-top: 20px;">
+                        <h1 class="display-3 mb-0" id="oeeValue">--</h1>
+                        <span class="text-muted">%</span>
+                    </div>
+                </div>
+                <h5 class="mt-3">Overall Equipment Effectiveness</h5>
+                <span class="badge" id="oeeStatus">--</span>
+                <div class="mt-3 text-muted small">
+                    Target: 85% | World Class: 85%+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- A, P, Q Metrics -->
+    <div class="col-lg-8">
+        <div class="row g-4 h-100">
+            <!-- Availability -->
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h6 class="text-muted mb-1">Availability</h6>
+                                <h2 class="mb-0" id="availValue">--<small class="text-muted">%</small></h2>
+                            </div>
+                            <div class="text-info">
+                                <i class="bi bi-clock-history fs-3"></i>
+                            </div>
+                        </div>
+                        <div class="progress mb-2" style="height: 8px;">
+                            <div class="progress-bar bg-info" id="availBar" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted">Target: 90%</small>
+                        <hr class="my-2">
+                        <div class="row text-center small">
+                            <div class="col">
+                                <div class="text-muted">Run Time</div>
+                                <div class="fw-bold" id="runTime">--</div>
+                            </div>
+                            <div class="col">
+                                <div class="text-muted">Planned</div>
+                                <div class="fw-bold" id="plannedTime">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance -->
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h6 class="text-muted mb-1">Performance</h6>
+                                <h2 class="mb-0" id="perfValue">--<small class="text-muted">%</small></h2>
+                            </div>
+                            <div class="text-warning">
+                                <i class="bi bi-speedometer2 fs-3"></i>
+                            </div>
+                        </div>
+                        <div class="progress mb-2" style="height: 8px;">
+                            <div class="progress-bar bg-warning" id="perfBar" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted">Target: 95%</small>
+                        <hr class="my-2">
+                        <div class="row text-center small">
+                            <div class="col">
+                                <div class="text-muted">Actual</div>
+                                <div class="fw-bold" id="actualOutput">--</div>
+                            </div>
+                            <div class="col">
+                                <div class="text-muted">Ideal</div>
+                                <div class="fw-bold" id="idealOutput">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quality -->
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h6 class="text-muted mb-1">Quality</h6>
+                                <h2 class="mb-0" id="qualValue">--<small class="text-muted">%</small></h2>
+                            </div>
+                            <div class="text-success">
+                                <i class="bi bi-patch-check fs-3"></i>
+                            </div>
+                        </div>
+                        <div class="progress mb-2" style="height: 8px;">
+                            <div class="progress-bar bg-success" id="qualBar" style="width: 0%"></div>
+                        </div>
+                        <small class="text-muted">Target: 99.9%</small>
+                        <hr class="my-2">
+                        <div class="row text-center small">
+                            <div class="col">
+                                <div class="text-muted">Good</div>
+                                <div class="fw-bold text-success" id="goodCount">--</div>
+                            </div>
+                            <div class="col">
+                                <div class="text-muted">Defects</div>
+                                <div class="fw-bold text-danger" id="defectCount">--</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row g-4 mb-4">
+    <!-- OEE Trend -->
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-graph-up me-2"></i>OEE Trend</span>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" data-trend="day">Day</button>
+                    <button class="btn btn-outline-secondary active" data-trend="week">Week</button>
+                    <button class="btn btn-outline-secondary" data-trend="month">Month</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <canvas id="oeeTrendChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Six Big Losses -->
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-exclamation-triangle me-2"></i>Six Big Losses
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="lossesContainer">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Row -->
+<div class="row g-4">
+    <!-- Downtime Pareto -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-bar-chart me-2"></i>Downtime Pareto</span>
+                <a href="{{ url_for('scada_web.alarms') }}" class="btn btn-outline-secondary btn-sm">View Alarms</a>
+            </div>
+            <div class="card-body">
+                <canvas id="paretoChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Machine OEE Comparison -->
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-hdd-stack me-2"></i>Machine OEE Comparison
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Machine</th>
+                                <th>Status</th>
+                                <th class="text-end">OEE</th>
+                                <th class="text-end">Avail</th>
+                                <th class="text-end">Perf</th>
+                                <th class="text-end">Qual</th>
+                            </tr>
+                        </thead>
+                        <tbody id="machineOEETable">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .oee-world-class { color: #10b981; }
+    .oee-good { color: #22d3ee; }
+    .oee-warning { color: #f59e0b; }
+    .oee-critical { color: #ef4444; }
+
+    .loss-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .loss-item:last-child {
+        border-bottom: none;
+    }
+
+    .loss-bar {
+        height: 4px;
+        background: #e9ecef;
+        border-radius: 2px;
+        margin-top: 4px;
+    }
+
+    .loss-bar-fill {
+        height: 100%;
+        border-radius: 2px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Dashboard JS files -->
+<script src="/static/js/api_client.js"></script>
+<script src="/static/js/dashboard_common.js"></script>
+<script src="/static/js/socket_handlers.js"></script>
+
+<script>
+/**
+ * OEE Dashboard Controller
+ */
+class OEEDashboard {
+    constructor() {
+        this.oeeGauge = null;
+        this.trendChart = null;
+        this.paretoChart = null;
+        this.selectedMachine = '';
+        this.selectedPeriod = 'week';
+        this.trendPeriod = 'week';
+
+        // Initialize socket handler
+        this.socketHandler = new OEESocketHandler(socketManager, {
+            onOEEUpdate: (data) => this.handleOEEUpdate(data),
+            onDowntimeStart: (data) => this.handleDowntimeStart(data),
+            onDowntimeEnd: (data) => this.handleDowntimeEnd(data),
+        });
+
+        this.init();
+    }
+
+    async init() {
+        this.setupEventListeners();
+        this.initCharts();
+        await this.loadMachines();
+        await this.loadOEE();
+        await this.loadTrend();
+        await this.loadLosses();
+        await this.loadPareto();
+        await this.loadMachineOEE();
+
+        // Start auto-refresh
+        this.startAutoRefresh();
+
+        showConnectionIndicator();
+    }
+
+    setupEventListeners() {
+        // Machine select
+        document.getElementById('machineSelect').addEventListener('change', (e) => {
+            this.selectedMachine = e.target.value;
+            this.loadOEE();
+            this.loadTrend();
+        });
+
+        // Period select
+        document.getElementById('periodSelect').addEventListener('change', (e) => {
+            this.selectedPeriod = e.target.value;
+            const customRange = document.getElementById('customDateRange');
+            customRange.style.display = e.target.value === 'custom' ? 'block' : 'none';
+
+            if (e.target.value !== 'custom') {
+                this.loadOEE();
+            }
+        });
+
+        // Trend period buttons
+        document.querySelectorAll('[data-trend]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('[data-trend]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.trendPeriod = btn.dataset.trend;
+                this.loadTrend();
+            });
+        });
+
+        // Set default dates
+        const today = new Date();
+        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        document.getElementById('startDate').value = weekAgo.toISOString().split('T')[0];
+    }
+
+    /**
+     * Initialize charts
+     */
+    initCharts() {
+        // OEE Gauge
+        const gaugeCtx = document.getElementById('oeeGauge').getContext('2d');
+        this.oeeGauge = new Chart(gaugeCtx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [0, 100],
+                    backgroundColor: ['#e5e7eb', '#e5e7eb'],
+                    borderWidth: 0,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                circumference: 180,
+                rotation: 270,
+                cutout: '75%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false },
+                },
+            },
+        });
+
+        // Trend Chart
+        const trendCtx = document.getElementById('oeeTrendChart').getContext('2d');
+        this.trendChart = new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'OEE',
+                        data: [],
+                        borderColor: ChartHelpers.colors.primary,
+                        backgroundColor: `${ChartHelpers.colors.primary}20`,
+                        fill: true,
+                        tension: 0.4,
+                    },
+                    {
+                        label: 'Target',
+                        data: [],
+                        borderColor: ChartHelpers.colors.success,
+                        borderDash: [5, 5],
+                        fill: false,
+                        pointRadius: 0,
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                },
+                scales: {
+                    y: {
+                        min: 0,
+                        max: 100,
+                        ticks: {
+                            callback: (value) => value + '%',
+                        },
+                    },
+                },
+            },
+        });
+
+        // Pareto Chart
+        const paretoCtx = document.getElementById('paretoChart').getContext('2d');
+        this.paretoChart = new Chart(paretoCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Minutes',
+                    data: [],
+                    backgroundColor: ChartHelpers.colorPalette,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false },
+                },
+            },
+        });
+    }
+
+    /**
+     * Load machines for dropdown
+     */
+    async loadMachines() {
+        try {
+            const response = await scadaApi.getMachines();
+            const machines = response.machines || response.data || [];
+
+            const select = document.getElementById('machineSelect');
+            machines.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m.id || m.machine_id;
+                option.textContent = m.name;
+                select.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Failed to load machines:', error);
+        }
+    }
+
+    /**
+     * Load OEE data
+     */
+    async loadOEE() {
+        const card = document.getElementById('oeeGaugeCard');
+        LoadingSpinner.show(card);
+
+        try {
+            const params = this.getDateParams();
+            const response = await oeeApi.getCurrent(this.selectedMachine || null);
+            const oee = response.oee || response;
+
+            this.updateOEEDisplay(oee);
+
+        } catch (error) {
+            console.error('Failed to load OEE:', error);
+            // Use demo data
+            this.updateOEEDisplay({
+                oee: 85.2,
+                availability: 92.1,
+                performance: 94.3,
+                quality: 98.1,
+                run_time: 420,
+                planned_time: 480,
+                actual_output: 850,
+                ideal_output: 900,
+                good_count: 833,
+                defect_count: 17,
+            });
+        } finally {
+            LoadingSpinner.hide(card);
+        }
+    }
+
+    /**
+     * Update OEE display
+     */
+    updateOEEDisplay(data) {
+        const oee = data.oee || 0;
+        const avail = data.availability || 0;
+        const perf = data.performance || 0;
+        const qual = data.quality || 0;
+
+        // Update values
+        document.getElementById('oeeValue').textContent = oee.toFixed(1);
+        document.getElementById('availValue').innerHTML = `${avail.toFixed(1)}<small class="text-muted">%</small>`;
+        document.getElementById('perfValue').innerHTML = `${perf.toFixed(1)}<small class="text-muted">%</small>`;
+        document.getElementById('qualValue').innerHTML = `${qual.toFixed(1)}<small class="text-muted">%</small>`;
+
+        // Update progress bars
+        document.getElementById('availBar').style.width = `${avail}%`;
+        document.getElementById('perfBar').style.width = `${perf}%`;
+        document.getElementById('qualBar').style.width = `${qual}%`;
+
+        // Update gauge
+        const gaugeColor = oee >= 85 ? ChartHelpers.colors.success
+            : oee >= 70 ? '#22d3ee'
+            : oee >= 50 ? ChartHelpers.colors.warning
+            : ChartHelpers.colors.danger;
+
+        this.oeeGauge.data.datasets[0].data = [oee, 100 - oee];
+        this.oeeGauge.data.datasets[0].backgroundColor = [gaugeColor, '#e5e7eb'];
+        this.oeeGauge.update();
+
+        // Update status badge
+        const statusEl = document.getElementById('oeeStatus');
+        if (oee >= 85) {
+            statusEl.className = 'badge bg-success';
+            statusEl.textContent = 'World Class';
+        } else if (oee >= 70) {
+            statusEl.className = 'badge bg-info';
+            statusEl.textContent = 'Good';
+        } else if (oee >= 50) {
+            statusEl.className = 'badge bg-warning';
+            statusEl.textContent = 'Needs Improvement';
+        } else {
+            statusEl.className = 'badge bg-danger';
+            statusEl.textContent = 'Critical';
+        }
+
+        // Update detail metrics
+        document.getElementById('runTime').textContent = DashboardUtils.formatDuration((data.run_time || 0) * 60);
+        document.getElementById('plannedTime').textContent = DashboardUtils.formatDuration((data.planned_time || 0) * 60);
+        document.getElementById('actualOutput').textContent = (data.actual_output || 0).toLocaleString();
+        document.getElementById('idealOutput').textContent = (data.ideal_output || 0).toLocaleString();
+        document.getElementById('goodCount').textContent = (data.good_count || 0).toLocaleString();
+        document.getElementById('defectCount').textContent = (data.defect_count || 0).toLocaleString();
+    }
+
+    /**
+     * Load OEE trend data
+     */
+    async loadTrend() {
+        try {
+            const response = await oeeApi.getTrend(this.trendPeriod, this.selectedMachine || null);
+            const trend = response.trend || response.data || [];
+
+            this.updateTrendChart(trend);
+
+        } catch (error) {
+            console.error('Failed to load trend:', error);
+            // Use demo data
+            const labels = this.trendPeriod === 'day'
+                ? ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00']
+                : this.trendPeriod === 'week'
+                    ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+                    : ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+
+            const data = labels.map(() => 70 + Math.random() * 20);
+            this.updateTrendChart(labels.map((label, i) => ({ label, oee: data[i] })));
+        }
+    }
+
+    /**
+     * Update trend chart
+     */
+    updateTrendChart(trend) {
+        const labels = trend.map(t => t.label || t.date || t.time);
+        const oeeData = trend.map(t => t.oee || 0);
+        const targetData = labels.map(() => 85);
+
+        this.trendChart.data.labels = labels;
+        this.trendChart.data.datasets[0].data = oeeData;
+        this.trendChart.data.datasets[1].data = targetData;
+        this.trendChart.update();
+    }
+
+    /**
+     * Load six big losses
+     */
+    async loadLosses() {
+        try {
+            const response = await oeeApi.getLosses(this.selectedMachine || null);
+            const losses = response.losses || response.data || [];
+
+            this.renderLosses(losses);
+
+        } catch (error) {
+            console.error('Failed to load losses:', error);
+            // Use demo data
+            this.renderLosses([
+                { name: 'Equipment Failure', value: 2.5, category: 'availability' },
+                { name: 'Setup/Adjustments', value: 1.8, category: 'availability' },
+                { name: 'Idling/Minor Stops', value: 1.2, category: 'performance' },
+                { name: 'Reduced Speed', value: 2.0, category: 'performance' },
+                { name: 'Process Defects', value: 0.8, category: 'quality' },
+                { name: 'Reduced Yield', value: 0.3, category: 'quality' },
+            ]);
+        }
+    }
+
+    /**
+     * Render losses list
+     */
+    renderLosses(losses) {
+        const container = document.getElementById('lossesContainer');
+        const maxValue = Math.max(...losses.map(l => l.value || 0), 1);
+
+        const categoryColors = {
+            availability: ChartHelpers.colors.danger,
+            performance: ChartHelpers.colors.warning,
+            quality: ChartHelpers.colors.info,
+        };
+
+        const categoryIcons = {
+            availability: 'tools',
+            performance: 'speedometer',
+            quality: 'patch-check',
+        };
+
+        container.innerHTML = losses.map(loss => {
+            const color = categoryColors[loss.category] || ChartHelpers.colors.secondary;
+            const icon = categoryIcons[loss.category] || 'exclamation-circle';
+            const percentage = (loss.value / maxValue) * 100;
+
+            return `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-${icon}" style="color: ${color}"></i>
+                            <span>${loss.name}</span>
+                        </div>
+                        <div class="loss-bar mt-1">
+                            <div class="loss-bar-fill" style="width: ${percentage}%; background: ${color}"></div>
+                        </div>
+                    </div>
+                    <span class="badge bg-light text-dark ms-2">${loss.value.toFixed(1)}%</span>
+                </div>
+            `;
+        }).join('');
+
+        // Add total
+        const total = losses.reduce((sum, l) => sum + (l.value || 0), 0);
+        container.innerHTML += `
+            <div class="list-group-item d-flex justify-content-between align-items-center bg-light">
+                <strong>Total Loss</strong>
+                <span class="badge bg-danger">${total.toFixed(1)}%</span>
+            </div>
+        `;
+    }
+
+    /**
+     * Load downtime pareto
+     */
+    async loadPareto() {
+        try {
+            const response = await mesApi.getDowntimePareto({ top_n: 5 });
+            const pareto = response.pareto || response.data || [];
+
+            this.updateParetoChart(pareto);
+
+        } catch (error) {
+            console.error('Failed to load pareto:', error);
+            // Use demo data
+            this.updateParetoChart([
+                { reason: 'Tool Change', minutes: 120 },
+                { reason: 'Material Wait', minutes: 85 },
+                { reason: 'Breakdown', minutes: 60 },
+                { reason: 'Quality Issue', minutes: 35 },
+                { reason: 'Operator', minutes: 20 },
+            ]);
+        }
+    }
+
+    /**
+     * Update pareto chart
+     */
+    updateParetoChart(pareto) {
+        this.paretoChart.data.labels = pareto.map(p => p.reason || p.group || p.category);
+        this.paretoChart.data.datasets[0].data = pareto.map(p => p.minutes || p.total_minutes || p.duration);
+        this.paretoChart.update();
+    }
+
+    /**
+     * Load machine OEE comparison
+     */
+    async loadMachineOEE() {
+        try {
+            const response = await oeeApi.getByMachine();
+            const machines = response.machines || response.data || [];
+
+            this.renderMachineOEE(machines);
+
+        } catch (error) {
+            console.error('Failed to load machine OEE:', error);
+            // Use demo data
+            this.renderMachineOEE([
+                { name: 'Prusa MK4 #1', status: 'running', oee: 87, availability: 94, performance: 95, quality: 98 },
+                { name: 'Prusa MK4 #2', status: 'setup', oee: 82, availability: 88, performance: 96, quality: 97 },
+                { name: 'Bambu X1C', status: 'down', oee: 45, availability: 50, performance: 92, quality: 98 },
+                { name: 'xArm Lite 6', status: 'running', oee: 91, availability: 96, performance: 97, quality: 98 },
+            ]);
+        }
+    }
+
+    /**
+     * Render machine OEE table
+     */
+    renderMachineOEE(machines) {
+        const tbody = document.getElementById('machineOEETable');
+
+        const statusBadges = {
+            running: '<span class="badge bg-success">Running</span>',
+            setup: '<span class="badge bg-warning">Setup</span>',
+            down: '<span class="badge bg-danger">Down</span>',
+            idle: '<span class="badge bg-secondary">Idle</span>',
+        };
+
+        const getOEEClass = (value) => {
+            if (value >= 85) return 'oee-world-class';
+            if (value >= 70) return 'oee-good';
+            if (value >= 50) return 'oee-warning';
+            return 'oee-critical';
+        };
+
+        tbody.innerHTML = machines.map(m => `
+            <tr>
+                <td>${m.name}</td>
+                <td>${statusBadges[m.status] || `<span class="badge bg-secondary">${m.status}</span>`}</td>
+                <td class="text-end fw-bold ${getOEEClass(m.oee)}">${m.oee}%</td>
+                <td class="text-end">${m.availability}%</td>
+                <td class="text-end">${m.performance}%</td>
+                <td class="text-end">${m.quality}%</td>
+            </tr>
+        `).join('');
+    }
+
+    /**
+     * Get date parameters based on period
+     */
+    getDateParams() {
+        const now = new Date();
+        let startDate, endDate;
+
+        switch (this.selectedPeriod) {
+            case 'today':
+                startDate = new Date(now.setHours(0, 0, 0, 0));
+                endDate = new Date();
+                break;
+            case 'yesterday':
+                startDate = new Date(now.setDate(now.getDate() - 1));
+                startDate.setHours(0, 0, 0, 0);
+                endDate = new Date(startDate);
+                endDate.setHours(23, 59, 59, 999);
+                break;
+            case 'week':
+                startDate = new Date(now.setDate(now.getDate() - 7));
+                endDate = new Date();
+                break;
+            case 'month':
+                startDate = new Date(now.setMonth(now.getMonth() - 1));
+                endDate = new Date();
+                break;
+            case 'custom':
+                startDate = document.getElementById('startDate').value;
+                endDate = document.getElementById('endDate').value;
+                break;
+        }
+
+        return {
+            start_date: startDate instanceof Date ? startDate.toISOString() : startDate,
+            end_date: endDate instanceof Date ? endDate.toISOString() : endDate,
+        };
+    }
+
+    /**
+     * Refresh all data
+     */
+    async refresh() {
+        await Promise.all([
+            this.loadOEE(),
+            this.loadTrend(),
+            this.loadLosses(),
+            this.loadPareto(),
+            this.loadMachineOEE(),
+        ]);
+        Toast.success('Dashboard refreshed');
+    }
+
+    /**
+     * Export OEE report
+     */
+    async exportReport() {
+        try {
+            const params = this.getDateParams();
+            if (this.selectedMachine) {
+                params.machine_id = this.selectedMachine;
+            }
+            await oeeApi.exportReport('pdf', params);
+            Toast.success('Report exported');
+        } catch (error) {
+            console.error('Failed to export report:', error);
+            Toast.error('Export failed. Please try again.');
+        }
+    }
+
+    /**
+     * Start auto-refresh
+     */
+    startAutoRefresh() {
+        setInterval(() => {
+            this.loadOEE();
+            this.loadMachineOEE();
+        }, 30000);
+    }
+
+    // WebSocket handlers
+
+    handleOEEUpdate(data) {
+        if (!this.selectedMachine || data.machine_id === this.selectedMachine) {
+            this.updateOEEDisplay(data);
+        }
+        this.loadMachineOEE();
+    }
+
+    handleDowntimeStart(data) {
+        this.loadPareto();
+        this.loadLosses();
+    }
+
+    handleDowntimeEnd(data) {
+        this.loadOEE();
+        this.loadPareto();
+        this.loadLosses();
+    }
+}
+
+// Initialize dashboard
+const oeeDashboard = new OEEDashboard();
+</script>
+{% endblock %}
