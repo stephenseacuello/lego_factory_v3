@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Line Balance Analysis - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Line Balance Analysis</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-bar-chart-line"></i> Line Balance Analysis</h2>
+</div>
+
+<div class="row mb-4">
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header">Configuration</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">Product ID</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="productId" placeholder="e.g. PROD-001">
+            <button class="btn btn-primary" onclick="loadBalance()"><i class="bi bi-search"></i></button>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Demand Quantity</label>
+          <input type="number" class="form-control" id="demandQty" value="1000" min="1">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Available Hours per Shift</label>
+          <input type="number" class="form-control" id="availableHours" value="8" step="0.5" min="0.5">
+        </div>
+        <button class="btn btn-outline-secondary w-100" onclick="calcTakt()"><i class="bi bi-calculator"></i> Calculate Takt Time</button>
+        <div id="taktResult" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <div class="card text-center" id="efficiencyCard">
+          <div class="card-body">
+            <div class="text-muted small">Balance Efficiency</div>
+            <div class="fs-2 fw-bold" id="efficiencyVal">--%</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-body">
+            <div class="text-muted small">Takt Time</div>
+            <div class="fs-2 fw-bold" id="taktVal">-- s</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-center">
+          <div class="card-body">
+            <div class="text-muted small">Operations</div>
+            <div class="fs-2 fw-bold" id="opsCount">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Cycle Time per Operation vs Takt Time</div>
+      <div class="card-body">
+        <canvas id="balanceChart" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let balanceChart;
+
+function initChart() {
+  const ctx = document.getElementById('balanceChart').getContext('2d');
+  balanceChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [] },
+    options: {
+      responsive: true,
+      scales: {
+        y: { title: { display: true, text: 'Seconds' }, beginAtZero: true }
+      },
+      plugins: { legend: { position: 'top' } }
+    }
+  });
+}
+
+function calcTakt() {
+  const demand = parseFloat(document.getElementById('demandQty').value) || 1;
+  const hours = parseFloat(document.getElementById('availableHours').value) || 8;
+  const takt = (hours * 3600) / demand;
+  document.getElementById('taktResult').innerHTML = `<div class="alert alert-info py-1 small">Takt Time: <strong>${takt.toFixed(2)}s</strong></div>`;
+  document.getElementById('taktVal').textContent = takt.toFixed(1) + ' s';
+  return takt;
+}
+
+async function loadBalance() {
+  const pid = document.getElementById('productId').value;
+  if (!pid) { alert('Enter a Product ID'); return; }
+  try {
+    const res = await fetch(`/api/mes/line-balance/${encodeURIComponent(pid)}`);
+    const data = await res.json();
+    const ops = data.operations || [];
+    const takt = data.takt_time || calcTakt();
+
+    document.getElementById('efficiencyVal').textContent = (data.efficiency != null ? data.efficiency.toFixed(1) : '--') + '%';
+    document.getElementById('taktVal').textContent = (takt || 0).toFixed(1) + ' s';
+    document.getElementById('opsCount').textContent = ops.length;
+
+    const eff = data.efficiency || 0;
+    const card = document.getElementById('efficiencyCard');
+    card.className = `card text-center ${eff >= 85 ? 'border-success' : eff >= 70 ? 'border-warning' : 'border-danger'}`;
+
+    balanceChart.data.labels = ops.map(o => o.name || o.operation);
+    balanceChart.data.datasets = [
+      {
+        label: 'Cycle Time (s)',
+        data: ops.map(o => o.cycle_time),
+        backgroundColor: ops.map(o => o.cycle_time > takt ? 'rgba(220,53,69,0.7)' : 'rgba(54,162,235,0.7)')
+      },
+      {
+        label: 'Takt Time',
+        data: ops.map(() => takt),
+        type: 'line',
+        borderColor: 'rgba(255,99,132,1)',
+        borderDash: [5, 5],
+        pointRadius: 0,
+        fill: false
+      }
+    ];
+    balanceChart.update();
+  } catch (e) {
+    console.error('Failed to load line balance:', e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', initChart);
+</script>
+{% endblock %}

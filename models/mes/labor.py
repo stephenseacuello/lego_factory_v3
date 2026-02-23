@@ -170,6 +170,9 @@ class TimeEntry(AuditedModel):
             'approved': self.approved,
         }
 
+    # Relationship for eager-loading
+    worker = relationship('Worker', backref='time_entries', lazy='select')
+
     @property
     def total_hours(self) -> float:
         """Calculate total worked hours."""
@@ -178,3 +181,31 @@ class TimeEntry(AuditedModel):
         delta = self.clock_out - self.clock_in
         hours = delta.total_seconds() / 3600
         return max(0, hours - (self.break_minutes / 60))
+
+
+class ActiveClockSession(BaseModel):
+    """Active clock-in session — persisted to survive service restarts."""
+
+    __tablename__ = 'active_clock_sessions'
+
+    worker_id = Column(UUID(as_uuid=True), ForeignKey('workers.id'), nullable=False, index=True)
+    employee_id = Column(String(50), nullable=False, index=True)
+    job_id = Column(String(100))
+    machine_id = Column(String(100))
+    skill_id = Column(String(100))
+    clock_in = Column(DateTime, nullable=False)
+    breaks = Column(JSON, default=list)
+
+    worker = relationship('Worker', backref='active_sessions')
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': str(self.id),
+            'worker_id': str(self.worker_id),
+            'employee_id': self.employee_id,
+            'job_id': self.job_id,
+            'machine_id': self.machine_id,
+            'skill_id': self.skill_id,
+            'clock_in': self.clock_in.isoformat() if self.clock_in else None,
+            'breaks': self.breaks or [],
+        }

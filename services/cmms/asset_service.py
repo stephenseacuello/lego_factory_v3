@@ -307,6 +307,25 @@ class AssetService:
 
         return {r.status.value if r.status else 'unknown': r[1] for r in results}
 
+    def get_spares(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get spare parts inventory."""
+        from models.cmms.assets import Spare
+
+        spares = self.session.query(Spare).filter(
+            Spare.is_deleted == False
+        ).limit(limit).all()
+        return [s.to_dict() for s in spares]
+
+    def get_low_stock_spares(self) -> List[Dict[str, Any]]:
+        """Get spare parts below reorder point."""
+        from models.cmms.assets import Spare
+
+        spares = self.session.query(Spare).filter(
+            Spare.is_deleted == False,
+            Spare.quantity_on_hand <= Spare.reorder_point
+        ).all()
+        return [s.to_dict() for s in spares]
+
 
 def get_asset_service(session: Session = None) -> AssetService:
     """Get asset service instance."""

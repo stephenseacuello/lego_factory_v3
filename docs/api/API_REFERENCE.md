@@ -76,6 +76,24 @@ Currently uses session-based authentication. Login via `/api/auth/login`.
 | GET | `/jobs/{id}` | Get job details |
 | POST | `/jobs/{id}/start` | Start job |
 | POST | `/jobs/{id}/complete` | Complete job |
+| POST | `/jobs/{id}/reschedule` | Move job to new machine/time |
+
+### Scheduling & Optimization
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/scheduling/gantt` | Gantt chart data (jobs, machines, critical path, maintenance) |
+| POST | `/scheduling/reschedule` | Run CP-SAT optimizer (makespan/due_date/setup_time) |
+| POST | `/scheduling/what-if` | Simulate scenario (rush order, machine down, priority change) |
+
+### Dispatch
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/dispatch/rules` | List available dispatch rules |
+| GET | `/dispatch/queue` | Get dispatch queue for a machine |
+| POST | `/dispatch/auto/{machine_id}` | Auto-dispatch next best job |
+| PUT | `/machines/{id}/dispatch-rule` | Set machine-specific dispatch rule |
 
 ### OEE
 

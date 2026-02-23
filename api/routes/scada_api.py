@@ -187,7 +187,7 @@ def connect_machine(machine_id: str):
 
     except Exception as e:
         logger.error(f"Error connecting to {machine_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/machines/<machine_id>/disconnect', methods=['POST'])
@@ -213,7 +213,7 @@ def disconnect_machine(machine_id: str):
         return jsonify({'success': True, 'message': 'Disconnected'})
     except Exception as e:
         logger.error(f"Error disconnecting from {machine_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/machines/<machine_id>/home', methods=['POST'])
@@ -244,7 +244,7 @@ def home_machine(machine_id: str):
         return jsonify({'success': False, 'error': 'Homing failed'}), 500
     except Exception as e:
         logger.error(f"Error homing {machine_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/machines/<machine_id>/zero', methods=['POST'])
@@ -275,7 +275,7 @@ def zero_machine(machine_id: str):
         return jsonify({'success': False, 'error': 'Zero failed'}), 500
     except Exception as e:
         logger.error(f"Error zeroing {machine_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/machines/<machine_id>/jog', methods=['POST'])
@@ -311,7 +311,7 @@ def jog_machine(machine_id: str):
         return jsonify({'success': False, 'error': 'Jog failed'}), 500
     except Exception as e:
         logger.error(f"Error jogging {machine_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/machines/<machine_id>/status', methods=['GET'])
@@ -482,7 +482,7 @@ def send_gcode(machine_id: str):
             success=False,
             error_message=str(e),
         )
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 # ============================================================================
@@ -509,7 +509,7 @@ def list_serial_ports():
         return jsonify({'ports': [], 'count': 0, 'error': 'pyserial not installed'})
     except Exception as e:
         logger.error(f"Error listing serial ports: {e}")
-        return jsonify({'ports': [], 'count': 0, 'error': str(e)})
+        return jsonify({'ports': [], 'count': 0, 'error': 'Internal server error'})
 
 
 # ============================================================================
@@ -815,7 +815,7 @@ def connect_robot(robot_id: str):
 
     except Exception as e:
         logger.error(f"Error connecting to robot {robot_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/robots/<robot_id>/home', methods=['POST'])
@@ -836,7 +836,7 @@ def home_robot(robot_id: str):
 
     except Exception as e:
         logger.error(f"Error homing robot {robot_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/robots/<robot_id>/move', methods=['POST'])
@@ -870,7 +870,7 @@ def move_robot(robot_id: str):
 
     except Exception as e:
         logger.error(f"Error moving robot {robot_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/robots/<robot_id>/gripper', methods=['POST'])
@@ -899,7 +899,7 @@ def control_gripper(robot_id: str):
 
     except Exception as e:
         logger.error(f"Error controlling gripper on {robot_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/robots/<robot_id>/status', methods=['GET'])
@@ -928,7 +928,7 @@ def get_robot_status(robot_id: str):
             'robot_id': robot_id,
             'connected': False,
             'state': 'disconnected',
-            'error': str(e)
+            'error': 'Internal server error'
         })
 
 
@@ -1025,7 +1025,7 @@ def connect_printer(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error connecting to printer {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/disconnect', methods=['POST'])
@@ -1043,7 +1043,7 @@ def disconnect_printer(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error disconnecting from printer {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/status', methods=['GET'])
@@ -1068,7 +1068,7 @@ def get_printer_status(printer_id: str):
             'printer_id': printer_id,
             'connected': False,
             'state': 'offline',
-            'error': str(e)
+            'error': 'Internal server error'
         })
 
 
@@ -1099,7 +1099,7 @@ def start_printer_job(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error starting print on {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/print/pause', methods=['POST'])
@@ -1119,7 +1119,7 @@ def pause_printer_job(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error pausing print on {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/print/resume', methods=['POST'])
@@ -1139,7 +1139,7 @@ def resume_printer_job(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error resuming print on {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/print/stop', methods=['POST'])
@@ -1159,7 +1159,7 @@ def stop_printer_job(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error stopping print on {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/temperature', methods=['POST'])
@@ -1187,7 +1187,7 @@ def set_printer_temperature(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error setting temperature on {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/preheat', methods=['POST'])
@@ -1219,7 +1219,7 @@ def preheat_printer(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error preheating {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/cooldown', methods=['POST'])
@@ -1239,7 +1239,7 @@ def cooldown_printer(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error cooling down {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/light', methods=['POST'])
@@ -1270,7 +1270,7 @@ def control_printer_light(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error controlling light on {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/speed', methods=['POST'])
@@ -1293,7 +1293,7 @@ def set_printer_speed(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error setting speed on {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/home', methods=['POST'])
@@ -1313,7 +1313,7 @@ def home_printer(printer_id: str):
 
     except Exception as e:
         logger.error(f"Error homing {printer_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/printers/<printer_id>/gcode', methods=['POST'])
@@ -1446,7 +1446,7 @@ def send_printer_gcode(printer_id: str):
             success=False,
             error_message=str(e),
         )
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 # ============================================================================
@@ -1467,7 +1467,7 @@ def list_tags():
             return jsonify({'tags': result, 'count': len(result)})
     except Exception as e:
         logger.error(f"Error listing tags: {e}")
-        return jsonify({'tags': [], 'count': 0, 'error': str(e)})
+        return jsonify({'tags': [], 'count': 0, 'error': 'Internal server error'})
 
 
 @scada_api_bp.route('/tags/<tag_id>', methods=['GET'])
@@ -1485,7 +1485,7 @@ def get_tag(tag_id: str):
             return jsonify({'error': 'Tag not found'}), 404
     except Exception as e:
         logger.error(f"Error getting tag {tag_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ============================================================================
@@ -1506,7 +1506,7 @@ def list_recipes():
             return jsonify({'recipes': result, 'count': len(result)})
     except Exception as e:
         logger.error(f"Error listing recipes: {e}")
-        return jsonify({'recipes': [], 'count': 0, 'error': str(e)})
+        return jsonify({'recipes': [], 'count': 0, 'error': 'Internal server error'})
 
 
 @scada_api_bp.route('/recipes/<recipe_id>', methods=['GET'])
@@ -1527,7 +1527,7 @@ def get_recipe(recipe_id: str):
             return jsonify({'error': 'Recipe not found'}), 404
     except Exception as e:
         logger.error(f"Error getting recipe {recipe_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/tags/<tag_id>', methods=['DELETE'])
@@ -1722,7 +1722,7 @@ def list_gcode_files():
 
     except Exception as e:
         logger.error(f"Error listing G-code files: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/gcode/files/<filename>', methods=['GET'])
@@ -1768,7 +1768,7 @@ def get_gcode_file(filename):
 
     except Exception as e:
         logger.error(f"Error reading G-code file {filename}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @scada_api_bp.route('/gcode/files/<filename>', methods=['PUT'])
@@ -1816,4 +1816,137 @@ def save_gcode_file(filename):
 
     except Exception as e:
         logger.error(f"Error saving G-code file {filename}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Machine Utilization & Health Endpoints
+# ---------------------------------------------------------------------------
+
+@scada_api_bp.route('/machines/<machine_id>/utilization', methods=['GET'])
+def get_machine_utilization(machine_id):
+    """Get utilization metrics for a specific machine."""
+    try:
+        from services.scada.utilization_service import UtilizationService
+
+        period = request.args.get('period', '7d')
+        period_days = int(period.rstrip('d'))
+
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = UtilizationService(session)
+            result = service.calculate_utilization(machine_id, period_days)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting utilization for machine {machine_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@scada_api_bp.route('/machines/<machine_id>/health', methods=['GET'])
+def get_machine_health(machine_id):
+    """Get health score for a specific machine."""
+    try:
+        from services.scada.utilization_service import UtilizationService
+
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = UtilizationService(session)
+            result = service.calculate_health_score(machine_id)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting health score for machine {machine_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@scada_api_bp.route('/utilization', methods=['GET'])
+def get_all_utilization():
+    """Get utilization metrics for all machines."""
+    try:
+        from services.scada.utilization_service import UtilizationService
+
+        period = request.args.get('period', '7d')
+        period_days = int(period.rstrip('d'))
+
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = UtilizationService(session)
+            result = service.get_all_utilization(period_days)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting all machine utilization: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Downtime Endpoints
+# ---------------------------------------------------------------------------
+
+@scada_api_bp.route('/downtime', methods=['POST'])
+def record_downtime():
+    """Record a downtime event."""
+    try:
+        from services.scada.downtime_service import DowntimeService
+
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Request body is required'}), 400
+
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = DowntimeService(session)
+            start_time_str = data.get('start_time')
+            end_time_str = data.get('end_time')
+            start_time = datetime.fromisoformat(start_time_str) if start_time_str else datetime.utcnow()
+            end_time = datetime.fromisoformat(end_time_str) if end_time_str else None
+
+            result = service.record_downtime(
+                machine_id=data.get('machine_id'),
+                category=data.get('category'),
+                start_time=start_time,
+                end_time=end_time,
+                reason_code=data.get('reason_code'),
+                notes=data.get('notes')
+            )
+            return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Error recording downtime: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@scada_api_bp.route('/downtime/pareto', methods=['GET'])
+def get_downtime_pareto():
+    """Get downtime pareto analysis for a machine."""
+    try:
+        from services.scada.downtime_service import DowntimeService
+
+        machine_id = request.args.get('machine_id')
+        period = request.args.get('period', '30d')
+        period_days = int(period.rstrip('d'))
+
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = DowntimeService(session)
+            result = service.get_pareto(machine_id, period_days)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting downtime pareto: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@scada_api_bp.route('/downtime/top-losses', methods=['GET'])
+def get_top_losses():
+    """Get top downtime losses across all machines."""
+    try:
+        from services.scada.downtime_service import DowntimeService
+
+        period = request.args.get('period', '30d')
+        period_days = int(period.rstrip('d'))
+
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = DowntimeService(session)
+            result = service.get_top_losses(period_days=period_days)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error getting top losses: {e}")
+        return jsonify({'error': 'Internal server error'}), 500

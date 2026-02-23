@@ -55,7 +55,7 @@ def write_value():
         return jsonify({'message': 'Value written', 'tag_id': data['tag_id']})
     except Exception as e:
         logger.error(f"Error writing to historian: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/write/batch', methods=['POST'])
@@ -74,7 +74,7 @@ def write_batch():
         return jsonify({'message': 'Values written', 'count': len(values)})
     except Exception as e:
         logger.error(f"Error writing batch to historian: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/raw', methods=['GET'])
@@ -110,7 +110,7 @@ def get_raw_data():
         })
     except Exception as e:
         logger.error(f"Error getting raw data: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/aggregated', methods=['GET'])
@@ -147,7 +147,7 @@ def get_aggregated_data():
         })
     except Exception as e:
         logger.error(f"Error getting aggregated data: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/trend', methods=['GET'])
@@ -182,7 +182,7 @@ def get_trend_data():
         })
     except Exception as e:
         logger.error(f"Error getting trend data: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/statistics', methods=['GET'])
@@ -216,7 +216,7 @@ def get_statistics():
         })
     except Exception as e:
         logger.error(f"Error getting statistics: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/export/csv', methods=['GET'])
@@ -251,7 +251,7 @@ def export_csv():
         )
     except Exception as e:
         logger.error(f"Error exporting CSV: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/export/parquet', methods=['GET'])
@@ -284,7 +284,7 @@ def export_parquet():
         )
     except Exception as e:
         logger.error(f"Error exporting Parquet: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/export/npz', methods=['GET'])
@@ -317,7 +317,7 @@ def export_npz():
         )
     except Exception as e:
         logger.error(f"Error exporting NPZ: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/start', methods=['POST'])
@@ -329,7 +329,7 @@ def start_writer():
         return jsonify({'message': 'Historian writer started'})
     except Exception as e:
         logger.error(f"Error starting historian: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/stop', methods=['POST'])
@@ -341,7 +341,7 @@ def stop_writer():
         return jsonify({'message': 'Historian writer stopped'})
     except Exception as e:
         logger.error(f"Error stopping historian: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/stats', methods=['GET'])
@@ -353,7 +353,7 @@ def get_stats():
         return jsonify(stats)
     except Exception as e:
         logger.error(f"Error getting historian stats: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @historian_bp.route('/aggregations', methods=['GET'])

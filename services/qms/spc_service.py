@@ -94,7 +94,7 @@ class SPCService:
         if initial_data:
             self._calculate_control_limits(chart, initial_data)
 
-        self.session.commit()
+        self.session.flush()
         return chart
 
     def _calculate_control_limits(
@@ -297,7 +297,7 @@ class SPCService:
         )
 
         self.session.add(data)
-        self.session.commit()
+        self.session.flush()
 
         # Emit WebSocket event
         emit_event('spc_reading', {
@@ -559,7 +559,7 @@ class SPCService:
         # Recalculate limits
         self._calculate_control_limits(chart, data)
 
-        self.session.commit()
+        self.session.flush()
         return chart
 
     def get_chart_data(

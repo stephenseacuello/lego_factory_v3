@@ -771,3 +771,19 @@ async def process_tag_value(
         )
 
     return events
+
+
+def start_alarm_processor():
+    """Start the alarm processor and load definitions from the database."""
+    with get_db_session() as session:
+        initialize_alarm_processor(session)
+    logger.info("Alarm processor started")
+
+
+def stop_alarm_processor():
+    """Stop the alarm processor and clear in-memory state."""
+    alarm_processor._alarm_defs.clear()
+    alarm_processor._active_alarms.clear()
+    alarm_processor._pending_activations.clear()
+    alarm_processor._pending_clears.clear()
+    logger.info("Alarm processor stopped")

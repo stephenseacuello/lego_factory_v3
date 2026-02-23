@@ -393,3 +393,38 @@ class WorkOrderMaterial(AuditedModel):
             'quantity_used': self.quantity_used,
             'total_cost': self.total_cost,
         }
+
+
+# ---------------------------------------------------------------------------
+# PM Task (for PM Calendar Service)
+# ---------------------------------------------------------------------------
+
+class PMTask(BaseModel):
+    """Preventive maintenance task for calendar scheduling."""
+
+    __tablename__ = 'pm_tasks'
+
+    machine_id = Column(String(100), nullable=False, index=True)
+    task_name = Column(String(200), nullable=False)
+    scheduled_date = Column(Date, nullable=False, index=True)
+    duration_hours = Column(Float, default=1.0)
+    priority = Column(String(20), default='medium')
+    status = Column(String(50), default='scheduled')
+    technician_id = Column(String(100))
+
+    __table_args__ = (
+        Index('ix_pm_task_machine_date', 'machine_id', 'scheduled_date'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': str(self.id),
+            'machine_id': self.machine_id,
+            'task_name': self.task_name,
+            'scheduled_date': self.scheduled_date.isoformat() if self.scheduled_date else None,
+            'duration_hours': self.duration_hours,
+            'priority': self.priority,
+            'status': self.status,
+            'technician_id': self.technician_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }

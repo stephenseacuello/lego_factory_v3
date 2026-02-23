@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Job Costing - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">Job Costing</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-calculator me-2"></i>Job Costing</h2>
+</div>
+
+<!-- Search -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="input-group" style="max-width:500px;">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input type="text" id="woSearch" class="form-control" placeholder="Enter Work Order number...">
+      <button class="btn btn-primary" id="searchBtn">Search</button>
+    </div>
+  </div>
+</div>
+
+<div class="row mb-4" id="costSection" style="display:none;">
+  <!-- Pie Chart -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header">Cost Breakdown</div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        <canvas id="costPie" style="max-height:300px;"></canvas>
+      </div>
+    </div>
+  </div>
+  <!-- Variance -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header">Standard vs Actual Variance</div>
+      <div class="card-body">
+        <table class="table table-sm align-middle" id="varianceTable">
+          <thead class="table-light">
+            <tr><th>Category</th><th class="text-end">Standard</th><th class="text-end">Actual</th><th class="text-end">Variance</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div id="totalVariance" class="mt-3 fs-5 fw-bold"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Profitability -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span>Profitability Summary</span>
+  </div>
+  <div class="card-body table-responsive">
+    <table class="table table-hover align-middle" id="profitTable">
+      <thead class="table-light">
+        <tr>
+          <th>Work Order</th>
+          <th class="text-end">Revenue</th>
+          <th class="text-end">Total Cost</th>
+          <th class="text-end">Profit</th>
+          <th class="text-end">Margin %</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let costPie;
+  const fmt = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+
+  async function searchWO() {
+    const wo = document.getElementById('woSearch').value.trim();
+    if (!wo) return;
+    const res = await fetch(`/api/erp/job-cost/${wo}`);
+    const data = await res.json();
+    document.getElementById('costSection').style.display = '';
+
+    const cats = ['material','labor','machine','overhead'];
+    const labels = ['Material','Labor','Machine','Overhead'];
+    const actuals = cats.map(c => data[c]?.actual || 0);
+    const standards = cats.map(c => data[c]?.standard || 0);
+
+    // Pie
+    if (costPie) costPie.destroy();
+    costPie = new Chart(document.getElementById('costPie'), {
+      type: 'pie',
+      data: {
+        labels: labels,
+        datasets: [{data: actuals, backgroundColor: ['#0d6efd','#198754','#ffc107','#dc3545']}]
+      },
+      options: {responsive: true, plugins: {legend: {position: 'bottom'}}}
+    });
+
+    // Variance table
+    const vBody = document.querySelector('#varianceTable tbody');
+    vBody.innerHTML = '';
+    let totalVar = 0;
+    cats.forEach((c, i) => {
+      const v = standards[i] - actuals[i];
+      totalVar += v;
+      const cls = v >= 0 ? 'text-success' : 'text-danger';
+      vBody.innerHTML += `<tr>
+        <td>${labels[i]}</td>
+        <td class="text-end">${fmt(standards[i])}</td>
+        <td class="text-end">${fmt(actuals[i])}</td>
+        <td class="text-end ${cls}">${fmt(v)}</td>
+      </tr>`;
+    });
+    const tvEl = document.getElementById('totalVariance');
+    tvEl.className = `mt-3 fs-5 fw-bold ${totalVar >= 0 ? 'text-success' : 'text-danger'}`;
+    tvEl.textContent = `Total Variance: ${fmt(totalVar)}`;
+  }
+
+  async function loadProfitability() {
+    const res = await fetch('/api/erp/profitability');
+    const data = await res.json();
+    const tbody = document.querySelector('#profitTable tbody');
+    tbody.innerHTML = '';
+    (data.items || data || []).forEach(r => {
+      const profit = r.revenue - r.total_cost;
+      const margin = r.revenue ? ((profit / r.revenue) * 100).toFixed(1) : '0.0';
+      const cls = profit >= 0 ? 'text-success' : 'text-danger';
+      tbody.innerHTML += `<tr>
+        <td>${r.work_order}</td>
+        <td class="text-end">${fmt(r.revenue)}</td>
+        <td class="text-end">${fmt(r.total_cost)}</td>
+        <td class="text-end ${cls}">${fmt(profit)}</td>
+        <td class="text-end ${cls}">${margin}%</td>
+      </tr>`;
+    });
+  }
+
+  document.getElementById('searchBtn').addEventListener('click', searchWO);
+  document.getElementById('woSearch').addEventListener('keydown', e => { if (e.key === 'Enter') searchWO(); });
+  loadProfitability();
+</script>
+{% endblock %}

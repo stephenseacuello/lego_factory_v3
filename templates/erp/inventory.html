@@ -1,24 +1,209 @@
 {% extends "base.html" %}
 {% block title %}Inventory - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">Inventory</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-boxes me-2"></i>Inventory Management</h2>
-<div class="row g-3 mb-4">
-    <div class="col-md-3"><div class="card bg-primary text-white text-center p-3"><h3>1,247</h3><small>Total SKUs</small></div></div>
-    <div class="col-md-3"><div class="card bg-success text-white text-center p-3"><h3>$2.4M</h3><small>Total Value</small></div></div>
-    <div class="col-md-3"><div class="card bg-warning text-dark text-center p-3"><h3>23</h3><small>Low Stock</small></div></div>
-    <div class="col-md-3"><div class="card bg-danger text-white text-center p-3"><h3>5</h3><small>Out of Stock</small></div></div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-boxes me-2"></i>Inventory Management</h2>
+    <button class="btn btn-outline-primary" id="refreshBtn" onclick="loadData()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
 </div>
-<div class="card">
-    <div class="card-header">Stock Levels</div>
-    <div class="card-body">
-        <table class="table">
-            <thead><tr><th>Item</th><th>Location</th><th>On Hand</th><th>Reserved</th><th>Available</th><th>Status</th></tr></thead>
-            <tbody>
-                <tr><td>ABS Filament - Red</td><td>WH-A-01</td><td>500 kg</td><td>120 kg</td><td>380 kg</td><td><span class="badge bg-success">OK</span></td></tr>
-                <tr><td>Bearing 608ZZ</td><td>WH-B-12</td><td>150</td><td>50</td><td>100</td><td><span class="badge bg-warning text-dark">Low</span></td></tr>
-                <tr><td>Stepper Motor NEMA17</td><td>WH-C-05</td><td>25</td><td>25</td><td>0</td><td><span class="badge bg-danger">Critical</span></td></tr>
-            </tbody>
-        </table>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-start border-primary border-4 h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Total SKUs</div>
+                <div class="fs-2 fw-bold text-primary" id="totalSkus">--</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-success border-4 h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Total Value</div>
+                <div class="fs-2 fw-bold text-success" id="totalValue">--</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-warning border-4 h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Low Stock</div>
+                <div class="fs-2 fw-bold text-warning" id="lowStock">--</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-info border-4 h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Locations</div>
+                <div class="fs-2 fw-bold text-info" id="locationCount">--</div>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Inventory Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-2"></i>Stock Levels</span>
+        <span class="badge bg-secondary" id="rowCount">0 items</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Item #</th>
+                        <th>Item Name</th>
+                        <th>Location</th>
+                        <th class="text-end">On Hand</th>
+                        <th class="text-end">Allocated</th>
+                        <th class="text-end">Available</th>
+                        <th class="text-end">Unit Cost</th>
+                        <th class="text-end">Total Value</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="inventoryTableBody">
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading inventory data...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+    const authHeaders = { 'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || 'demo-token') };
+    let refreshTimer = null;
+
+    function getStatus(item) {
+        if (item.quantity_available <= 0) {
+            return { label: 'Out of Stock', badgeClass: 'bg-danger', rowClass: 'table-danger' };
+        }
+        if (item.quantity_available < item.quantity_on_hand * 0.2) {
+            return { label: 'Low', badgeClass: 'bg-warning text-dark', rowClass: 'table-warning' };
+        }
+        return { label: 'OK', badgeClass: 'bg-success', rowClass: '' };
+    }
+
+    async function loadData() {
+        const tbody = document.getElementById('inventoryTableBody');
+        const refreshBtn = document.getElementById('refreshBtn');
+
+        // Show loading state on refresh button
+        refreshBtn.disabled = true;
+        refreshBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Loading...';
+
+        try {
+            // Fetch balances and locations in parallel
+            const [balancesRes, locationsRes] = await Promise.all([
+                fetch('/api/erp/inventory/balances', { headers: authHeaders }),
+                fetch('/api/erp/inventory/locations', { headers: authHeaders })
+            ]);
+
+            if (!balancesRes.ok) {
+                throw new Error('Failed to fetch inventory balances (HTTP ' + balancesRes.status + ')');
+            }
+
+            const balancesData = await balancesRes.json();
+            const balances = balancesData.balances || [];
+
+            // Process locations
+            let locationCount = '--';
+            if (locationsRes.ok) {
+                const locationsData = await locationsRes.json();
+                const locations = locationsData.locations || [];
+                locationCount = locations.length;
+            }
+
+            // Compute stats
+            const totalSkus = balances.length;
+            let totalValue = 0;
+            let lowStockCount = 0;
+
+            balances.forEach(item => {
+                totalValue += (item.total_value || 0);
+                const status = getStatus(item);
+                if (status.label === 'Low' || status.label === 'Out of Stock') {
+                    lowStockCount++;
+                }
+            });
+
+            // Update stat cards
+            document.getElementById('totalSkus').textContent = totalSkus.toLocaleString();
+            document.getElementById('totalValue').textContent = currencyFmt.format(totalValue);
+            document.getElementById('lowStock').textContent = lowStockCount.toLocaleString();
+            document.getElementById('locationCount').textContent = locationCount.toLocaleString();
+            document.getElementById('rowCount').textContent = totalSkus + ' item' + (totalSkus !== 1 ? 's' : '');
+
+            // Populate table
+            if (balances.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No inventory records found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = balances.map(item => {
+                const status = getStatus(item);
+                return `<tr class="${status.rowClass}">
+                    <td><code>${item.item_number || item.item_id || '--'}</code></td>
+                    <td>${item.item_name || '--'}</td>
+                    <td>${item.location_name || item.location_id || '--'}</td>
+                    <td class="text-end">${(item.quantity_on_hand ?? 0).toLocaleString()}</td>
+                    <td class="text-end">${(item.quantity_allocated ?? 0).toLocaleString()}</td>
+                    <td class="text-end">${(item.quantity_available ?? 0).toLocaleString()}</td>
+                    <td class="text-end">${currencyFmt.format(item.unit_cost ?? 0)}</td>
+                    <td class="text-end">${currencyFmt.format(item.total_value ?? 0)}</td>
+                    <td><span class="badge ${status.badgeClass}">${status.label}</span></td>
+                </tr>`;
+            }).join('');
+
+        } catch (err) {
+            console.error('Failed to load inventory data:', err);
+            tbody.innerHTML = `<tr>
+                <td colspan="9" class="text-center text-danger py-4">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    Failed to load inventory data: ${err.message}
+                    <br>
+                    <button class="btn btn-sm btn-outline-danger mt-2" onclick="loadData()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                    </button>
+                </td>
+            </tr>`;
+
+            // Reset stat cards on error
+            document.getElementById('totalSkus').textContent = '--';
+            document.getElementById('totalValue').textContent = '--';
+            document.getElementById('lowStock').textContent = '--';
+            document.getElementById('locationCount').textContent = '--';
+            document.getElementById('rowCount').textContent = '0 items';
+        } finally {
+            // Restore refresh button
+            refreshBtn.disabled = false;
+            refreshBtn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Refresh';
+        }
+    }
+
+    // Initial load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadData();
+        // Auto-refresh every 30 seconds
+        refreshTimer = setInterval(loadData, 30000);
+    });
+</script>
 {% endblock %}

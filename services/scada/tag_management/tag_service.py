@@ -351,8 +351,52 @@ def get_tag_service(session: Session = None) -> TagService:
 
 async def write_tag_value(tag_id: str, value: Any, quality: int = 192,
                           tag_name: str = None, eng_units: str = None):
-    """Write a value to the tag cache"""
+    """Write a value to the tag cache and persist process variables to DB."""
     await tag_cache.set(tag_id, value, quality, tag_name, eng_units)
+
+    # Persist process variable readings to sensor_readings table
+    _persist_tag_reading(tag_id, value, quality, tag_name, eng_units)
+
+
+def _persist_tag_reading(tag_id: str, value: Any, quality: int,
+                         tag_name: str = None, eng_units: str = None):
+    """Persist a tag reading to the sensor_readings table for historian."""
+    import logging
+    _logger = logging.getLogger(__name__)
+    try:
+        from datetime import datetime
+        from config.database import get_db_session
+        from models.mes.sensor_data import SensorReading
+
+        # Extract machine_id from tag_id (format: "machine_id.tag_name")
+        parts = tag_id.split('.', 1) if '.' in tag_id else [tag_id, tag_name or tag_id]
+        machine_id = parts[0]
+        name = tag_name or parts[1] if len(parts) > 1 else tag_id
+
+        reading = SensorReading(
+            timestamp=datetime.utcnow(),
+            machine_id=machine_id,
+            tag_name=name,
+            unit=eng_units,
+            quality=quality,
+            source='plc',
+        )
+
+        # Set the appropriate value column based on type
+        if isinstance(value, bool):
+            reading.value_bool = value
+        elif isinstance(value, float):
+            reading.value_float = value
+        elif isinstance(value, int):
+            reading.value_int = value
+        elif value is not None:
+            reading.value_str = str(value)
+
+        with get_db_session() as session:
+            session.add(reading)
+            session.commit()
+    except Exception as e:
+        _logger.debug(f"Could not persist tag reading to DB: {e}")
 
 
 async def read_tag_value(tag_id: str) -> Optional[TagValue]:

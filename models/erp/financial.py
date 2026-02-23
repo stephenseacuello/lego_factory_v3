@@ -582,3 +582,33 @@ class PaymentApplication(AuditedModel):
             'ar_invoice_id': str(self.ar_invoice_id) if self.ar_invoice_id else None,
             'amount_applied': float(self.amount_applied) if self.amount_applied else 0,
         }
+
+
+class BudgetLine(BaseModel):
+    """Budget line item for a GL account within a fiscal period."""
+
+    __tablename__ = 'budget_lines'
+
+    fiscal_year = Column(String(10), nullable=False, index=True)
+    account_id = Column(UUID(as_uuid=True), ForeignKey('gl_accounts.id'), nullable=False)
+    period = Column(Integer)  # month number 1-12
+    amount = Column(Float, default=0)
+    notes = Column(Text)
+
+    # Relationships
+    account = relationship('GLAccount')
+
+    __table_args__ = (
+        Index('ix_budget_year_account', 'fiscal_year', 'account_id'),
+    )
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'id': str(self.id),
+            'fiscal_year': self.fiscal_year,
+            'account_id': str(self.account_id),
+            'period': self.period,
+            'amount': self.amount,
+            'notes': self.notes,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }

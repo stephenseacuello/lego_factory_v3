@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Alarm {{ alarm_id }} - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('scada_web.alarms') }}">Alarms</a></li>
+<li class="breadcrumb-item active">{{ alarm_id }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-exclamation-triangle me-2"></i>Alarm: {{ alarm_id }}</h2>
+    <a href="{{ url_for('scada_web.alarms') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Alarms
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Alarm Details</div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr><th>Severity</th><td id="alarmSeverity">--</td></tr>
+                    <tr><th>Source</th><td id="alarmSource">--</td></tr>
+                    <tr><th>Triggered</th><td id="alarmTime">--</td></tr>
+                    <tr><th>Status</th><td id="alarmStatus">--</td></tr>
+                    <tr><th>Message</th><td id="alarmMessage">--</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Actions</div>
+            <div class="card-body">
+                <button class="btn btn-warning me-2" id="btnAcknowledge">Acknowledge</button>
+                <button class="btn btn-success" id="btnClear">Clear</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const alarmId = '{{ alarm_id }}';
+    fetch(`/api/scada/alarms/${alarmId}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('alarmSeverity').textContent = data.severity || '--';
+            document.getElementById('alarmSource').textContent = data.source || '--';
+            document.getElementById('alarmTime').textContent = data.triggered_at || '--';
+            document.getElementById('alarmStatus').textContent = data.status || '--';
+            document.getElementById('alarmMessage').textContent = data.message || '--';
+        })
+        .catch(() => {});
+});
+</script>
+{% endblock %}

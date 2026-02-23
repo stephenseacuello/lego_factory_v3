@@ -116,8 +116,13 @@ class Audit(AuditedModel):
             'audit_type': self.audit_type.value if self.audit_type else None,
             'status': self.status.value if self.status else None,
             'title': self.title,
+            'department': self.department,
+            'scope': self.scope,
             'lead_auditor': self.lead_auditor,
             'planned_start': self.planned_start.isoformat() if self.planned_start else None,
+            'planned_end': self.planned_end.isoformat() if self.planned_end else None,
+            'actual_start': self.actual_start.isoformat() if self.actual_start else None,
+            'actual_end': self.actual_end.isoformat() if self.actual_end else None,
             'findings_count': self.findings_count,
         }
 
@@ -277,10 +282,16 @@ class TrainingRecord(AuditedModel):
         return {
             'id': str(self.id),
             'course_id': str(self.course_id),
+            'course_title': self.course.title if self.course else None,
+            'course_category': self.course.category if self.course else None,
             'trainee_id': self.trainee_id,
+            'trainee_name': self.trainee_name,
             'status': self.status.value if self.status else None,
+            'scheduled_date': self.scheduled_date.isoformat() if self.scheduled_date else None,
             'completion_date': self.completion_date.isoformat() if self.completion_date else None,
             'expiry_date': self.expiry_date.isoformat() if self.expiry_date else None,
+            'instructor_name': self.instructor_name,
+            'assessment_score': self.assessment_score,
             'assessment_passed': self.assessment_passed,
         }
 
@@ -349,10 +360,20 @@ class CalibratedEquipment(AuditedModel):
             'id': str(self.id),
             'equipment_id': self.equipment_id,
             'name': self.name,
+            'description': self.description,
+            'equipment_type': self.equipment_type,
+            'manufacturer': self.manufacturer,
+            'model': self.model,
             'serial_number': self.serial_number,
+            'location': self.location,
+            'custodian': self.custodian,
+            'accuracy': self.accuracy,
+            'unit_of_measure': self.unit_of_measure,
+            'calibration_interval_days': self.calibration_interval_days,
             'status': self.status.value if self.status else None,
             'last_calibration_date': self.last_calibration_date.isoformat() if self.last_calibration_date else None,
             'next_calibration_due': self.next_calibration_due.isoformat() if self.next_calibration_due else None,
+            'is_active': self.is_active,
         }
 
 

@@ -627,25 +627,8 @@ class MachineController {
             });
         } catch (error) {
             console.error('Failed to load machines:', error);
-            this.loadDemoMachines();
+            this.log('Failed to load machines from API', 'error');
         }
-    }
-
-    loadDemoMachines() {
-        this.machines = [
-            { id: 'BANTAM-1', name: 'Bantam Desktop CNC', controller_type: 'TinyG' },
-            { id: 'PRUSA-MK4-1', name: 'Prusa MK4 #1', controller_type: 'Marlin' },
-            { id: 'HAAS-VF2', name: 'Haas VF-2', controller_type: 'GRBL' }
-        ];
-
-        const select = document.getElementById('machineSelect');
-        select.innerHTML = '<option value="">Select Machine...</option>';
-        this.machines.forEach(m => {
-            const option = document.createElement('option');
-            option.value = m.id;
-            option.textContent = `${m.name} (${m.controller_type})`;
-            select.appendChild(option);
-        });
     }
 
     selectMachine(machineId) {
@@ -667,13 +650,8 @@ class MachineController {
                 this.updateStatus(data);
             }
         } catch (error) {
-            // Use demo data
-            this.updateStatus({
-                connected: false,
-                state: 'DISCONNECTED',
-                position: { x: 0, y: 0, z: 0 },
-                wcs: 'G54'
-            });
+            console.error('Failed to load machine status:', error);
+            this.log('Failed to load machine status', 'error');
         }
     }
 
@@ -732,11 +710,8 @@ class MachineController {
                 throw new Error('Connection failed');
             }
         } catch (error) {
-            // Demo mode
-            this.connected = true;
-            this.state = 'IDLE';
-            this.log('Connected (demo mode)', 'sent');
-            this.startPolling();
+            console.error('Failed to connect to machine:', error);
+            this.log('Connection failed', 'error');
         }
 
         this.updateUI();
@@ -779,12 +754,7 @@ class MachineController {
                 this.updateStatus(data);
             }
         } catch (error) {
-            // Simulate position changes in demo mode
-            if (this.running) {
-                this.position.x += (Math.random() - 0.5) * 0.1;
-                this.position.y += (Math.random() - 0.5) * 0.1;
-                this.updateUI();
-            }
+            console.error('Polling failed:', error);
         }
     }
 
@@ -802,9 +772,8 @@ class MachineController {
                 body: JSON.stringify({ axis, distance, feed_rate: feed })
             });
         } catch (error) {
-            // Demo mode - update position locally
-            this.position[axis] = (this.position[axis] || 0) + distance;
-            this.updateUI();
+            console.error('Jog command failed:', error);
+            this.log(`Jog failed: ${error.message}`, 'error');
         }
     }
 
@@ -814,12 +783,8 @@ class MachineController {
         try {
             await fetch(`/api/plc/${this.machineId}/home`, { method: 'POST' });
         } catch (error) {
-            // Demo mode
-            setTimeout(() => {
-                this.position = { x: 0, y: 0, z: 0 };
-                this.updateUI();
-                this.log('Homing complete', 'received');
-            }, 2000);
+            console.error('Homing failed:', error);
+            this.log('Homing command failed', 'error');
         }
     }
 
@@ -833,9 +798,8 @@ class MachineController {
                 body: JSON.stringify({ axes: [axis] })
             });
         } catch (error) {
-            // Demo
-            this.position[axis] = 0;
-            this.updateUI();
+            console.error('Zero axis failed:', error);
+            this.log(`Zero ${axis.toUpperCase()} failed`, 'error');
         }
     }
 
@@ -849,8 +813,8 @@ class MachineController {
                 body: JSON.stringify({ axes: ['x', 'y', 'z'] })
             });
         } catch (error) {
-            this.position = { x: 0, y: 0, z: 0 };
-            this.updateUI();
+            console.error('Zero all axes failed:', error);
+            this.log('Zero all axes failed', 'error');
         }
     }
 
@@ -865,7 +829,7 @@ class MachineController {
         try {
             await fetch(`/api/plc/${this.machineId}/gcode/stop`, { method: 'POST' });
         } catch (error) {
-            // Demo mode
+            console.error('Stop command failed:', error);
         }
 
         this.state = 'IDLE';
@@ -899,10 +863,8 @@ class MachineController {
                 }
             }
         } catch (error) {
-            // Demo - simulate response
-            setTimeout(() => {
-                this.log('< ok', 'received');
-            }, 100);
+            console.error('MDI command failed:', error);
+            this.log(`Command failed: ${error.message}`, 'error');
         }
     }
 
@@ -969,10 +931,8 @@ class MachineController {
                 this.log(`Probe result: ${JSON.stringify(data.result)}`, 'received');
             }
         } catch (error) {
-            // Demo
-            setTimeout(() => {
-                this.log('Probe cycle complete', 'received');
-            }, 1500);
+            console.error('Probe failed:', error);
+            this.log(`Probe cycle failed: ${error.message}`, 'error');
         }
     }
 
@@ -997,8 +957,8 @@ class MachineController {
                     this.parseProgram(data.filename, data.content);
                 }
             } catch (error) {
-                // Demo
-                this.parseProgram('demo.nc', 'G21\nG90\nG0 Z5\nG0 X0 Y0\nG1 Z-1 F100\nG1 X50 F500\nG1 Y50\nG1 X0\nG1 Y0\nG0 Z5\nM30');
+                console.error('Failed to load program:', error);
+                this.log('Failed to load program from library', 'error');
             }
         }
 
@@ -1044,7 +1004,6 @@ class MachineController {
 
         this.log('Running program...', 'info');
 
-        // Demo: simulate line execution
         for (this.currentLine = 0; this.currentLine < this.programLines.length && this.running; this.currentLine++) {
             const line = this.programLines[this.currentLine];
 

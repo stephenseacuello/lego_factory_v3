@@ -1,3 +1,279 @@
 {% extends "base.html" %}
-{% block title %}Downtime - LEGO Factory v3{% endblock %}
-{% block content %}<h2><i class="bi bi-clock-history me-2"></i>Downtime Tracking</h2><div class="card"><div class="card-body"><p>Coming soon.</p></div></div>{% endblock %}
+{% block title %}Downtime Tracking - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Downtime Tracking</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-clock-history me-2"></i>Downtime Tracking</h2>
+    <div class="d-flex align-items-center gap-2">
+        <select class="form-select form-select-sm" id="periodSelect" style="width: 140px;">
+            <option value="7d">Last 7 Days</option>
+            <option value="30d" selected>Last 30 Days</option>
+            <option value="90d">Last 90 Days</option>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadAllData()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card border-start border-danger border-4 h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Total Downtime Hours</div>
+                <div class="fs-2 fw-bold text-danger" id="statTotalHours">--</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-primary border-4 h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Total Events</div>
+                <div class="fs-2 fw-bold text-primary" id="statTotalEvents">--</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-warning border-4 h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Estimated Cost</div>
+                <div class="fs-2 fw-bold text-warning" id="statEstCost">--</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-start border-info border-4 h-100">
+            <div class="card-body">
+                <div class="text-muted small text-uppercase">Avg Event Duration</div>
+                <div class="fs-2 fw-bold text-info" id="statAvgDuration">--</div>
+                <div class="text-muted small">minutes</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Machine Losses Table -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-exclamation-triangle me-2"></i>Top Machine Losses</span>
+        <span class="badge bg-secondary" id="lossesCount">0 machines</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Machine</th>
+                        <th class="text-end">Downtime Hours</th>
+                        <th class="text-end">Events</th>
+                        <th class="text-end">Est. Cost</th>
+                        <th>Top Category</th>
+                    </tr>
+                </thead>
+                <tbody id="lossesTableBody">
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Pareto by Category Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-bar-chart me-2"></i>Pareto by Category</span>
+        <span class="badge bg-secondary" id="paretoCount">0 categories</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Category</th>
+                        <th class="text-end">Duration (min)</th>
+                        <th class="text-end">Events</th>
+                        <th class="text-end">Est. Cost</th>
+                        <th class="text-end">% of Total</th>
+                        <th style="min-width: 200px;">Cumulative %</th>
+                    </tr>
+                </thead>
+                <tbody id="paretoTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const token = localStorage.getItem('access_token') || 'demo-token';
+    const numFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 });
+    const costFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    const costFmtDetail = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    let refreshTimer = null;
+
+    function getSelectedPeriod() {
+        return document.getElementById('periodSelect').value;
+    }
+
+    function apiFetch(url) {
+        return fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        }).then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        });
+    }
+
+    function formatCategory(cat) {
+        if (!cat) return '-';
+        return cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    // -----------------------------------------------------------------------
+    // STAT CARDS (derived from pareto response)
+    // -----------------------------------------------------------------------
+    function updateStatCards(pareto) {
+        const totalHours = pareto.total_downtime_hours || 0;
+        const eventCount = pareto.event_count || 0;
+        const totalCost = pareto.total_estimated_cost || 0;
+        const totalMinutes = pareto.total_downtime_minutes || 0;
+        const avgDuration = eventCount > 0 ? totalMinutes / eventCount : 0;
+
+        document.getElementById('statTotalHours').textContent = numFmt.format(totalHours);
+        document.getElementById('statTotalEvents').textContent = numFmt.format(eventCount);
+        document.getElementById('statEstCost').textContent = costFmt.format(totalCost);
+        document.getElementById('statAvgDuration').textContent = numFmt.format(avgDuration);
+    }
+
+    // -----------------------------------------------------------------------
+    // TOP MACHINE LOSSES TABLE
+    // -----------------------------------------------------------------------
+    function renderLossesTable(losses) {
+        const tbody = document.getElementById('lossesTableBody');
+        const countEl = document.getElementById('lossesCount');
+
+        if (!losses || losses.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4"><i class="bi bi-inbox display-6 d-block mb-2"></i>No machine losses found for this period.</td></tr>';
+            countEl.textContent = '0 machines';
+            return;
+        }
+
+        countEl.textContent = `${losses.length} machine${losses.length !== 1 ? 's' : ''}`;
+
+        tbody.innerHTML = losses.map(m => {
+            const cost = m.estimated_cost || 0;
+            const rowClass = cost > 100 ? 'table-warning' : '';
+            return `<tr class="${rowClass}">
+                <td><span class="badge bg-dark">${m.machine_id}</span></td>
+                <td class="text-end fw-bold">${numFmt.format(m.total_downtime_hours || 0)}</td>
+                <td class="text-end">${numFmt.format(m.event_count || 0)}</td>
+                <td class="text-end">${costFmtDetail.format(cost)}</td>
+                <td><span class="badge bg-secondary">${formatCategory(m.top_category)}</span></td>
+            </tr>`;
+        }).join('');
+    }
+
+    // -----------------------------------------------------------------------
+    // PARETO BY CATEGORY TABLE
+    // -----------------------------------------------------------------------
+    function renderParetoTable(data) {
+        const tbody = document.getElementById('paretoTableBody');
+        const countEl = document.getElementById('paretoCount');
+        const rows = data.data || [];
+
+        if (!rows || rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4"><i class="bi bi-inbox display-6 d-block mb-2"></i>No downtime categories found for this period.</td></tr>';
+            countEl.textContent = '0 categories';
+            return;
+        }
+
+        countEl.textContent = `${rows.length} categor${rows.length !== 1 ? 'ies' : 'y'}`;
+
+        tbody.innerHTML = rows.map(row => {
+            const category = row.category || row[data.group_by || 'category'] || '-';
+            const cumPct = row.cumulative_pct || 0;
+            const barColor = cumPct <= 80 ? 'bg-danger' : cumPct <= 95 ? 'bg-warning' : 'bg-secondary';
+
+            return `<tr>
+                <td><strong>${formatCategory(category)}</strong></td>
+                <td class="text-end">${numFmt.format(row.duration_minutes || 0)}</td>
+                <td class="text-end">${numFmt.format(row.event_count || 0)}</td>
+                <td class="text-end">${costFmtDetail.format(row.estimated_cost || 0)}</td>
+                <td class="text-end">${numFmt.format(row.percentage || 0)}%</td>
+                <td>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="progress flex-grow-1" style="height: 18px;">
+                            <div class="progress-bar ${barColor}" role="progressbar"
+                                 style="width: ${cumPct}%"
+                                 aria-valuenow="${cumPct}" aria-valuemin="0" aria-valuemax="100">
+                            </div>
+                        </div>
+                        <span class="text-nowrap small fw-bold" style="min-width: 45px;">${numFmt.format(cumPct)}%</span>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    // -----------------------------------------------------------------------
+    // LOAD ALL DATA
+    // -----------------------------------------------------------------------
+    async function loadAllData() {
+        const period = getSelectedPeriod();
+
+        try {
+            const [paretoData, lossesData] = await Promise.all([
+                apiFetch(`/api/scada/downtime/pareto?period=${period}`),
+                apiFetch(`/api/scada/downtime/top-losses?period=${period}`)
+            ]);
+
+            updateStatCards(paretoData);
+            renderParetoTable(paretoData);
+
+            // top-losses may return array directly or wrapped in an object
+            const losses = Array.isArray(lossesData) ? lossesData : (lossesData.data || lossesData.losses || []);
+            renderLossesTable(losses);
+        } catch (error) {
+            console.error('Failed to load downtime data:', error);
+            document.getElementById('statTotalHours').textContent = '--';
+            document.getElementById('statTotalEvents').textContent = '--';
+            document.getElementById('statEstCost').textContent = '--';
+            document.getElementById('statAvgDuration').textContent = '--';
+            document.getElementById('lossesTableBody').innerHTML =
+                '<tr><td colspan="5" class="text-center text-danger py-4"><i class="bi bi-exclamation-circle display-6 d-block mb-2"></i>Failed to load data. Please try again.</td></tr>';
+            document.getElementById('paretoTableBody').innerHTML =
+                '<tr><td colspan="6" class="text-center text-danger py-4"><i class="bi bi-exclamation-circle display-6 d-block mb-2"></i>Failed to load data. Please try again.</td></tr>';
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // INIT
+    // -----------------------------------------------------------------------
+    document.getElementById('periodSelect').addEventListener('change', loadAllData);
+
+    // Initial load
+    loadAllData();
+
+    // Auto-refresh every 30 seconds
+    refreshTimer = setInterval(loadAllData, 30000);
+</script>
+{% endblock %}

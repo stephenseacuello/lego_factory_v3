@@ -1,3 +1,284 @@
 {% extends "base.html" %}
-{% block title %}Labor - LEGO Factory v3{% endblock %}
-{% block content %}<h2><i class="bi bi-people me-2"></i>Labor Management</h2><div class="card"><div class="card-body"><p>Coming soon.</p></div></div>{% endblock %}
+{% block title %}Labor Management - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Labor Management</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-people me-2"></i>Labor Management</h2>
+  <div class="d-flex align-items-center gap-2">
+    <span class="text-muted small" id="lastUpdated"></span>
+    <button class="btn btn-sm btn-outline-secondary" onclick="refreshAll()">
+      <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="text-muted small mb-1">Total Workers</div>
+        <h3 class="mb-0" id="statTotalWorkers">--</h3>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="text-muted small mb-1">Active (Clocked In)</div>
+        <h3 class="mb-0 text-success" id="statActiveWorkers">--</h3>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="text-muted small mb-1">On Break</div>
+        <h3 class="mb-0 text-warning" id="statOnBreak">--</h3>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center">
+      <div class="card-body py-3">
+        <div class="text-muted small mb-1">Total Hours Today</div>
+        <h3 class="mb-0 text-primary" id="statTotalHours">--</h3>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Active Workers & All Workers -->
+<div class="row g-4 mb-4">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person-check me-2"></i>Active Workers</span>
+        <span class="badge bg-success" id="activeBadge">0</span>
+      </div>
+      <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+        <table class="table table-sm table-hover mb-0" id="activeWorkersTable">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>Worker ID</th>
+              <th>Name</th>
+              <th>Machine</th>
+              <th>Job</th>
+              <th>Hours So Far</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-people me-2"></i>All Workers</span>
+        <span class="badge bg-primary" id="allWorkersBadge">0</span>
+      </div>
+      <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+        <table class="table table-sm table-hover mb-0" id="allWorkersTable">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Skills</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Time Entries -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-clock-history me-2"></i>Recent Time Entries</span>
+    <span class="badge bg-secondary" id="timeEntriesBadge">0</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" id="timeEntriesTable">
+        <thead class="table-light">
+          <tr>
+            <th>Worker</th>
+            <th>Job</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Hours</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const token = localStorage.getItem('access_token') || 'demo-token';
+const authHeaders = {
+  'Authorization': `Bearer ${token}`,
+  'Content-Type': 'application/json'
+};
+
+/**
+ * Load all workers from the labor API (JWT required).
+ */
+async function loadAllWorkers() {
+  try {
+    const res = await fetch('/api/mes/labor/workers', { headers: authHeaders });
+    const data = await res.json();
+    const workers = data.workers || [];
+    const count = data.count || workers.length;
+
+    document.getElementById('statTotalWorkers').textContent = count;
+    document.getElementById('allWorkersBadge').textContent = count;
+
+    const tbody = document.querySelector('#allWorkersTable tbody');
+    if (workers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No workers found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = workers.map(w => {
+      const skills = (w.skills || []).map(s => `<span class="badge bg-info text-dark me-1">${s}</span>`).join('');
+      const statusMap = {
+        active: 'success',
+        unavailable: 'warning',
+        on_leave: 'secondary',
+        terminated: 'danger'
+      };
+      const badgeColor = statusMap[w.status] || 'secondary';
+      const statusLabel = (w.status || 'unknown').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      return `<tr>
+        <td>${w.id || '-'}</td>
+        <td>${w.name || '-'}</td>
+        <td>${w.role || '-'}</td>
+        <td>${skills || '-'}</td>
+        <td><span class="badge bg-${badgeColor}">${statusLabel}</span></td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to load workers:', e);
+    document.querySelector('#allWorkersTable tbody').innerHTML =
+      '<tr><td colspan="5" class="text-center text-danger">Failed to load workers</td></tr>';
+  }
+}
+
+/**
+ * Load active (clocked-in) workers from the timeclock API (no auth).
+ */
+async function loadActiveWorkers() {
+  try {
+    const res = await fetch('/api/mes/timeclock/active');
+    const data = await res.json();
+    const workers = data.workers || [];
+
+    const activeCount = workers.length;
+    const onBreakCount = workers.filter(w => w.on_break).length;
+    const totalHours = workers.reduce((sum, w) => sum + (w.hours_so_far || 0), 0);
+
+    document.getElementById('statActiveWorkers').textContent = activeCount;
+    document.getElementById('statOnBreak').textContent = onBreakCount;
+    document.getElementById('statTotalHours').textContent = totalHours.toFixed(1);
+    document.getElementById('activeBadge').textContent = activeCount;
+
+    const tbody = document.querySelector('#activeWorkersTable tbody');
+    if (workers.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No active workers</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = workers.map(w => {
+      const hoursFmt = w.hours_so_far != null ? Number(w.hours_so_far).toFixed(1) : '-';
+      const breakBadge = w.on_break ? ' <span class="badge bg-warning text-dark">On Break</span>' : '';
+      return `<tr>
+        <td>${w.worker_id || '-'}</td>
+        <td>${w.worker_name || '-'}${breakBadge}</td>
+        <td>${w.machine_id || '-'}</td>
+        <td>${w.job_id || '-'}</td>
+        <td>${hoursFmt}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to load active workers:', e);
+    document.querySelector('#activeWorkersTable tbody').innerHTML =
+      '<tr><td colspan="5" class="text-center text-danger">Failed to load active workers</td></tr>';
+  }
+}
+
+/**
+ * Load recent time entries from the labor API (JWT required).
+ */
+async function loadTimeEntries() {
+  try {
+    const res = await fetch('/api/mes/labor/time-entries', { headers: authHeaders });
+    const data = await res.json();
+    const entries = data.time_entries || [];
+    const count = data.count || entries.length;
+
+    document.getElementById('timeEntriesBadge').textContent = count;
+
+    const tbody = document.querySelector('#timeEntriesTable tbody');
+    if (entries.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No time entries found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = entries.map(e => {
+      const startFmt = e.start ? new Date(e.start).toLocaleString() : '-';
+      const endFmt = e.end ? new Date(e.end).toLocaleString() : '-';
+      const hoursFmt = e.hours != null ? Number(e.hours).toFixed(1) : '-';
+      return `<tr>
+        <td>${e.worker_id || '-'}</td>
+        <td>${e.job_id || '-'}</td>
+        <td>${startFmt}</td>
+        <td>${endFmt}</td>
+        <td>${hoursFmt}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    console.error('Failed to load time entries:', e);
+    document.querySelector('#timeEntriesTable tbody').innerHTML =
+      '<tr><td colspan="5" class="text-center text-danger">Failed to load time entries</td></tr>';
+  }
+}
+
+/**
+ * Refresh all data and update the last-updated timestamp.
+ */
+async function refreshAll() {
+  await Promise.all([
+    loadAllWorkers(),
+    loadActiveWorkers(),
+    loadTimeEntries()
+  ]);
+  document.getElementById('lastUpdated').textContent =
+    'Updated ' + new Date().toLocaleTimeString();
+}
+
+// Initial load
+document.addEventListener('DOMContentLoaded', refreshAll);
+
+// Auto-refresh every 30 seconds
+setInterval(refreshAll, 30000);
+</script>
+{% endblock %}

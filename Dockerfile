@@ -22,14 +22,17 @@ COPY services/ ./services/
 COPY models/ ./models/
 COPY templates/ ./templates/
 COPY database/ ./database/
+COPY routes/ ./routes/
+COPY static/ ./static/
 COPY alembic.ini ./
+COPY run.py ./
 
 # Copy entrypoint script
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Environment
-ENV FLASK_APP=app.main:create_app
+ENV FLASK_APP=app:create_app
 ENV FLASK_ENV=development
 ENV PYTHONUNBUFFERED=1
 
@@ -42,5 +45,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=5 \
 # Use entrypoint script
 ENTRYPOINT ["/entrypoint.sh"]
 
-# Run Flask
-CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=5000"]
+# Run Flask via socketio.run() (flask run breaks POST bodies with SocketIO middleware)
+CMD ["python", "run.py", "--host=0.0.0.0", "--port=5000"]

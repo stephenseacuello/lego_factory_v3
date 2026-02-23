@@ -229,7 +229,8 @@ class FinancialService:
         if end_date:
             query = query.filter(JournalEntry.journal_date <= end_date)
 
-        journals = query.order_by(JournalEntry.journal_date.desc()).limit(limit).all()
+        from sqlalchemy.orm import joinedload
+        journals = query.options(joinedload(JournalEntry.lines)).order_by(JournalEntry.journal_date.desc()).limit(limit).all()
         return [j.to_dict() for j in journals]
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -306,7 +307,8 @@ class FinancialService:
         if status:
             query = query.filter(APInvoice.status == InvoiceStatus(status))
 
-        invoices = query.order_by(APInvoice.invoice_date.desc()).limit(limit).all()
+        from sqlalchemy.orm import joinedload
+        invoices = query.options(joinedload(APInvoice.lines)).order_by(APInvoice.invoice_date.desc()).limit(limit).all()
         return [i.to_dict() for i in invoices]
 
     def get_ap_aging(self) -> Dict[str, Any]:
@@ -428,7 +430,8 @@ class FinancialService:
         if status:
             query = query.filter(ARInvoice.status == InvoiceStatus(status))
 
-        invoices = query.order_by(ARInvoice.invoice_date.desc()).limit(limit).all()
+        from sqlalchemy.orm import joinedload
+        invoices = query.options(joinedload(ARInvoice.lines)).order_by(ARInvoice.invoice_date.desc()).limit(limit).all()
         return [i.to_dict() for i in invoices]
 
     def get_ar_aging(self) -> Dict[str, Any]:
@@ -531,37 +534,37 @@ class FinancialService:
     # ─────────────────────────────────────────────────────────────────────────
 
     def get_trial_balance(self, as_of_date: date = None) -> Dict[str, Any]:
-        """Generate trial balance report."""
+        """Generate trial balance report. Single batch query (no N+1)."""
         from models.erp.financial import GLAccount, JournalLine, JournalEntry, JournalStatus
 
         as_of_date = as_of_date or date.today()
-        accounts = []
 
+        # Single query: aggregate debits/credits per account
+        balances = self.session.query(
+            JournalLine.account_id,
+            func.coalesce(func.sum(JournalLine.debit_amount), 0).label('total_debit'),
+            func.coalesce(func.sum(JournalLine.credit_amount), 0).label('total_credit'),
+        ).join(
+            JournalEntry, JournalLine.journal_id == JournalEntry.id
+        ).filter(
+            JournalEntry.status == JournalStatus.POSTED,
+            JournalEntry.posting_date <= as_of_date
+        ).group_by(JournalLine.account_id).all()
+
+        balance_map = {row.account_id: (row.total_debit, row.total_credit) for row in balances}
+
+        # Load accounts
         gl_accounts = self.session.query(GLAccount).filter(
             GLAccount.is_active == True,
             GLAccount.is_posting == True
         ).order_by(GLAccount.account_number).all()
 
+        accounts = []
         total_debit = Decimal('0')
         total_credit = Decimal('0')
 
         for account in gl_accounts:
-            debit = self.session.query(func.coalesce(func.sum(JournalLine.debit_amount), 0)).join(
-                JournalEntry, JournalLine.journal_id == JournalEntry.id
-            ).filter(
-                JournalLine.account_id == account.id,
-                JournalEntry.status == JournalStatus.POSTED,
-                JournalEntry.posting_date <= as_of_date
-            ).scalar()
-
-            credit = self.session.query(func.coalesce(func.sum(JournalLine.credit_amount), 0)).join(
-                JournalEntry, JournalLine.journal_id == JournalEntry.id
-            ).filter(
-                JournalLine.account_id == account.id,
-                JournalEntry.status == JournalStatus.POSTED,
-                JournalEntry.posting_date <= as_of_date
-            ).scalar()
-
+            debit, credit = balance_map.get(account.id, (Decimal('0'), Decimal('0')))
             if debit > 0 or credit > 0:
                 balance_debit = debit - credit if debit > credit else Decimal('0')
                 balance_credit = credit - debit if credit > debit else Decimal('0')
@@ -590,41 +593,33 @@ class FinancialService:
         start_date: date,
         end_date: date
     ) -> Dict[str, Any]:
-        """Generate income statement."""
+        """Generate income statement. Single batch query per account type (no N+1)."""
         from models.erp.financial import GLAccount, JournalLine, JournalEntry, JournalStatus, AccountType
 
         def get_balance_for_type(account_type: AccountType) -> Decimal:
-            accounts = self.session.query(GLAccount).filter(
+            # Single query: aggregate per account_id, then sum
+            results = self.session.query(
+                JournalLine.account_id,
+                func.coalesce(func.sum(JournalLine.debit_amount), 0).label('total_debit'),
+                func.coalesce(func.sum(JournalLine.credit_amount), 0).label('total_credit'),
+            ).join(
+                JournalEntry, JournalLine.journal_id == JournalEntry.id
+            ).join(
+                GLAccount, JournalLine.account_id == GLAccount.id
+            ).filter(
                 GLAccount.account_type == account_type,
-                GLAccount.is_active == True
-            ).all()
+                GLAccount.is_active == True,
+                JournalEntry.status == JournalStatus.POSTED,
+                JournalEntry.posting_date >= start_date,
+                JournalEntry.posting_date <= end_date,
+            ).group_by(JournalLine.account_id).all()
 
             total = Decimal('0')
-            for account in accounts:
-                debit = self.session.query(func.coalesce(func.sum(JournalLine.debit_amount), 0)).join(
-                    JournalEntry, JournalLine.journal_id == JournalEntry.id
-                ).filter(
-                    JournalLine.account_id == account.id,
-                    JournalEntry.status == JournalStatus.POSTED,
-                    JournalEntry.posting_date >= start_date,
-                    JournalEntry.posting_date <= end_date
-                ).scalar()
-
-                credit = self.session.query(func.coalesce(func.sum(JournalLine.credit_amount), 0)).join(
-                    JournalEntry, JournalLine.journal_id == JournalEntry.id
-                ).filter(
-                    JournalLine.account_id == account.id,
-                    JournalEntry.status == JournalStatus.POSTED,
-                    JournalEntry.posting_date >= start_date,
-                    JournalEntry.posting_date <= end_date
-                ).scalar()
-
-                # Revenue accounts have credit normal balance
+            for row in results:
                 if account_type == AccountType.REVENUE:
-                    total += credit - debit
+                    total += row.total_credit - row.total_debit
                 else:
-                    total += debit - credit
-
+                    total += row.total_debit - row.total_credit
             return total
 
         revenue = get_balance_for_type(AccountType.REVENUE)

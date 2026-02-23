@@ -63,7 +63,7 @@ def list_alarm_definitions():
             return jsonify({'definitions': definitions, 'count': len(definitions)})
     except Exception as e:
         logger.error(f"Error listing alarm definitions: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/definitions/<alarm_id>', methods=['GET'])
@@ -79,7 +79,7 @@ def get_alarm_definition(alarm_id: str):
             return jsonify(definition)
     except Exception as e:
         logger.error(f"Error getting alarm definition {alarm_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/definitions', methods=['POST'])
@@ -118,7 +118,7 @@ def create_alarm_definition(validated_data: AlarmDefinitionCreate):
             return jsonify(definition), 201
     except Exception as e:
         logger.error(f"Error creating alarm definition: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/definitions/<alarm_id>', methods=['PUT'])
@@ -139,7 +139,7 @@ def update_alarm_definition(alarm_id: str):
             return jsonify(definition)
     except Exception as e:
         logger.error(f"Error updating alarm definition {alarm_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/definitions/<alarm_id>', methods=['DELETE'])
@@ -156,7 +156,7 @@ def delete_alarm_definition(alarm_id: str):
             return jsonify({'message': 'Alarm definition deleted'})
     except Exception as e:
         logger.error(f"Error deleting alarm definition {alarm_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/active', methods=['GET'])
@@ -181,7 +181,7 @@ def get_active_alarms():
             return jsonify({'alarms': alarms, 'count': len(alarms)})
     except Exception as e:
         logger.error(f"Error getting active alarms: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/events/<event_id>/acknowledge', methods=['POST'])
@@ -202,7 +202,7 @@ def acknowledge_alarm(event_id: str):
             return jsonify(event)
     except Exception as e:
         logger.error(f"Error acknowledging alarm {event_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/definitions/<alarm_id>/shelve', methods=['POST'])
@@ -231,7 +231,7 @@ def shelve_alarm(alarm_id: str):
             })
     except Exception as e:
         logger.error(f"Error shelving alarm {alarm_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/definitions/<alarm_id>/unshelve', methods=['POST'])
@@ -251,11 +251,11 @@ def unshelve_alarm(alarm_id: str):
             return jsonify({'message': 'Alarm unshelved', 'alarm_id': alarm_id})
     except Exception as e:
         logger.error(f"Error unshelving alarm {alarm_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/history', methods=['GET'])
-@jwt_required()
+@jwt_required(optional=True)
 def get_alarm_history():
     """Get alarm event history"""
     try:
@@ -271,20 +271,19 @@ def get_alarm_history():
         with get_db_session() as session:
             service = get_alarm_service(session)
             events = service.get_alarm_history(
-                alarm_ids=alarm_ids if alarm_ids else None,
-                start=start,
-                end=end,
-                priority=priority,
+                alarm_id=alarm_ids[0] if alarm_ids else None,
+                start_time=start,
+                end_time=end,
                 limit=limit
             )
             return jsonify({'events': events, 'count': len(events)})
     except Exception as e:
         logger.error(f"Error getting alarm history: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/summary', methods=['GET'])
-@jwt_required()
+@jwt_required(optional=True)
 def get_alarm_summary():
     """Get alarm summary statistics"""
     try:
@@ -296,11 +295,11 @@ def get_alarm_summary():
 
         with get_db_session() as session:
             service = get_alarm_service(session)
-            summary = service.get_alarm_summary(start, end)
+            summary = service.get_alarm_summary()
             return jsonify(summary)
     except Exception as e:
         logger.error(f"Error getting alarm summary: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/analytics/by-area', methods=['GET'])
@@ -320,7 +319,7 @@ def get_alarms_by_area():
             return jsonify({'data': result})
     except Exception as e:
         logger.error(f"Error getting alarms by area: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/analytics/chattering', methods=['GET'])
@@ -341,7 +340,7 @@ def get_chattering_alarms():
             return jsonify({'alarms': result})
     except Exception as e:
         logger.error(f"Error getting chattering alarms: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/groups', methods=['GET'])
@@ -355,7 +354,7 @@ def list_alarm_groups():
             return jsonify({'groups': groups, 'count': len(groups)})
     except Exception as e:
         logger.error(f"Error listing alarm groups: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/groups', methods=['POST'])
@@ -378,7 +377,7 @@ def create_alarm_group():
             return jsonify(group), 201
     except Exception as e:
         logger.error(f"Error creating alarm group: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/processor/start', methods=['POST'])
@@ -390,7 +389,7 @@ def start_processor():
         return jsonify({'message': 'Alarm processor started'})
     except Exception as e:
         logger.error(f"Error starting alarm processor: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/processor/stop', methods=['POST'])
@@ -402,7 +401,7 @@ def stop_processor():
         return jsonify({'message': 'Alarm processor stopped'})
     except Exception as e:
         logger.error(f"Error stopping alarm processor: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/processor/status', methods=['GET'])
@@ -414,7 +413,7 @@ def processor_status():
         return jsonify(stats)
     except Exception as e:
         logger.error(f"Error getting processor status: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @alarms_bp.route('/types', methods=['GET'])

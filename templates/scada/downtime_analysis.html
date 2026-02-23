@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+{% block title %}Downtime Analysis - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">SCADA</a></li>
+<li class="breadcrumb-item active">Downtime Analysis</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-clock-history me-2"></i>Downtime Analysis</h2>
+  <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#recordDowntimeModal">
+    <i class="bi bi-plus-circle me-1"></i>Record Downtime
+  </button>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card border-start border-danger border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Total Downtime Hours</div>
+        <div class="fs-2 fw-bold text-danger" id="totalDowntimeHours">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-start border-warning border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Top Reason</div>
+        <div class="fs-4 fw-bold text-warning" id="topReason">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-start border-primary border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Number of Events</div>
+        <div class="fs-2 fw-bold text-primary" id="numEvents">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-start border-info border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Avg Duration</div>
+        <div class="fs-2 fw-bold text-info" id="avgDuration">--</div>
+        <div class="text-muted small">minutes</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pareto Chart -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Downtime Pareto Analysis</h5>
+  </div>
+  <div class="card-body">
+    <canvas id="paretoChart" height="300"></canvas>
+  </div>
+</div>
+
+<!-- Recent Downtime Events Table -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="mb-0"><i class="bi bi-table me-2"></i>Recent Downtime Events</h5>
+    <span class="badge bg-secondary" id="eventCount">0 events</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-striped mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Machine</th>
+            <th>Category</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Duration</th>
+            <th>Reason Code</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody id="eventsTableBody">
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">
+              <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Record Downtime Modal -->
+<div class="modal fade" id="recordDowntimeModal" tabindex="-1" aria-labelledby="recordDowntimeLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="recordDowntimeLabel"><i class="bi bi-plus-circle me-2"></i>Record Downtime</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form id="downtimeForm">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="machine_id" class="form-label">Machine ID</label>
+            <input type="text" class="form-control" id="machine_id" name="machine_id" required placeholder="e.g. MCH-001">
+          </div>
+          <div class="mb-3">
+            <label for="category" class="form-label">Category</label>
+            <select class="form-select" id="category" name="category" required>
+              <option value="">Select category...</option>
+              <option value="BREAKDOWN">Breakdown</option>
+              <option value="CHANGEOVER">Changeover</option>
+              <option value="MATERIAL_SHORTAGE">Material Shortage</option>
+              <option value="QUALITY_HOLD">Quality Hold</option>
+              <option value="PLANNED_MAINTENANCE">Planned Maintenance</option>
+              <option value="NO_OPERATOR">No Operator</option>
+              <option value="NO_DEMAND">No Demand</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="start_time" class="form-label">Start Time</label>
+            <input type="datetime-local" class="form-control" id="start_time" name="start_time" required>
+          </div>
+          <div class="mb-3">
+            <label for="end_time" class="form-label">End Time</label>
+            <input type="datetime-local" class="form-control" id="end_time" name="end_time" required>
+          </div>
+          <div class="mb-3">
+            <label for="reason_code" class="form-label">Reason Code</label>
+            <input type="text" class="form-control" id="reason_code" name="reason_code" placeholder="e.g. ELEC-01">
+          </div>
+          <div class="mb-3">
+            <label for="notes" class="form-label">Notes</label>
+            <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Additional details..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-save me-1"></i>Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let paretoChart = null;
+
+  async function loadParetoData() {
+    try {
+      const res = await fetch('/api/scada/downtime/pareto');
+      const data = await res.json();
+
+      const labels = data.categories || [];
+      const durations = data.durations || [];
+      const cumulative = data.cumulative_pct || [];
+
+      // Update summary cards
+      if (data.summary) {
+        document.getElementById('totalDowntimeHours').textContent = (data.summary.total_hours ?? '--').toLocaleString();
+        document.getElementById('topReason').textContent = data.summary.top_reason ?? '--';
+        document.getElementById('numEvents').textContent = (data.summary.num_events ?? '--').toLocaleString();
+        document.getElementById('avgDuration').textContent = data.summary.avg_duration_min ?? '--';
+      }
+
+      const ctx = document.getElementById('paretoChart').getContext('2d');
+      if (paretoChart) paretoChart.destroy();
+
+      paretoChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Downtime (hours)',
+              data: durations,
+              backgroundColor: 'rgba(220, 53, 69, 0.7)',
+              borderColor: 'rgba(220, 53, 69, 1)',
+              borderWidth: 1,
+              yAxisID: 'y',
+              order: 2
+            },
+            {
+              label: 'Cumulative %',
+              data: cumulative,
+              type: 'line',
+              borderColor: '#ffc107',
+              backgroundColor: 'transparent',
+              borderWidth: 2,
+              pointRadius: 4,
+              pointBackgroundColor: '#ffc107',
+              yAxisID: 'y1',
+              order: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            y: {
+              beginAtZero: true,
+              position: 'left',
+              title: { display: true, text: 'Hours' }
+            },
+            y1: {
+              beginAtZero: true,
+              max: 100,
+              position: 'right',
+              title: { display: true, text: 'Cumulative %' },
+              grid: { drawOnChartArea: false }
+            }
+          }
+        }
+      });
+
+      // Populate events table
+      const events = data.events || [];
+      const tbody = document.getElementById('eventsTableBody');
+      document.getElementById('eventCount').textContent = events.length + ' events';
+
+      if (events.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No downtime events found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = events.map(e => `
+        <tr>
+          <td><span class="badge bg-dark">${e.machine_id}</span></td>
+          <td><span class="badge bg-${categoryColor(e.category)}">${e.category}</span></td>
+          <td>${formatDt(e.start_time)}</td>
+          <td>${formatDt(e.end_time)}</td>
+          <td>${e.duration_min} min</td>
+          <td>${e.reason_code || '-'}</td>
+          <td class="text-truncate" style="max-width:200px">${e.notes || '-'}</td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      console.error('Failed to load pareto data:', err);
+    }
+  }
+
+  function categoryColor(cat) {
+    const map = {
+      BREAKDOWN: 'danger', CHANGEOVER: 'primary', MATERIAL_SHORTAGE: 'warning',
+      QUALITY_HOLD: 'info', PLANNED_MAINTENANCE: 'secondary', NO_OPERATOR: 'dark', NO_DEMAND: 'light text-dark'
+    };
+    return map[cat] || 'secondary';
+  }
+
+  function formatDt(dt) {
+    if (!dt) return '-';
+    return new Date(dt).toLocaleString();
+  }
+
+  document.getElementById('downtimeForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const payload = Object.fromEntries(formData.entries());
+    try {
+      const res = await fetch('/api/scada/downtime', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('recordDowntimeModal')).hide();
+        this.reset();
+        loadParetoData();
+      } else {
+        const err = await res.json();
+        alert('Error: ' + (err.message || 'Failed to save'));
+      }
+    } catch (err) {
+      alert('Network error: ' + err.message);
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', loadParetoData);
+</script>
+{% endblock %}

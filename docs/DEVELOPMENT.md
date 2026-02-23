@@ -122,7 +122,9 @@ lego_factory/
 │   │   ├── sales_service.py
 │   │   ├── mrp_service.py
 │   │   └── ...
-│   ├── mes/                # MES services
+│   ├── mes/                # MES services (scheduling, dispatch, OEE)
+│   │   ├── scheduling_service.py  # CP-SAT optimizer + critical path
+│   │   ├── dispatch_service.py    # 8 dispatch rules + composites
 │   ├── scada/              # SCADA services
 │   ├── cmms/               # CMMS services
 │   ├── qms/                # QMS services
@@ -536,8 +538,19 @@ flask db upgrade
 
 ### 7. Update Documentation
 
-- Add API endpoints to API_REFERENCE.md
-- Update README if significant feature
+- Add API endpoints to `docs/API_REFERENCE.md`
+- Add testing steps to `MANUAL_TESTING_GUIDE.md`
+- Update `README.md` if significant feature
+- Update `docs/ARCHITECTURE.md` for system-level changes
+
+### Key Dependencies
+
+| Package | Purpose | Notes |
+|---------|---------|-------|
+| `ortools>=9.8.0` | CP-SAT constraint solver for schedule optimization | Falls back to heuristic if unavailable |
+| `Flask-SocketIO` | WebSocket events for real-time Gantt updates | `job_dispatched`, `job_completed`, `job_rescheduled` |
+| `reportlab` | PDF generation for invoices/reports | Optional |
+| `celery[redis]` | Async task queue | Optional |
 
 ---
 

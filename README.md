@@ -39,6 +39,65 @@ LEGO Factory v3 follows the ISA-95 automation pyramid:
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and solutions |
 | [Security](docs/SECURITY.md) | Security considerations |
 
+## Production Scheduling & Optimization
+
+The MES layer includes a full-featured production scheduling system with an interactive Gantt chart, constraint-based optimizer, and real-time dispatch engine.
+
+### Gantt Chart (`/mes/scheduling`)
+
+Interactive drag-and-drop Gantt chart with:
+
+- **Job visualization** across 10 physical machines with lane-stacking for concurrent jobs
+- **Priority encoding** — left-border color/thickness indicates High (red), Medium (yellow), Low (gray)
+- **Critical path highlighting** — orange glow on jobs forming the longest dependency chain, with red bold arrows
+- **Maintenance windows** — hatched overlay blocks showing scheduled PM and downtime from CMMS
+- **Bottleneck detection** — highest-utilization machine row highlighted with red accent and per-machine utilization badges
+- **Rich tooltips** — hover any job to see duration, priority, machine utilization, dependencies, and due date
+- **Dependency arrows** — curved SVG arrows between sequential operations within a work order
+- **Drag-and-drop rescheduling** — move jobs between eligible machines with conflict detection
+- **Search & quick filters** — text search across jobs/products/WOs, plus one-click filters for Overdue, High Priority, Running, Critical Path, and Unassigned
+
+### Schedule Optimizer
+
+Three optimization objectives powered by Google OR-Tools CP-SAT constraint solver:
+
+| Objective | Description | Algorithm |
+|-----------|-------------|-----------|
+| **Minimize Makespan** | Complete all jobs as fast as possible | CP-SAT solver (optimal) |
+| **Meet Due Dates** | Minimize weighted tardiness by priority | CP-SAT solver (optimal) |
+| **Minimize Setup Time** | Group similar materials to reduce changeovers | Material-sorted heuristic |
+
+Before/after comparison table shows makespan, setup time, and scheduled job deltas.
+
+### Auto-Dispatch Engine
+
+8 dispatch rules for real-time job assignment:
+
+| Rule | Strategy |
+|------|----------|
+| SPT | Shortest Processing Time first |
+| LPT | Longest Processing Time first |
+| EDD | Earliest Due Date first |
+| FIFO | First In, First Out |
+| WSPT | Weighted Shortest Processing Time |
+| Critical Ratio | Due date urgency / remaining time |
+| Setup Min | Minimize material changeover time |
+| Balanced | Composite of multiple factors |
+
+Toggle auto-dispatch to listen for `job_completed` WebSocket events and automatically assign the next best job. Per-machine dispatch buttons allow manual triggering.
+
+### What-If Scenario Simulator
+
+Build scenarios and simulate impact before committing:
+
+- **Rush Order** — inject a high-priority job and see makespan/displacement impact
+- **Machine Down** — model unplanned downtime on any machine
+- **Priority Change** — reprioritize a job and see cascade effects
+
+### Dashboard KPIs
+
+6-metric summary bar: Scheduled count, Makespan, Avg Utilization, On-Time %, Bottleneck machine, Overdue count.
+
 ## Quick Start
 
 ### Option 1: Docker (Recommended)
@@ -154,6 +213,36 @@ POST /api/mes/work-orders/{id}/release
 
 # Get OEE metrics
 GET /api/mes/oee?machine_id=prusa_mk4_1
+```
+
+#### Scheduling & Optimization (MES)
+```bash
+# Get Gantt chart data (jobs, machines, critical path, maintenance windows)
+GET /api/mes/scheduling/gantt
+
+# Run schedule optimizer (CP-SAT or heuristic)
+POST /api/mes/scheduling/reschedule
+{
+  "algorithm": "cpsat",
+  "objective": "makespan",
+  "apply": true
+}
+
+# What-if scenario simulation
+POST /api/mes/scheduling/what-if
+{
+  "name": "Rush order test",
+  "changes": [
+    {"type": "add_job", "duration_minutes": 120, "priority": 1}
+  ]
+}
+
+# Auto-dispatch next job to a machine
+POST /api/mes/dispatch/auto/{machine_id}
+{"rule": "balanced"}
+
+# Get available dispatch rules
+GET /api/mes/dispatch/rules
 ```
 
 #### Recipes (ISA-88)
@@ -374,7 +463,8 @@ lego_factory/
 │   │   └── plc_manager.py      # Unified interface
 │   ├── mes/
 │   │   ├── work_order_service.py
-│   │   ├── scheduling_service.py  # CP-SAT solver
+│   │   ├── scheduling_service.py  # CP-SAT solver + dispatch + what-if
+│   │   ├── dispatch_service.py    # 8 dispatch rules (SPT, EDD, WSPT...)
 │   │   └── oee_service.py
 │   ├── erp/
 │   │   ├── financial_service.py
@@ -430,6 +520,7 @@ lego_factory/
 | **3D Printing** | PrusaSlicer, OrcaSlicer |
 | **CAD** | Fusion 360 API, STL/3MF |
 | **Digital Twin** | Unity (ISO 23247) |
+| **Optimization** | Google OR-Tools CP-SAT constraint solver |
 | **Visualization** | Chart.js, Plotly, noVNC |
 | **Industrial** | Modbus TCP/RTU, OPC-UA, GRBL, TinyG |
 

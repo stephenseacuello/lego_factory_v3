@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 
 from config.database import get_db_session
+from services.cache.cache_service import cached
 
 logger = logging.getLogger(__name__)
 
@@ -309,6 +310,7 @@ class MaintenanceService:
 
         return material.to_dict()
 
+    @cached(ttl=30, prefix='cmms_backlog')
     def get_backlog_summary(self) -> Dict[str, Any]:
         """Get maintenance backlog summary."""
         from models.cmms.maintenance import MaintenanceWorkOrder, WorkOrderStatus, WorkOrderPriority

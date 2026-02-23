@@ -15,6 +15,8 @@ import logging
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 
+from config.demo_mode import is_demo_mode_enabled
+
 logger = logging.getLogger(__name__)
 
 lego_api_bp = Blueprint('lego_api', __name__, url_prefix='/api/lego')
@@ -72,7 +74,9 @@ def get_catalog():
 
     except Exception as e:
         logger.warning(f"Catalog error: {e}")
-        return _demo_catalog()
+        if is_demo_mode_enabled():
+            return _demo_catalog()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/catalog/stats', methods=['GET'])
@@ -85,17 +89,19 @@ def get_catalog_stats():
         return jsonify(stats)
     except Exception as e:
         logger.warning(f"Stats error: {e}")
-        return jsonify({
-            'total_bricks': 150,
-            'by_category': {
-                'basic': 45,
-                'plate': 40,
-                'tile': 30,
-                'slope': 20,
-                'technic': 15,
-            },
-            'unique_tags': 25,
-        })
+        if is_demo_mode_enabled():
+            return jsonify({
+                'total_bricks': 150,
+                'by_category': {
+                    'basic': 45,
+                    'plate': 40,
+                    'tile': 30,
+                    'slope': 20,
+                    'technic': 15,
+                },
+                'unique_tags': 25,
+            })
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/catalog/categories', methods=['GET'])
@@ -111,13 +117,15 @@ def list_categories():
         })
     except Exception as e:
         logger.warning(f"Categories error: {e}")
-        return jsonify({
-            'categories': [
-                'basic', 'plate', 'tile', 'slope', 'curved',
-                'wedge', 'technic', 'modified', 'special'
-            ],
-            'count': 9,
-        })
+        if is_demo_mode_enabled():
+            return jsonify({
+                'categories': [
+                    'basic', 'plate', 'tile', 'slope', 'curved',
+                    'wedge', 'technic', 'modified', 'special'
+                ],
+                'count': 9,
+            })
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/catalog/tags', methods=['GET'])
@@ -133,10 +141,12 @@ def list_tags():
         })
     except Exception as e:
         logger.warning(f'Exception in lego_api.py: {e}')
-        return jsonify({
-            'tags': ['basic', 'plate', 'brick', 'tile', 'slope', 'technic'],
-            'count': 6,
-        })
+        if is_demo_mode_enabled():
+            return jsonify({
+                'tags': ['basic', 'plate', 'brick', 'tile', 'slope', 'technic'],
+                'count': 6,
+            })
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/catalog/<brick_id>', methods=['GET'])
@@ -351,7 +361,9 @@ def get_lego_specs():
 
     except Exception as e:
         logger.warning(f"Specs error: {e}")
-        return _demo_specs()
+        if is_demo_mode_enabled():
+            return _demo_specs()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/specs/materials', methods=['GET'])
@@ -366,14 +378,16 @@ def get_materials():
         })
     except Exception as e:
         logger.warning(f'Exception in lego_api.py: {e}')
-        return jsonify({
-            'materials': {
-                'pla': {'density': 1.24, 'melt_temp': 215, 'bed_temp': 60},
-                'abs': {'density': 1.05, 'melt_temp': 232, 'bed_temp': 100},
-                'petg': {'density': 1.27, 'melt_temp': 240, 'bed_temp': 85},
-            },
-            'recommended': 'pla',
-        })
+        if is_demo_mode_enabled():
+            return jsonify({
+                'materials': {
+                    'pla': {'density': 1.24, 'melt_temp': 215, 'bed_temp': 60},
+                    'abs': {'density': 1.05, 'melt_temp': 232, 'bed_temp': 100},
+                    'petg': {'density': 1.27, 'melt_temp': 240, 'bed_temp': 85},
+                },
+                'recommended': 'pla',
+            })
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/specs/tolerances', methods=['GET'])
@@ -388,14 +402,16 @@ def get_tolerances():
         })
     except Exception as e:
         logger.warning(f'Exception in lego_api.py: {e}')
-        return jsonify({
-            'processes': {
-                'fdm_standard': {'general': 0.15, 'stud': 0.20},
-                'fdm_fine': {'general': 0.10, 'stud': 0.15},
-                'sla_resin': {'general': 0.05, 'stud': 0.08},
-            },
-            'recommended': 'fdm_fine',
-        })
+        if is_demo_mode_enabled():
+            return jsonify({
+                'processes': {
+                    'fdm_standard': {'general': 0.15, 'stud': 0.20},
+                    'fdm_fine': {'general': 0.10, 'stud': 0.15},
+                    'sla_resin': {'general': 0.05, 'stud': 0.08},
+                },
+                'recommended': 'fdm_fine',
+            })
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -459,6 +475,9 @@ def slice_brick():
 @jwt_required()
 def list_exports():
     """List export jobs."""
+    if not is_demo_mode_enabled():
+        return jsonify({'error': 'Service not configured'}), 503
+
     # Demo data - would connect to export job database
     return jsonify({
         'exports': [
@@ -516,6 +535,9 @@ def create_export():
 @jwt_required()
 def get_export(export_id: str):
     """Get export job status."""
+    if not is_demo_mode_enabled():
+        return jsonify({'error': 'Service not configured'}), 503
+
     # Demo response
     return jsonify({
         'export_id': export_id,
@@ -547,15 +569,17 @@ def get_presets():
 
     except Exception as e:
         logger.warning(f'Exception in lego_api.py: {e}')
-        return jsonify({
-            'presets': [
-                {'name': '1x1', 'studs_x': 1, 'studs_y': 1},
-                {'name': '2x2', 'studs_x': 2, 'studs_y': 2},
-                {'name': '2x4', 'studs_x': 2, 'studs_y': 4},
-                {'name': '4x4', 'studs_x': 4, 'studs_y': 4},
-            ],
-            'count': 4,
-        })
+        if is_demo_mode_enabled():
+            return jsonify({
+                'presets': [
+                    {'name': '1x1', 'studs_x': 1, 'studs_y': 1},
+                    {'name': '2x2', 'studs_x': 2, 'studs_y': 2},
+                    {'name': '2x4', 'studs_x': 2, 'studs_y': 4},
+                    {'name': '4x4', 'studs_x': 4, 'studs_y': 4},
+                ],
+                'count': 4,
+            })
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -621,6 +645,9 @@ def get_dimensions_by_spec(brick_spec: str):
 @jwt_required()
 def get_colors():
     """Get available LEGO colors."""
+    if not is_demo_mode_enabled():
+        return jsonify({'error': 'Service not configured'}), 503
+
     return jsonify({
         'colors': [
             {'id': 'red', 'name': 'Red', 'hex': '#C91A09', 'rgb': [201, 26, 9]},
@@ -786,7 +813,9 @@ def get_parts_catalog():
 
     except Exception as e:
         logger.warning(f"Parts catalog error: {e}")
-        return _demo_parts_catalog()
+        if is_demo_mode_enabled():
+            return _demo_parts_catalog()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/parts-catalog/<part_number>', methods=['GET'])
@@ -825,7 +854,9 @@ def get_materials_catalog():
 
     except Exception as e:
         logger.warning(f"Materials catalog error: {e}")
-        return _demo_materials_catalog()
+        if is_demo_mode_enabled():
+            return _demo_materials_catalog()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/colors-catalog', methods=['GET'])
@@ -853,7 +884,9 @@ def get_colors_catalog():
 
     except Exception as e:
         logger.warning(f"Colors catalog error: {e}")
-        return _demo_colors_catalog()
+        if is_demo_mode_enabled():
+            return _demo_colors_catalog()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/products', methods=['GET'])
@@ -896,7 +929,9 @@ def get_products():
 
     except Exception as e:
         logger.warning(f"Products error: {e}")
-        return _demo_products()
+        if is_demo_mode_enabled():
+            return _demo_products()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/products/<sku>', methods=['GET'])
@@ -1243,7 +1278,9 @@ def get_routings():
 
     except Exception as e:
         logger.warning(f"Routings error: {e}")
-        return _demo_routings()
+        if is_demo_mode_enabled():
+            return _demo_routings()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @lego_api_bp.route('/routings/<routing_id>', methods=['GET'])

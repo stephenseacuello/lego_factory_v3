@@ -5,7 +5,7 @@ Work order management and execution tracking.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 import uuid
 
@@ -386,7 +386,9 @@ class WorkOrderService:
         if due_before:
             query = query.filter(WorkOrder.due_date <= due_before)
 
-        work_orders = query.order_by(WorkOrder.priority, WorkOrder.due_date)\
+        from sqlalchemy.orm import selectinload
+        work_orders = query.options(selectinload(WorkOrder.operations), selectinload(WorkOrder.jobs))\
+            .order_by(WorkOrder.priority, WorkOrder.due_date)\
             .offset(offset).limit(limit).all()
 
         return [wo.to_dict() for wo in work_orders]
@@ -476,6 +478,21 @@ class WorkOrderService:
                 logger.info(f"Generated {ops_created} operations from routing {routing_id} for work order {work_order_id}")
                 self.session.flush()  # Ensure operations are persisted
 
+        # Check recipe approval status (MESA-8: Process Management)
+        recipe_id = getattr(wo, 'recipe_id', None)
+        if not recipe_id and wo.runtime_data:
+            recipe_id = wo.runtime_data.get('recipe_id')
+        if recipe_id:
+            try:
+                from services.mes.recipe_tracking_service import RecipeTrackingService
+                recipe_svc = RecipeTrackingService(self.session)
+                active_version = recipe_svc.get_active_version(recipe_id)
+                if not active_version:
+                    logger.warning(f"Recipe {recipe_id} has no active/approved version for WO {work_order_id}")
+                    return {'error': f'Recipe {recipe_id} has no active/approved version. Cannot release work order.'}
+            except Exception as e:
+                logger.debug(f"Recipe check skipped: {e}")
+
         # Update status to released
         result = self.update_work_order(work_order_id, {
             'status': WorkOrderStatus.RELEASED,
@@ -526,6 +543,10 @@ class WorkOrderService:
                         'operation_name': op.name,
                         'operation_type': op.operation_type.value if op.operation_type else None,
                         'operation_id': op.operation_id,
+                        # Worker skill requirements (MESA-6: Labor Management)
+                        'required_skill': getattr(op, 'skill_required', None) or (op.operation_type.value if op.operation_type else 'general'),
+                        'required_skill_level': getattr(op, 'skill_level', 1) or 1,
+                        'estimated_duration_mins': op_duration,
                     },
                 }
 
@@ -569,8 +590,21 @@ class WorkOrderService:
                 if job:
                     result['job'] = job
 
+        # Auto-create genealogy/traceability record (MESA-10: Product Tracking)
+        try:
+            from services.mes.genealogy_service import GenealogyService
+            gen_svc = GenealogyService(self.session)
+            gen_svc.create_product_record(
+                work_order_id=work_order_id,
+                product_id=wo.product_id or wo.item_id if hasattr(wo, 'item_id') else work_order_id,
+                quantity=wo.quantity_ordered or 1
+            )
+            logger.info(f"Genealogy record created for WO {work_order_id}")
+        except Exception as e:
+            logger.debug(f"Genealogy record creation skipped: {e}")
+
         # Explicit commit to ensure all changes are persisted
-        self.session.commit()
+        self.session.flush()
 
         return result
 
@@ -715,15 +749,127 @@ class WorkOrderService:
             'updated_by': user_id
         })
 
-    def complete_work_order(self, work_order_id: str, user_id: str = 'system') -> Optional[Dict[str, Any]]:
-        """Complete a work order."""
-        from models.mes.work_orders import WorkOrderStatus
+    # Mapping from MES product_id to ERP item_id
+    PRODUCT_TO_ERP_ITEM = {
+        'brick_2x4_red': 'brick_2x4_red',
+        'brick_2x4_blue': 'brick_2x4_blue',
+        'brick_2x4_yellow': 'brick_2x4_yellow',
+        'brick_2x4_white': 'brick_2x4_white',
+        'brick_2x2_red': 'brick_2x2_red',
+        'gear_8t_black': 'gear_8t',
+        'gear_24t_grey': 'gear_24t',
+        'baseplate_16x16_green': 'baseplate_16x16',
+        'axle_4L_grey': 'axle_4l',
+    }
 
-        return self.update_work_order(work_order_id, {
+    def complete_work_order(self, work_order_id: str, user_id: str = 'system') -> Optional[Dict[str, Any]]:
+        """
+        Complete a work order.
+        Also creates ERP production receipt and GL journal entry (MES→ERP integration).
+        """
+        from models.mes.work_orders import WorkOrder, WorkOrderStatus
+
+        wo = self.session.query(WorkOrder).filter(
+            WorkOrder.work_order_id == work_order_id
+        ).first()
+        if not wo:
+            return None
+
+        result = self.update_work_order(work_order_id, {
             'status': WorkOrderStatus.COMPLETED,
             'actual_end': datetime.utcnow(),
             'updated_by': user_id
         })
+
+        # MES→ERP: Production receipt + GL posting
+        if result:
+            qty = wo.quantity_completed or wo.quantity_ordered or 0
+            self._post_erp_production_receipt(wo, qty)
+            self._post_erp_wip_to_fg_journal(wo, qty)
+
+        return result
+
+    def _post_erp_production_receipt(self, wo, quantity: int):
+        """Post an ERP inventory production receipt for completed goods."""
+        try:
+            from services.erp.inventory_service import InventoryService
+
+            erp_item_id = self.PRODUCT_TO_ERP_ITEM.get(wo.product_id)
+            if not erp_item_id:
+                logger.debug(f"No ERP item mapping for product_id={wo.product_id}")
+                return
+
+            InventoryService(self.session).process_transaction({
+                'transaction_type': 'production_receipt',
+                'item_id': erp_item_id,
+                'to_location_id': 'WH-MAIN',
+                'quantity': quantity,
+                'reference_type': 'work_order',
+                'reference_id': wo.work_order_id,
+                'notes': f"Production receipt from WO {wo.work_order_id}",
+                'created_by': 'mes_system',
+            })
+            logger.info(f"Posted ERP production receipt: {erp_item_id} x{quantity} for WO {wo.work_order_id}")
+        except Exception as e:
+            logger.warning(f"Could not post ERP production receipt for WO {wo.work_order_id}: {e}")
+
+    def _post_erp_wip_to_fg_journal(self, wo, quantity: int):
+        """Post GL journal entry: Debit FG Inventory, Credit WIP."""
+        try:
+            from services.erp.financial_service import FinancialService
+            from models.erp.financial import GLAccount
+            from models.erp.items import Item
+
+            erp_item_id = self.PRODUCT_TO_ERP_ITEM.get(wo.product_id)
+            if not erp_item_id:
+                return
+
+            item = self.session.query(Item).filter(Item.item_id == erp_item_id).first()
+            if not item:
+                logger.debug(f"ERP item {erp_item_id} not found for GL posting")
+                return
+
+            total_cost = float(item.standard_cost or 0) * quantity
+            if total_cost <= 0:
+                return
+
+            # Look up GL accounts by account_number
+            fg_account = self.session.query(GLAccount).filter(
+                GLAccount.account_number == '1300'
+            ).first()
+            wip_account = self.session.query(GLAccount).filter(
+                GLAccount.account_number == '1310'
+            ).first()
+
+            if not fg_account or not wip_account:
+                logger.debug("GL accounts 1300/1310 not found, skipping journal entry")
+                return
+
+            FinancialService(self.session).create_journal_entry({
+                'description': f"WIP→FG transfer: WO {wo.work_order_id} — {erp_item_id} x{quantity}",
+                'source_type': 'work_order',
+                'source_id': wo.work_order_id,
+                'created_by': 'mes_system',
+                'lines': [
+                    {
+                        'account_id': fg_account.id,  # 1300 Finished Goods Inventory
+                        'debit_amount': total_cost,
+                        'credit_amount': 0,
+                        'description': f"FG receipt: {erp_item_id} x{quantity}",
+                        'cost_center': 'PRODUCTION',
+                    },
+                    {
+                        'account_id': wip_account.id,  # 1310 WIP Inventory
+                        'debit_amount': 0,
+                        'credit_amount': total_cost,
+                        'description': f"WIP relief: WO {wo.work_order_id}",
+                        'cost_center': 'PRODUCTION',
+                    },
+                ],
+            })
+            logger.info(f"Posted GL journal WIP→FG for WO {wo.work_order_id}: ${total_cost:.2f}")
+        except Exception as e:
+            logger.warning(f"Could not post GL journal for WO {wo.work_order_id}: {e}")
 
     def hold_work_order(self, work_order_id: str, reason: str = None, user_id: str = 'system') -> Optional[Dict[str, Any]]:
         """Put a work order on hold."""
@@ -1033,7 +1179,8 @@ class WorkOrderService:
         if date_to:
             query = query.filter(Job.scheduled_start <= date_to)
 
-        jobs = query.order_by(Job.scheduled_start).limit(limit).all()
+        from sqlalchemy.orm import joinedload
+        jobs = query.options(joinedload(Job.work_order)).order_by(Job.scheduled_start).limit(limit).all()
 
         # Enrich job data with work order info for Gantt chart display
         result = []
@@ -1074,6 +1221,29 @@ class WorkOrderService:
 
         if status == 'running' and not job.actual_start:
             job.actual_start = datetime.utcnow()
+
+            # Record setup time as planned OEE downtime (MESA-2/11)
+            setup_minutes = 0
+            if job.runtime_data:
+                setup_minutes = job.runtime_data.get('setup_time_mins', 0) or 0
+            if setup_minutes > 0 and job.machine_id:
+                try:
+                    from services.mes.oee_service import OEEService
+                    oee_svc = OEEService(self.session)
+                    setup_end = job.actual_start
+                    setup_start = setup_end - timedelta(minutes=setup_minutes)
+                    oee_svc.record_downtime(
+                        machine_id=job.machine_id,
+                        start_time=setup_start,
+                        end_time=setup_end,
+                        reason='setup',
+                        planned=True,
+                        notes=f"Material changeover for job {job_id}"
+                    )
+                    logger.debug(f"Setup downtime recorded: {setup_minutes}min for job {job_id}")
+                except Exception as e:
+                    logger.debug(f"Setup downtime recording skipped: {e}")
+
         elif status in ('completed', 'failed', 'cancelled'):
             job.actual_end = datetime.utcnow()
 
@@ -1093,6 +1263,40 @@ class WorkOrderService:
         # Emit specific event for job completion
         if status == 'completed':
             _emit_work_order_event('job_completed', event_data)
+
+            # Trigger EMA learning to adjust future time estimates (MESA-11)
+            if job.actual_start and job.actual_end:
+                try:
+                    from services.mes.scheduling_service import SchedulingService
+                    sched = SchedulingService(self.session)
+                    sched.update_time_estimates_from_actuals(job_ids=[job.id])
+                    logger.info(f"EMA learning triggered for job {job_id}")
+                except Exception as e:
+                    logger.warning(f"EMA learning failed for job {job_id}: {e}")
+
+            # Record genealogy process step (MESA-10: Product Tracking)
+            try:
+                from services.mes.genealogy_service import GenealogyService
+                gen_svc = GenealogyService(self.session)
+                serial = f"WO-{job.work_order_id}"
+                op_name = 'production'
+                if job.runtime_data:
+                    op_name = job.runtime_data.get('operation_name', op_name)
+                gen_svc.record_process_step(
+                    serial_number=serial,
+                    operation_id=str(job.id),
+                    operation_name=op_name,
+                    sequence=getattr(job, 'sequence', 1) or 1,
+                    machine_id=job.machine_id,
+                    operator_id=user_id,
+                    started_at=job.actual_start,
+                    completed_at=job.actual_end,
+                    result='pass'
+                )
+                logger.info(f"Genealogy process step recorded for job {job_id}")
+            except Exception as e:
+                logger.debug(f"Genealogy step recording skipped: {e}")
+
         elif status == 'failed':
             _emit_work_order_event('job_failed', event_data)
         else:

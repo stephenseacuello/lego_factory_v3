@@ -17,6 +17,9 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import numpy as np
 
+from api.middleware.rate_limiter import heavy_computation_limit
+from config.demo_mode import is_demo_mode_enabled
+
 logger = logging.getLogger(__name__)
 
 ml_api_bp = Blueprint('ml_api', __name__, url_prefix='/api/ml')
@@ -83,7 +86,9 @@ def list_models():
     registry = get_model_registry()
 
     if not registry:
-        return _demo_models()
+        if is_demo_mode_enabled():
+            return _demo_models()
+        return jsonify({'error': 'Service not configured'}), 503
 
     models = registry.list_models()
 
@@ -133,7 +138,7 @@ def load_model(model_name: str):
         })
     except Exception as e:
         logger.error(f"Error loading model: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -142,6 +147,7 @@ def load_model(model_name: str):
 
 @ml_api_bp.route('/predict', methods=['POST'])
 @jwt_required()
+@heavy_computation_limit
 def predict():
     """
     Run inference on sensor data.
@@ -153,7 +159,9 @@ def predict():
     service = get_inference_service()
 
     if not service:
-        return _demo_prediction()
+        if is_demo_mode_enabled():
+            return _demo_prediction()
+        return jsonify({'error': 'Service not configured'}), 503
 
     data = request.get_json()
     if not data or 'sensor_data' not in data:
@@ -163,7 +171,9 @@ def predict():
         sensor_data = np.array(data['sensor_data'])
 
         if service._model is None:
-            return _demo_prediction()
+            if is_demo_mode_enabled():
+                return _demo_prediction()
+            return jsonify({'error': 'Service not configured'}), 503
 
         results = service.predict(sensor_data)
 
@@ -182,7 +192,7 @@ def predict():
 
     except Exception as e:
         logger.error(f"Prediction error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @ml_api_bp.route('/encode', methods=['POST'])
@@ -197,7 +207,9 @@ def encode():
     service = get_inference_service()
 
     if not service:
-        return _demo_fingerprint()
+        if is_demo_mode_enabled():
+            return _demo_fingerprint()
+        return jsonify({'error': 'Service not configured'}), 503
 
     data = request.get_json()
     if not data or 'sensor_data' not in data:
@@ -214,10 +226,12 @@ def encode():
         })
 
     except RuntimeError as e:
-        return _demo_fingerprint()
+        if is_demo_mode_enabled():
+            return _demo_fingerprint()
+        return jsonify({'error': 'Internal server error'}), 500
     except Exception as e:
         logger.error(f"Encoding error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -261,7 +275,7 @@ def compare_fingerprints():
 
     except Exception as e:
         logger.error(f"Comparison error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -283,7 +297,9 @@ def detect_anomaly():
     service = get_inference_service()
 
     if not service:
-        return _demo_anomaly()
+        if is_demo_mode_enabled():
+            return _demo_anomaly()
+        return jsonify({'error': 'Service not configured'}), 503
 
     data = request.get_json()
     if not data or 'machine_id' not in data:
@@ -296,10 +312,14 @@ def detect_anomaly():
             sensor_data = np.array(data['sensor_data'])
         else:
             # Would query historian for sensor data
-            return _demo_anomaly()
+            if is_demo_mode_enabled():
+                return _demo_anomaly()
+            return jsonify({'error': 'Service not configured'}), 503
 
         if service._model is None:
-            return _demo_anomaly()
+            if is_demo_mode_enabled():
+                return _demo_anomaly()
+            return jsonify({'error': 'Service not configured'}), 503
 
         results = service.predict(sensor_data)
 
@@ -314,7 +334,7 @@ def detect_anomaly():
 
     except Exception as e:
         logger.error(f"Anomaly detection error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @ml_api_bp.route('/anomaly/history', methods=['GET'])
@@ -329,6 +349,9 @@ def get_anomaly_history():
     - end_time: End time (ISO format)
     - limit: Max results (default: 100)
     """
+    if not is_demo_mode_enabled():
+        return jsonify({'error': 'Service not configured'}), 503
+
     # Demo data - would query from historian/database
     machine_id = request.args.get('machine_id')
 
@@ -369,6 +392,9 @@ def predict_tool_wear():
     - machine_id: Machine identifier (required)
     - tool_id: Optional specific tool ID
     """
+    if not is_demo_mode_enabled():
+        return jsonify({'error': 'Service not configured'}), 503
+
     data = request.get_json()
     if not data or 'machine_id' not in data:
         return jsonify({'error': 'machine_id required'}), 400
@@ -396,6 +422,7 @@ def predict_tool_wear():
 
 @ml_api_bp.route('/training/export', methods=['POST'])
 @jwt_required()
+@heavy_computation_limit
 def export_training_data():
     """
     Export historian data for ML training.
@@ -454,13 +481,16 @@ def export_training_data():
 
     except Exception as e:
         logger.error(f"Export error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @ml_api_bp.route('/training/jobs', methods=['GET'])
 @jwt_required()
 def list_training_jobs():
     """List training jobs."""
+    if not is_demo_mode_enabled():
+        return jsonify({'error': 'Service not configured'}), 503
+
     # Demo data
     return jsonify({
         'jobs': [
@@ -494,6 +524,7 @@ def list_training_jobs():
 
 @ml_api_bp.route('/batch', methods=['POST'])
 @jwt_required()
+@heavy_computation_limit
 def batch_inference():
     """
     Run batch inference on historian data.
@@ -549,7 +580,7 @@ def batch_inference():
 
     except Exception as e:
         logger.error(f"Batch inference error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -769,7 +800,7 @@ def list_anomalies():
 
     except Exception as e:
         logger.error(f"Error listing anomalies: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @ml_api_bp.route('/anomalies/detect', methods=['POST'])
@@ -844,7 +875,7 @@ def detect_anomalies_endpoint():
 
     except Exception as e:
         logger.error(f"Error in anomaly detection: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @ml_api_bp.route('/anomalies/realtime', methods=['POST'])
@@ -903,7 +934,7 @@ def detect_realtime_endpoint():
 
     except Exception as e:
         logger.error(f"Error in real-time detection: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @ml_api_bp.route('/anomalies/config', methods=['GET'])
@@ -992,7 +1023,7 @@ def update_anomaly_config():
 
     except Exception as e:
         logger.error(f"Error updating config: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @ml_api_bp.route('/anomalies/config/tag/<tag_id>', methods=['GET'])
@@ -1073,7 +1104,7 @@ def update_tag_threshold_config(tag_id: str):
 
     except Exception as e:
         logger.error(f"Error updating tag config: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @ml_api_bp.route('/anomalies/window/<tag_id>', methods=['GET'])

@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Rework & Scrap Analysis - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Rework & Scrap Analysis</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-recycle"></i> Rework & Scrap Analysis</h2>
+  <div class="d-flex gap-2">
+    <input type="text" class="form-control form-control-sm" id="productFilter" placeholder="Product ID" style="width:160px;">
+    <button class="btn btn-sm btn-primary" onclick="loadAll()"><i class="bi bi-search"></i></button>
+    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#scrapModal">
+      <i class="bi bi-plus-circle"></i> Record Scrap
+    </button>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row mb-4 g-3">
+  <div class="col-md-4">
+    <div class="card text-center border-warning">
+      <div class="card-body">
+        <div class="text-muted small">Rework Rate</div>
+        <div class="fs-2 fw-bold text-warning" id="reworkRate">--%</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center border-danger">
+      <div class="card-body">
+        <div class="text-muted small">Scrap Cost</div>
+        <div class="fs-2 fw-bold text-danger" id="scrapCost">$--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-center border-info">
+      <div class="card-body">
+        <div class="text-muted small">Total Events</div>
+        <div class="fs-2 fw-bold text-info" id="totalEvents">--</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mb-4">
+  <div class="col-md-7">
+    <div class="card">
+      <div class="card-header">Rework Rate Trend</div>
+      <div class="card-body"><canvas id="reworkChart" height="100"></canvas></div>
+    </div>
+  </div>
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header">Scrap Cost Pareto</div>
+      <div class="card-body"><canvas id="paretoChart" height="140"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Record Scrap Modal -->
+<div class="modal fade" id="scrapModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Record Scrap / Rework</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="scrapForm">
+          <div class="row g-2 mb-3">
+            <div class="col">
+              <label class="form-label">Product ID</label>
+              <input type="text" class="form-control" name="product_id" required>
+            </div>
+            <div class="col">
+              <label class="form-label">Type</label>
+              <select class="form-select" name="type">
+                <option value="rework">Rework</option>
+                <option value="scrap">Scrap</option>
+              </select>
+            </div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col">
+              <label class="form-label">Quantity</label>
+              <input type="number" class="form-control" name="quantity" min="1" required>
+            </div>
+            <div class="col">
+              <label class="form-label">Cost ($)</label>
+              <input type="number" class="form-control" name="cost" step="0.01" min="0">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Reason</label>
+            <select class="form-select" name="reason">
+              <option>Material Defect</option>
+              <option>Machine Error</option>
+              <option>Operator Error</option>
+              <option>Design Issue</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea class="form-control" name="notes" rows="2"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" onclick="submitScrap()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let reworkChart, paretoChart;
+
+function initCharts() {
+  reworkChart = new Chart(document.getElementById('reworkChart').getContext('2d'), {
+    type: 'line',
+    data: { labels: [], datasets: [] },
+    options: { responsive: true, scales: { y: { title: { display: true, text: '% Rate' }, beginAtZero: true } } }
+  });
+  paretoChart = new Chart(document.getElementById('paretoChart').getContext('2d'), {
+    type: 'bar',
+    data: { labels: [], datasets: [] },
+    options: {
+      responsive: true,
+      scales: {
+        y: { title: { display: true, text: 'Cost ($)' }, beginAtZero: true },
+        y1: { position: 'right', title: { display: true, text: 'Cumulative %' }, min: 0, max: 100, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+}
+
+async function loadAll() {
+  const pid = document.getElementById('productFilter').value || 'all';
+  try {
+    const [rateRes, costRes] = await Promise.all([
+      fetch(`/api/mes/rework/rate/${encodeURIComponent(pid)}`),
+      fetch('/api/mes/scrap/cost')
+    ]);
+    const rateData = await rateRes.json();
+    const costData = await costRes.json();
+
+    document.getElementById('reworkRate').textContent = (rateData.current_rate != null ? rateData.current_rate.toFixed(1) : '--') + '%';
+    document.getElementById('scrapCost').textContent = '$' + (costData.total_cost != null ? costData.total_cost.toLocaleString() : '--');
+    document.getElementById('totalEvents').textContent = rateData.total_events ?? costData.total_events ?? '--';
+
+    const trend = rateData.trend || [];
+    reworkChart.data.labels = trend.map(t => t.period);
+    reworkChart.data.datasets = [{
+      label: 'Rework Rate %', data: trend.map(t => t.rate),
+      borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.1)', fill: true, tension: 0.3
+    }];
+    reworkChart.update();
+
+    const items = costData.items || [];
+    let cumSum = 0;
+    const total = items.reduce((s, i) => s + (i.cost || 0), 0) || 1;
+    const cumPct = items.map(i => { cumSum += i.cost || 0; return (cumSum / total * 100); });
+    paretoChart.data.labels = items.map(i => i.reason || i.product);
+    paretoChart.data.datasets = [
+      { label: 'Cost', data: items.map(i => i.cost), backgroundColor: 'rgba(220,53,69,0.7)', yAxisID: 'y' },
+      { label: 'Cumulative %', data: cumPct, type: 'line', borderColor: '#0d6efd', yAxisID: 'y1', pointRadius: 2, fill: false }
+    ];
+    paretoChart.update();
+  } catch (e) { console.error('Failed to load rework data:', e); }
+}
+
+async function submitScrap() {
+  const fd = new FormData(document.getElementById('scrapForm'));
+  const body = Object.fromEntries(fd.entries());
+  try {
+    const res = await fetch('/api/mes/scrap', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (res.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('scrapModal')).hide();
+      document.getElementById('scrapForm').reset();
+      loadAll();
+    }
+  } catch (e) { console.error(e); }
+}
+
+document.addEventListener('DOMContentLoaded', () => { initCharts(); loadAll(); });
+</script>
+{% endblock %}

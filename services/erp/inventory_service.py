@@ -63,6 +63,43 @@ class InventoryService:
         locations = query.order_by(Location.location_id).all()
         return [l.to_dict() for l in locations]
 
+    def get_balances(
+        self,
+        item_id: str = None,
+        location_id: str = None,
+        below_reorder: bool = False,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
+        """List inventory balances with optional filters."""
+        from sqlalchemy.orm import joinedload
+        from models.erp.items import Item
+        from models.erp.inventory import Location, InventoryBalance
+
+        query = self.session.query(InventoryBalance).options(
+            joinedload(InventoryBalance.item),
+            joinedload(InventoryBalance.location),
+        )
+
+        if item_id:
+            item = self.session.query(Item).filter(Item.item_id == item_id).first()
+            if item:
+                query = query.filter(InventoryBalance.item_id == item.id)
+
+        if location_id:
+            loc = self.session.query(Location).filter(Location.location_id == location_id).first()
+            if loc:
+                query = query.filter(InventoryBalance.location_id == loc.id)
+
+        balances = query.limit(limit).all()
+
+        if below_reorder:
+            balances = [
+                b for b in balances
+                if b.item and b.quantity_on_hand <= (b.item.reorder_point or 0)
+            ]
+
+        return [b.to_dict() for b in balances]
+
     def get_balance(
         self,
         item_id: str,

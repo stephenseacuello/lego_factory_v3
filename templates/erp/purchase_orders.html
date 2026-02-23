@@ -1,21 +1,217 @@
 {% extends "base.html" %}
 {% block title %}Purchase Orders - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">Purchase Orders</li>
+{% endblock %}
 {% block content %}
-<h2><i class="bi bi-bag me-2"></i>Purchase Orders</h2>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>PO List</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>New PO</button>
-    </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>PO #</th><th>Vendor</th><th>Total</th><th>Status</th><th>ETA</th></tr></thead>
-            <tbody>
-                <tr><td>PO-2001</td><td>Raw Materials Co</td><td>$5,200</td><td><span class="badge bg-success">Received</span></td><td>Jan 10</td></tr>
-                <tr><td>PO-2002</td><td>Precision Tools Ltd</td><td>$15,800</td><td><span class="badge bg-primary">In Transit</span></td><td>Jan 20</td></tr>
-                <tr><td>PO-2003</td><td>Polymer Supply Inc</td><td>$3,400</td><td><span class="badge bg-secondary">Draft</span></td><td>-</td></tr>
-            </tbody>
-        </table>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-bag me-2"></i>Purchase Orders</h2>
+  <button class="btn btn-sm btn-outline-primary" onclick="loadData()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+  </button>
 </div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card border-start border-primary border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Total POs</div>
+        <div class="fs-2 fw-bold text-primary" id="statTotalPOs">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-start border-warning border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Open Value</div>
+        <div class="fs-3 fw-bold text-warning" id="statOpenValue">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-start border-info border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Partially Received</div>
+        <div class="fs-2 fw-bold text-info" id="statPartiallyReceived">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-start border-success border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Completed</div>
+        <div class="fs-2 fw-bold text-success" id="statCompleted">--</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter -->
+<div class="card mb-4">
+  <div class="card-body py-2">
+    <div class="row align-items-center">
+      <div class="col-auto">
+        <label for="statusFilter" class="form-label mb-0 fw-semibold">
+          <i class="bi bi-funnel me-1"></i>Filter by Status
+        </label>
+      </div>
+      <div class="col-auto">
+        <select class="form-select form-select-sm" id="statusFilter" onchange="loadData()">
+          <option value="">All Statuses</option>
+          <option value="draft">Draft</option>
+          <option value="pending_approval">Pending Approval</option>
+          <option value="approved">Approved</option>
+          <option value="sent">Sent</option>
+          <option value="acknowledged">Acknowledged</option>
+          <option value="partially_received">Partially Received</option>
+          <option value="received">Received</option>
+          <option value="invoiced">Invoiced</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PO Table -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="mb-0"><i class="bi bi-table me-2"></i>Purchase Orders</h5>
+    <span class="badge bg-secondary" id="poCount">0 orders</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-striped mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>PO #</th>
+            <th>Vendor</th>
+            <th>Order Date</th>
+            <th>Required Date</th>
+            <th class="text-end">Total</th>
+            <th>Received</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="poTableBody">
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">
+              <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+  const STATUS_BADGES = {
+    draft:              'bg-secondary',
+    pending_approval:   'bg-warning text-dark',
+    approved:           'bg-info',
+    sent:               'bg-primary',
+    acknowledged:       'bg-info',
+    partially_received: 'bg-warning text-dark',
+    received:           'bg-success',
+    invoiced:           'bg-dark',
+    completed:          'bg-success',
+    cancelled:          'bg-danger'
+  };
+
+  function statusBadge(status) {
+    const cls = STATUS_BADGES[status] || 'bg-secondary';
+    const label = status ? status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown';
+    return `<span class="badge ${cls}">${label}</span>`;
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString();
+  }
+
+  async function loadData() {
+    const tbody = document.getElementById('poTableBody');
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">
+      <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading...
+    </td></tr>`;
+
+    try {
+      const status = document.getElementById('statusFilter').value;
+      let url = '/api/erp/purchase-orders';
+      if (status) url += '?status=' + encodeURIComponent(status);
+
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || 'demo-token')
+        }
+      });
+
+      if (!res.ok) {
+        throw new Error(`API returned ${res.status} ${res.statusText}`);
+      }
+
+      const data = await res.json();
+      const orders = data.purchase_orders || [];
+
+      // Update stat cards
+      document.getElementById('statTotalPOs').textContent = orders.length;
+
+      const closedStatuses = ['completed', 'cancelled', 'received'];
+      const openValue = orders
+        .filter(po => !closedStatuses.includes(po.status))
+        .reduce((sum, po) => sum + (po.total || 0), 0);
+      document.getElementById('statOpenValue').textContent = currencyFmt.format(openValue);
+
+      const partiallyReceived = orders.filter(po => po.status === 'partially_received').length;
+      document.getElementById('statPartiallyReceived').textContent = partiallyReceived;
+
+      const completed = orders.filter(po => po.status === 'completed').length;
+      document.getElementById('statCompleted').textContent = completed;
+
+      // Update count badge
+      document.getElementById('poCount').textContent = orders.length + ' order' + (orders.length !== 1 ? 's' : '');
+
+      // Render table
+      if (orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No purchase orders found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = orders.map(po => `
+        <tr>
+          <td><strong>${po.po_number || '-'}</strong></td>
+          <td>${po.vendor_name || po.vendor_id || '-'}</td>
+          <td>${formatDate(po.order_date)}</td>
+          <td>${formatDate(po.required_date)}</td>
+          <td class="text-end">${currencyFmt.format(po.total || 0)}</td>
+          <td>${po.quantity_received ?? '-'}</td>
+          <td>${statusBadge(po.status)}</td>
+        </tr>
+      `).join('');
+
+    } catch (err) {
+      console.error('Failed to load purchase orders:', err);
+      tbody.innerHTML = `<tr><td colspan="7" class="text-center text-danger py-4">
+        <i class="bi bi-exclamation-triangle me-2"></i>Failed to load purchase orders: ${err.message}
+      </td></tr>`;
+      document.getElementById('statTotalPOs').textContent = '--';
+      document.getElementById('statOpenValue').textContent = '--';
+      document.getElementById('statPartiallyReceived').textContent = '--';
+      document.getElementById('statCompleted').textContent = '--';
+      document.getElementById('poCount').textContent = 'Error';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadData);
+  setInterval(loadData, 30000);
+</script>
 {% endblock %}

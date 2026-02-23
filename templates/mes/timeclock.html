@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}Time Clock - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Time Clock</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-clock-history"></i> Time Clock</h2>
+  <span class="fs-4" id="liveTime"></span>
+</div>
+
+<div class="row mb-4">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">Clock In / Out</div>
+      <div class="card-body">
+        <form id="clockForm">
+          <div class="row g-2 mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Worker ID</label>
+              <input type="text" class="form-control" id="workerId" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Machine ID</label>
+              <input type="text" class="form-control" id="machineId">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Job ID</label>
+              <input type="text" class="form-control" id="jobId">
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-success flex-fill" onclick="clockAction('in')">
+              <i class="bi bi-box-arrow-in-right"></i> Clock In
+            </button>
+            <button type="button" class="btn btn-danger flex-fill" onclick="clockAction('out')">
+              <i class="bi bi-box-arrow-right"></i> Clock Out
+            </button>
+          </div>
+        </form>
+        <div id="clockMsg" class="mt-2"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">
+        <span><i class="bi bi-people"></i> Active Workers</span>
+        <span class="badge bg-primary" id="activeCount">0</span>
+      </div>
+      <div class="card-body p-0" style="max-height:300px; overflow-y:auto;">
+        <table class="table table-sm table-hover mb-0" id="activeTable">
+          <thead class="table-light sticky-top">
+            <tr><th>Worker</th><th>Machine</th><th>Job</th><th>Since</th><th>Duration</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-calendar-week"></i> Weekly Timesheet</span>
+    <div class="d-flex gap-2">
+      <input type="text" class="form-control form-control-sm" id="tsWorker" placeholder="Worker ID" style="width:140px;">
+      <button class="btn btn-sm btn-outline-primary" onclick="loadTimesheet()">Load</button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm table-bordered mb-0" id="timesheetTable">
+      <thead class="table-light">
+        <tr><th>Date</th><th>Clock In</th><th>Clock Out</th><th>Hours</th><th>Machine</th><th>Job</th></tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="6" class="text-center text-muted">Enter a Worker ID and click Load</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function updateClock() {
+  document.getElementById('liveTime').textContent = new Date().toLocaleTimeString();
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+async function clockAction(action) {
+  const worker_id = document.getElementById('workerId').value;
+  if (!worker_id) { alert('Worker ID required'); return; }
+  const body = {
+    worker_id,
+    machine_id: document.getElementById('machineId').value,
+    job_id: document.getElementById('jobId').value,
+    action
+  };
+  try {
+    const res = await fetch('/api/mes/timeclock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    const cls = res.ok ? 'success' : 'danger';
+    document.getElementById('clockMsg').innerHTML = `<div class="alert alert-${cls} py-1 small">${data.message || (res.ok ? 'Success' : 'Error')}</div>`;
+    if (res.ok) loadActive();
+  } catch (e) {
+    document.getElementById('clockMsg').innerHTML = '<div class="alert alert-danger py-1 small">Request failed</div>';
+  }
+}
+
+async function loadActive() {
+  try {
+    const res = await fetch('/api/mes/timeclock/active');
+    const data = await res.json();
+    const workers = data.workers || data || [];
+    document.getElementById('activeCount').textContent = workers.length;
+    const tbody = document.querySelector('#activeTable tbody');
+    tbody.innerHTML = workers.map(w => {
+      const since = w.clock_in ? new Date(w.clock_in).toLocaleTimeString() : '-';
+      const dur = w.duration || '-';
+      return `<tr><td>${w.worker_id}</td><td>${w.machine_id || '-'}</td><td>${w.job_id || '-'}</td><td>${since}</td><td>${dur}</td></tr>`;
+    }).join('') || '<tr><td colspan="5" class="text-center text-muted">No active workers</td></tr>';
+  } catch (e) {
+    console.error('Failed to load active workers:', e);
+  }
+}
+
+async function loadTimesheet() {
+  const wid = document.getElementById('tsWorker').value;
+  if (!wid) { alert('Enter a Worker ID'); return; }
+  try {
+    const res = await fetch(`/api/mes/timeclock/timesheet?worker_id=${wid}`);
+    const data = await res.json();
+    const entries = data.entries || data || [];
+    const tbody = document.querySelector('#timesheetTable tbody');
+    tbody.innerHTML = entries.map(e => `<tr>
+      <td>${e.date || ''}</td><td>${e.clock_in || ''}</td><td>${e.clock_out || ''}</td>
+      <td>${e.hours != null ? e.hours.toFixed(1) : '-'}</td><td>${e.machine_id || '-'}</td><td>${e.job_id || '-'}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="text-center text-muted">No records found</td></tr>';
+  } catch (e) {
+    console.error('Failed to load timesheet:', e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadActive);
+setInterval(loadActive, 15000);
+</script>
+{% endblock %}

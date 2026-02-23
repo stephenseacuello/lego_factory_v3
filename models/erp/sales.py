@@ -236,12 +236,17 @@ class SalesOrder(AuditedModel):
             'id': str(self.id),
             'order_number': self.order_number,
             'customer_id': str(self.customer_id),
+            'customer_name': self.customer.name if self.customer else None,
             'status': self.status.value if self.status else None,
             'order_date': self.order_date.isoformat() if self.order_date else None,
             'requested_date': self.requested_date.isoformat() if self.requested_date else None,
+            'promised_date': self.promised_date.isoformat() if self.promised_date else None,
             'subtotal': self.subtotal,
+            'tax_amount': self.tax_amount,
             'total': self.total,
             'quantity_shipped': self.quantity_shipped,
+            'customer_po': self.customer_po,
+            'payment_terms': self.payment_terms,
         }
 
 

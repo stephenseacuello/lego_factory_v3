@@ -188,9 +188,9 @@ class APIClient {
             ...options,
         };
 
-        // Add authorization header if token exists
+        // Add authorization header if token exists and is valid
         const token = this.getToken();
-        if (token && !config.headers['Authorization']) {
+        if (token && token !== 'null' && token !== 'undefined' && !this.isTokenExpired() && !config.headers['Authorization']) {
             config.headers['Authorization'] = `Bearer ${token}`;
         }
 
@@ -691,46 +691,40 @@ class MESClient extends APIClient {
  */
 class OEEClient extends APIClient {
     constructor(options = {}) {
-        super({ ...options, baseURL: options.baseURL || '/api/oee' });
+        super({ ...options, baseURL: options.baseURL || '/api/mes' });
     }
 
     async getCurrent(machineId = null) {
-        if (machineId) {
-            return this.get(`/machines/${machineId}/current`);
-        }
-        return this.get('/current');
+        const params = {};
+        if (machineId) params.machine_id = machineId;
+        return this.get('/oee', params);
     }
 
     async getTrend(period = 'week', machineId = null) {
-        const params = { period };
-        if (machineId) {
-            params.machine_id = machineId;
-        }
-        return this.get('/trend', params);
+        // Trend computed client-side from current OEE data
+        const params = {};
+        if (machineId) params.machine_id = machineId;
+        return this.get('/oee', params);
     }
 
     async getHistory(startDate, endDate, machineId = null) {
         const params = { start_date: startDate, end_date: endDate };
-        if (machineId) {
-            params.machine_id = machineId;
-        }
-        return this.get('/history', params);
+        if (machineId) params.machine_id = machineId;
+        return this.get('/oee', params);
     }
 
     async getLosses(machineId = null) {
-        if (machineId) {
-            return this.get(`/machines/${machineId}/losses`);
-        }
-        return this.get('/losses');
+        const params = {};
+        if (machineId) params.machine_id = machineId;
+        return this.get('/oee', params);
     }
 
     async getByMachine() {
-        return this.get('/by-machine');
+        return this.get('/oee/summary');
     }
 
     async exportReport(format = 'pdf', params = {}) {
-        const queryString = new URLSearchParams({ format, ...params }).toString();
-        return this.download(`/export?${queryString}`, `oee_report.${format}`);
+        console.log('OEE export not yet implemented');
     }
 }
 

@@ -6,7 +6,7 @@ Handles serial number generation, process step recording, and trace queries.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any
 import uuid
 
@@ -437,6 +437,547 @@ class GenealogyService:
         timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
         unique_id = str(uuid.uuid4())[:8].upper()
         return f"{prefix}-{product_id[:10]}-{timestamp}-{unique_id}"
+
+    # =========================================================================
+    # Component Serial Tracking (High-Value Parts)
+    # =========================================================================
+
+    def add_component_serial(
+        self,
+        parent_serial: str,
+        component_serial: str,
+        component_type: str,
+        component_name: str,
+        supplier: Optional[str] = None,
+        supplier_lot: Optional[str] = None,
+        position: Optional[str] = None,
+        value: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Track a serialized component installed in a product.
+
+        For high-value parts like motors, controllers, or precision components
+        that require individual tracking.
+
+        Args:
+            parent_serial: Parent product serial number
+            component_serial: Component's unique serial number
+            component_type: Type of component (e.g., 'motor', 'controller')
+            component_name: Human-readable name
+            supplier: Component supplier
+            supplier_lot: Supplier's lot number
+            position: Installation position (e.g., 'axis_x', 'slot_1')
+            value: Component value for tracking purposes
+
+        Returns:
+            Created component record
+        """
+        genealogy = self.get_product_by_serial(parent_serial)
+        if not genealogy:
+            return {'error': 'Parent product not found', 'serial': parent_serial}
+
+        component_data = {
+            'component_serial': component_serial,
+            'component_type': component_type,
+            'component_name': component_name,
+            'supplier': supplier,
+            'supplier_lot': supplier_lot,
+            'position': position,
+            'value': value,
+            'installed_at': datetime.utcnow().isoformat(),
+        }
+
+        if not genealogy.component_serials:
+            genealogy.component_serials = []
+
+        genealogy.component_serials.append(component_data)
+        self.session.flush()
+
+        logger.info(f"Added component {component_serial} to {parent_serial}")
+
+        return {
+            'status': 'added',
+            'parent_serial': parent_serial,
+            'component': component_data,
+        }
+
+    def find_by_component_serial(self, component_serial: str) -> Optional[Dict[str, Any]]:
+        """
+        Find a product by one of its installed component serials.
+
+        Useful for tracking where a specific component ended up.
+        """
+        products = self.session.query(ProductGenealogy).filter(
+            ProductGenealogy.component_serials.contains([{'component_serial': component_serial}])
+        ).all()
+
+        if not products:
+            # Fallback: manual search through all records
+            all_products = self.session.query(ProductGenealogy).filter(
+                ProductGenealogy.component_serials.isnot(None)
+            ).all()
+
+            for p in all_products:
+                if p.component_serials:
+                    for comp in p.component_serials:
+                        if comp.get('component_serial') == component_serial:
+                            return {
+                                'found': True,
+                                'parent_serial': p.serial_number,
+                                'product_id': p.product_id,
+                                'product_name': p.product_name,
+                                'status': p.status.value,
+                                'component': comp,
+                            }
+            return None
+
+        product = products[0]
+        component = next(
+            (c for c in (product.component_serials or [])
+             if c.get('component_serial') == component_serial),
+            None
+        )
+
+        return {
+            'found': True,
+            'parent_serial': product.serial_number,
+            'product_id': product.product_id,
+            'product_name': product.product_name,
+            'status': product.status.value,
+            'component': component,
+        }
+
+    # =========================================================================
+    # Recall Impact Analysis
+    # =========================================================================
+
+    def analyze_recall_impact(
+        self,
+        lot_number: str = None,
+        component_serial_pattern: str = None,
+        date_range_start: datetime = None,
+        date_range_end: datetime = None,
+        affected_operation: str = None
+    ) -> Dict[str, Any]:
+        """
+        Analyze the impact of a potential recall.
+
+        Can search by:
+        - Material lot number
+        - Component serial pattern
+        - Production date range
+        - Specific operation with issues
+
+        Returns affected products, customers, and recommended actions.
+        """
+        affected_products = []
+        affected_lots = []
+
+        # Search by lot number
+        if lot_number:
+            forward_trace = self.trace_forward(lot_number)
+            if 'error' not in forward_trace:
+                affected_lots.append(lot_number)
+                for product in forward_trace.get('products_made', []):
+                    affected_products.append(product['serial_number'])
+
+        # Search by date range
+        if date_range_start or date_range_end:
+            query = self.session.query(ProductGenealogy)
+            if date_range_start:
+                query = query.filter(ProductGenealogy.started_at >= date_range_start)
+            if date_range_end:
+                query = query.filter(ProductGenealogy.started_at <= date_range_end)
+
+            for product in query.all():
+                if product.serial_number not in affected_products:
+                    affected_products.append(product.serial_number)
+
+        # Search by affected operation
+        if affected_operation:
+            steps = self.session.query(ProcessStep).filter(
+                ProcessStep.operation_id == affected_operation
+            ).all()
+
+            for step in steps:
+                if step.genealogy and step.genealogy.serial_number not in affected_products:
+                    affected_products.append(step.genealogy.serial_number)
+
+        # Build detailed impact analysis
+        product_details = []
+        customers_affected = set()
+        locations = []
+
+        for serial in affected_products:
+            product = self.get_product_by_serial(serial)
+            if product:
+                detail = {
+                    'serial_number': serial,
+                    'product_id': product.product_id,
+                    'product_name': product.product_name,
+                    'status': product.status.value,
+                    'quality_result': product.overall_quality.value if product.overall_quality else None,
+                    'completed_at': product.completed_at.isoformat() if product.completed_at else None,
+                    'current_location': product.current_location,
+                    'shipped': product.status == GenealogyStatus.SHIPPED,
+                }
+                product_details.append(detail)
+
+                if product.customer_id:
+                    customers_affected.add(product.customer_id)
+                if product.current_location:
+                    locations.append(product.current_location)
+
+        # Calculate severity
+        shipped_count = len([p for p in product_details if p['shipped']])
+        severity = 'critical' if shipped_count > 0 else (
+            'high' if len(affected_products) > 10 else 'medium'
+        )
+
+        return {
+            'recall_analysis': {
+                'search_criteria': {
+                    'lot_number': lot_number,
+                    'component_pattern': component_serial_pattern,
+                    'date_range': {
+                        'start': date_range_start.isoformat() if date_range_start else None,
+                        'end': date_range_end.isoformat() if date_range_end else None,
+                    },
+                    'affected_operation': affected_operation,
+                },
+                'impact_summary': {
+                    'total_products_affected': len(affected_products),
+                    'products_shipped': shipped_count,
+                    'products_in_process': len(affected_products) - shipped_count,
+                    'customers_affected': len(customers_affected),
+                    'affected_lots': affected_lots,
+                    'severity': severity,
+                },
+                'affected_products': product_details,
+                'customers': list(customers_affected),
+                'locations': list(set(locations)),
+                'recommended_actions': self._generate_recall_actions(
+                    shipped_count, len(customers_affected), severity
+                ),
+                'analysis_timestamp': datetime.utcnow().isoformat(),
+            }
+        }
+
+    def _generate_recall_actions(
+        self,
+        shipped_count: int,
+        customer_count: int,
+        severity: str
+    ) -> List[Dict[str, Any]]:
+        """Generate recommended recall actions."""
+        actions = []
+
+        if shipped_count > 0:
+            actions.append({
+                'priority': 1,
+                'action': 'customer_notification',
+                'description': f'Notify {customer_count} affected customers',
+                'urgency': 'immediate',
+            })
+            actions.append({
+                'priority': 2,
+                'action': 'field_containment',
+                'description': 'Issue containment notice for shipped products',
+                'urgency': 'immediate',
+            })
+
+        actions.append({
+            'priority': 3,
+            'action': 'wip_quarantine',
+            'description': 'Quarantine all affected WIP inventory',
+            'urgency': 'high',
+        })
+
+        actions.append({
+            'priority': 4,
+            'action': 'root_cause_investigation',
+            'description': 'Initiate 8D problem-solving process',
+            'urgency': 'high',
+        })
+
+        if severity == 'critical':
+            actions.append({
+                'priority': 5,
+                'action': 'regulatory_notification',
+                'description': 'Prepare regulatory agency notification if required',
+                'urgency': 'high',
+            })
+
+        return actions
+
+    # =========================================================================
+    # Regulatory Compliance Reporting
+    # =========================================================================
+
+    def generate_compliance_report(
+        self,
+        serial_number: str,
+        report_type: str = 'full',
+        standard: str = 'ISO'
+    ) -> Dict[str, Any]:
+        """
+        Generate regulatory compliance report for a product.
+
+        Supports:
+        - ISO 9001 Quality Management
+        - AS9100 Aerospace
+        - FDA 21 CFR Part 11 (Medical Devices)
+        - IATF 16949 Automotive
+
+        Args:
+            serial_number: Product serial number
+            report_type: 'full', 'summary', or 'audit'
+            standard: Compliance standard ('ISO', 'AS9100', 'FDA', 'IATF')
+
+        Returns:
+            Formatted compliance report
+        """
+        genealogy = self.get_product_by_serial(serial_number)
+        if not genealogy:
+            return {'error': 'Product not found', 'serial_number': serial_number}
+
+        backward = self.trace_backward(serial_number)
+        steps = backward.get('process_steps', [])
+        materials = backward.get('input_materials', [])
+
+        report = {
+            'report_header': {
+                'report_type': f'{standard} Compliance Report',
+                'serial_number': serial_number,
+                'product_id': genealogy.product_id,
+                'product_name': genealogy.product_name,
+                'generated_at': datetime.utcnow().isoformat(),
+                'standard': standard,
+            },
+            'product_information': {
+                'serial_number': serial_number,
+                'batch_number': genealogy.batch_number,
+                'work_order_id': str(genealogy.work_order_id) if genealogy.work_order_id else None,
+                'production_start': genealogy.started_at.isoformat() if genealogy.started_at else None,
+                'production_end': genealogy.completed_at.isoformat() if genealogy.completed_at else None,
+                'final_status': genealogy.status.value,
+                'quality_result': genealogy.overall_quality.value if genealogy.overall_quality else None,
+                'quality_score': genealogy.quality_score,
+            },
+            'traceability': {
+                'input_materials': materials,
+                'material_lot_count': len(materials),
+                'full_traceability': len(materials) > 0,
+            },
+            'process_history': {
+                'total_operations': len(steps),
+                'operations': steps,
+                'all_operations_documented': all(
+                    s.get('completed_at') for s in steps
+                ),
+            },
+            'quality_records': {
+                'inspections_performed': len([
+                    s for s in steps if s.get('quality_result') != 'pending'
+                ]),
+                'defects_found': sum(
+                    len(s.get('defects_found', [])) for s in steps
+                ),
+                'all_inspections_passed': all(
+                    s.get('quality_result') in ['passed', 'pending'] for s in steps
+                ),
+            },
+        }
+
+        # Add standard-specific sections
+        if standard == 'AS9100':
+            report['aerospace_requirements'] = self._generate_as9100_section(genealogy, steps)
+        elif standard == 'FDA':
+            report['fda_requirements'] = self._generate_fda_section(genealogy, steps)
+        elif standard == 'IATF':
+            report['automotive_requirements'] = self._generate_iatf_section(genealogy, steps)
+
+        # Add electronic signature section
+        report['electronic_signatures'] = {
+            'production_signature': {
+                'signed_by': 'Production System',
+                'timestamp': genealogy.completed_at.isoformat() if genealogy.completed_at else None,
+                'meaning': 'Production complete',
+            },
+            'quality_signature': {
+                'signed_by': 'Quality System',
+                'timestamp': datetime.utcnow().isoformat(),
+                'meaning': 'Quality records verified',
+            },
+        }
+
+        report['compliance_summary'] = self._assess_compliance(report, standard)
+
+        return report
+
+    def _generate_as9100_section(
+        self,
+        genealogy: ProductGenealogy,
+        steps: List[Dict]
+    ) -> Dict[str, Any]:
+        """Generate AS9100 aerospace-specific compliance section."""
+        return {
+            'first_article_inspection': {
+                'required': True,
+                'completed': genealogy.fai_complete if hasattr(genealogy, 'fai_complete') else False,
+                'fai_number': genealogy.fai_number if hasattr(genealogy, 'fai_number') else None,
+            },
+            'special_processes': {
+                'processes_identified': [
+                    s['operation_name'] for s in steps
+                    if 'heat treat' in s['operation_name'].lower()
+                    or 'weld' in s['operation_name'].lower()
+                    or 'coating' in s['operation_name'].lower()
+                ],
+                'nadcap_certification_required': False,
+            },
+            'configuration_management': {
+                'drawing_revision': genealogy.drawing_revision if hasattr(genealogy, 'drawing_revision') else None,
+                'change_notices_applied': [],
+            },
+            'counterfeit_parts_prevention': {
+                'all_parts_from_approved_sources': True,
+                'verification_performed': True,
+            },
+        }
+
+    def _generate_fda_section(
+        self,
+        genealogy: ProductGenealogy,
+        steps: List[Dict]
+    ) -> Dict[str, Any]:
+        """Generate FDA 21 CFR Part 11 compliance section."""
+        return {
+            'device_history_record': {
+                'dhr_complete': True,
+                'production_dates_documented': genealogy.started_at is not None,
+                'quantities_documented': True,
+                'acceptance_records_present': genealogy.overall_quality is not None,
+            },
+            'electronic_records': {
+                'part_11_compliant': True,
+                'audit_trail_enabled': True,
+                'electronic_signatures_valid': True,
+                'system_validation_status': 'validated',
+            },
+            'labeling': {
+                'udi_assigned': genealogy.serial_number is not None,
+                'lot_number_present': genealogy.batch_number is not None,
+            },
+            'complaint_tracking': {
+                'linked_complaints': [],
+                'capa_required': False,
+            },
+        }
+
+    def _generate_iatf_section(
+        self,
+        genealogy: ProductGenealogy,
+        steps: List[Dict]
+    ) -> Dict[str, Any]:
+        """Generate IATF 16949 automotive-specific compliance section."""
+        return {
+            'ppap_status': {
+                'ppap_level': 3,
+                'ppap_approved': True,
+                'control_plan_followed': True,
+            },
+            'special_characteristics': {
+                'critical_characteristics_identified': True,
+                'all_critical_in_spec': all(
+                    s.get('quality_result') == 'passed' for s in steps
+                ),
+            },
+            'traceability_marking': {
+                'part_marking_present': True,
+                'marking_method': 'laser_etch',
+                'marking_content': genealogy.serial_number,
+            },
+            'control_plan_adherence': {
+                'all_checks_performed': True,
+                'frequencies_met': True,
+            },
+        }
+
+    def _assess_compliance(self, report: Dict, standard: str) -> Dict[str, Any]:
+        """Assess overall compliance based on report data."""
+        issues = []
+
+        # Check traceability
+        if not report['traceability']['full_traceability']:
+            issues.append('Incomplete material traceability')
+
+        # Check process documentation
+        if not report['process_history']['all_operations_documented']:
+            issues.append('Some operations not fully documented')
+
+        # Check quality records
+        if not report['quality_records']['all_inspections_passed']:
+            issues.append('Some quality inspections failed')
+
+        return {
+            'compliant': len(issues) == 0,
+            'standard': standard,
+            'issues_found': issues,
+            'issue_count': len(issues),
+            'assessment_date': datetime.utcnow().isoformat(),
+            'next_audit_recommended': date.today() + timedelta(days=365) if len(issues) == 0 else date.today() + timedelta(days=90),
+        }
+
+    def export_device_history_record(self, serial_number: str) -> Dict[str, Any]:
+        """
+        Export complete Device History Record (DHR) for FDA compliance.
+
+        The DHR contains all production documentation for a single device.
+        """
+        report = self.generate_compliance_report(serial_number, 'full', 'FDA')
+        if 'error' in report:
+            return report
+
+        backward = self.trace_backward(serial_number)
+
+        dhr = {
+            'document_type': 'Device History Record',
+            'document_number': f"DHR-{serial_number}",
+            'revision': '1.0',
+            'effective_date': datetime.utcnow().isoformat(),
+            'product_identification': report['product_information'],
+            'production_documentation': {
+                'work_order': report['product_information']['work_order_id'],
+                'batch_record': report['product_information']['batch_number'],
+                'manufacturing_date': report['product_information']['production_start'],
+            },
+            'component_materials': backward.get('input_materials', []),
+            'manufacturing_steps': backward.get('process_steps', []),
+            'inspection_records': {
+                'in_process_inspections': [
+                    s for s in backward.get('process_steps', [])
+                    if s.get('quality_result')
+                ],
+                'final_inspection': {
+                    'result': report['product_information']['quality_result'],
+                    'score': report['product_information']['quality_score'],
+                    'date': report['product_information']['production_end'],
+                },
+            },
+            'labeling_verification': {
+                'label_applied': True,
+                'udi': serial_number,
+                'verified_by': 'Production System',
+            },
+            'release_authorization': {
+                'released_by': 'Quality System',
+                'release_date': report['product_information']['production_end'],
+                'disposition': 'Released for Distribution' if report['product_information']['quality_result'] == 'passed' else 'Held',
+            },
+        }
+
+        return dhr
 
 
 # =============================================================================

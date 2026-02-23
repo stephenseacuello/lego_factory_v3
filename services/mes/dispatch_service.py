@@ -38,6 +38,27 @@ class DispatchResult:
     new_status: Optional[str] = None
 
 
+class DispatchRuleConfig:
+    """Configuration for machine/work center dispatch rules."""
+
+    # Default rules by machine type or work center
+    DEFAULT_RULES = {
+        '_default': 'wspt',
+        'fdm': 'setup_min',       # FDM printers: minimize material changes
+        'cnc': 'spt',             # CNC: shortest processing time
+        'assembly': 'edd',        # Assembly: earliest due date
+        'quality': 'fifo',        # QC: first in first out
+        'packaging': 'fifo',      # Packaging: FIFO
+    }
+
+    # Composite rule weights for advanced scheduling
+    COMPOSITE_CONFIGS = {
+        'balanced': {'spt': 0.3, 'edd': 0.4, 'wspt': 0.3},
+        'urgent_first': {'edd': 0.6, 'cr': 0.3, 'wspt': 0.1},
+        'efficient': {'spt': 0.4, 'setup_min': 0.4, 'wspt': 0.2},
+    }
+
+
 class DispatchService:
     """
     Service for dispatching jobs to machines.
@@ -49,10 +70,12 @@ class DispatchService:
     - Reserve materials
     - Handle preemption
     - Auto-dispatch on machine idle
+    - Configurable dispatch rules per machine/work center
     """
 
     def __init__(self, session: Session):
         self.session = session
+        self._rule_cache: Dict[str, str] = {}  # machine_id -> rule_name
 
     def dispatch_job(
         self,
@@ -107,6 +130,20 @@ class DispatchService:
                     f"Machine '{machine_id}' is not available"
                 )
 
+        # Check WIP limit (MESA-1: Resource Allocation)
+        if not force:
+            try:
+                from services.mes.wip_service import WIPService
+                wip_svc = WIPService(self.session)
+                wip_status = wip_svc.check_wip_limit(machine_id)
+                if not wip_status.get('can_accept', True):
+                    return DispatchResult(
+                        False, job_id, machine_id,
+                        f"WIP limit reached for {machine_id} ({wip_status.get('wip_limit', '?')} max, {wip_status.get('available_slots', 0)} available)"
+                    )
+            except Exception as e:
+                logger.debug(f"WIP check skipped: {e}")
+
         # Check material availability
         material_type = None
         if job.runtime_data:
@@ -116,6 +153,42 @@ class DispatchService:
             material_ok, material_msg = self._check_material_available(material_type, job_id)
             if not material_ok:
                 return DispatchResult(False, job_id, machine_id, material_msg)
+
+        # Check quality holds on machine (MESA-7: Quality Management)
+        if not force:
+            try:
+                from models.qms.ncr_capa import NonConformanceReport, NCRStatus
+                from models.mes.work_orders import Job as JobModel
+                # Find active NCRs linked to jobs on this machine
+                active_ncrs = self.session.query(NonConformanceReport).filter(
+                    NonConformanceReport.status.in_([NCRStatus.DRAFT, NCRStatus.SUBMITTED, NCRStatus.UNDER_INVESTIGATION]),
+                    NonConformanceReport.work_order_id.in_(
+                        self.session.query(JobModel.work_order_id).filter(
+                            JobModel.machine_id == machine_id,
+                            JobModel.status.in_(['running', 'paused'])
+                        )
+                    )
+                ).count()
+                if active_ncrs > 0:
+                    return DispatchResult(
+                        False, job_id, machine_id,
+                        f"Machine {machine_id} has {active_ncrs} active quality hold(s). Resolve NCRs before dispatching."
+                    )
+            except Exception as e:
+                logger.debug(f"Quality hold check skipped: {e}")
+
+        # Lock recipe for production (MESA-8: Process Management)
+        try:
+            from services.mes.recipe_tracking_service import RecipeTrackingService
+            recipe_id = None
+            if job.runtime_data:
+                recipe_id = job.runtime_data.get('recipe_id')
+            if recipe_id:
+                recipe_svc = RecipeTrackingService(self.session)
+                recipe_svc.lock_for_production(recipe_id, str(job.job_id))
+                logger.debug(f"Recipe {recipe_id} locked for job {job_id}")
+        except Exception as e:
+            logger.debug(f"Recipe lock skipped: {e}")
 
         # Update job
         previous_status = job.status.value
@@ -157,7 +230,7 @@ class DispatchService:
     def auto_dispatch(
         self,
         machine_id: str,
-        rule_name: str = 'wspt'
+        rule_name: str = None
     ) -> DispatchResult:
         """
         Automatically dispatch next job to an idle machine.
@@ -166,7 +239,7 @@ class DispatchService:
 
         Args:
             machine_id: Machine to dispatch to
-            rule_name: Dispatching rule to use
+            rule_name: Dispatching rule to use (None = use configured rule)
 
         Returns:
             DispatchResult
@@ -191,12 +264,26 @@ class DispatchService:
         # Get current material on machine
         current_material = self._get_machine_material(machine_id)
 
+        # Get dispatch rule for this machine (use configured or default)
+        effective_rule = rule_name or self.get_machine_dispatch_rule(machine_id)
+
+        # Check if it's a composite rule
+        composite_weights = None
+        if effective_rule in DispatchRuleConfig.COMPOSITE_CONFIGS:
+            composite_weights = DispatchRuleConfig.COMPOSITE_CONFIGS[effective_rule]
+            effective_rule = 'composite'
+
         # Select best job using dispatching rule
+        kwargs = {}
+        if composite_weights:
+            kwargs['rules_weights'] = composite_weights
+
         selected = dispatch_next_job(
             machine_id,
             candidates,
-            rule_name=rule_name,
-            current_material=current_material
+            rule_name=effective_rule,
+            current_material=current_material,
+            **kwargs
         )
 
         if not selected:
@@ -207,6 +294,172 @@ class DispatchService:
 
         # Dispatch selected job
         return self.dispatch_job(selected['job_id'], machine_id)
+
+    def get_machine_dispatch_rule(self, machine_id: str) -> str:
+        """
+        Get the configured dispatch rule for a machine.
+
+        Args:
+            machine_id: Machine ID
+
+        Returns:
+            Rule name (e.g., 'spt', 'edd', 'wspt', 'fifo', etc.)
+        """
+        # Check cache first
+        if machine_id in self._rule_cache:
+            return self._rule_cache[machine_id]
+
+        # Try to get from database
+        if self.session:
+            try:
+                from models.mes.scheduling import MachineDispatchConfig
+
+                config = self.session.query(MachineDispatchConfig).filter(
+                    MachineDispatchConfig.machine_id == machine_id,
+                    MachineDispatchConfig.is_active == True
+                ).first()
+
+                if config:
+                    self._rule_cache[machine_id] = config.dispatch_rule
+                    return config.dispatch_rule
+            except ImportError:
+                pass
+
+        # Fall back to defaults by machine type
+        machine_type = self._get_machine_type(machine_id)
+        rule = DispatchRuleConfig.DEFAULT_RULES.get(
+            machine_type,
+            DispatchRuleConfig.DEFAULT_RULES['_default']
+        )
+        self._rule_cache[machine_id] = rule
+        return rule
+
+    def set_machine_dispatch_rule(
+        self,
+        machine_id: str,
+        rule_name: str,
+        priority_override: Dict[str, int] = None
+    ) -> Dict[str, Any]:
+        """
+        Set the dispatch rule for a machine.
+
+        Args:
+            machine_id: Machine ID
+            rule_name: Rule name ('spt', 'edd', 'wspt', 'fifo', 'setup_min',
+                      'cr', 'slack', 'balanced', 'urgent_first', 'efficient')
+            priority_override: Optional priority overrides by job attribute
+
+        Returns:
+            Configuration result
+        """
+        # Validate rule name
+        valid_rules = list(DispatchRuleConfig.DEFAULT_RULES.values())
+        valid_rules.extend(DispatchRuleConfig.COMPOSITE_CONFIGS.keys())
+        valid_rules.extend(['spt', 'lpt', 'edd', 'cr', 'wspt', 'slack', 'fifo', 'setup_min', 'composite'])
+
+        if rule_name not in valid_rules:
+            return {
+                'success': False,
+                'error': f"Invalid rule '{rule_name}'. Valid: {valid_rules}"
+            }
+
+        # Update cache
+        self._rule_cache[machine_id] = rule_name
+
+        # Persist to database if available
+        if self.session:
+            try:
+                from models.mes.scheduling import MachineDispatchConfig
+
+                config = self.session.query(MachineDispatchConfig).filter(
+                    MachineDispatchConfig.machine_id == machine_id
+                ).first()
+
+                if config:
+                    config.dispatch_rule = rule_name
+                    config.priority_override = priority_override
+                    config.updated_at = datetime.utcnow()
+                else:
+                    config = MachineDispatchConfig(
+                        machine_id=machine_id,
+                        dispatch_rule=rule_name,
+                        priority_override=priority_override,
+                        is_active=True,
+                        created_at=datetime.utcnow()
+                    )
+                    self.session.add(config)
+
+                self.session.flush()
+
+                logger.info(f"Set dispatch rule for {machine_id}: {rule_name}")
+            except ImportError:
+                pass
+
+        _emit_dispatch_event('dispatch_rule_changed', {
+            'machine_id': machine_id,
+            'rule_name': rule_name,
+            'timestamp': datetime.utcnow().isoformat(),
+        })
+
+        return {
+            'success': True,
+            'machine_id': machine_id,
+            'rule_name': rule_name,
+            'priority_override': priority_override
+        }
+
+    def get_all_dispatch_rules(self) -> Dict[str, Any]:
+        """
+        Get all configured dispatch rules.
+
+        Returns:
+            Dict with rules by machine and available rules
+        """
+        from services.mes.dispatching_rules import get_rule_descriptions
+
+        machine_rules = {}
+
+        if self.session:
+            try:
+                from models.mes.scheduling import MachineDispatchConfig
+
+                configs = self.session.query(MachineDispatchConfig).filter(
+                    MachineDispatchConfig.is_active == True
+                ).all()
+
+                for config in configs:
+                    machine_rules[config.machine_id] = {
+                        'rule': config.dispatch_rule,
+                        'priority_override': config.priority_override
+                    }
+            except ImportError:
+                pass
+
+        return {
+            'machine_rules': machine_rules,
+            'available_rules': get_rule_descriptions(),
+            'composite_rules': {
+                name: {'weights': weights}
+                for name, weights in DispatchRuleConfig.COMPOSITE_CONFIGS.items()
+            },
+            'default_rules': DispatchRuleConfig.DEFAULT_RULES
+        }
+
+    def _get_machine_type(self, machine_id: str) -> str:
+        """Get machine type for default rule lookup."""
+        # Extract type from machine_id pattern
+        machine_lower = machine_id.lower()
+        if 'bambu' in machine_lower or 'creality' in machine_lower or 'fdm' in machine_lower:
+            return 'fdm'
+        elif 'bantam' in machine_lower or 'cnc' in machine_lower:
+            return 'cnc'
+        elif 'assembly' in machine_lower:
+            return 'assembly'
+        elif 'qc' in machine_lower or 'quality' in machine_lower:
+            return 'quality'
+        elif 'pack' in machine_lower:
+            return 'packaging'
+        return '_default'
 
     def preempt_job(
         self,
@@ -281,14 +534,14 @@ class DispatchService:
     def get_dispatch_queue(
         self,
         machine_id: str,
-        rule_name: str = 'wspt'
+        rule_name: str = None
     ) -> List[Dict[str, Any]]:
         """
         Get ordered dispatch queue for a machine.
 
         Args:
             machine_id: Machine to get queue for
-            rule_name: Rule to use for ordering
+            rule_name: Rule to use for ordering (None = use configured)
 
         Returns:
             Ordered list of candidate jobs
@@ -299,7 +552,16 @@ class DispatchService:
         if not candidates:
             return []
 
-        return rank_jobs_by_rule(candidates, rule_name)
+        # Use configured rule if not specified
+        effective_rule = rule_name or self.get_machine_dispatch_rule(machine_id)
+
+        # Handle composite rules
+        kwargs = {}
+        if effective_rule in DispatchRuleConfig.COMPOSITE_CONFIGS:
+            kwargs['rules_weights'] = DispatchRuleConfig.COMPOSITE_CONFIGS[effective_rule]
+            effective_rule = 'composite'
+
+        return rank_jobs_by_rule(candidates, effective_rule, **kwargs)
 
     def get_machine_status(self, machine_id: str) -> Dict[str, Any]:
         """Get current dispatch status for a machine."""
@@ -379,7 +641,7 @@ class DispatchService:
                 'work_order_id': str(job.work_order_id),
                 'processing_time_mins': job.runtime_data.get('estimated_duration_mins', 30) if job.runtime_data else 30,
                 'setup_time_mins': job.runtime_data.get('setup_time_mins', 5) if job.runtime_data else 5,
-                'due_date': job.due_date,
+                'due_date': job.work_order.due_date if job.work_order else None,
                 'priority': job.priority_score or 5,
                 'remaining_operations': 1,
                 'total_remaining_time': job.runtime_data.get('estimated_duration_mins', 30) if job.runtime_data else 30,
@@ -520,3 +782,15 @@ def get_dispatch_queue(session: Session, machine_id: str, **kwargs) -> List[Dict
     """Get dispatch queue for a machine."""
     service = DispatchService(session)
     return service.get_dispatch_queue(machine_id, **kwargs)
+
+
+def set_dispatch_rule(session: Session, machine_id: str, rule_name: str, **kwargs) -> Dict[str, Any]:
+    """Set dispatch rule for a machine."""
+    service = DispatchService(session)
+    return service.set_machine_dispatch_rule(machine_id, rule_name, **kwargs)
+
+
+def get_dispatch_rules(session: Session) -> Dict[str, Any]:
+    """Get all configured dispatch rules."""
+    service = DispatchService(session)
+    return service.get_all_dispatch_rules()

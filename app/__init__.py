@@ -18,6 +18,7 @@ from config.settings import get_config
 from config.logging_config import configure_for_flask, get_structured_logger
 from api.middleware.rate_limiter import init_limiter, get_limiter, _update_limiter_reference
 from api.middleware.request_logging import init_request_logging
+from api.middleware.prometheus_metrics import init_metrics
 
 socketio = SocketIO()
 jwt = JWTManager()
@@ -127,7 +128,11 @@ def create_app(config_name: str = None) -> Flask:
     Returns:
         Configured Flask application
     """
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates'),
+        static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static'),
+    )
     config = get_config()
 
     # Configure Flask
@@ -159,7 +164,7 @@ def create_app(config_name: str = None) -> Flask:
     socketio.init_app(
         app,
         cors_allowed_origins=cors_origins,
-        async_mode='eventlet',
+        async_mode='threading',
         ping_timeout=60,
         ping_interval=25,
         max_http_buffer_size=1000000,
@@ -183,6 +188,10 @@ def create_app(config_name: str = None) -> Flask:
     # Initialize request logging middleware for structured request/response logging
     init_request_logging(app)
 
+    # Initialize Prometheus metrics for monitoring
+    init_metrics(app)
+    logger.info("Prometheus metrics endpoint registered at /metrics")
+
     # Register blueprints
     register_blueprints(app)
 
@@ -198,6 +207,15 @@ def create_app(config_name: str = None) -> Flask:
 
     # Register health check endpoints
     register_health_check(app)
+
+    # Validate production configuration
+    if config.is_production():
+        warnings_list = config.validate_production_config()
+        if config.demo_mode:
+            logger.warning(
+                "DEMO_MODE is enabled in a PRODUCTION environment. "
+                "Set DEMO_MODE=false and configure proper secrets before handling real data."
+            )
 
     logger.info(
         "LEGO Factory v3 initialized",
@@ -215,30 +233,33 @@ def create_app(config_name: str = None) -> Flask:
 
 def register_websocket_namespaces():
     """Register all WebSocket namespaces for real-time communication."""
-    from services.websocket.unity_socket import UnityNamespace, set_unity_namespace
-    from services.websocket.dashboard_socket import DashboardNamespace, set_dashboard_namespace
-    from services.websocket.alarm_socket import AlarmNamespace, set_alarm_namespace
-    from services.websocket.tag_socket import TagNamespace, set_tag_namespace
+    namespace_configs = [
+        ('services.websocket.unity_socket', 'UnityNamespace', 'set_unity_namespace', '/unity'),
+        ('services.websocket.dashboard_socket', 'DashboardNamespace', 'set_dashboard_namespace', '/dashboard'),
+        ('services.websocket.alarm_socket', 'AlarmNamespace', 'set_alarm_namespace', '/alarms'),
+        ('services.websocket.tag_socket', 'TagNamespace', 'set_tag_namespace', '/tags'),
+    ]
 
-    # Create namespace instances
-    unity_ns = UnityNamespace('/unity')
-    dashboard_ns = DashboardNamespace('/dashboard')
-    alarm_ns = AlarmNamespace('/alarms')
-    tag_ns = TagNamespace('/tags')
+    registered = []
+    failed = []
 
-    # Register with SocketIO
-    socketio.on_namespace(unity_ns)
-    socketio.on_namespace(dashboard_ns)
-    socketio.on_namespace(alarm_ns)
-    socketio.on_namespace(tag_ns)
+    for module_path, class_name, setter_name, path in namespace_configs:
+        try:
+            module = __import__(module_path, fromlist=[class_name, setter_name])
+            ns_class = getattr(module, class_name)
+            ns_setter = getattr(module, setter_name)
+            ns_instance = ns_class(path)
+            socketio.on_namespace(ns_instance)
+            ns_setter(ns_instance)
+            registered.append(path)
+        except Exception as e:
+            failed.append(path)
+            logger.error(f"Failed to register WebSocket namespace {path}: {e}")
 
-    # Store global references for external access
-    set_unity_namespace(unity_ns)
-    set_dashboard_namespace(dashboard_ns)
-    set_alarm_namespace(alarm_ns)
-    set_tag_namespace(tag_ns)
-
-    logger.info("WebSocket namespaces registered: /unity, /dashboard, /alarms, /tags")
+    if registered:
+        logger.info(f"WebSocket namespaces registered: {', '.join(registered)}")
+    if failed:
+        logger.error(f"WebSocket namespaces FAILED to register: {', '.join(failed)}")
 
 
 def configure_jwt(app: Flask, config):
@@ -267,7 +288,11 @@ def configure_jwt(app: Flask, config):
 
 def setup_jwt_callbacks(app: Flask):
     """Setup JWT callback functions for token validation and user loading"""
-    from services.auth.auth_service import AuthService
+    try:
+        from services.auth.auth_service import AuthService
+    except Exception as e:
+        logger.error(f"Failed to import AuthService at startup: {e}. JWT callbacks will not work.")
+        raise
 
     @jwt.token_in_blocklist_loader
     def check_if_token_revoked(jwt_header, jwt_payload):
@@ -402,11 +427,11 @@ def register_blueprints(app: Flask):
     from api.routes.crm_api import crm_api_bp
     from api.routes.simulation_api import simulation_api
 
+    # Register SCADA routes under API (must be before api_bp is registered on app)
+    api_bp.register_blueprint(scada_bp)
+
     # Register API blueprint
     app.register_blueprint(api_bp)
-
-    # Register SCADA routes under API
-    api_bp.register_blueprint(scada_bp)
 
     # Register all API blueprints
     app.register_blueprint(scada_api_bp)
@@ -425,8 +450,9 @@ def register_blueprints(app: Flask):
     app.register_blueprint(auth_bp)  # Web routes at /auth
     app.register_blueprint(auth_api_bp)  # API routes at /api/auth
 
-    # Register CRM web routes
-    app.register_blueprint(crm_bp)
+    # Register web page routes (dashboard, SCADA, MES, ERP pages, etc.)
+    from routes.web import register_web_routes
+    register_web_routes(app)
 
     # Register Flask-RESTX API documentation
     register_api_docs(app)
@@ -517,13 +543,63 @@ def register_shell_context(app: Flask):
 
 def init_database(app: Flask):
     """Initialize database tables and extensions"""
-    from config.database import init_timescaledb
+    from config.database import init_timescaledb, get_engine
+    from models.base import Base
+
+    # Import all models so they register with Base.metadata
+    model_modules = [
+        'models.auth.user',
+        'models.scada.machines', 'models.scada.tags',
+        'models.scada.alarms', 'models.scada.recipes',
+        'models.mes.work_orders', 'models.mes.scheduling',
+        'models.mes.labor', 'models.mes.oee',
+        'models.mes.resources', 'models.mes.sensor_data',
+        'models.mes.genealogy',
+        'models.mes.operations',
+        'models.mes.setup',
+        'models.mes.recipe_run',
+        'models.qms.first_article',
+        'models.erp.financial', 'models.erp.sales',
+        'models.erp.inventory', 'models.erp.items',
+        'models.erp.partners', 'models.erp.planning',
+        'models.erp.purchasing',
+        'models.qms.documents',
+        'models.cmms.assets', 'models.cmms.maintenance',
+        'models.cmms.failure',
+        'models.erp.fixed_assets', 'models.erp.bank_reconciliation',
+        'models.erp.tax',
+        'models.lego.brick_designs', 'models.lego.parts_catalog',
+        'models.lego.printing',
+    ]
+    for mod in model_modules:
+        try:
+            __import__(mod)
+        except Exception as e:
+            logger.warning(f"Could not import model {mod}: {e}")
+
+    engine = get_engine()
+    # Create tables one at a time, each in its own connection to isolate errors
+    for table in Base.metadata.sorted_tables:
+        try:
+            with engine.connect() as conn:
+                table.create(bind=conn, checkfirst=True)
+                conn.commit()
+        except Exception as e:
+            if 'already exists' in str(e):
+                logger.debug(f"Table/index already exists for {table.name}, skipping")
+            else:
+                logger.warning(f"Failed to create table {table.name}: {e}")
+    logger.info("Database tables created/verified")
 
     try:
         init_timescaledb()
-        logger.info("Database initialized")
+        logger.info("Database initialized with TimescaleDB")
     except Exception as e:
-        logger.warning(f"Database initialization skipped: {e}")
+        logger.warning(
+            f"TimescaleDB initialization failed: {e}. "
+            "Time-series features (historian, continuous aggregates) will NOT work. "
+            "The app will still run with standard PostgreSQL tables."
+        )
 
 
 # Health check endpoint
@@ -578,11 +654,8 @@ def register_health_check(app: Flask):
             import redis
             config = get_config()
 
-            client = redis.Redis(
-                host=config.redis.host,
-                port=config.redis.port,
-                db=config.redis.db,
-                password=config.redis.password,
+            client = redis.Redis.from_url(
+                config.redis.url,
                 socket_timeout=5.0,
                 socket_connect_timeout=5.0
             )
@@ -615,10 +688,15 @@ def register_health_check(app: Flask):
             import socket
             config = get_config()
 
+            # Resolve MQTT host/port: prefer MQTT_BROKER_HOST/PORT env vars
+            # (set in docker-compose) over config.ros2 defaults
+            mqtt_host = os.getenv('MQTT_BROKER_HOST', config.ros2.mqtt_host)
+            mqtt_port = int(os.getenv('MQTT_BROKER_PORT', str(config.ros2.mqtt_port)))
+
             # Attempt TCP connection to MQTT broker
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(5.0)
-            result = sock.connect_ex((config.ros2.mqtt_host, config.ros2.mqtt_port))
+            result = sock.connect_ex((mqtt_host, mqtt_port))
             sock.close()
 
             latency_ms = round((time.time() - start) * 1000, 2)
@@ -628,8 +706,8 @@ def register_health_check(app: Flask):
                     "status": "healthy",
                     "connected": True,
                     "latency_ms": latency_ms,
-                    "host": config.ros2.mqtt_host,
-                    "port": config.ros2.mqtt_port
+                    "host": mqtt_host,
+                    "port": mqtt_port
                 }
             else:
                 return {

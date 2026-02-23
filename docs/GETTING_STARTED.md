@@ -174,8 +174,11 @@ alembic upgrade head
 ### Step 6: Seed Initial Data (Optional)
 
 ```bash
-# Seed demo data
+# Seed demo data (basic)
 python scripts/seed_demo_data.py
+
+# Seed rich demo data for Gantt chart presentation (39 WOs, 118 jobs, maintenance windows)
+docker compose exec app python -m database.seeds.seed_demo_presentation
 
 # Or use the API
 curl -X POST http://localhost:5000/api/admin/seed
@@ -347,6 +350,10 @@ python -m py_compile app/main.py
 
 ### Common Tasks
 
+- **View Gantt Chart**: Open http://localhost:5000/mes/scheduling
+- **Run Schedule Optimizer**: POST `/api/mes/scheduling/reschedule` with `{"objective": "makespan"}`
+- **Auto-Dispatch Jobs**: POST `/api/mes/dispatch/auto/{machine_id}` with `{"rule": "balanced"}`
+- **What-If Simulation**: POST `/api/mes/scheduling/what-if` with scenario changes
 - **Create a Work Order**: POST `/api/mes/work-orders`
 - **Run MRP**: POST `/api/erp/mrp/run`
 - **View OEE**: GET `/api/mes/oee?machine_id=MACHINE_ID`

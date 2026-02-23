@@ -1,41 +1,302 @@
 {% extends "base.html" %}
 {% block title %}MRP - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">MRP</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-diagram-3 me-2"></i>Material Requirements Planning</h2>
-<div class="row mb-4">
-    <div class="col-md-6">
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-diagram-3 me-2"></i>Material Requirements Planning</h2>
+    <button class="btn btn-outline-secondary" onclick="loadRuns()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statRuns">--</h3>
+            <small class="text-muted">MRP Runs</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card success text-center p-3">
+            <h3 class="mb-0" id="statLastRun">--</h3>
+            <small class="text-muted">Last Run</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning text-center p-3">
+            <h3 class="mb-0" id="statShortages">--</h3>
+            <small class="text-muted">Shortages</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statPlanned">--</h3>
+            <small class="text-muted">Planned Orders</small>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- MRP Run Settings -->
+    <div class="col-md-5">
         <div class="card">
-            <div class="card-header">MRP Run Settings</div>
+            <div class="card-header"><i class="bi bi-gear me-1"></i>MRP Run Settings</div>
             <div class="card-body">
                 <div class="mb-3">
                     <label class="form-label">Planning Horizon</label>
-                    <select class="form-select"><option>30 Days</option><option selected>60 Days</option><option>90 Days</option></select>
+                    <select class="form-select" id="horizonDays">
+                        <option value="30">30 Days</option>
+                        <option value="60" selected>60 Days</option>
+                        <option value="90">90 Days</option>
+                        <option value="180">180 Days</option>
+                    </select>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Include</label>
-                    <div class="form-check"><input class="form-check-input" type="checkbox" checked><label class="form-check-label">Sales Orders</label></div>
-                    <div class="form-check"><input class="form-check-input" type="checkbox" checked><label class="form-check-label">Forecasts</label></div>
-                    <div class="form-check"><input class="form-check-input" type="checkbox" checked><label class="form-check-label">Safety Stock</label></div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="chkSafetyStock" checked>
+                        <label class="form-check-label" for="chkSafetyStock">Safety Stock</label>
+                    </div>
                 </div>
-                <button class="btn btn-primary w-100"><i class="bi bi-play me-2"></i>Run MRP</button>
+                <button class="btn btn-primary w-100" id="btnRunMRP" onclick="runMRP()">
+                    <i class="bi bi-play me-2"></i>Run MRP
+                </button>
             </div>
         </div>
     </div>
-    <div class="col-md-6">
+
+    <!-- Shortages -->
+    <div class="col-md-7">
         <div class="card">
-            <div class="card-header">Last Run Summary</div>
-            <div class="card-body">
-                <p><strong>Last Run:</strong> Jan 19, 2026 08:00 AM</p>
-                <p><strong>Duration:</strong> 12.4 seconds</p>
-                <p><strong>Planned Orders:</strong> 47</p>
-                <p><strong>Purchase Requisitions:</strong> 12</p>
-                <p class="mb-0"><strong>Exceptions:</strong> <span class="badge bg-warning text-dark">3</span></p>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-exclamation-triangle me-1"></i>Current Shortages</span>
+                <span class="text-muted" id="shortageCount"></span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Item</th>
+                                <th class="text-end">Required</th>
+                                <th class="text-end">Available</th>
+                                <th class="text-end">Shortage</th>
+                            </tr>
+                        </thead>
+                        <tbody id="shortageBody">
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">
+                                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                    Loading...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- MRP Run History -->
 <div class="card">
-    <div class="card-header">Planned Orders</div>
-    <div class="card-body"><p class="text-muted">Run MRP to generate planned orders.</p></div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history me-1"></i>MRP Run History</span>
+        <span class="text-muted" id="runCount"></span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Run ID</th>
+                        <th>Date/Time</th>
+                        <th>Horizon</th>
+                        <th class="text-end">Items</th>
+                        <th class="text-end">Planned Orders</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="runTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            Loading MRP runs...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const STATUS_BADGES = {
+        completed:  'bg-success',
+        running:    'bg-primary',
+        failed:     'bg-danger',
+    };
+
+    const token = localStorage.getItem('access_token') || 'demo-token';
+    const authHeaders = { 'Authorization': `Bearer ${token}` };
+
+    function formatLabel(str) {
+        if (!str) return '';
+        return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        try { return new Date(dateStr).toLocaleString(); }
+        catch (e) { return dateStr; }
+    }
+
+    function fmt(n) {
+        if (n == null) return '-';
+        return new Intl.NumberFormat('en-US').format(n);
+    }
+
+    async function loadShortages() {
+        try {
+            const res = await fetch('/api/erp/mrp/shortages', { headers: authHeaders });
+            const data = await res.json();
+            const shortages = data.shortages || [];
+
+            document.getElementById('statShortages').textContent = shortages.length;
+            document.getElementById('shortageCount').textContent =
+                `${shortages.length} item${shortages.length !== 1 ? 's' : ''}`;
+
+            const tbody = document.getElementById('shortageBody');
+            if (!shortages.length) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-success py-3">
+                    <i class="bi bi-check-circle me-1"></i>No shortages detected</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = shortages.map(s => {
+                const shortage = (s.required || 0) - (s.available || 0);
+                return `<tr class="table-warning">
+                    <td>${s.item_id || s.item_name || '-'}</td>
+                    <td class="text-end">${fmt(s.required)}</td>
+                    <td class="text-end">${fmt(s.available)}</td>
+                    <td class="text-end text-danger fw-bold">${fmt(shortage)}</td>
+                </tr>`;
+            }).join('');
+        } catch (e) {
+            console.error('Failed to load shortages:', e);
+            document.getElementById('shortageBody').innerHTML =
+                `<tr><td colspan="4" class="text-center text-muted py-3">Unable to load shortages</td></tr>`;
+        }
+    }
+
+    async function loadRuns() {
+        try {
+            const res = await fetch('/api/erp/mrp/runs', { headers: authHeaders });
+            const data = await res.json();
+            const runs = data.mrp_runs || [];
+
+            document.getElementById('statRuns').textContent = runs.length;
+            document.getElementById('runCount').textContent =
+                `${runs.length} run${runs.length !== 1 ? 's' : ''}`;
+
+            if (runs.length > 0) {
+                const latest = runs[0];
+                document.getElementById('statLastRun').textContent =
+                    latest.run_datetime ? new Date(latest.run_datetime).toLocaleDateString() : 'Never';
+                document.getElementById('statPlanned').textContent =
+                    latest.planned_orders_count || 0;
+            } else {
+                document.getElementById('statLastRun').textContent = 'Never';
+                document.getElementById('statPlanned').textContent = '0';
+            }
+
+            const tbody = document.getElementById('runTableBody');
+            if (!runs.length) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">
+                    <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                    No MRP runs yet. Configure settings and click "Run MRP".</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = runs.map(r => {
+                const status = (r.status || '').toLowerCase();
+                const badgeClass = STATUS_BADGES[status] || 'bg-secondary';
+                const duration = r.duration_seconds != null ? `${r.duration_seconds.toFixed(1)}s` : '-';
+                return `<tr>
+                    <td class="fw-bold">${r.run_id || '-'}</td>
+                    <td>${formatDate(r.run_datetime)}</td>
+                    <td>${r.horizon_days || '-'} days</td>
+                    <td class="text-end">${fmt(r.items_processed)}</td>
+                    <td class="text-end">${fmt(r.planned_orders_count)}</td>
+                    <td>${duration}</td>
+                    <td><span class="badge ${badgeClass}">${formatLabel(status)}</span></td>
+                </tr>`;
+            }).join('');
+        } catch (e) {
+            console.error('Failed to load MRP runs:', e);
+            document.getElementById('runTableBody').innerHTML = `<tr>
+                <td colspan="7" class="text-center text-danger py-4">
+                    <i class="bi bi-exclamation-circle display-6 d-block mb-2"></i>
+                    Failed to load MRP runs.</td></tr>`;
+        }
+    }
+
+    async function runMRP() {
+        const btn = document.getElementById('btnRunMRP');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Running...';
+
+        try {
+            const res = await fetch('/api/erp/mrp/run', {
+                method: 'POST',
+                headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    horizon_days: parseInt(document.getElementById('horizonDays').value),
+                    include_safety_stock: document.getElementById('chkSafetyStock').checked,
+                }),
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            btn.innerHTML = '<i class="bi bi-check me-2"></i>Complete!';
+            btn.classList.replace('btn-primary', 'btn-success');
+
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-play me-2"></i>Run MRP';
+                btn.classList.replace('btn-success', 'btn-primary');
+            }, 2000);
+
+            loadRuns();
+            loadShortages();
+        } catch (e) {
+            console.error('MRP run failed:', e);
+            btn.innerHTML = '<i class="bi bi-x me-2"></i>Failed';
+            btn.classList.replace('btn-primary', 'btn-danger');
+
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-play me-2"></i>Run MRP';
+                btn.classList.replace('btn-danger', 'btn-primary');
+            }, 3000);
+        }
+    }
+
+    // Initial load
+    loadRuns();
+    loadShortages();
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => { loadRuns(); loadShortages(); }, 30000);
+</script>
 {% endblock %}

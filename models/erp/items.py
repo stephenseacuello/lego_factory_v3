@@ -186,13 +186,18 @@ class Item(AuditedModel):
             'description': self.description,
             'item_type': self.item_type.value if self.item_type else None,
             'status': self.status.value if self.status else None,
+            'category': self.category.name if self.category else None,
             'base_uom': self.base_uom,
             'standard_cost': self.standard_cost,
+            'average_cost': self.average_cost,
             'list_price': self.list_price,
             'is_purchasable': self.is_purchasable,
             'is_salable': self.is_salable,
             'is_manufactured': self.is_manufactured,
             'lead_time_days': self.lead_time_days,
+            'safety_stock': self.safety_stock,
+            'reorder_point': self.reorder_point,
+            'reorder_quantity': self.reorder_quantity,
         }
 
 

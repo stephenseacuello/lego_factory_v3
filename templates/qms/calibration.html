@@ -1,21 +1,221 @@
 {% extends "base.html" %}
 {% block title %}Calibration - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">Quality</a></li>
+<li class="breadcrumb-item active">Calibration</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-rulers me-2"></i>Calibration Management</h2>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Calibration Schedule</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>Add Equipment</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-rulers me-2"></i>Calibration Management</h2>
+    <button class="btn btn-outline-secondary" onclick="loadData()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statTotal">--</h3>
+            <small class="text-muted">Total Equipment</small>
+        </div>
     </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>Equipment ID</th><th>Description</th><th>Location</th><th>Last Cal</th><th>Next Due</th><th>Status</th></tr></thead>
-            <tbody>
-                <tr><td>CAL-001</td><td>Digital Caliper</td><td>QC Lab</td><td>Dec 1, 2025</td><td>Jun 1, 2026</td><td><span class="badge bg-success">Current</span></td></tr>
-                <tr><td>CAL-002</td><td>Temperature Probe</td><td>Production</td><td>Nov 15, 2025</td><td>Jan 15, 2026</td><td><span class="badge bg-danger">Overdue</span></td></tr>
-                <tr><td>CAL-003</td><td>Pressure Gauge</td><td>Molding</td><td>Jan 5, 2026</td><td>Jul 5, 2026</td><td><span class="badge bg-success">Current</span></td></tr>
-            </tbody>
-        </table>
+    <div class="col-md-3">
+        <div class="card stat-card success text-center p-3">
+            <h3 class="mb-0" id="statCurrent">--</h3>
+            <small class="text-muted">Current</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning text-center p-3">
+            <h3 class="mb-0" id="statDueOverdue">--</h3>
+            <small class="text-muted">Due / Overdue</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card danger text-center p-3">
+            <h3 class="mb-0" id="statOutOfService">--</h3>
+            <small class="text-muted">Out of Service</small>
+        </div>
     </div>
 </div>
+
+<!-- Filters -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <select class="form-select" id="filterStatus" onchange="loadData()">
+            <option value="">All Statuses</option>
+            <option value="current">Current</option>
+            <option value="due">Due</option>
+            <option value="overdue">Overdue</option>
+            <option value="out_of_service">Out of Service</option>
+            <option value="retired">Retired</option>
+        </select>
+    </div>
+</div>
+
+<!-- Calibration Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-1"></i>Calibration Equipment</span>
+        <span class="text-muted" id="tableCount"></span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Equipment ID</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Location</th>
+                        <th>Last Cal</th>
+                        <th>Next Due</th>
+                        <th>Interval</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="calTableBody">
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            Loading calibration equipment...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const STATUS_BADGES = {
+        current:        'bg-success',
+        due:            'bg-warning text-dark',
+        overdue:        'bg-danger',
+        out_of_service: 'bg-dark',
+        retired:        'bg-secondary'
+    };
+
+    function formatLabel(str) {
+        if (!str) return '';
+        return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        try {
+            return new Date(dateStr).toLocaleDateString();
+        } catch (e) {
+            return dateStr;
+        }
+    }
+
+    function updateStats(equipment) {
+        const total = equipment.length;
+        const current = equipment.filter(e => e.status === 'current').length;
+        const due = equipment.filter(e => e.status === 'due').length;
+        const overdue = equipment.filter(e => e.status === 'overdue').length;
+        const outOfService = equipment.filter(e => e.status === 'out_of_service').length;
+
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statCurrent').textContent = current;
+        document.getElementById('statDueOverdue').textContent = due + overdue;
+        document.getElementById('statOutOfService').textContent = outOfService;
+    }
+
+    function renderTable(equipment) {
+        const tbody = document.getElementById('calTableBody');
+        const countEl = document.getElementById('tableCount');
+
+        if (!equipment || equipment.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                        No calibration equipment found
+                    </td>
+                </tr>`;
+            countEl.textContent = '0 records';
+            return;
+        }
+
+        countEl.textContent = `${equipment.length} record${equipment.length !== 1 ? 's' : ''}`;
+
+        tbody.innerHTML = equipment.map(eq => {
+            const equipmentId = eq.equipment_id || eq.id || '-';
+            const name = eq.name || '-';
+            const eqType = eq.equipment_type || eq.type || '-';
+            const location = eq.location || '-';
+            const lastCal = formatDate(eq.last_calibration_date);
+            const nextDue = formatDate(eq.next_calibration_due);
+            const interval = eq.calibration_interval_days ? `${eq.calibration_interval_days} days` : '-';
+            const status = (eq.status || '').toLowerCase();
+            const statusClass = STATUS_BADGES[status] || 'bg-secondary';
+
+            let rowClass = '';
+            if (status === 'overdue') rowClass = 'table-danger';
+            else if (status === 'due') rowClass = 'table-warning';
+
+            return `<tr class="${rowClass}">
+                <td class="fw-bold">${equipmentId}</td>
+                <td>${name}</td>
+                <td>${eqType}</td>
+                <td>${location}</td>
+                <td>${lastCal}</td>
+                <td>${nextDue}</td>
+                <td>${interval}</td>
+                <td><span class="badge ${statusClass}">${formatLabel(status)}</span></td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function loadData() {
+        const statusFilter = document.getElementById('filterStatus').value;
+
+        let url = '/api/qms/calibration/equipment';
+        const params = new URLSearchParams();
+        if (statusFilter) params.append('status', statusFilter);
+        const qs = params.toString();
+        if (qs) url += '?' + qs;
+
+        const token = localStorage.getItem('access_token') || 'demo-token';
+
+        try {
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const equipment = data.equipment || data.data || [];
+
+            updateStats(equipment);
+            renderTable(equipment);
+        } catch (error) {
+            console.error('Failed to load calibration equipment:', error);
+            document.getElementById('calTableBody').innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-circle display-6 d-block mb-2"></i>
+                        Failed to load calibration equipment. Please try again.
+                    </td>
+                </tr>`;
+        }
+    }
+
+    // Initial load
+    loadData();
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadData, 30000);
+</script>
 {% endblock %}

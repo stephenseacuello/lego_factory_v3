@@ -342,19 +342,11 @@ async function loadWorkerInfo() {
         displayWorkerInfo(worker);
     } catch (error) {
         console.error('Failed to load worker info:', error);
-        displaySampleWorkerInfo();
+        document.getElementById('worker-name').textContent = '--';
+        document.getElementById('assigned-machine').textContent = '--';
+        document.getElementById('current-shift').textContent = '--';
+        document.getElementById('shift-progress').textContent = '--';
     }
-}
-
-function displaySampleWorkerInfo() {
-    document.getElementById('worker-name').textContent = 'John Smith (W001)';
-    document.getElementById('assigned-machine').textContent = 'bambu-ps1';
-    document.getElementById('current-shift').textContent = 'Day Shift';
-
-    const now = new Date();
-    const shiftStart = 6;  // 6 AM
-    const hoursWorked = Math.max(0, now.getHours() - shiftStart);
-    document.getElementById('shift-progress').textContent = `${hoursWorked} / 8 hrs`;
 }
 
 function displayWorkerInfo(worker) {
@@ -365,37 +357,33 @@ function displayWorkerInfo(worker) {
 
 async function loadCurrentJob() {
     try {
-        const response = await fetch(`/api/mes/operator/${currentWorkerId}/current-job`);
-        const job = await response.json();
-        displayCurrentJob(job);
+        // Fetch running jobs from real API
+        const response = await fetch('/api/mes/jobs?status=running&limit=1');
+        if (!response.ok) throw new Error('API error');
+        const data = await response.json();
+        const jobs = data.jobs || [];
+        if (jobs.length > 0) {
+            const j = jobs[0];
+            displayCurrentJob({
+                id: j.job_id,
+                work_order: j.work_order_id,
+                product_name: j.product_id || j.operation_name || 'Unknown',
+                product_id: j.product_id || '',
+                operation: j.operation_name || j.operation_type || '',
+                quantity: j.quantity || 0,
+                completed: j.quantity_completed || 0,
+                machine_id: j.machine_id || '',
+                status: j.status || 'running',
+                start_time: j.actual_start || j.scheduled_start,
+                estimated_completion: j.scheduled_end,
+            });
+        } else {
+            displayCurrentJob(null);
+        }
     } catch (error) {
         console.error('Failed to load current job:', error);
-        displaySampleCurrentJob();
+        displayCurrentJob(null);
     }
-}
-
-function displaySampleCurrentJob() {
-    const sampleJob = {
-        id: 'JOB-2024-001-01',
-        work_order: 'WO-2024-001',
-        product_name: '2x4 Red Brick',
-        product_id: 'BRICK-2x4-RED',
-        operation: 'FDM Print',
-        quantity: 50,
-        completed: 32,
-        machine_id: 'bambu-ps1',
-        status: 'running',
-        start_time: new Date(Date.now() - 2 * 3600000).toISOString(),
-        estimated_completion: new Date(Date.now() + 1 * 3600000).toISOString(),
-        recipe_parameters: {
-            'Layer Height': '0.2mm',
-            'Infill': '20%',
-            'Print Speed': '60 mm/s',
-            'Nozzle Temp': '215°C',
-            'Bed Temp': '60°C',
-        },
-    };
-    displayCurrentJob(sampleJob);
 }
 
 function displayCurrentJob(job) {
@@ -570,41 +558,57 @@ function acknowledgeDocument() {
     loadDocuments();  // Refresh list
 }
 
-function loadJobQueue() {
-    const sampleQueue = [
-        { id: 'JOB-2024-001-02', work_order: 'WO-2024-001', product: '2x4 Red Brick', operation: 'FDM Print', qty: 50, priority: 'high' },
-        { id: 'JOB-2024-002-01', work_order: 'WO-2024-002', product: '2x2 Blue Brick', operation: 'FDM Print', qty: 100, priority: 'medium' },
-        { id: 'JOB-2024-003-01', work_order: 'WO-2024-003', product: '1x4 Yellow Plate', operation: 'FDM Print', qty: 75, priority: 'low' },
-    ];
+async function loadJobQueue() {
+    try {
+        const response = await fetch('/api/mes/jobs?status=queued,ready,scheduled&limit=10');
+        const data = response.ok ? await response.json() : { jobs: [] };
+        const queue = data.jobs || [];
 
-    const container = document.getElementById('job-queue');
-    document.getElementById('queue-count').textContent = sampleQueue.length;
+        const container = document.getElementById('job-queue');
+        document.getElementById('queue-count').textContent = queue.length;
 
-    if (sampleQueue.length === 0) {
-        container.innerHTML = '<p class="text-muted text-center small py-3">No jobs in queue</p>';
-        return;
+        if (queue.length === 0) {
+            container.innerHTML = '<p class="text-muted text-center small py-3">No jobs in queue</p>';
+            return;
+        }
+
+        container.innerHTML = queue.map(job => {
+            const pri = (job.priority || 5) >= 8 ? 'high' : (job.priority || 5) >= 5 ? 'medium' : 'low';
+            return `
+            <div class="queue-item priority-${pri}">
+                <div class="d-flex justify-content-between">
+                    <strong>${job.product_id || job.operation_name || job.job_id}</strong>
+                    <span class="badge ${pri === 'high' ? 'bg-danger' : pri === 'medium' ? 'bg-warning text-dark' : 'bg-secondary'}">
+                        ${pri}
+                    </span>
+                </div>
+                <small class="text-muted">${job.work_order_id || ''} | ${job.operation_name || ''} | Qty: ${job.quantity || 0}</small>
+            </div>`;
+        }).join('');
+    } catch (error) {
+        console.error('Failed to load job queue:', error);
     }
-
-    container.innerHTML = sampleQueue.map(job => `
-        <div class="queue-item priority-${job.priority}">
-            <div class="d-flex justify-content-between">
-                <strong>${job.product}</strong>
-                <span class="badge ${job.priority === 'high' ? 'bg-danger' : job.priority === 'medium' ? 'bg-warning text-dark' : 'bg-secondary'}">
-                    ${job.priority}
-                </span>
-            </div>
-            <small class="text-muted">${job.work_order} | ${job.operation} | Qty: ${job.qty}</small>
-        </div>
-    `).join('');
 }
 
-function loadTodayStats() {
-    // Sample stats
-    document.getElementById('stat-completed').textContent = '7';
-    document.getElementById('stat-good').textContent = '340';
-    document.getElementById('stat-defects').textContent = '3';
-    document.getElementById('stat-efficiency').textContent = '97.2%';
-    document.getElementById('efficiency-bar').style.width = '97.2%';
+async function loadTodayStats() {
+    try {
+        const response = await fetch('/api/mes/work-orders');
+        const data = response.ok ? await response.json() : { work_orders: [] };
+        const wos = data.work_orders || [];
+
+        const completed = wos.filter(wo => wo.status === 'completed').length;
+        const totalGood = wos.reduce((s, wo) => s + (wo.quantity_completed || 0), 0);
+        const totalScrapped = wos.reduce((s, wo) => s + (wo.quantity_scrapped || 0), 0);
+        const efficiency = totalGood > 0 ? ((totalGood - totalScrapped) / totalGood * 100) : 0;
+
+        document.getElementById('stat-completed').textContent = completed;
+        document.getElementById('stat-good').textContent = totalGood;
+        document.getElementById('stat-defects').textContent = totalScrapped;
+        document.getElementById('stat-efficiency').textContent = `${efficiency.toFixed(1)}%`;
+        document.getElementById('efficiency-bar').style.width = `${efficiency}%`;
+    } catch (error) {
+        console.error('Failed to load stats:', error);
+    }
 }
 
 async function requestNextJob() {
@@ -618,8 +622,6 @@ async function requestNextJob() {
         }
     } catch (error) {
         console.error('Failed to request next job:', error);
-        // For demo, just load sample
-        displaySampleCurrentJob();
     }
 }
 

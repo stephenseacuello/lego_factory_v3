@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Cash Flow - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">Cash Flow</li>
+{% endblock %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-cash-stack me-2"></i>Cash Flow</h2>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4" id="summaryCards">
+  <div class="col-md-3">
+    <div class="card text-bg-primary">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Net Cash Flow</div>
+        <div class="fs-3 fw-bold" id="netCash">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-success">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Operating</div>
+        <div class="fs-3 fw-bold" id="operating">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-warning">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Investing</div>
+        <div class="fs-3 fw-bold" id="investing">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-info">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Financing</div>
+        <div class="fs-3 fw-bold" id="financing">--</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Waterfall Chart -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Cash Flow Waterfall</div>
+      <div class="card-body"><canvas id="waterfallChart"></canvas></div>
+    </div>
+  </div>
+  <!-- Forecast -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">12-Week Forecast</div>
+      <div class="card-body"><canvas id="forecastChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Upcoming Payments/Collections -->
+<div class="card">
+  <div class="card-header">Upcoming Payments &amp; Collections</div>
+  <div class="card-body table-responsive">
+    <table class="table table-hover align-middle" id="upcomingTable">
+      <thead class="table-light">
+        <tr>
+          <th>Date</th>
+          <th>Description</th>
+          <th>Type</th>
+          <th class="text-end">Amount</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const fmt = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+  let wfChart, fcChart;
+
+  async function loadCashflow() {
+    const res = await fetch('/api/erp/cashflow');
+    const d = await res.json();
+
+    document.getElementById('netCash').textContent = fmt(d.net || 0);
+    document.getElementById('operating').textContent = fmt(d.operating || 0);
+    document.getElementById('investing').textContent = fmt(d.investing || 0);
+    document.getElementById('financing').textContent = fmt(d.financing || 0);
+
+    // Waterfall
+    const wfLabels = (d.waterfall || []).map(w => w.label);
+    const wfValues = (d.waterfall || []).map(w => w.value);
+    const wfColors = wfValues.map(v => v >= 0 ? 'rgba(25,135,84,0.7)' : 'rgba(220,53,69,0.7)');
+    if (wfChart) wfChart.destroy();
+    wfChart = new Chart(document.getElementById('waterfallChart'), {
+      type: 'bar',
+      data: {labels: wfLabels, datasets: [{label: 'Cash Flow', data: wfValues, backgroundColor: wfColors}]},
+      options: {responsive: true, plugins: {legend: {display: false}}}
+    });
+
+    // Upcoming
+    const tbody = document.querySelector('#upcomingTable tbody');
+    tbody.innerHTML = '';
+    (d.upcoming || []).forEach(r => {
+      const cls = r.type === 'collection' ? 'text-success' : 'text-danger';
+      const icon = r.type === 'collection' ? 'bi-arrow-down-circle' : 'bi-arrow-up-circle';
+      tbody.innerHTML += `<tr>
+        <td>${r.date}</td>
+        <td>${r.description}</td>
+        <td><i class="bi ${icon} ${cls} me-1"></i>${r.type}</td>
+        <td class="text-end ${cls}">${fmt(r.amount)}</td>
+      </tr>`;
+    });
+  }
+
+  async function loadForecast() {
+    const res = await fetch('/api/erp/cashflow/forecast');
+    const d = await res.json();
+    const items = d.weeks || d || [];
+    if (fcChart) fcChart.destroy();
+    fcChart = new Chart(document.getElementById('forecastChart'), {
+      type: 'line',
+      data: {
+        labels: items.map(w => w.week || w.label),
+        datasets: [{
+          label: 'Projected Cash',
+          data: items.map(w => w.balance || w.value),
+          borderColor: '#0d6efd',
+          backgroundColor: 'rgba(13,110,253,0.1)',
+          fill: true, tension: 0.3
+        }]
+      },
+      options: {responsive: true}
+    });
+  }
+
+  loadCashflow();
+  loadForecast();
+</script>
+{% endblock %}

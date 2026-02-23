@@ -156,7 +156,7 @@ class RecipeService:
 
 
 @recipes_bp.route('/master', methods=['GET'])
-@jwt_required()
+@jwt_required(optional=True)
 def list_master_recipes():
     """Get all master recipes with filtering"""
     try:
@@ -178,7 +178,7 @@ def list_master_recipes():
             return jsonify({'recipes': recipes, 'count': len(recipes)})
     except Exception as e:
         logger.error(f"Error listing master recipes: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @recipes_bp.route('/master/<recipe_id>', methods=['GET'])
@@ -194,7 +194,7 @@ def get_master_recipe(recipe_id: str):
             return jsonify(recipe)
     except Exception as e:
         logger.error(f"Error getting master recipe {recipe_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @recipes_bp.route('/master', methods=['POST'])
@@ -218,7 +218,7 @@ def create_master_recipe():
             return jsonify(recipe), 201
     except Exception as e:
         logger.error(f"Error creating master recipe: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @recipes_bp.route('/master/<recipe_id>', methods=['PUT'])
@@ -239,7 +239,7 @@ def update_master_recipe(recipe_id: str):
             return jsonify(recipe)
     except Exception as e:
         logger.error(f"Error updating master recipe {recipe_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @recipes_bp.route('/master/<recipe_id>/approve', methods=['POST'])
@@ -260,7 +260,7 @@ def approve_master_recipe(recipe_id: str):
             return jsonify(recipe)
     except Exception as e:
         logger.error(f"Error approving master recipe {recipe_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @recipes_bp.route('/control', methods=['GET'])
@@ -282,7 +282,7 @@ def list_control_recipes():
             return jsonify({'recipes': recipes, 'count': len(recipes)})
     except Exception as e:
         logger.error(f"Error listing control recipes: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @recipes_bp.route('/control', methods=['POST'])
@@ -312,7 +312,7 @@ def create_control_recipe():
             return jsonify(recipe), 201
     except Exception as e:
         logger.error(f"Error creating control recipe: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @recipes_bp.route('/types', methods=['GET'])

@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}PM Calendar - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">CMMS</a></li>
+<li class="breadcrumb-item active">PM Calendar</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-calendar3 me-2"></i>PM Calendar</h2>
+  <div class="d-flex gap-2 align-items-center">
+    <select class="form-select form-select-sm" id="machineFilter" style="width:200px">
+      <option value="">All Machines</option>
+    </select>
+    <div class="d-flex align-items-center gap-3 ms-3 small">
+      <span><span class="badge bg-primary">&nbsp;</span> Preventive</span>
+      <span><span class="badge bg-danger">&nbsp;</span> Corrective</span>
+      <span><span class="badge bg-purple text-white" style="background-color:#6f42c1!important">&nbsp;</span> Predictive</span>
+      <span><span class="badge bg-success">&nbsp;</span> Completed</span>
+    </div>
+  </div>
+</div>
+
+<!-- Month Navigation -->
+<div class="card mb-4">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <button class="btn btn-outline-secondary btn-sm" id="prevMonth">
+      <i class="bi bi-chevron-left"></i> Previous
+    </button>
+    <h4 class="mb-0" id="currentMonthLabel">--</h4>
+    <button class="btn btn-outline-secondary btn-sm" id="nextMonth">
+      Next <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-bordered mb-0" id="calendarTable">
+        <thead class="table-dark">
+          <tr>
+            <th class="text-center" style="width:14.28%">Sunday</th>
+            <th class="text-center" style="width:14.28%">Monday</th>
+            <th class="text-center" style="width:14.28%">Tuesday</th>
+            <th class="text-center" style="width:14.28%">Wednesday</th>
+            <th class="text-center" style="width:14.28%">Thursday</th>
+            <th class="text-center" style="width:14.28%">Friday</th>
+            <th class="text-center" style="width:14.28%">Saturday</th>
+          </tr>
+        </thead>
+        <tbody id="calendarBody">
+          <tr>
+            <td colspan="7" class="text-center text-muted py-5">
+              <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading calendar...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Event Detail Modal -->
+<div class="modal fade" id="eventDetailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" id="eventModalHeader">
+        <h5 class="modal-title" id="eventModalTitle">PM Event Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="eventModalBody">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<style>
+  #calendarTable td { height: 110px; vertical-align: top; font-size: 0.85rem; }
+  #calendarTable td .day-num { font-weight: bold; margin-bottom: 4px; }
+  #calendarTable td.outside { background-color: #f8f9fa; color: #ccc; }
+  #calendarTable td.today { background-color: #fff3cd; }
+  .pm-event { cursor: pointer; padding: 2px 5px; margin-bottom: 2px; border-radius: 3px; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pm-event.preventive { background-color: #0d6efd; color: #fff; }
+  .pm-event.corrective { background-color: #dc3545; color: #fff; }
+  .pm-event.predictive { background-color: #6f42c1; color: #fff; }
+  .pm-event.completed { background-color: #198754; color: #fff; }
+</style>
+<script>
+  let currentDate = new Date();
+  let allEvents = [];
+
+  function getMonthStr(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function getMonthLabel(d) {
+    return d.toLocaleString('default', { month: 'long', year: 'numeric' });
+  }
+
+  async function loadCalendar() {
+    const monthStr = getMonthStr(currentDate);
+    document.getElementById('currentMonthLabel').textContent = getMonthLabel(currentDate);
+    const machineId = document.getElementById('machineFilter').value;
+
+    try {
+      let url = `/api/cmms/pm-calendar?month=${monthStr}`;
+      if (machineId) url += `&machine_id=${machineId}`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      allEvents = data.events || [];
+      if (data.machines) {
+        const sel = document.getElementById('machineFilter');
+        const currentVal = sel.value;
+        sel.innerHTML = '<option value="">All Machines</option>';
+        data.machines.forEach(m => {
+          sel.innerHTML += `<option value="${m.id}">${m.name}</option>`;
+        });
+        sel.value = currentVal;
+      }
+
+      renderCalendar();
+    } catch (err) {
+      console.error('Failed to load calendar:', err);
+    }
+  }
+
+  function renderCalendar() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+
+    // Build event lookup by day
+    const eventsByDay = {};
+    allEvents.forEach(ev => {
+      const d = new Date(ev.scheduled_date || ev.date);
+      const day = d.getDate();
+      if (!eventsByDay[day]) eventsByDay[day] = [];
+      eventsByDay[day].push(ev);
+    });
+
+    let html = '';
+    let dayNum = 1;
+    let started = false;
+
+    for (let week = 0; week < 6; week++) {
+      if (dayNum > daysInMonth && started) break;
+      html += '<tr>';
+      for (let dow = 0; dow < 7; dow++) {
+        if (!started && dow < firstDay) {
+          html += '<td class="outside"></td>';
+        } else if (dayNum > daysInMonth) {
+          html += '<td class="outside"></td>';
+        } else {
+          started = true;
+          const isToday = isCurrentMonth && dayNum === today.getDate();
+          const dayEvents = eventsByDay[dayNum] || [];
+          html += `<td class="${isToday ? 'today' : ''}">`;
+          html += `<div class="day-num">${dayNum}</div>`;
+          dayEvents.forEach(ev => {
+            const cls = ev.status === 'completed' ? 'completed' : (ev.type || 'preventive');
+            html += `<div class="pm-event ${cls}" onclick='showEventDetail(${JSON.stringify(ev).replace(/'/g, "&#39;")})'
+                          title="${ev.title || ev.description || ''}">${ev.title || ev.description || 'PM'}</div>`;
+          });
+          html += '</td>';
+          dayNum++;
+        }
+      }
+      html += '</tr>';
+    }
+
+    document.getElementById('calendarBody').innerHTML = html;
+  }
+
+  function showEventDetail(ev) {
+    const typeColors = { preventive: '#0d6efd', corrective: '#dc3545', predictive: '#6f42c1', completed: '#198754' };
+    const displayType = ev.status === 'completed' ? 'completed' : (ev.type || 'preventive');
+    const color = typeColors[displayType] || '#6c757d';
+
+    document.getElementById('eventModalHeader').style.backgroundColor = color;
+    document.getElementById('eventModalHeader').style.color = '#fff';
+    document.getElementById('eventModalTitle').textContent = ev.title || 'PM Event Details';
+
+    document.getElementById('eventModalBody').innerHTML = `
+      <table class="table table-sm mb-0">
+        <tr><th style="width:35%">Type</th><td><span class="badge" style="background-color:${color}">${displayType}</span></td></tr>
+        <tr><th>Machine</th><td>${ev.machine_name || ev.machine_id || '-'}</td></tr>
+        <tr><th>Scheduled Date</th><td>${ev.scheduled_date || ev.date || '-'}</td></tr>
+        ${ev.duration ? `<tr><th>Est. Duration</th><td>${ev.duration}</td></tr>` : ''}
+        ${ev.assigned_to ? `<tr><th>Assigned To</th><td>${ev.assigned_to}</td></tr>` : ''}
+        ${ev.priority ? `<tr><th>Priority</th><td>${ev.priority}</td></tr>` : ''}
+        <tr><th>Status</th><td>${ev.status || '-'}</td></tr>
+        ${ev.description ? `<tr><th>Description</th><td>${ev.description}</td></tr>` : ''}
+        ${ev.notes ? `<tr><th>Notes</th><td>${ev.notes}</td></tr>` : ''}
+      </table>
+    `;
+
+    new bootstrap.Modal(document.getElementById('eventDetailModal')).show();
+  }
+
+  document.getElementById('prevMonth').addEventListener('click', () => {
+    currentDate.setMonth(currentDate.getMonth() - 1);
+    loadCalendar();
+  });
+
+  document.getElementById('nextMonth').addEventListener('click', () => {
+    currentDate.setMonth(currentDate.getMonth() + 1);
+    loadCalendar();
+  });
+
+  document.getElementById('machineFilter').addEventListener('change', loadCalendar);
+
+  document.addEventListener('DOMContentLoaded', loadCalendar);
+</script>
+{% endblock %}

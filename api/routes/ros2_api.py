@@ -14,6 +14,8 @@ import logging
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from config.demo_mode import is_demo_mode_enabled
+
 logger = logging.getLogger(__name__)
 
 ros2_api_bp = Blueprint('ros2_api', __name__, url_prefix='/api/ros2')
@@ -305,7 +307,9 @@ def list_cells():
     orchestrator = get_orchestrator()
 
     if not orchestrator:
-        return _demo_cells()
+        if is_demo_mode_enabled():
+            return _demo_cells()
+        return jsonify({'error': 'Service not configured'}), 503
 
     cells = [cell.to_dict() for cell in orchestrator.work_cells.values()]
 
@@ -322,7 +326,9 @@ def get_cell_status(cell_id: str):
     orchestrator = get_orchestrator()
 
     if not orchestrator:
-        return _demo_cell_status(cell_id)
+        if is_demo_mode_enabled():
+            return _demo_cell_status(cell_id)
+        return jsonify({'error': 'Service not configured'}), 503
 
     status = orchestrator.get_cell_status(cell_id)
 
@@ -349,7 +355,9 @@ def list_tasks():
     orchestrator = get_orchestrator()
 
     if not orchestrator:
-        return _demo_tasks()
+        if is_demo_mode_enabled():
+            return _demo_tasks()
+        return jsonify({'error': 'Service not configured'}), 503
 
     state = request.args.get('state')
     robot_id = request.args.get('robot_id')
@@ -475,7 +483,9 @@ def list_robots():
     orchestrator = get_orchestrator()
 
     if not orchestrator:
-        return _demo_robots()
+        if is_demo_mode_enabled():
+            return _demo_robots()
+        return jsonify({'error': 'Service not configured'}), 503
 
     robots = []
     for cell in orchestrator.work_cells.values():
@@ -948,10 +958,14 @@ def list_services():
     namespace = request.args.get('namespace', '')
 
     if not bridge:
-        return _demo_services(namespace)
+        if is_demo_mode_enabled():
+            return _demo_services(namespace)
+        return jsonify({'error': 'Service not configured'}), 503
 
     if bridge._simulation_mode:
-        return _demo_services(namespace)
+        if is_demo_mode_enabled():
+            return _demo_services(namespace)
+        return jsonify({'error': 'Service not configured'}), 503
 
     # Try to call rosapi service to list services
     try:
@@ -977,7 +991,9 @@ def list_services():
         logger.warning(f"Failed to list services via rosapi: {e}")
 
     # Fallback to demo services
-    return _demo_services(namespace)
+    if is_demo_mode_enabled():
+        return _demo_services(namespace)
+    return jsonify({'error': 'Internal server error'}), 500
 
 
 def _demo_services(namespace: str = ''):
@@ -1083,7 +1099,9 @@ def get_robot_status(robot_id: str):
         })
 
     # Return demo data if robot state not available
-    return _demo_robot_status(robot_id)
+    if is_demo_mode_enabled():
+        return _demo_robot_status(robot_id)
+    return jsonify({'error': 'Service not configured'}), 503
 
 
 def _demo_robot_status(robot_id: str):
@@ -1555,7 +1573,9 @@ def get_cell_status_consolidated():
 
     if not orchestrator:
         # Return demo cell status
-        return _demo_consolidated_cell_status(cell_id)
+        if is_demo_mode_enabled():
+            return _demo_consolidated_cell_status(cell_id)
+        return jsonify({'error': 'Service not configured'}), 503
 
     status = orchestrator.get_cell_status(cell_id)
 

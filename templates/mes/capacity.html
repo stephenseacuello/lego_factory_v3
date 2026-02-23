@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Capacity Planning - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Capacity Planning</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-bar-chart-steps"></i> Capacity Planning</h2>
+  <div class="d-flex gap-2">
+    <select id="periodSelect" class="form-select form-select-sm" style="width:auto;">
+      <option value="7">7 Days</option>
+      <option value="14" selected>14 Days</option>
+      <option value="30">30 Days</option>
+    </select>
+    <button class="btn btn-sm btn-outline-primary" onclick="loadData()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+  </div>
+</div>
+
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">Load vs Capacity per Machine</div>
+      <div class="card-body">
+        <canvas id="capacityChart" height="100"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-exclamation-triangle"></i> Bottleneck Machines</div>
+      <div class="card-body">
+        <table class="table table-sm table-hover" id="bottleneckTable">
+          <thead>
+            <tr>
+              <th>Machine</th>
+              <th>Utilization %</th>
+              <th>Scheduled Hours</th>
+              <th>Available Hours</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let capacityChart;
+
+function initChart() {
+  const ctx = document.getElementById('capacityChart').getContext('2d');
+  capacityChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [] },
+    options: {
+      responsive: true,
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, title: { display: true, text: 'Hours' } }
+      },
+      plugins: { legend: { position: 'top' } }
+    }
+  });
+}
+
+async function loadData() {
+  const period = document.getElementById('periodSelect').value;
+  try {
+    const [capRes, bnRes] = await Promise.all([
+      fetch(`/api/mes/capacity?period=${period}`),
+      fetch('/api/mes/bottlenecks')
+    ]);
+    const capData = await capRes.json();
+    const bnData = await bnRes.json();
+    updateChart(capData);
+    updateBottlenecks(bnData);
+  } catch (e) {
+    console.error('Failed to load capacity data:', e);
+  }
+}
+
+function updateChart(data) {
+  const machines = (data.machines || []).map(m => m.name || m.machine_id);
+  capacityChart.data.labels = machines;
+  capacityChart.data.datasets = [
+    {
+      label: 'Scheduled Load',
+      data: (data.machines || []).map(m => m.scheduled_hours || 0),
+      backgroundColor: 'rgba(54,162,235,0.7)'
+    },
+    {
+      label: 'Available Capacity',
+      data: (data.machines || []).map(m => (m.available_hours || 0) - (m.scheduled_hours || 0)),
+      backgroundColor: 'rgba(200,200,200,0.5)'
+    }
+  ];
+  capacityChart.update();
+}
+
+function updateBottlenecks(data) {
+  const tbody = document.querySelector('#bottleneckTable tbody');
+  const rows = (data.bottlenecks || data || []);
+  tbody.innerHTML = rows.map(m => {
+    const util = (m.utilization || 0);
+    const cls = util > 85 ? 'table-danger' : '';
+    const badge = util > 85 ? '<span class="badge bg-danger">Bottleneck</span>' : '<span class="badge bg-success">OK</span>';
+    return `<tr class="${cls}">
+      <td>${m.machine_name || m.machine_id}</td>
+      <td><strong>${util.toFixed(1)}%</strong></td>
+      <td>${(m.scheduled_hours || 0).toFixed(1)}</td>
+      <td>${(m.available_hours || 0).toFixed(1)}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('periodSelect').addEventListener('change', loadData);
+document.addEventListener('DOMContentLoaded', () => { initChart(); loadData(); });
+</script>
+{% endblock %}

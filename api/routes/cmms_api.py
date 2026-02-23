@@ -21,37 +21,40 @@ logger = logging.getLogger(__name__)
 cmms_api_bp = Blueprint('cmms_api', __name__, url_prefix='/api/cmms')
 
 
+def _get_open_session():
+    """Get an open database session (caller must close)."""
+    from database.db import get_session
+    return get_session()
+
+
 def get_asset_service():
-    """Get asset service instance."""
+    """Get asset service instance with an open session."""
     try:
-        from services.cmms.asset_service import get_asset_service
-        from config.database import get_db_session
-        with get_db_session() as session:
-            return get_asset_service(session)
+        from services.cmms.asset_service import get_asset_service as _get_svc
+        session = _get_open_session()
+        return _get_svc(session)
     except Exception as e:
         logger.warning(f"Asset service not available: {e}")
         return None
 
 
 def get_maintenance_service():
-    """Get maintenance service instance."""
+    """Get maintenance service instance with an open session."""
     try:
-        from services.cmms.maintenance_service import get_maintenance_service
-        from config.database import get_db_session
-        with get_db_session() as session:
-            return get_maintenance_service(session)
+        from services.cmms.maintenance_service import get_maintenance_service as _get_svc
+        session = _get_open_session()
+        return _get_svc(session)
     except Exception as e:
         logger.warning(f"Maintenance service not available: {e}")
         return None
 
 
 def get_pm_service():
-    """Get PM service instance."""
+    """Get PM service instance with an open session."""
     try:
-        from services.cmms.maintenance_service import get_pm_service
-        from config.database import get_db_session
-        with get_db_session() as session:
-            return get_pm_service(session)
+        from services.cmms.maintenance_service import get_pm_service as _get_svc
+        session = _get_open_session()
+        return _get_svc(session)
     except Exception as e:
         logger.warning(f"PM service not available: {e}")
         return None
@@ -143,7 +146,7 @@ def create_asset():
             return jsonify(asset), 201
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
         # Demo mode fallback
         from config.demo_mode import is_demo_mode_enabled
@@ -288,7 +291,7 @@ def get_asset_meters(asset_id: str):
 
         with get_db_session() as session:
             service = get_svc(session)
-            meters = service.get_asset_meters(asset_id)
+            meters = service.get_meters(asset_id)
 
             return jsonify({
                 'asset_id': asset_id,
@@ -331,10 +334,16 @@ def record_meter_reading(meter_id: str):
         return jsonify({'error': 'reading_value required'}), 400
 
     try:
-        reading = service.record_meter_reading(meter_id, data)
+        reading = service.record_meter_reading(
+            meter_id,
+            data['reading_value'],
+            data.get('reading_date'),
+            data.get('source', 'manual'),
+            data.get('recorded_by'),
+        )
         return jsonify(reading), 201
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
 
 
 @cmms_api_bp.route('/meters/<meter_id>/readings', methods=['GET'])
@@ -459,7 +468,7 @@ def create_work_order():
             return jsonify(wo), 201
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
         # Demo mode fallback
         from config.demo_mode import is_demo_mode_enabled
@@ -785,7 +794,7 @@ def create_pm_schedule():
         pm = service.create_pm_schedule(data)
         return jsonify(pm), 201
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
 
 
 @cmms_api_bp.route('/pm-schedules/<pm_id>', methods=['GET'])
@@ -884,8 +893,15 @@ def get_pm_compliance():
 @jwt_required(optional=True)
 def get_backlog():
     """Get maintenance backlog summary."""
-    service = get_maintenance_service()
-    if not service:
+    try:
+        from config.database import get_db_session
+        from services.cmms.maintenance_service import get_maintenance_service as get_svc
+
+        with get_db_session() as session:
+            service = get_svc(session)
+            backlog = service.get_backlog_summary()
+            return jsonify(backlog)
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -893,14 +909,11 @@ def get_backlog():
             data = get_demo_backlog()
             return jsonify({**data, 'demo': True})
 
-        logger.error("CMMS maintenance service unavailable")
+        logger.error(f"CMMS maintenance service unavailable: {e}", exc_info=True)
         return jsonify({
             'error': 'CMMS service unavailable',
             'message': 'The Maintenance Management System is not available. Please check system status.'
         }), 503
-
-    backlog = service.get_backlog_summary()
-    return jsonify(backlog)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1141,3 +1154,170 @@ def delete_pm_schedule(schedule_id: str):
 
     except ImportError:
         return jsonify({'error': 'Authentication required'}), 401
+
+
+# ---------------------------------------------------------------------------
+# Reliability Endpoints
+# ---------------------------------------------------------------------------
+
+@cmms_api_bp.route('/assets/<asset_id>/reliability', methods=['GET'])
+def get_asset_reliability(asset_id: str):
+    """Get MTBF and MTTR metrics for an asset."""
+    try:
+        from services.cmms.reliability_service import ReliabilityService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = ReliabilityService(session)
+            period_days = request.args.get('period_days', 90, type=int)
+            mtbf = service.calculate_mtbf(asset_id, period_days=period_days)
+            mttr = service.calculate_mttr(asset_id, period_days=period_days)
+            trend = service.reliability_trend(asset_id, months=12)
+            return jsonify({
+                'asset_id': asset_id,
+                'mtbf': mtbf,
+                'mttr': mttr,
+                'trend': trend
+            }), 200
+    except Exception as e:
+        logger.error(f"Error getting reliability for asset {asset_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@cmms_api_bp.route('/reliability/worst-performers', methods=['GET'])
+def get_worst_performers():
+    """Get worst performing assets by reliability."""
+    try:
+        from services.cmms.reliability_service import ReliabilityService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = ReliabilityService(session)
+            limit = request.args.get('limit', 10, type=int)
+            performers = service.get_worst_performers(limit=limit)
+            return jsonify({'worst_performers': performers}), 200
+    except Exception as e:
+        logger.error(f"Error getting worst performers: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ---------------------------------------------------------------------------
+# PM Calendar Endpoints
+# ---------------------------------------------------------------------------
+
+@cmms_api_bp.route('/pm-calendar', methods=['GET'])
+def get_pm_calendar():
+    """Get PM calendar events for a given month."""
+    try:
+        from services.cmms.pm_calendar_service import PMCalendarService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = PMCalendarService(session)
+            month = request.args.get('month')
+            machine_id = request.args.get('machine_id')
+            events = service.get_calendar_events(month, machine_id=machine_id)
+            return jsonify({'events': events}), 200
+    except Exception as e:
+        logger.error(f"Error getting PM calendar: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@cmms_api_bp.route('/pm-calendar/auto-schedule', methods=['POST'])
+def auto_schedule_pm():
+    """Auto-schedule a PM based on its configuration."""
+    try:
+        from services.cmms.pm_calendar_service import PMCalendarService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = PMCalendarService(session)
+            data = request.get_json()
+            pm_id = data.get('pm_id')
+            result = service.auto_schedule_pm(pm_id)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error auto-scheduling PM: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Condition-Based Maintenance (CBM) Endpoints
+# ---------------------------------------------------------------------------
+
+@cmms_api_bp.route('/cbm/evaluate/<machine_id>', methods=['POST'])
+def evaluate_cbm(machine_id: str):
+    """Evaluate condition-based maintenance for a specific machine."""
+    try:
+        from services.cmms.cbm_service import CBMService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = CBMService(session)
+            result = service.evaluate_conditions(machine_id)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error evaluating CBM for machine {machine_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@cmms_api_bp.route('/cbm/evaluate-all', methods=['POST'])
+def evaluate_cbm_all():
+    """Evaluate condition-based maintenance for all machines."""
+    try:
+        from services.cmms.cbm_service import CBMService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = CBMService(session)
+            result = service.evaluate_all_machines()
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error evaluating CBM for all machines: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Spare Parts Endpoints
+# ---------------------------------------------------------------------------
+
+@cmms_api_bp.route('/spare-parts/availability/<work_order_id>', methods=['GET'])
+def get_spare_parts_availability(work_order_id: str):
+    """Check spare parts availability for a work order."""
+    try:
+        from services.cmms.spare_parts_service import SparePartsService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = SparePartsService(session)
+            availability = service.check_parts_availability(work_order_id)
+            return jsonify(availability), 200
+    except Exception as e:
+        logger.error(f"Error checking parts availability for WO {work_order_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@cmms_api_bp.route('/spare-parts/requisition', methods=['POST'])
+def create_spare_parts_requisition():
+    """Create an auto-requisition for a spare part."""
+    try:
+        from services.cmms.spare_parts_service import SparePartsService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = SparePartsService(session)
+            data = request.get_json()
+            part_id = data.get('part_id')
+            quantity = data.get('quantity')
+            result = service.auto_requisition(part_id, quantity)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Error creating spare parts requisition: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@cmms_api_bp.route('/spare-parts/usage/<part_id>', methods=['GET'])
+def get_spare_parts_usage(part_id: str):
+    """Get usage history for a spare part."""
+    try:
+        from services.cmms.spare_parts_service import SparePartsService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = SparePartsService(session)
+            history = service.get_usage_history(part_id)
+            return jsonify({'part_id': part_id, 'usage_history': history}), 200
+    except Exception as e:
+        logger.error(f"Error getting usage history for part {part_id}: {e}")
+        return jsonify({'error': 'Internal server error'}), 500

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Machine {{ machine_id }} - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('scada_web.machines') }}">Machines</a></li>
+<li class="breadcrumb-item active">{{ machine_id }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-cpu me-2"></i>Machine: {{ machine_id }}</h2>
+    <a href="{{ url_for('scada_web.machines') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Machines
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Status</div>
+            <div class="card-body">
+                <span id="machineStatus" class="badge bg-secondary">Loading...</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">OEE</div>
+            <div class="card-body">
+                <h3 id="machineOee">--</h3>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">Current Job</div>
+            <div class="card-body">
+                <span id="currentJob">--</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Live Parameters</div>
+    <div class="card-body">
+        <div id="machineParams"><em>Loading machine data...</em></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const machineId = '{{ machine_id }}';
+    fetch(`/api/scada/machines/${machineId}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('machineStatus').textContent = data.status || 'Unknown';
+            document.getElementById('machineOee').textContent = data.oee ? (data.oee * 100).toFixed(1) + '%' : '--';
+            document.getElementById('currentJob').textContent = data.current_job || 'Idle';
+        })
+        .catch(() => {
+            document.getElementById('machineParams').innerHTML = '<em>Could not load machine data.</em>';
+        });
+});
+</script>
+{% endblock %}

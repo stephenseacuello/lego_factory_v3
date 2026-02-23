@@ -178,17 +178,10 @@ async function loadWorkOrders() {
         const data = await response.json();
         workOrders = data.work_orders || data.data || [];
 
-        if (workOrders.length === 0) {
-            workOrders = getDemoWorkOrders();
-        }
-
         renderWorkOrders();
         updateStats();
     } catch (error) {
-        console.error('Error loading work orders:', error);
-        workOrders = getDemoWorkOrders();
-        renderWorkOrders();
-        updateStats();
+        console.error('Failed to load work orders:', error);
     }
 }
 
@@ -200,24 +193,9 @@ async function loadAssets() {
         const data = await response.json();
         assets = data.assets || data.data || [];
 
-        if (assets.length === 0) {
-            assets = [
-                { asset_id: 'AST-001', name: 'Bambu Lab P1S' },
-                { asset_id: 'AST-002', name: 'Bantam Desktop CNC' },
-                { asset_id: 'AST-003', name: 'Niryo Ned2 Robot' },
-                { asset_id: 'AST-004', name: 'Longer Ray5 Laser' },
-            ];
-        }
-
         populateAssetSelect();
     } catch (error) {
-        console.error('Error loading assets:', error);
-        assets = [
-            { asset_id: 'AST-001', name: 'Bambu Lab P1S' },
-            { asset_id: 'AST-002', name: 'Bantam Desktop CNC' },
-            { asset_id: 'AST-003', name: 'Niryo Ned2 Robot' },
-        ];
-        populateAssetSelect();
+        console.error('Failed to load assets for work order form:', error);
     }
 }
 
@@ -230,56 +208,6 @@ function populateAssetSelect() {
         option.textContent = `${a.asset_id || a.id} - ${a.name}`;
         select.appendChild(option);
     });
-}
-
-function getDemoWorkOrders() {
-    const now = new Date();
-    return [
-        {
-            wo_number: 'MWO-001',
-            asset_id: 'AST-003',
-            asset_name: 'Niryo Ned2 Robot',
-            wo_type: 'corrective',
-            priority: 'emergency',
-            status: 'in_progress',
-            assigned_to: 'tech-a',
-            target_completion: new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(),
-            problem_description: 'Joint 3 motor failure'
-        },
-        {
-            wo_number: 'MWO-002',
-            asset_id: 'AST-002',
-            asset_name: 'Bantam Desktop CNC',
-            wo_type: 'preventive',
-            priority: 'high',
-            status: 'open',
-            assigned_to: 'tech-b',
-            target_completion: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
-            problem_description: 'Monthly PM - spindle lubrication'
-        },
-        {
-            wo_number: 'MWO-003',
-            asset_id: 'AST-001',
-            asset_name: 'Bambu Lab P1S',
-            wo_type: 'inspection',
-            priority: 'medium',
-            status: 'open',
-            assigned_to: null,
-            target_completion: new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString(),
-            problem_description: 'Quarterly bed calibration check'
-        },
-        {
-            wo_number: 'MWO-004',
-            asset_id: 'AST-004',
-            asset_name: 'Longer Ray5 Laser',
-            wo_type: 'corrective',
-            priority: 'low',
-            status: 'completed',
-            assigned_to: 'tech-c',
-            target_completion: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
-            problem_description: 'Lens cleaning and alignment'
-        },
-    ];
 }
 
 function renderWorkOrders() {
@@ -402,22 +330,11 @@ async function startWorkOrder(woNumber) {
         if (response.ok) {
             loadWorkOrders();
         } else {
-            // Demo mode fallback
-            const wo = workOrders.find(w => w.wo_number === woNumber);
-            if (wo) {
-                wo.status = 'in_progress';
-                renderWorkOrders();
-                updateStats();
-            }
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Failed to start work order:', errorData);
         }
     } catch (error) {
-        // Demo mode fallback
-        const wo = workOrders.find(w => w.wo_number === woNumber);
-        if (wo) {
-            wo.status = 'in_progress';
-            renderWorkOrders();
-            updateStats();
-        }
+        console.error('Failed to start work order:', error);
     }
 }
 
@@ -431,24 +348,11 @@ async function completeWorkOrder(woNumber) {
         if (response.ok) {
             loadWorkOrders();
         } else {
-            // Demo mode fallback
-            const wo = workOrders.find(w => w.wo_number === woNumber);
-            if (wo) {
-                wo.status = 'completed';
-                wo.completed_at = new Date().toISOString();
-                renderWorkOrders();
-                updateStats();
-            }
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Failed to complete work order:', errorData);
         }
     } catch (error) {
-        // Demo mode fallback
-        const wo = workOrders.find(w => w.wo_number === woNumber);
-        if (wo) {
-            wo.status = 'completed';
-            wo.completed_at = new Date().toISOString();
-            renderWorkOrders();
-            updateStats();
-        }
+        console.error('Failed to complete work order:', error);
     }
 }
 
@@ -486,25 +390,7 @@ document.getElementById('addWoForm').addEventListener('submit', async function(e
             alert('Error: ' + (error.error || error.message || 'Failed to create work order'));
         }
     } catch (error) {
-        console.error('Error creating work order:', error);
-        // Demo mode fallback
-        const newWo = {
-            wo_number: `MWO-${String(workOrders.length + 1).padStart(3, '0')}`,
-            asset_id: data.asset_id,
-            asset_name: asset ? asset.name : data.asset_id,
-            wo_type: data.wo_type,
-            priority: data.priority,
-            status: 'open',
-            assigned_to: data.assigned_to,
-            target_completion: data.target_completion,
-            problem_description: data.problem_description,
-        };
-        workOrders.unshift(newWo);
-        renderWorkOrders();
-        updateStats();
-        bootstrap.Modal.getInstance(document.getElementById('addWoModal')).hide();
-        this.reset();
-        alert('Work order created (demo mode)');
+        console.error('Failed to create work order:', error);
     }
 });
 

@@ -1,28 +1,202 @@
 {% extends "base.html" %}
 {% block title %}Spare Parts - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">Maintenance</a></li>
+<li class="breadcrumb-item active">Spare Parts</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-box-seam me-2"></i>Spare Parts Inventory</h2>
-<div class="row g-3 mb-4">
-    <div class="col-md-3"><div class="card bg-primary text-white text-center p-3"><h3>342</h3><small>Total SKUs</small></div></div>
-    <div class="col-md-3"><div class="card bg-success text-white text-center p-3"><h3>$45K</h3><small>Inventory Value</small></div></div>
-    <div class="col-md-3"><div class="card bg-warning text-dark text-center p-3"><h3>12</h3><small>Below Min</small></div></div>
-    <div class="col-md-3"><div class="card bg-info text-white text-center p-3"><h3>5</h3><small>On Order</small></div></div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-box-seam me-2"></i>Spare Parts Inventory</h2>
+    <button class="btn btn-outline-secondary btn-sm" onclick="loadData()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
 </div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white text-center p-3">
+            <h3 id="totalParts">0</h3>
+            <small>Total Parts</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white text-center p-3">
+            <h3 id="inventoryValue">$0</h3>
+            <small>Inventory Value</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark text-center p-3">
+            <h3 id="belowReorder">0</h3>
+            <small>Below Reorder</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white text-center p-3">
+            <h3 id="outOfStock">0</h3>
+            <small>Out of Stock</small>
+        </div>
+    </div>
+</div>
+
+<!-- Spare Parts Table -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span>Parts List</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>Add Part</button>
+        <span class="text-muted small" id="lastUpdated"></span>
     </div>
     <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>Part #</th><th>Description</th><th>For Asset</th><th>On Hand</th><th>Min</th><th>Status</th></tr></thead>
-            <tbody>
-                <tr><td>SP-001</td><td>Extruder Nozzle 0.4mm</td><td>3D Printers</td><td>25</td><td>10</td><td><span class="badge bg-success">OK</span></td></tr>
-                <tr><td>SP-002</td><td>Timing Belt GT2</td><td>3D Printers</td><td>8</td><td>5</td><td><span class="badge bg-success">OK</span></td></tr>
-                <tr><td>SP-003</td><td>Spindle Motor</td><td>CNC Mill</td><td>1</td><td>2</td><td><span class="badge bg-warning text-dark">Low</span></td></tr>
-                <tr><td>SP-004</td><td>Servo Motor - Niryo</td><td>Robot Arm</td><td>0</td><td>1</td><td><span class="badge bg-danger">Out</span></td></tr>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover" id="sparesTable">
+                <thead>
+                    <tr>
+                        <th>Spare ID</th>
+                        <th>Name</th>
+                        <th>On Hand</th>
+                        <th>Reorder Point</th>
+                        <th>Reorder Qty</th>
+                        <th>Unit Cost</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="dataBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let spares = [];
+let lowStockIds = new Set();
+
+async function loadData() {
+    try {
+        // Fetch both endpoints in parallel
+        const [sparesResponse, lowStockResponse] = await Promise.all([
+            fetch('/api/cmms/spares'),
+            fetch('/api/cmms/spares/low-stock').catch(() => null)
+        ]);
+
+        const sparesData = await sparesResponse.json();
+        spares = sparesData.spares || sparesData.data || [];
+
+        // Process low-stock data if available
+        lowStockIds = new Set();
+        if (lowStockResponse && lowStockResponse.ok) {
+            const lowStockData = await lowStockResponse.json();
+            const lowStockItems = lowStockData.low_stock_spares || lowStockData.data || [];
+            lowStockItems.forEach(item => {
+                lowStockIds.add(item.spare_id || item.part_id || item.id);
+            });
+        }
+
+        renderTable();
+        updateStats();
+        document.getElementById('lastUpdated').textContent =
+            'Updated ' + new Date().toLocaleTimeString();
+    } catch (error) {
+        console.error('Failed to load spare parts:', error);
+        const tbody = document.getElementById('dataBody');
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle me-2"></i>Failed to load data. Retrying...</td></tr>';
+    }
+}
+
+function getPartStatus(onHand, reorderPoint) {
+    if (onHand === 0) {
+        return { label: 'Out', cls: 'bg-danger' };
+    } else if (onHand < reorderPoint) {
+        return { label: 'Low', cls: 'bg-warning text-dark' };
+    } else {
+        return { label: 'OK', cls: 'bg-success' };
+    }
+}
+
+function renderTable() {
+    const tbody = document.getElementById('dataBody');
+
+    if (spares.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>No spare parts found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = spares.map(part => {
+        const onHand = part.quantity_on_hand ?? part.on_hand ?? 0;
+        const reorderPoint = part.reorder_point ?? part.min_quantity ?? 0;
+        const reorderQty = part.reorder_quantity ?? part.order_quantity ?? 'N/A';
+        const unitCost = part.unit_cost ?? 0;
+        const status = getPartStatus(onHand, reorderPoint);
+        const partId = part.spare_id || part.part_id || part.id || 'N/A';
+
+        const isLowStock = lowStockIds.has(partId) || onHand < reorderPoint;
+        const rowClass = isLowStock && onHand > 0 ? 'table-warning' : onHand === 0 ? 'table-danger' : '';
+
+        return `
+            <tr class="${rowClass}">
+                <td><code>${partId}</code></td>
+                <td>${part.name || part.description || 'N/A'}</td>
+                <td class="fw-bold">${onHand}</td>
+                <td>${reorderPoint}</td>
+                <td>${reorderQty}</td>
+                <td>$${unitCost.toFixed(2)}</td>
+                <td><span class="badge ${status.cls}">${status.label}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function updateStats() {
+    let totalValue = 0;
+    let belowReorder = 0;
+    let outCount = 0;
+
+    spares.forEach(part => {
+        const onHand = part.quantity_on_hand ?? part.on_hand ?? 0;
+        const reorderPoint = part.reorder_point ?? part.min_quantity ?? 0;
+        const unitCost = part.unit_cost ?? 0;
+
+        totalValue += onHand * unitCost;
+
+        if (onHand === 0) {
+            outCount++;
+        } else if (onHand < reorderPoint) {
+            belowReorder++;
+        }
+    });
+
+    document.getElementById('totalParts').textContent = spares.length;
+    document.getElementById('outOfStock').textContent = outCount;
+    document.getElementById('belowReorder').textContent = belowReorder;
+
+    // Format inventory value
+    if (totalValue >= 1000) {
+        document.getElementById('inventoryValue').textContent =
+            '$' + (totalValue / 1000).toFixed(1) + 'K';
+    } else {
+        document.getElementById('inventoryValue').textContent =
+            '$' + totalValue.toFixed(0);
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadData();
+});
+
+// Auto-refresh every 30 seconds
+setInterval(loadData, 30000);
+</script>
 {% endblock %}

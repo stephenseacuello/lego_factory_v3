@@ -157,6 +157,7 @@ class QualityCostService:
 
     def __init__(self):
         self._entries: List[QualityCostEntry] = []
+        self._max_entries = 10000
         self._revenue_by_period: Dict[str, Decimal] = {}
         self._targets = {
             'coq_percentage': 10.0,  # Target: 10% of revenue
@@ -211,6 +212,8 @@ class QualityCostService:
             cost_center=cost_center,
         )
 
+        if len(self._entries) >= self._max_entries:
+            self._entries = self._entries[-self._max_entries // 2:]
         self._entries.append(entry)
         return entry
 

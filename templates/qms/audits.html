@@ -1,21 +1,249 @@
 {% extends "base.html" %}
 {% block title %}Audits - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">Quality</a></li>
+<li class="breadcrumb-item active">Audits</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-clipboard-check me-2"></i>Audit Management</h2>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Audit Schedule</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>Schedule Audit</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-clipboard-check me-2"></i>Audit Management</h2>
+    <button class="btn btn-outline-secondary" onclick="loadData()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statTotal">--</h3>
+            <small class="text-muted">Total Audits</small>
+        </div>
     </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>Audit #</th><th>Type</th><th>Area</th><th>Scheduled</th><th>Status</th><th>Findings</th></tr></thead>
-            <tbody>
-                <tr><td>AUD-001</td><td>Internal</td><td>Production</td><td>Jan 25, 2026</td><td><span class="badge bg-info">Scheduled</span></td><td>-</td></tr>
-                <tr><td>AUD-002</td><td>Internal</td><td>Warehouse</td><td>Jan 10, 2026</td><td><span class="badge bg-success">Completed</span></td><td>2 minor</td></tr>
-                <tr><td>AUD-003</td><td>External</td><td>ISO 9001</td><td>Mar 15, 2026</td><td><span class="badge bg-warning text-dark">Planning</span></td><td>-</td></tr>
-            </tbody>
-        </table>
+    <div class="col-md-3">
+        <div class="card stat-card success text-center p-3">
+            <h3 class="mb-0" id="statCompleted">--</h3>
+            <small class="text-muted">Completed</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statInProgress">--</h3>
+            <small class="text-muted">In Progress</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning text-center p-3">
+            <h3 class="mb-0" id="statFindings">--</h3>
+            <small class="text-muted">Findings</small>
+        </div>
     </div>
 </div>
+
+<!-- Filters -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <select class="form-select" id="filterStatus" onchange="loadData()">
+            <option value="">All Statuses</option>
+            <option value="planned">Planned</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="in_progress">In Progress</option>
+            <option value="report_draft">Report Draft</option>
+            <option value="report_review">Report Review</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <select class="form-select" id="filterType" onchange="loadData()">
+            <option value="">All Types</option>
+            <option value="internal">Internal</option>
+            <option value="external">External</option>
+            <option value="supplier">Supplier</option>
+            <option value="customer">Customer</option>
+            <option value="regulatory">Regulatory</option>
+            <option value="process">Process</option>
+        </select>
+    </div>
+</div>
+
+<!-- Audits Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-1"></i>Audit List</span>
+        <span class="text-muted" id="tableCount"></span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Audit #</th>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>Department</th>
+                        <th>Scheduled</th>
+                        <th>Lead Auditor</th>
+                        <th>Status</th>
+                        <th>Findings</th>
+                    </tr>
+                </thead>
+                <tbody id="auditTableBody">
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            Loading audits...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const STATUS_BADGES = {
+        completed:     'bg-success',
+        in_progress:   'bg-primary',
+        scheduled:     'bg-info',
+        planned:       'bg-secondary',
+        report_draft:  'bg-warning text-dark',
+        report_review: 'bg-warning text-dark',
+        cancelled:     'bg-dark'
+    };
+
+    const TYPE_BADGES = {
+        internal:   'bg-primary',
+        external:   'bg-info',
+        supplier:   'bg-warning text-dark',
+        customer:   'bg-success',
+        regulatory: 'bg-danger',
+        process:    'bg-secondary'
+    };
+
+    function formatLabel(str) {
+        if (!str) return '';
+        return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        try {
+            return new Date(dateStr).toLocaleDateString();
+        } catch (e) {
+            return dateStr;
+        }
+    }
+
+    function sumFindings(findingsCount) {
+        if (!findingsCount || typeof findingsCount !== 'object') return 0;
+        return Object.values(findingsCount).reduce((sum, v) => sum + (Number(v) || 0), 0);
+    }
+
+    function updateStats(audits) {
+        const total = audits.length;
+        const completed = audits.filter(a => a.status === 'completed').length;
+        const inProgress = audits.filter(a => a.status === 'in_progress').length;
+        const findings = audits.reduce((sum, a) => sum + sumFindings(a.findings_count), 0);
+
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statCompleted').textContent = completed;
+        document.getElementById('statInProgress').textContent = inProgress;
+        document.getElementById('statFindings').textContent = findings;
+    }
+
+    function renderTable(audits) {
+        const tbody = document.getElementById('auditTableBody');
+        const countEl = document.getElementById('tableCount');
+
+        if (!audits || audits.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                        No audits found
+                    </td>
+                </tr>`;
+            countEl.textContent = '0 records';
+            return;
+        }
+
+        countEl.textContent = `${audits.length} record${audits.length !== 1 ? 's' : ''}`;
+
+        tbody.innerHTML = audits.map(audit => {
+            const auditNumber = audit.audit_number || audit.id || '-';
+            const title = audit.title || '-';
+            const auditType = (audit.audit_type || audit.type || '').toLowerCase();
+            const typeClass = TYPE_BADGES[auditType] || 'bg-secondary';
+            const department = audit.department || '-';
+            const scheduled = formatDate(audit.planned_start);
+            const leadAuditor = audit.lead_auditor || '-';
+            const status = (audit.status || '').toLowerCase();
+            const statusClass = STATUS_BADGES[status] || 'bg-secondary';
+            const findingsTotal = sumFindings(audit.findings_count);
+            const findingsLabel = findingsTotal === 1 ? '1 finding' : `${findingsTotal} findings`;
+
+            return `<tr>
+                <td><a href="/qms/audits/${encodeURIComponent(auditNumber)}" class="fw-bold text-decoration-none">${auditNumber}</a></td>
+                <td>${title}</td>
+                <td><span class="badge ${typeClass}">${formatLabel(auditType)}</span></td>
+                <td>${department}</td>
+                <td>${scheduled}</td>
+                <td>${leadAuditor}</td>
+                <td><span class="badge ${statusClass}">${formatLabel(status)}</span></td>
+                <td>${findingsLabel}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function loadData() {
+        const statusFilter = document.getElementById('filterStatus').value;
+        const typeFilter = document.getElementById('filterType').value;
+
+        let url = '/api/qms/audits';
+        const params = new URLSearchParams();
+        if (statusFilter) params.append('status', statusFilter);
+        if (typeFilter) params.append('type', typeFilter);
+        const qs = params.toString();
+        if (qs) url += '?' + qs;
+
+        const token = localStorage.getItem('access_token') || 'demo-token';
+
+        try {
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const audits = data.audits || data.data || [];
+
+            updateStats(audits);
+            renderTable(audits);
+        } catch (error) {
+            console.error('Failed to load audits:', error);
+            document.getElementById('auditTableBody').innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-circle display-6 d-block mb-2"></i>
+                        Failed to load audits. Please try again.
+                    </td>
+                </tr>`;
+        }
+    }
+
+    // Initial load
+    loadData();
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadData, 30000);
+</script>
 {% endblock %}

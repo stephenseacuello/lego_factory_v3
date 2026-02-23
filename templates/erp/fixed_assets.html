@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Fixed Assets - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">Fixed Assets</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-building me-2"></i>Fixed Assets</h2>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary" id="runDepBtn">
+      <i class="bi bi-play-circle me-1"></i>Run Depreciation
+    </button>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#assetModal">
+      <i class="bi bi-plus-circle me-1"></i>Register Asset
+    </button>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card text-bg-primary">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Total Assets</div>
+        <div class="fs-3 fw-bold" id="totalAssets">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-bg-success">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Total NBV</div>
+        <div class="fs-3 fw-bold" id="totalNBV">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card text-bg-warning">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Monthly Depreciation</div>
+        <div class="fs-3 fw-bold" id="monthlyDep">--</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Asset Register Table -->
+<div class="card">
+  <div class="card-body table-responsive">
+    <table class="table table-hover align-middle" id="assetTable">
+      <thead class="table-light">
+        <tr>
+          <th>Asset</th>
+          <th>Acquisition Date</th>
+          <th class="text-end">Cost</th>
+          <th>Useful Life</th>
+          <th>Method</th>
+          <th class="text-end">Accum. Dep.</th>
+          <th class="text-end">NBV</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Register Asset Modal -->
+<div class="modal fade" id="assetModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Register Asset</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="assetForm">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Asset Name</label>
+            <input type="text" class="form-control" name="name" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Acquisition Date</label>
+            <input type="date" class="form-control" name="acquisition_date" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Cost</label>
+            <input type="number" step="0.01" class="form-control" name="cost" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Useful Life (years)</label>
+            <input type="number" class="form-control" name="useful_life" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Depreciation Method</label>
+            <select class="form-select" name="method" required>
+              <option value="straight_line">Straight Line</option>
+              <option value="declining_balance">Declining Balance</option>
+              <option value="units_of_production">Units of Production</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const fmt = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n);
+
+  async function loadAssets() {
+    const res = await fetch('/api/erp/fixed-assets');
+    const d = await res.json();
+
+    document.getElementById('totalAssets').textContent = fmt(d.total_cost || 0);
+    document.getElementById('totalNBV').textContent = fmt(d.total_nbv || 0);
+    document.getElementById('monthlyDep').textContent = fmt(d.monthly_depreciation || 0);
+
+    const tbody = document.querySelector('#assetTable tbody');
+    tbody.innerHTML = '';
+    (d.assets || d.items || []).forEach(a => {
+      tbody.innerHTML += `<tr>
+        <td>${a.name}</td>
+        <td>${a.acquisition_date}</td>
+        <td class="text-end">${fmt(a.cost)}</td>
+        <td>${a.useful_life} yrs</td>
+        <td><span class="badge bg-secondary">${a.method}</span></td>
+        <td class="text-end">${fmt(a.accumulated_depreciation)}</td>
+        <td class="text-end fw-bold">${fmt(a.nbv)}</td>
+      </tr>`;
+    });
+  }
+
+  document.getElementById('runDepBtn').addEventListener('click', async () => {
+    if (!confirm('Run depreciation for this period?')) return;
+    const btn = document.getElementById('runDepBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Running...';
+    await fetch('/api/erp/fixed-assets', {method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({action:'run_depreciation'})});
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-play-circle me-1"></i>Run Depreciation';
+    loadAssets();
+  });
+
+  document.getElementById('assetForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await fetch('/api/erp/fixed-assets', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(Object.fromEntries(fd))
+    });
+    bootstrap.Modal.getInstance(document.getElementById('assetModal')).hide();
+    e.target.reset();
+    loadAssets();
+  });
+
+  loadAssets();
+</script>
+{% endblock %}

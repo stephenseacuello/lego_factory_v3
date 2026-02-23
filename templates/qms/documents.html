@@ -1,21 +1,233 @@
 {% extends "base.html" %}
-{% block title %}Documents - LEGO Factory v3{% endblock %}
+{% block title %}Document Control - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">Quality</a></li>
+<li class="breadcrumb-item active">Documents</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-file-earmark-text me-2"></i>Document Control</h2>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Controlled Documents</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>New Document</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-earmark-text me-2"></i>Document Control</h2>
+    <button class="btn btn-outline-secondary" onclick="loadData()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statTotal">--</h3>
+            <small class="text-muted">Total Documents</small>
+        </div>
     </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>Doc #</th><th>Title</th><th>Type</th><th>Rev</th><th>Status</th><th>Effective</th></tr></thead>
-            <tbody>
-                <tr><td>SOP-001</td><td>Machine Startup Procedure</td><td>SOP</td><td>Rev 3</td><td><span class="badge bg-success">Active</span></td><td>Jan 1, 2026</td></tr>
-                <tr><td>WI-012</td><td>Brick Quality Inspection</td><td>Work Instruction</td><td>Rev 2</td><td><span class="badge bg-success">Active</span></td><td>Dec 15, 2025</td></tr>
-                <tr><td>SPEC-005</td><td>ABS Material Specification</td><td>Specification</td><td>Rev 4</td><td><span class="badge bg-warning text-dark">Pending Approval</span></td><td>-</td></tr>
-            </tbody>
-        </table>
+    <div class="col-md-3">
+        <div class="card stat-card success text-center p-3">
+            <h3 class="mb-0" id="statEffective">--</h3>
+            <small class="text-muted">Effective</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning text-center p-3">
+            <h3 class="mb-0" id="statPending">--</h3>
+            <small class="text-muted">Pending Approval</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statDraft">--</h3>
+            <small class="text-muted">Draft</small>
+        </div>
     </div>
 </div>
+
+<!-- Filters -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <select class="form-select" id="filterType" onchange="loadData()">
+            <option value="">All Types</option>
+            <option value="procedure">Procedure</option>
+            <option value="specification">Specification</option>
+            <option value="form">Form</option>
+            <option value="record">Record</option>
+            <option value="drawing">Drawing</option>
+            <option value="report">Report</option>
+        </select>
+    </div>
+    <div class="col-md-4">
+        <select class="form-select" id="filterStatus" onchange="loadData()">
+            <option value="">All Statuses</option>
+            <option value="draft">Draft</option>
+            <option value="pending_review">Pending Review</option>
+            <option value="approved">Approved</option>
+            <option value="effective">Effective</option>
+            <option value="superseded">Superseded</option>
+        </select>
+    </div>
+</div>
+
+<!-- Documents Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-1"></i>Controlled Documents</span>
+        <span class="text-muted" id="tableCount"></span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Doc #</th>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>Revision</th>
+                        <th>Status</th>
+                        <th>Effective Date</th>
+                    </tr>
+                </thead>
+                <tbody id="docTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            Loading documents...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const STATUS_BADGES = {
+        effective:      'bg-success',
+        approved:       'bg-primary',
+        pending_review: 'bg-warning text-dark',
+        draft:          'bg-secondary',
+        superseded:     'bg-dark'
+    };
+
+    const TYPE_BADGES = {
+        procedure:     'bg-primary',
+        specification: 'bg-info',
+        form:          'bg-secondary',
+        record:        'bg-success',
+        drawing:       'bg-warning text-dark',
+        report:        'bg-dark'
+    };
+
+    function formatLabel(str) {
+        if (!str) return '';
+        return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        try {
+            return new Date(dateStr).toLocaleDateString();
+        } catch (e) {
+            return dateStr;
+        }
+    }
+
+    function updateStats(docs) {
+        const total = docs.length;
+        const effective = docs.filter(d => d.status === 'effective').length;
+        const pending = docs.filter(d => d.status === 'pending_review' || d.status === 'approved').length;
+        const draft = docs.filter(d => d.status === 'draft').length;
+
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statEffective').textContent = effective;
+        document.getElementById('statPending').textContent = pending;
+        document.getElementById('statDraft').textContent = draft;
+    }
+
+    function renderTable(docs) {
+        const tbody = document.getElementById('docTableBody');
+        const countEl = document.getElementById('tableCount');
+
+        if (!docs || docs.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                        No documents found
+                    </td>
+                </tr>`;
+            countEl.textContent = '0 records';
+            return;
+        }
+
+        countEl.textContent = `${docs.length} record${docs.length !== 1 ? 's' : ''}`;
+
+        tbody.innerHTML = docs.map(doc => {
+            const docNumber = doc.document_number || doc.doc_number || doc.id || '-';
+            const title = doc.title || '-';
+            const docType = (doc.document_type || doc.type || '').toLowerCase();
+            const typeClass = TYPE_BADGES[docType] || 'bg-secondary';
+            const revision = doc.revision || doc.rev || '-';
+            const status = (doc.status || '').toLowerCase();
+            const statusClass = STATUS_BADGES[status] || 'bg-secondary';
+            const effectiveDate = formatDate(doc.effective_date);
+
+            return `<tr>
+                <td><a href="/qms/documents/${encodeURIComponent(docNumber)}" class="fw-bold text-decoration-none">${docNumber}</a></td>
+                <td>${title}</td>
+                <td><span class="badge ${typeClass}">${formatLabel(docType)}</span></td>
+                <td>${revision}</td>
+                <td><span class="badge ${statusClass}">${formatLabel(status)}</span></td>
+                <td>${effectiveDate}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function loadData() {
+        const typeFilter = document.getElementById('filterType').value;
+        const statusFilter = document.getElementById('filterStatus').value;
+
+        let url = '/api/qms/documents';
+        const params = new URLSearchParams();
+        if (typeFilter) params.append('type', typeFilter);
+        if (statusFilter) params.append('status', statusFilter);
+        const qs = params.toString();
+        if (qs) url += '?' + qs;
+
+        const token = localStorage.getItem('access_token') || 'demo-token';
+
+        try {
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const docs = data.documents || data.data || [];
+
+            updateStats(docs);
+            renderTable(docs);
+        } catch (error) {
+            console.error('Failed to load documents:', error);
+            document.getElementById('docTableBody').innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-circle display-6 d-block mb-2"></i>
+                        Failed to load documents. Please try again.
+                    </td>
+                </tr>`;
+        }
+    }
+
+    // Initial load
+    loadData();
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadData, 30000);
+</script>
 {% endblock %}

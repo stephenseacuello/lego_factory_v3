@@ -142,19 +142,19 @@
 <!-- Stats Row -->
 <div class="stat-row">
     <div class="stat-box success">
-        <div class="value" id="statOee">85.2%</div>
+        <div class="value" id="statOee">--</div>
         <div class="label">Fleet OEE</div>
     </div>
     <div class="stat-box danger">
-        <div class="value" id="statAlarms">2</div>
+        <div class="value" id="statAlarms">--</div>
         <div class="label">Active Alarms</div>
     </div>
     <div class="stat-box primary">
-        <div class="value" id="statWorkOrders">12</div>
-        <div class="label">Work Orders</div>
+        <div class="value" id="statWorkOrders">--</div>
+        <div class="label">Active Work Orders</div>
     </div>
     <div class="stat-box warning">
-        <div class="value" id="statMachines">5/8</div>
+        <div class="value" id="statMachines">--</div>
         <div class="label">Machines Running</div>
     </div>
 </div>
@@ -303,18 +303,7 @@
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
                     <tbody id="recentAlarms">
-                        <tr>
-                            <td><span class="badge bg-danger">HIGH</span></td>
-                            <td>Printer 1</td>
-                            <td>Temperature warning</td>
-                            <td class="text-muted">2 min ago</td>
-                        </tr>
-                        <tr>
-                            <td><span class="badge bg-warning">MEDIUM</span></td>
-                            <td>Conveyor A</td>
-                            <td>Belt tension low</td>
-                            <td class="text-muted">15 min ago</td>
-                        </tr>
+                        <tr><td colspan="4" class="text-center text-muted py-3">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -330,24 +319,7 @@
             <div class="card-body p-0">
                 <table class="table table-hover mb-0">
                     <tbody id="activeWorkOrders">
-                        <tr>
-                            <td><strong>WO-2024-156</strong></td>
-                            <td>2x4 Red Brick</td>
-                            <td>
-                                <div class="progress" style="height: 20px; min-width: 100px;">
-                                    <div class="progress-bar" style="width: 67%">67%</div>
-                                </div>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td><strong>WO-2024-157</strong></td>
-                            <td>2x2 Blue Brick</td>
-                            <td>
-                                <div class="progress" style="height: 20px; min-width: 100px;">
-                                    <div class="progress-bar" style="width: 23%">23%</div>
-                                </div>
-                            </td>
-                        </tr>
+                        <tr><td colspan="3" class="text-center text-muted py-3">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -365,36 +337,125 @@
     updateLastUpdate();
     setInterval(updateLastUpdate, 30000);
 
-    // Fetch dashboard stats
+    // Priority badge helper
+    function alarmBadge(priority) {
+        const map = {critical:'bg-danger',high:'bg-danger',medium:'bg-warning text-dark',low:'bg-info',info:'bg-secondary'};
+        return map[priority] || 'bg-secondary';
+    }
+
+    // Status badge helper for work orders
+    function woBadgeClass(status) {
+        const map = {in_progress:'bg-primary',released:'bg-info',completed:'bg-success',pending:'bg-secondary',planned:'bg-secondary',cancelled:'bg-danger'};
+        return map[status] || 'bg-secondary';
+    }
+
+    // Time ago helper
+    function timeAgo(isoDate) {
+        if (!isoDate) return '';
+        const diff = (Date.now() - new Date(isoDate).getTime()) / 1000;
+        if (diff < 60) return `${Math.round(diff)}s ago`;
+        if (diff < 3600) return `${Math.round(diff/60)} min ago`;
+        if (diff < 86400) return `${Math.round(diff/3600)}h ago`;
+        return `${Math.round(diff/86400)}d ago`;
+    }
+
+    // Fetch dashboard stats from real API endpoints
     async function fetchStats() {
         try {
-            // Try to fetch real data
-            const [alarmsRes, workOrdersRes, machinesRes] = await Promise.allSettled([
-                fetch('/api/v1/scada/alarms/active'),
-                fetch('/api/v1/mes/work-orders'),
-                fetch('/api/v1/scada/machines')
+            const [resourcesRes, workOrdersRes, alarmsRes] = await Promise.allSettled([
+                fetch('/api/mes/resources'),
+                fetch('/api/mes/work-orders'),
+                fetch('/api/v1/scada/alarms/active')
             ]);
 
-            // Update stats if we got responses
-            if (alarmsRes.status === 'fulfilled' && alarmsRes.value.ok) {
-                const data = await alarmsRes.value.json();
-                document.getElementById('statAlarms').textContent = data.count || data.alarms?.length || 0;
+            // --- Machine status from resources ---
+            if (resourcesRes.status === 'fulfilled' && resourcesRes.value.ok) {
+                const data = await resourcesRes.value.json();
+                const summary = data.status_summary || {};
+                const running = summary.running || 0;
+                const total = (summary.running || 0) + (summary.idle || 0) + (summary.down || 0)
+                    + (summary.setup || 0) + (summary.maintenance || 0) + (summary.offline || 0);
+                document.getElementById('statMachines').textContent = `${running}/${total}`;
+
+                // Compute fleet OEE from machine utilization
+                const machines = data.machines || [];
+                if (machines.length > 0) {
+                    const avgUtil = machines.reduce((sum, m) => sum + (m.utilization_8hr || 0), 0) / machines.length;
+                    document.getElementById('statOee').textContent = avgUtil.toFixed(1) + '%';
+                } else {
+                    document.getElementById('statOee').textContent = 'N/A';
+                }
             }
 
+            // --- Work orders ---
             if (workOrdersRes.status === 'fulfilled' && workOrdersRes.value.ok) {
                 const data = await workOrdersRes.value.json();
-                const active = data.work_orders?.filter(wo => wo.status === 'in_progress').length || 0;
-                document.getElementById('statWorkOrders').textContent = data.work_orders?.length || 0;
+                const wos = data.work_orders || [];
+                const active = wos.filter(wo => wo.status === 'in_progress' || wo.status === 'released');
+                document.getElementById('statWorkOrders').textContent = active.length;
+
+                // Populate active work orders table
+                const tbody = document.getElementById('activeWorkOrders');
+                if (active.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No active work orders</td></tr>';
+                } else {
+                    tbody.innerHTML = active.slice(0, 8).map(wo => {
+                        const pct = wo.quantity_ordered > 0
+                            ? Math.round((wo.quantity_completed || 0) / wo.quantity_ordered * 100)
+                            : 0;
+                        return `<tr>
+                            <td><a href="/mes/work-orders/${wo.wo_number}" class="fw-medium text-decoration-none">${wo.wo_number}</a></td>
+                            <td><small>${wo.product_id || ''}</small></td>
+                            <td>
+                                <div class="progress" style="height: 20px; min-width: 100px;">
+                                    <div class="progress-bar ${pct >= 100 ? 'bg-success' : ''}" style="width: ${pct}%">${pct}%</div>
+                                </div>
+                            </td>
+                        </tr>`;
+                    }).join('');
+                }
             }
 
-            if (machinesRes.status === 'fulfilled' && machinesRes.value.ok) {
-                const data = await machinesRes.value.json();
-                const running = data.machines?.filter(m => m.state === 'running').length || 0;
-                const total = data.machines?.length || 0;
-                document.getElementById('statMachines').textContent = `${running}/${total}`;
+            // --- Alarms ---
+            if (alarmsRes.status === 'fulfilled' && alarmsRes.value.ok) {
+                const data = await alarmsRes.value.json();
+                const alarms = data.alarms || [];
+                document.getElementById('statAlarms').textContent = alarms.length;
+
+                const tbody = document.getElementById('recentAlarms');
+                if (alarms.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No active alarms</td></tr>';
+                } else {
+                    tbody.innerHTML = alarms.slice(0, 5).map(a => `<tr>
+                        <td><span class="badge ${alarmBadge(a.priority)}">${(a.priority || '').toUpperCase()}</span></td>
+                        <td>${a.source || a.machine_id || ''}</td>
+                        <td><small>${a.message || a.alarm_message || ''}</small></td>
+                        <td><small class="text-muted">${timeAgo(a.triggered_at || a.created_at)}</small></td>
+                    </tr>`).join('');
+                }
+            } else {
+                // Alarms endpoint requires JWT - show resource alarm data instead
+                if (resourcesRes.status === 'fulfilled' && resourcesRes.value.ok) {
+                    const data = await resourcesRes.value.json();
+                    const machines = data.machines || [];
+                    const alarmed = machines.filter(m => m.has_alarm);
+                    document.getElementById('statAlarms').textContent = alarmed.length;
+
+                    const tbody = document.getElementById('recentAlarms');
+                    if (alarmed.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No active alarms</td></tr>';
+                    } else {
+                        tbody.innerHTML = alarmed.map(m => `<tr>
+                            <td><span class="badge bg-danger">ALARM</span></td>
+                            <td>${m.machine_name || m.machine_id}</td>
+                            <td><small>${m.alarm_message || m.alarm_code || 'Machine alarm active'}</small></td>
+                            <td><small class="text-muted">${timeAgo(m.updated_at)}</small></td>
+                        </tr>`).join('');
+                    }
+                }
             }
         } catch (error) {
-            console.log('Using demo data');
+            console.error('Error fetching dashboard stats:', error);
         }
     }
 

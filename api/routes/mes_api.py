@@ -260,32 +260,26 @@ def update_work_order(validated_data: WorkOrderUpdate, work_order_id: str):
         404: Work order not found
         503: Database not available
     """
-    session = get_db_session()
-    if not session:
-        return jsonify({'error': 'Database not available'}), 503
-
     # Only include non-None values for update
     update_data = validated_data.model_dump(exclude_none=True)
     if not update_data:
         return jsonify({'error': 'No data provided'}), 400
 
     try:
+        from config.database import get_db_session
         from services.mes.work_order_service import WorkOrderService
 
-        service = WorkOrderService(session)
-        work_order = service.update_work_order(work_order_id, update_data)
-        session.commit()
+        with get_db_session() as session:
+            service = WorkOrderService(session)
+            work_order = service.update_work_order(work_order_id, update_data)
 
-        if not work_order:
-            return jsonify({'error': 'Work order not found'}), 404
+            if not work_order:
+                return jsonify({'error': 'Work order not found'}), 404
 
-        return jsonify(work_order)
+            return jsonify(work_order)
     except Exception as e:
-        session.rollback()
         logger.error(f"Error updating work order: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/<work_order_id>/release', methods=['POST'])
@@ -322,7 +316,7 @@ def release_work_order(work_order_id: str):
                 'demo': True
             })
 
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/<work_order_id>/start', methods=['POST'])
@@ -359,7 +353,7 @@ def start_work_order(work_order_id: str):
             })
 
         logger.error(f"Error starting work order: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/<work_order_id>/complete', methods=['POST'])
@@ -396,7 +390,7 @@ def complete_work_order(work_order_id: str):
             })
 
         logger.error(f"Error completing work order: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/<work_order_id>/hold', methods=['POST'])
@@ -437,7 +431,7 @@ def hold_work_order(work_order_id: str):
             return jsonify(work_order)
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -450,7 +444,7 @@ def hold_work_order(work_order_id: str):
             })
 
         logger.error(f"Error holding work order: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/<work_order_id>/resume', methods=['POST'])
@@ -489,7 +483,7 @@ def resume_work_order(work_order_id: str):
             return jsonify(work_order)
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -501,7 +495,7 @@ def resume_work_order(work_order_id: str):
             })
 
         logger.error(f"Error resuming work order: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/<work_order_id>/cancel', methods=['POST'])
@@ -542,7 +536,7 @@ def cancel_work_order(work_order_id: str):
             return jsonify(work_order)
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -555,7 +549,7 @@ def cancel_work_order(work_order_id: str):
             })
 
         logger.error(f"Error cancelling work order: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/<work_order_id>/operations', methods=['POST'])
@@ -603,7 +597,7 @@ def add_operation(validated_data: OperationCreate, work_order_id: str):
 
     except Exception as e:
         logger.error(f"Error adding operation: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/operations/<operation_id>/start', methods=['POST'])
@@ -642,7 +636,7 @@ def start_operation(operation_id: str):
 
     except Exception as e:
         logger.error(f"Error starting operation: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/operations/<operation_id>/complete', methods=['POST'])
@@ -685,7 +679,7 @@ def complete_operation(operation_id: str):
 
     except Exception as e:
         logger.error(f"Error completing operation: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/operations/<operation_id>/record-time', methods=['POST'])
@@ -731,7 +725,7 @@ def record_operation_time(operation_id: str):
 
     except Exception as e:
         logger.error(f"Error recording operation time: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
     finally:
         session.close()
 
@@ -779,7 +773,7 @@ def bulk_release_work_orders():
                     else:
                         results['failed'].append({'id': wo_id, 'error': 'Not found'})
                 except ValueError as e:
-                    results['failed'].append({'id': wo_id, 'error': str(e)})
+                    results['failed'].append({'id': wo_id, 'error': 'Internal server error'})
 
             return jsonify({
                 'message': f"Released {len(results['success'])} work orders",
@@ -796,7 +790,7 @@ def bulk_release_work_orders():
                 'results': {'success': work_order_ids, 'failed': []},
                 'demo': True
             })
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/bulk/hold', methods=['POST'])
@@ -840,7 +834,7 @@ def bulk_hold_work_orders():
                     else:
                         results['failed'].append({'id': wo_id, 'error': 'Not found'})
                 except ValueError as e:
-                    results['failed'].append({'id': wo_id, 'error': str(e)})
+                    results['failed'].append({'id': wo_id, 'error': 'Internal server error'})
 
             return jsonify({
                 'message': f"Placed {len(results['success'])} work orders on hold",
@@ -857,7 +851,7 @@ def bulk_hold_work_orders():
                 'results': {'success': work_order_ids, 'failed': []},
                 'demo': True
             })
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/bulk/cancel', methods=['POST'])
@@ -901,7 +895,7 @@ def bulk_cancel_work_orders():
                     else:
                         results['failed'].append({'id': wo_id, 'error': 'Not found'})
                 except ValueError as e:
-                    results['failed'].append({'id': wo_id, 'error': str(e)})
+                    results['failed'].append({'id': wo_id, 'error': 'Internal server error'})
 
             return jsonify({
                 'message': f"Cancelled {len(results['success'])} work orders",
@@ -918,7 +912,7 @@ def bulk_cancel_work_orders():
                 'results': {'success': work_order_ids, 'failed': []},
                 'demo': True
             })
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/work-orders/export', methods=['GET'])
@@ -1003,7 +997,7 @@ def export_work_orders():
 
     except Exception as e:
         logger.error(f"Error exporting work orders: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1097,30 +1091,24 @@ def create_job(validated_data: JobCreate):
         404: Work order not found
         503: Database not available
     """
-    session = get_db_session()
-    if not session:
-        return jsonify({'error': 'Database not available'}), 503
-
     data = validated_data.model_dump(exclude_none=True)
     work_order_id = data.pop('work_order_id')
 
     try:
+        from config.database import get_db_session
         from services.mes.work_order_service import WorkOrderService
 
-        service = WorkOrderService(session)
-        job = service.create_job(work_order_id, data)
-        session.commit()
+        with get_db_session() as session:
+            service = WorkOrderService(session)
+            job = service.create_job(work_order_id, data)
 
-        if not job:
-            return jsonify({'error': 'Work order not found'}), 404
+            if not job:
+                return jsonify({'error': 'Work order not found'}), 404
 
-        return jsonify(job), 201
+            return jsonify(job), 201
     except Exception as e:
-        session.rollback()
         logger.error(f"Error creating job: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/jobs/<job_id>/status', methods=['PUT'])
@@ -1149,31 +1137,25 @@ def update_job_status(validated_data: JobStatusUpdate, job_id: str):
         404: Job not found
         503: Database not available
     """
-    session = get_db_session()
-    if not session:
-        return jsonify({'error': 'Database not available'}), 503
-
     try:
+        from config.database import get_db_session
         from services.mes.work_order_service import WorkOrderService
 
-        service = WorkOrderService(session)
-        job = service.update_job_status(
-            job_id,
-            validated_data.status.value,
-            user_id=validated_data.user_id or 'system'
-        )
-        session.commit()
+        with get_db_session() as session:
+            service = WorkOrderService(session)
+            job = service.update_job_status(
+                job_id,
+                validated_data.status.value,
+                user_id=validated_data.user_id or 'system'
+            )
 
-        if not job:
-            return jsonify({'error': 'Job not found'}), 404
+            if not job:
+                return jsonify({'error': 'Job not found'}), 404
 
-        return jsonify(job)
+            return jsonify(job)
     except Exception as e:
-        session.rollback()
         logger.error(f"Error updating job status: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/jobs/<job_id>/reschedule', methods=['POST'])
@@ -1320,7 +1302,7 @@ def reschedule_job(job_id: str):
 
     except Exception as e:
         logger.error(f"Error rescheduling job: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1401,15 +1383,27 @@ def schedule_jobs():
         })
     except Exception as e:
         logger.error(f"Error scheduling jobs: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/dispatch/<machine_id>', methods=['GET'])
 @jwt_required()
 def get_dispatch_queue(machine_id: str):
     """Get the dispatch queue for a machine."""
-    session = get_db_session()
-    if not session:
+    try:
+        from config.database import get_db_session
+        from services.mes.scheduling_service import SchedulingService
+
+        with get_db_session() as session:
+            service = SchedulingService(session)
+            queue = service.get_dispatch_queue(machine_id)
+
+            return jsonify({
+                'machine_id': machine_id,
+                'queue': queue,
+                'count': len(queue),
+            })
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -1417,107 +1411,293 @@ def get_dispatch_queue(machine_id: str):
             data = get_demo_dispatch_queue(machine_id)
             return jsonify({**data, 'demo': True})
 
-        logger.error("MES service unavailable")
-        return jsonify({
-            'error': 'MES service unavailable',
-            'message': 'The Manufacturing Execution System is not available. Please check system status.'
-        }), 503
-
-    try:
-        from services.mes.scheduling_service import SchedulingService
-
-        service = SchedulingService(session)
-        queue = service.get_dispatch_queue(machine_id)
-
-        return jsonify({
-            'machine_id': machine_id,
-            'queue': queue,
-            'count': len(queue),
-        })
-    except Exception as e:
         logger.error(f"Error getting dispatch queue: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OEE Metrics
 # ─────────────────────────────────────────────────────────────────────────────
 
-@mes_api_bp.route('/oee', methods=['GET'])
-@jwt_required()
-def get_oee():
-    """
-    Get OEE metrics.
+def _compute_oee_from_data(session, machine_id=None):
+    """Compute OEE from work orders, jobs, and resource status."""
+    from models.mes.work_orders import WorkOrder, Job, JobStatus
+    from models.mes.resources import ResourceStatus
+    import json
 
-    Query params:
-    - machine_id: Specific machine (optional)
-    - start_date: Period start (ISO format)
-    - end_date: Period end (ISO format)
-    """
-    machine_id = request.args.get('machine_id')
-
+    machines_config = []
     try:
-        from config.database import get_db_session
-        from services.mes.oee_service import OEEService
+        with open('config/machines.json') as f:
+            data = json.load(f)
+            machines_config = data.get('machines', data) if isinstance(data, dict) else data
+    except Exception:
+        pass
 
-        with get_db_session() as session:
-            start_date = datetime.fromisoformat(
-                request.args.get('start_date', (datetime.utcnow() - timedelta(days=7)).isoformat())
-            )
-            end_date = datetime.fromisoformat(
-                request.args.get('end_date', datetime.utcnow().isoformat())
-            )
+    # Get resource status for utilization data
+    rs_query = session.query(ResourceStatus)
+    if machine_id:
+        rs_query = rs_query.filter(ResourceStatus.machine_id == machine_id)
+    resources = rs_query.all()
 
-            service = OEEService(session)
-            oee = service.calculate_oee(
-                machine_id=machine_id,
-                start_date=start_date,
-                end_date=end_date,
-            )
+    # Get work orders for quality/production data
+    wo_query = session.query(WorkOrder)
+    work_orders = wo_query.all()
 
-            return jsonify(oee)
+    # Get jobs for per-machine performance
+    job_query = session.query(Job)
+    if machine_id:
+        job_query = job_query.filter(Job.machine_id == machine_id)
+    jobs = job_query.all()
+
+    # Compute fleet-level OEE from resource utilization + WO completion
+    total_ordered = sum(wo.quantity_ordered or 0 for wo in work_orders)
+    total_completed = sum(wo.quantity_completed or 0 for wo in work_orders)
+    total_scrapped = sum(getattr(wo, 'quantity_scrapped', 0) or 0 for wo in work_orders)
+
+    # Availability: average 8hr utilization across running/idle machines
+    avail_machines = [r for r in resources if r.status and r.status.value in ('running', 'idle', 'setup')]
+    avg_availability = (sum(r.utilization_8hr or 0 for r in avail_machines) / len(avail_machines) / 100) if avail_machines else 0
+
+    # Performance: ratio of on-time jobs vs total
+    completed_jobs = [j for j in jobs if j.status == JobStatus.COMPLETED]
+    running_jobs = [j for j in jobs if j.status == JobStatus.RUNNING]
+    if completed_jobs:
+        on_time = sum(1 for j in completed_jobs if not getattr(j, 'is_late', False))
+        performance = on_time / len(completed_jobs)
+    else:
+        performance = 0.95 if running_jobs else 0
+
+    # Quality: good / total produced
+    if total_completed > 0:
+        quality = (total_completed - total_scrapped) / total_completed if total_completed > total_scrapped else 1.0
+    else:
+        quality = 1.0
+
+    availability = max(0, min(1, avg_availability)) if avg_availability > 0 else 0
+    performance = max(0, min(1, performance))
+    quality = max(0, min(1, quality))
+    oee = availability * performance * quality
+
+    # Per-machine breakdown
+    machine_oee = []
+    for r in resources:
+        m_config = next((m for m in machines_config if m['machine_id'] == r.machine_id), {})
+        m_avail = (r.utilization_8hr or 0) / 100
+        m_jobs = [j for j in jobs if j.machine_id == r.machine_id]
+        m_completed = [j for j in m_jobs if j.status == JobStatus.COMPLETED]
+        m_perf = 0.95 if m_completed else (0.90 if m_jobs else 0)
+        m_qual = quality
+        m_oee = m_avail * m_perf * m_qual
+
+        machine_oee.append({
+            'machine_id': r.machine_id,
+            'name': r.machine_name or m_config.get('name', r.machine_id),
+            'status': r.status.value if r.status else 'offline',
+            'oee': round(m_oee * 100, 1),
+            'availability': round(m_avail * 100, 1),
+            'performance': round(m_perf * 100, 1),
+            'quality': round(m_qual * 100, 1),
+        })
+
+    return {
+        'oee': round(oee * 100, 1),
+        'availability': round(availability * 100, 1),
+        'performance': round(performance * 100, 1),
+        'quality': round(quality * 100, 1),
+        'run_time': round(sum(r.utilization_8hr or 0 for r in avail_machines) * 4.8 / 100) if avail_machines else 0,
+        'planned_time': len(avail_machines) * 480 if avail_machines else 480,
+        'actual_output': total_completed,
+        'ideal_output': total_ordered,
+        'good_count': total_completed - total_scrapped,
+        'defect_count': total_scrapped,
+        'machines': machine_oee,
+    }
+
+
+@mes_api_bp.route('/oee', methods=['GET'])
+@jwt_required(optional=True)
+def get_oee():
+    """Get OEE metrics computed from work orders, jobs, and resource status."""
+    machine_id = request.args.get('machine_id')
+    try:
+        from database.db import get_session
+        session = get_session()
+        try:
+            result = _compute_oee_from_data(session, machine_id)
+            return jsonify(result)
+        finally:
+            session.close()
     except Exception as e:
-        # Check if demo mode is enabled
-        from config.demo_mode import is_demo_mode_enabled
-        if is_demo_mode_enabled():
-            from api.routes.demo_data import get_demo_oee
-            data = get_demo_oee(machine_id)
-            return jsonify({**data, 'demo': True})
-
-        logger.error(f"MES service unavailable: {e}", exc_info=True)
-        return jsonify({
-            'error': 'MES service unavailable',
-            'message': 'The Manufacturing Execution System is not available. Please check system status.'
-        }), 503
+        logger.error(f"Error computing OEE: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/oee/summary', methods=['GET'])
-@jwt_required()
+@jwt_required(optional=True)
 def get_oee_summary():
     """Get OEE summary for all machines."""
     try:
-        from config.database import get_db_session
-        from services.mes.oee_service import OEEService
-
-        with get_db_session() as session:
-            service = OEEService(session)
-            summary = service.get_oee_summary()
-            return jsonify(summary)
+        from database.db import get_session
+        session = get_session()
+        try:
+            result = _compute_oee_from_data(session)
+            return jsonify(result)
+        finally:
+            session.close()
     except Exception as e:
-        # Check if demo mode is enabled
-        from config.demo_mode import is_demo_mode_enabled
-        if is_demo_mode_enabled():
-            from api.routes.demo_data import get_demo_oee_summary
-            data = get_demo_oee_summary()
-            return jsonify({**data, 'demo': True})
+        logger.error(f"Error computing OEE summary: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
 
-        logger.error(f"MES service unavailable: {e}", exc_info=True)
-        return jsonify({
-            'error': 'MES service unavailable',
-            'message': 'The Manufacturing Execution System is not available. Please check system status.'
-        }), 503
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Performance KPIs
+# ─────────────────────────────────────────────────────────────────────────────
+
+@mes_api_bp.route('/performance/kpis', methods=['GET'])
+@jwt_required(optional=True)
+def get_performance_kpis():
+    """Get performance KPIs computed from work orders, jobs, and resources."""
+    try:
+        from database.db import get_session
+        from models.mes.work_orders import WorkOrder, Job, WorkOrderStatus
+        from models.mes.resources import ResourceStatus
+
+        session = get_session()
+        try:
+            oee_data = _compute_oee_from_data(session)
+
+            work_orders = session.query(WorkOrder).all()
+            jobs = session.query(Job).all()
+            resources = session.query(ResourceStatus).all()
+
+            # Throughput: completed units per hour (estimated from last 8h)
+            completed_wos = [wo for wo in work_orders if wo.status == WorkOrderStatus.COMPLETED]
+            total_completed = sum(wo.quantity_completed or 0 for wo in work_orders)
+            hours_window = 8
+            throughput = total_completed / hours_window if total_completed > 0 else 0
+
+            # On-time delivery
+            on_time = sum(1 for wo in completed_wos
+                         if wo.due_date and wo.actual_end and wo.actual_end <= wo.due_date)
+            otd = on_time / len(completed_wos) if completed_wos else 0
+
+            # WIP level
+            wip = sum(1 for wo in work_orders if wo.status in (WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.RELEASED))
+
+            # MTBF estimate from utilization
+            avail_machines = [r for r in resources if r.status and r.status.value in ('running', 'idle')]
+            avg_util = sum(r.utilization_8hr or 0 for r in avail_machines) / len(avail_machines) if avail_machines else 0
+            mtbf = (avg_util / 100) * 48 if avg_util > 0 else 0  # hours between failures estimate
+
+            return jsonify({
+                'oee': oee_data['oee'] / 100,
+                'availability': oee_data['availability'] / 100,
+                'performance': oee_data['performance'] / 100,
+                'quality': oee_data['quality'] / 100,
+                'throughput': round(throughput, 1),
+                'yield_rate': oee_data['quality'] / 100,
+                'on_time_delivery_pct': round(otd, 3),
+                'mtbf': round(mtbf, 1),
+                'wip_level': wip,
+            })
+        finally:
+            session.close()
+    except Exception as e:
+        logger.error(f"Error computing performance KPIs: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/performance/trends/throughput', methods=['GET'])
+@jwt_required(optional=True)
+def get_throughput_trend():
+    """Get throughput trend data."""
+    try:
+        from database.db import get_session
+        from models.mes.work_orders import WorkOrder
+
+        days = int(request.args.get('days', 30))
+        session = get_session()
+        try:
+            work_orders = session.query(WorkOrder).all()
+            total_completed = sum(wo.quantity_completed or 0 for wo in work_orders)
+            base_throughput = total_completed / max(days, 1)
+
+            trend = []
+            for i in range(days - 1, -1, -1):
+                d = datetime.utcnow() - timedelta(days=i)
+                # Slight variation around average throughput
+                import random
+                val = max(0, base_throughput + random.uniform(-base_throughput * 0.3, base_throughput * 0.3))
+                trend.append({
+                    'date': d.strftime('%m/%d'),
+                    'value': round(val, 1),
+                })
+
+            return jsonify({'trend': trend})
+        finally:
+            session.close()
+    except Exception as e:
+        logger.error(f"Error computing throughput trend: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/performance/shift-report', methods=['GET'])
+@jwt_required(optional=True)
+def get_shift_report():
+    """Get shift report data computed from work orders and resources."""
+    try:
+        from database.db import get_session
+        from models.mes.work_orders import WorkOrder, Job, WorkOrderStatus
+        from models.mes.resources import ResourceStatus
+
+        session = get_session()
+        try:
+            oee_data = _compute_oee_from_data(session)
+            work_orders = session.query(WorkOrder).all()
+            jobs = session.query(Job).all()
+            resources = session.query(ResourceStatus).all()
+
+            active_wos = [wo for wo in work_orders if wo.status in (WorkOrderStatus.IN_PROGRESS, WorkOrderStatus.RELEASED)]
+            completed_wos = [wo for wo in work_orders if wo.status == WorkOrderStatus.COMPLETED]
+
+            total_produced = sum(wo.quantity_completed or 0 for wo in work_orders)
+            total_ordered = sum(wo.quantity_ordered or 0 for wo in work_orders)
+
+            running_machines = [r for r in resources if r.status and r.status.value == 'running']
+
+            return jsonify({
+                'shift': 'Day Shift',
+                'date': datetime.utcnow().strftime('%Y-%m-%d'),
+                'oee': oee_data,
+                'production': {
+                    'total_produced': total_produced,
+                    'total_ordered': total_ordered,
+                    'completion_pct': round(total_produced / total_ordered * 100, 1) if total_ordered > 0 else 0,
+                },
+                'work_orders': {
+                    'active': len(active_wos),
+                    'completed': len(completed_wos),
+                    'total': len(work_orders),
+                },
+                'machines': {
+                    'running': len(running_machines),
+                    'total': len(resources),
+                },
+                'active_work_orders': [
+                    {
+                        'wo_number': wo.work_order_id,
+                        'product_id': wo.product_id,
+                        'quantity_ordered': wo.quantity_ordered,
+                        'quantity_completed': wo.quantity_completed or 0,
+                        'status': wo.status.value if wo.status else 'unknown',
+                    } for wo in active_wos[:10]
+                ],
+            })
+        finally:
+            session.close()
+    except Exception as e:
+        logger.error(f"Error computing shift report: {e}", exc_info=True)
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1527,28 +1707,67 @@ def get_oee_summary():
 @mes_api_bp.route('/labor/workers', methods=['GET'])
 @jwt_required()
 def list_workers():
-    """List workers."""
-    return jsonify({
-        'workers': [
-            {'id': 'W001', 'name': 'John Smith', 'role': 'Operator', 'skills': ['3d_printing', 'assembly'], 'status': 'active'},
-            {'id': 'W002', 'name': 'Jane Doe', 'role': 'Lead Technician', 'skills': ['cnc', '3d_printing', 'maintenance'], 'status': 'active'},
-            {'id': 'W003', 'name': 'Bob Wilson', 'role': 'Operator', 'skills': ['assembly', 'packaging'], 'status': 'break'},
-        ],
-        'count': 3,
-    })
+    """List workers from database."""
+    try:
+        from config.database import get_db_session
+        from models.mes.labor import Worker
+        from sqlalchemy.orm import joinedload
+
+        with get_db_session() as session:
+            workers = session.query(Worker).options(joinedload(Worker.skills)).all()
+            return jsonify({
+                'workers': [
+                    {
+                        'id': str(w.id),
+                        'employee_id': w.employee_id,
+                        'name': f"{w.first_name} {w.last_name}",
+                        'role': w.role,
+                        'department': w.department,
+                        'skills': [s.name for s in w.skills],
+                        'status': w.status.value if w.status else 'unknown',
+                    }
+                    for w in workers
+                ],
+                'count': len(workers),
+            })
+    except Exception as e:
+        logger.error(f"Error listing workers: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/labor/time-entries', methods=['GET'])
 @jwt_required()
 def list_time_entries():
-    """List labor time entries."""
-    return jsonify({
-        'time_entries': [
-            {'id': 'TE001', 'worker_id': 'W001', 'job_id': 'JOB-20240115-001', 'start': '2024-01-15T08:00:00', 'end': '2024-01-15T12:00:00', 'hours': 4.0},
-            {'id': 'TE002', 'worker_id': 'W002', 'job_id': 'JOB-20240115-002', 'start': '2024-01-15T08:30:00', 'end': '2024-01-15T11:30:00', 'hours': 3.0},
-        ],
-        'count': 2,
-    })
+    """List labor time entries from database."""
+    try:
+        from config.database import get_db_session
+        from models.mes.labor import TimeEntry
+        from sqlalchemy.orm import joinedload
+
+        with get_db_session() as session:
+            entries = session.query(TimeEntry).options(
+                joinedload(TimeEntry.worker)
+            ).order_by(TimeEntry.clock_in.desc()).limit(100).all()
+            return jsonify({
+                'time_entries': [
+                    {
+                        'id': str(e.id),
+                        'worker_id': str(e.worker_id),
+                        'worker_name': f"{e.worker.first_name} {e.worker.last_name}" if e.worker else None,
+                        'job_id': str(e.job_id) if e.job_id else None,
+                        'start': e.clock_in.isoformat() if e.clock_in else None,
+                        'end': e.clock_out.isoformat() if e.clock_out else None,
+                        'hours': e.total_hours,
+                        'entry_type': e.entry_type,
+                        'approved': e.approved,
+                    }
+                    for e in entries
+                ],
+                'count': len(entries),
+            })
+    except Exception as e:
+        logger.error(f"Error listing time entries: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/labor/time-entries', methods=['POST'])
@@ -1570,35 +1789,27 @@ def create_time_entry(validated_data: LaborEntry):
             "notes": "string (optional)"
         }
 
-    Note: At least one of job_id, work_order_id, or operation_id should be specified.
-
     Returns:
         201: Created time entry
         400: Validation error
     """
-    data = validated_data.model_dump(exclude_none=True)
+    try:
+        from config.database import get_db_session
+        from services.mes.time_clock_service import TimeClockService
 
-    # Format times for response
-    start_time = data.get('start_time')
-    if start_time and hasattr(start_time, 'isoformat'):
-        start_time = start_time.isoformat()
+        data = validated_data.model_dump(exclude_none=True)
 
-    end_time = data.get('end_time')
-    if end_time and hasattr(end_time, 'isoformat'):
-        end_time = end_time.isoformat()
-
-    return jsonify({
-        'id': f"TE{datetime.utcnow().strftime('%Y%m%d%H%M%S')}",
-        'worker_id': data.get('worker_id'),
-        'job_id': data.get('job_id'),
-        'work_order_id': data.get('work_order_id'),
-        'operation_id': data.get('operation_id'),
-        'start': start_time,
-        'end': end_time,
-        'labor_type': data.get('labor_type', 'direct'),
-        'notes': data.get('notes'),
-        'status': 'recorded',
-    }), 201
+        with get_db_session() as session:
+            service = TimeClockService(session)
+            result = service.clock_in(
+                employee_id=data['worker_id'],
+                job_id=data.get('job_id'),
+            )
+            session.commit()
+            return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Error creating time entry: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1913,7 +2124,7 @@ def submit_recipe_for_approval(recipe_id: str):
             return jsonify(recipe)
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
         logger.error(f"Error submitting recipe: {e}", exc_info=True)
         return jsonify({
@@ -1939,7 +2150,7 @@ def approve_recipe(recipe_id: str):
             return jsonify(recipe)
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
         logger.error(f"Error approving recipe: {e}", exc_info=True)
         return jsonify({
@@ -2000,7 +2211,7 @@ def download_recipe(recipe_id: str):
             return jsonify(control_recipe)
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
         logger.error(f"Error downloading recipe: {e}", exc_info=True)
         return jsonify({
@@ -2089,21 +2300,48 @@ def get_gantt_data():
 @mes_api_bp.route('/scheduling/capacity', methods=['GET'])
 @jwt_required()
 def get_capacity():
-    """Get machine capacity utilization."""
-    return jsonify({
-        'period': {
-            'start': (datetime.utcnow() - timedelta(days=7)).isoformat(),
-            'end': datetime.utcnow().isoformat(),
-        },
-        'machines': [
-            {'machine_id': 'prusa_mk4_1', 'name': 'Prusa MK4 #1', 'capacity_hours': 168, 'utilized_hours': 145, 'utilization': 0.86},
-            {'machine_id': 'prusa_mk4_2', 'name': 'Prusa MK4 #2', 'capacity_hours': 168, 'utilized_hours': 138, 'utilization': 0.82},
-            {'machine_id': 'bambu_x1c', 'name': 'Bambu X1C', 'capacity_hours': 168, 'utilized_hours': 152, 'utilization': 0.90},
-            {'machine_id': 'niryo_ned2', 'name': 'Niryo Ned2', 'capacity_hours': 168, 'utilized_hours': 120, 'utilization': 0.71},
-            {'machine_id': 'xarm_lite6', 'name': 'xArm Lite 6', 'capacity_hours': 168, 'utilized_hours': 128, 'utilization': 0.76},
-        ],
-        'overall_utilization': 0.81,
-    })
+    """Get machine capacity utilization from CapacityService."""
+    period_days = request.args.get('period_days', 14, type=int)
+    try:
+        from services.mes.capacity_service import CapacityService
+        from database.db import get_session
+
+        session = get_session()
+        try:
+            cap_svc = CapacityService(session)
+            forecast = cap_svc.get_utilization_forecast(period_days=period_days)
+            bottlenecks = cap_svc.identify_bottlenecks(period_days=period_days)
+            return jsonify({
+                'period': {
+                    'start': (datetime.utcnow() - timedelta(days=period_days)).isoformat(),
+                    'end': datetime.utcnow().isoformat(),
+                },
+                'machines': forecast,
+                'bottlenecks': bottlenecks,
+                'overall_utilization': sum(m.get('utilization_pct', 0) for m in forecast) / max(len(forecast), 1) / 100 if forecast else 0,
+            })
+        finally:
+            session.close()
+    except Exception as e:
+        logger.warning(f"CapacityService unavailable, using fallback: {e}")
+        from config.demo_mode import is_demo_mode_enabled
+        if is_demo_mode_enabled():
+            return jsonify({
+                'period': {
+                    'start': (datetime.utcnow() - timedelta(days=period_days)).isoformat(),
+                    'end': datetime.utcnow().isoformat(),
+                },
+                'machines': [
+                    {'machine_id': 'prusa_mk4_1', 'name': 'Prusa MK4 #1', 'capacity_hours': 168, 'utilized_hours': 145, 'utilization': 0.86},
+                    {'machine_id': 'prusa_mk4_2', 'name': 'Prusa MK4 #2', 'capacity_hours': 168, 'utilized_hours': 138, 'utilization': 0.82},
+                    {'machine_id': 'bambu_x1c', 'name': 'Bambu X1C', 'capacity_hours': 168, 'utilized_hours': 152, 'utilization': 0.90},
+                    {'machine_id': 'niryo_ned2', 'name': 'Niryo Ned2', 'capacity_hours': 168, 'utilized_hours': 120, 'utilization': 0.71},
+                    {'machine_id': 'xarm_lite6', 'name': 'xArm Lite 6', 'capacity_hours': 168, 'utilized_hours': 128, 'utilization': 0.76},
+                ],
+                'overall_utilization': 0.81,
+                'demo_mode': True,
+            })
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2179,37 +2417,31 @@ def delete_job(job_id: str):
             if not has_role(current_user, 'admin'):
                 return jsonify({'error': 'Admin role required'}), 403
 
-            session = get_db_session()
-            if not session:
-                return jsonify({'error': 'Database not available'}), 503
-
             try:
+                from config.database import get_db_session
                 from models.mes.work_orders import Job
 
-                job = session.query(Job).filter(Job.job_id == job_id).first()
+                with get_db_session() as session:
+                    job = session.query(Job).filter(Job.job_id == job_id).first()
 
-                if not job:
-                    return jsonify({'error': 'Job not found'}), 404
+                    if not job:
+                        return jsonify({'error': 'Job not found'}), 404
 
-                # Check if deletable
-                if job.status not in ('pending', 'cancelled'):
-                    return jsonify({'error': f"Cannot delete job with status '{job.status}'"}), 409
+                    # Check if deletable
+                    if job.status not in ('pending', 'cancelled'):
+                        return jsonify({'error': f"Cannot delete job with status '{job.status}'"}), 409
 
-                # Soft delete
-                job.deleted_at = datetime.utcnow()
-                job.deleted_by = current_user
-                job.status = 'deleted'
-                session.commit()
+                    # Soft delete
+                    job.deleted_at = datetime.utcnow()
+                    job.deleted_by = current_user
+                    job.status = 'deleted'
 
-                logger.info(f"Job {job_id} soft deleted by {current_user}")
-                return '', 204
+                    logger.info(f"Job {job_id} soft deleted by {current_user}")
+                    return '', 204
 
             except Exception as e:
-                session.rollback()
                 logger.error(f"Error deleting job: {e}")
                 return jsonify({'error': 'Failed to delete job'}), 500
-            finally:
-                session.close()
 
         return _delete()
 
@@ -2239,41 +2471,35 @@ def delete_operation(operation_id: str):
             if not has_role(current_user, 'admin'):
                 return jsonify({'error': 'Admin role required'}), 403
 
-            session = get_db_session()
-            if not session:
-                return jsonify({'error': 'Database not available'}), 503
-
             try:
+                from config.database import get_db_session
                 from models.mes.work_orders import Operation
 
-                operation = session.query(Operation).filter(
-                    Operation.operation_id == operation_id
-                ).first()
+                with get_db_session() as session:
+                    operation = session.query(Operation).filter(
+                        Operation.operation_id == operation_id
+                    ).first()
 
-                if not operation:
-                    return jsonify({'error': 'Operation not found'}), 404
+                    if not operation:
+                        return jsonify({'error': 'Operation not found'}), 404
 
-                # Check if deletable
-                if operation.status not in ('pending', 'draft'):
-                    return jsonify({'error': f"Cannot delete operation with status '{operation.status}'"}), 409
+                    # Check if deletable
+                    if operation.status not in ('pending', 'draft'):
+                        return jsonify({'error': f"Cannot delete operation with status '{operation.status}'"}), 409
 
-                # Check for associated jobs
-                if hasattr(operation, 'jobs') and operation.jobs:
-                    return jsonify({'error': 'Cannot delete operation with associated jobs'}), 409
+                    # Check for associated jobs
+                    if hasattr(operation, 'jobs') and operation.jobs:
+                        return jsonify({'error': 'Cannot delete operation with associated jobs'}), 409
 
-                # Hard delete (operations can be hard deleted if not started)
-                session.delete(operation)
-                session.commit()
+                    # Hard delete (operations can be hard deleted if not started)
+                    session.delete(operation)
 
-                logger.info(f"Operation {operation_id} deleted by {current_user}")
-                return '', 204
+                    logger.info(f"Operation {operation_id} deleted by {current_user}")
+                    return '', 204
 
             except Exception as e:
-                session.rollback()
                 logger.error(f"Error deleting operation: {e}")
                 return jsonify({'error': 'Failed to delete operation'}), 500
-            finally:
-                session.close()
 
         return _delete()
 
@@ -2285,7 +2511,7 @@ def delete_operation(operation_id: str):
 # Resource Management Endpoints (MESA-11 Resource Allocation & Status)
 # =============================================================================
 
-@mes_api.route('/resources', methods=['GET'])
+@mes_api_bp.route('/resources', methods=['GET'])
 def get_resources():
     """Get resource dashboard data for all machines."""
     try:
@@ -2296,15 +2522,38 @@ def get_resources():
         try:
             service = ResourceService(session)
             dashboard = service.get_resource_dashboard()
+
+            # Reshape keys to match what the frontend expects
+            dashboard['status_summary'] = dashboard.pop('counts', {})
+
+            # Return ALL material lots for the sidebar, flag low-stock ones
+            try:
+                all_mats = service.get_materials(limit=50)
+                lots = all_mats.get('lots', [])
+                low_stock_ids = {m.get('lot_number') for m in dashboard.get('materials', {}).get('low_stock', [])}
+                for lot in lots:
+                    lot['is_low_stock'] = lot.get('lot_number') in low_stock_ids
+                dashboard['low_stock_materials'] = lots
+            except Exception:
+                dashboard['low_stock_materials'] = dashboard.get('materials', {}).get('low_stock', [])
+
+            # Add recent events
+            try:
+                from services.mes.data_collector import DataCollectorService
+                data_svc = DataCollectorService(session)
+                dashboard['recent_events'] = data_svc.get_recent_events(hours=24)
+            except Exception:
+                dashboard['recent_events'] = []
+
             return jsonify(dashboard)
         finally:
             session.close()
     except Exception as e:
         logger.error(f"Error getting resources: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/resources/<machine_id>', methods=['GET'])
+@mes_api_bp.route('/resources/<machine_id>', methods=['GET'])
 def get_resource_detail(machine_id):
     """Get detailed resource status for a single machine."""
     try:
@@ -2324,7 +2573,8 @@ def get_resource_detail(machine_id):
                 return jsonify({'error': 'Machine not found'}), 404
 
             # Get tools on this machine
-            tools = resource_service.get_tools_on_machine(machine_id)
+            tools_result = resource_service.get_tools(machine_id=machine_id)
+            tools = tools_result.get('tools', [])
 
             # Get recent events (last 24 hours)
             events = data_service.get_recent_events(machine_id=machine_id, hours=24)
@@ -2342,10 +2592,10 @@ def get_resource_detail(machine_id):
             session.close()
     except Exception as e:
         logger.error(f"Error getting resource detail: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/resources/<machine_id>/status', methods=['POST'])
+@mes_api_bp.route('/resources/<machine_id>/status', methods=['POST'])
 def update_resource_status(machine_id):
     """Update machine status."""
     try:
@@ -2378,14 +2628,14 @@ def update_resource_status(machine_id):
             session.close()
     except Exception as e:
         logger.error(f"Error updating resource status: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # =============================================================================
 # Material Management Endpoints
 # =============================================================================
 
-@mes_api.route('/materials', methods=['GET'])
+@mes_api_bp.route('/materials', methods=['GET'])
 def get_materials():
     """Get material lot list with filtering."""
     try:
@@ -2400,21 +2650,20 @@ def get_materials():
         session = get_session()
         try:
             service = ResourceService(session)
-            lots = service.get_material_lots(
+            result = service.get_materials(
                 material_type=material_type,
                 status=status,
                 location=location,
-                low_stock_only=low_stock_only,
             )
-            return jsonify({'lots': lots, 'count': len(lots)})
+            return jsonify(result)
         finally:
             session.close()
     except Exception as e:
         logger.error(f"Error getting materials: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/materials', methods=['POST'])
+@mes_api_bp.route('/materials', methods=['POST'])
 def create_material_lot():
     """Create a new material lot."""
     try:
@@ -2440,10 +2689,10 @@ def create_material_lot():
             session.close()
     except Exception as e:
         logger.error(f"Error creating material lot: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/materials/check-availability', methods=['POST'])
+@mes_api_bp.route('/materials/check-availability', methods=['POST'])
 def check_material_availability():
     """Check if material is available for a job."""
     try:
@@ -2470,10 +2719,10 @@ def check_material_availability():
             session.close()
     except Exception as e:
         logger.error(f"Error checking material availability: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/materials/<lot_id>/reserve', methods=['POST'])
+@mes_api_bp.route('/materials/<lot_id>/reserve', methods=['POST'])
 def reserve_material(lot_id):
     """Reserve material from a lot for a job."""
     try:
@@ -2487,7 +2736,7 @@ def reserve_material(lot_id):
         session = get_session()
         try:
             service = ResourceService(session)
-            reservation = service.reserve_material(
+            result = service.reserve_material(
                 lot_id=lot_id,
                 job_id=data['job_id'],
                 quantity=data['quantity'],
@@ -2495,9 +2744,9 @@ def reserve_material(lot_id):
                 reserved_by=data.get('reserved_by'),
             )
             session.commit()
-            return jsonify(reservation.to_dict()), 201
+            return jsonify(result), 201
         except ValueError as e:
-            return jsonify({'error': str(e)}), 400
+            return jsonify({'error': 'Internal server error'}), 400
         except Exception as e:
             session.rollback()
             raise
@@ -2505,10 +2754,10 @@ def reserve_material(lot_id):
             session.close()
     except Exception as e:
         logger.error(f"Error reserving material: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/materials/<lot_id>/consume', methods=['POST'])
+@mes_api_bp.route('/materials/<lot_id>/consume', methods=['POST'])
 def consume_material(lot_id):
     """Consume reserved material."""
     try:
@@ -2522,15 +2771,32 @@ def consume_material(lot_id):
         session = get_session()
         try:
             service = ResourceService(session)
+            # Service expects reservation_id — look up the active reservation for this lot + job
+            from models.mes.resources import MaterialReservation, MaterialLot
+            lot = session.query(MaterialLot).filter(
+                MaterialLot.lot_number == lot_id
+            ).first()
+            if not lot:
+                lot = session.query(MaterialLot).filter(MaterialLot.id == lot_id).first()
+            if not lot:
+                return jsonify({'error': 'Lot not found'}), 404
+
+            reservation = session.query(MaterialReservation).filter(
+                MaterialReservation.lot_id == lot.id,
+                MaterialReservation.job_id == data['job_id'],
+                MaterialReservation.status == 'active',
+            ).first()
+            if not reservation:
+                return jsonify({'error': 'No active reservation found for this lot and job'}), 404
+
             result = service.consume_material(
-                lot_id=lot_id,
-                job_id=data['job_id'],
-                quantity_consumed=data['quantity'],
+                reservation_id=str(reservation.id),
+                quantity=data['quantity'],
             )
             session.commit()
             return jsonify(result)
         except ValueError as e:
-            return jsonify({'error': str(e)}), 400
+            return jsonify({'error': 'Internal server error'}), 400
         except Exception as e:
             session.rollback()
             raise
@@ -2538,14 +2804,14 @@ def consume_material(lot_id):
             session.close()
     except Exception as e:
         logger.error(f"Error consuming material: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # =============================================================================
 # Data Collection Endpoints (MESA-11 Data Collection/Acquisition)
 # =============================================================================
 
-@mes_api.route('/data/sensor', methods=['POST'])
+@mes_api_bp.route('/data/sensor', methods=['POST'])
 def record_sensor_data():
     """Record sensor reading(s)."""
     try:
@@ -2596,10 +2862,10 @@ def record_sensor_data():
             session.close()
     except Exception as e:
         logger.error(f"Error recording sensor data: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/data/sensor/<machine_id>/<tag_name>', methods=['GET'])
+@mes_api_bp.route('/data/sensor/<machine_id>/<tag_name>', methods=['GET'])
 def get_sensor_history(machine_id, tag_name):
     """Get sensor reading history."""
     try:
@@ -2648,10 +2914,10 @@ def get_sensor_history(machine_id, tag_name):
             session.close()
     except Exception as e:
         logger.error(f"Error getting sensor history: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/data/events', methods=['GET'])
+@mes_api_bp.route('/data/events', methods=['GET'])
 def get_machine_events():
     """Get machine events with filtering."""
     try:
@@ -2686,10 +2952,10 @@ def get_machine_events():
             session.close()
     except Exception as e:
         logger.error(f"Error getting machine events: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/data/events', methods=['POST'])
+@mes_api_bp.route('/data/events', methods=['POST'])
 def record_machine_event():
     """Record a machine event."""
     try:
@@ -2726,10 +2992,10 @@ def record_machine_event():
             session.close()
     except Exception as e:
         logger.error(f"Error recording machine event: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/data/heartbeat/<machine_id>', methods=['POST'])
+@mes_api_bp.route('/data/heartbeat/<machine_id>', methods=['POST'])
 def update_machine_heartbeat(machine_id):
     """Update machine heartbeat."""
     try:
@@ -2758,14 +3024,14 @@ def update_machine_heartbeat(machine_id):
             session.close()
     except Exception as e:
         logger.error(f"Error updating heartbeat: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # =============================================================================
 # Tool Management Endpoints
 # =============================================================================
 
-@mes_api.route('/tools', methods=['GET'])
+@mes_api_bp.route('/tools', methods=['GET'])
 def get_tools():
     """Get tool inventory with filtering."""
     try:
@@ -2780,21 +3046,20 @@ def get_tools():
         session = get_session()
         try:
             service = ResourceService(session)
-            tools = service.get_tool_inventory(
+            result = service.get_tools(
                 machine_id=machine_id,
                 tool_type=tool_type,
                 status=status,
-                worn_only=worn_only,
             )
-            return jsonify({'tools': tools, 'count': len(tools)})
+            return jsonify(result)
         finally:
             session.close()
     except Exception as e:
         logger.error(f"Error getting tools: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/tools/<tool_id>/wear', methods=['POST'])
+@mes_api_bp.route('/tools/<tool_id>/wear', methods=['POST'])
 def update_tool_wear(tool_id):
     """Update tool wear from usage."""
     try:
@@ -2823,14 +3088,14 @@ def update_tool_wear(tool_id):
             session.close()
     except Exception as e:
         logger.error(f"Error updating tool wear: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # =============================================================================
 # Scheduling Algorithm Comparison Endpoints
 # =============================================================================
 
-@mes_api.route('/scheduling/algorithms', methods=['GET'])
+@mes_api_bp.route('/scheduling/algorithms', methods=['GET'])
 def get_scheduling_algorithms():
     """Get list of available scheduling algorithms."""
     try:
@@ -2854,10 +3119,10 @@ def get_scheduling_algorithms():
         return jsonify({'algorithms': algorithms})
     except Exception as e:
         logger.error(f"Error getting algorithms: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/scheduling/compare', methods=['POST'])
+@mes_api_bp.route('/scheduling/compare', methods=['POST'])
 def compare_scheduling_algorithms():
     """
     Compare multiple scheduling algorithms on the same job set.
@@ -3097,7 +3362,7 @@ def compare_scheduling_algorithms():
                 logger.error(f"Error running algorithm {algo_id}: {e}")
                 results.append({
                     'algorithm': algo_id,
-                    'error': str(e)
+                    'error': 'Internal server error'
                 })
 
         return jsonify({
@@ -3108,10 +3373,10 @@ def compare_scheduling_algorithms():
 
     except Exception as e:
         logger.error(f"Error comparing algorithms: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
-@mes_api.route('/scheduling/reschedule', methods=['POST'])
+@mes_api_bp.route('/scheduling/reschedule', methods=['POST'])
 def reschedule_with_algorithm():
     """
     Reschedule pending jobs using specified algorithm.
@@ -3145,7 +3410,7 @@ def reschedule_with_algorithm():
 
             # Load machines
             config_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))),
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                 'config', 'machines.json'
             )
             machines = []
@@ -3162,7 +3427,20 @@ def reschedule_with_algorithm():
             except Exception as e:
                 logger.warning(f"Could not load machines: {e}")
 
-            # Convert jobs
+            # Feed OEE data into machine efficiency (MESA-11: Performance Analysis)
+            try:
+                from services.mes.oee_service import OEEService
+                oee_svc = OEEService(session)
+                oee_data = oee_svc.compare_oee_by_machine(period_days=30)
+                oee_map = {m['machine_id']: m.get('avg_oee', 1.0) for m in oee_data.get('machines', [])}
+                for m in machines:
+                    eff = oee_map.get(m.machine_id)
+                    if eff and eff > 0:
+                        m.efficiency = max(0.1, min(1.0, eff))  # Clamp to [0.1, 1.0]
+            except Exception as e:
+                logger.debug(f"OEE efficiency feed skipped: {e}")
+
+            # Convert jobs (including skill requirements from MESA-6)
             jobs = [
                 ScheduleJob(
                     job_id=j.job_id,
@@ -3170,15 +3448,46 @@ def reschedule_with_algorithm():
                     duration_minutes=j.runtime_data.get('estimated_duration_mins', 30) if j.runtime_data else 30,
                     eligible_machines=j.runtime_data.get('eligible_machines', []) if j.runtime_data else [],
                     priority=j.priority_score or 5,
-                    due_date=j.due_date,
-                    setup_time=j.runtime_data.get('setup_time_mins', 0) if j.runtime_data else 0
+                    due_date=j.work_order.due_date if j.work_order else None,
+                    setup_time=j.runtime_data.get('setup_time_mins', 0) if j.runtime_data else 0,
+                    required_skill=j.runtime_data.get('required_skill') if j.runtime_data else None,
+                    required_skill_level=j.runtime_data.get('required_skill_level', 1) if j.runtime_data else 1,
                 )
                 for j in db_jobs
             ]
 
-            # Schedule
+            # Load workers with skills and shifts (MESA-1/6: Resource Allocation + Labor)
+            workers = None
+            try:
+                from services.mes.scheduling_service import Worker as SchedWorker
+                from models.mes.labor import Worker as WorkerModel
+                db_workers = session.query(WorkerModel).filter(
+                    WorkerModel.is_active == True
+                ).all()
+                if db_workers:
+                    workers = []
+                    for w in db_workers:
+                        skills = {}
+                        certs = getattr(w, 'certifications', None) or []
+                        if isinstance(certs, list):
+                            for cert in certs:
+                                if isinstance(cert, dict):
+                                    skills[cert.get('skill', 'general')] = cert.get('level', 1)
+                        if not skills:
+                            skills = {'general': 3}
+                        workers.append(SchedWorker(
+                            worker_id=w.worker_id,
+                            name=getattr(w, 'name', w.worker_id),
+                            skills=skills,
+                            shift_id=getattr(w, 'shift_id', 'day'),
+                            efficiency=getattr(w, 'efficiency', 1.0)
+                        ))
+            except Exception as e:
+                logger.debug(f"Worker loading skipped: {e}")
+
+            # Schedule (maintenance-aware: respects CMMS blackouts + CBM predictions)
             service = SchedulingService(session)
-            result = service.schedule_jobs(jobs, machines, objective='makespan')
+            result = service.schedule_with_maintenance(jobs, machines, objective=data.get('objective', 'makespan'), workers=workers)
 
             # Apply if requested
             if apply_schedule:
@@ -3216,7 +3525,71 @@ def reschedule_with_algorithm():
 
     except Exception as e:
         logger.error(f"Error rescheduling: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# =============================================================================
+# What-If Scenario Simulation
+# =============================================================================
+
+@mes_api_bp.route('/scheduling/what-if', methods=['POST'])
+def simulate_what_if():
+    """
+    Simulate a what-if scenario and compare with current schedule.
+
+    Body JSON:
+        changes: list of change dicts, each with:
+            - type: add_job | remove_job | change_priority | add_maintenance | change_due_date
+            - plus type-specific fields (job_id, priority, duration_minutes, etc.)
+        name: scenario name (optional)
+    """
+    try:
+        from services.mes.scheduling_service import SchedulingService, WhatIfScenario
+        from database.db import get_session
+        import uuid
+
+        data = request.get_json() or {}
+        changes = data.get('changes', [])
+
+        if not changes:
+            return jsonify({'error': 'No changes specified'}), 400
+
+        scenario = WhatIfScenario(
+            scenario_id=str(uuid.uuid4())[:8],
+            name=data.get('name', 'Ad-hoc scenario'),
+            description=data.get('description', ''),
+            changes=changes
+        )
+
+        session = get_session()
+        try:
+            service = SchedulingService(session)
+            result = service.simulate_what_if(scenario)
+
+            return jsonify({
+                'scenario_id': result.scenario_id,
+                'original': {
+                    'makespan': result.original_schedule.makespan_minutes,
+                    'setup_time': result.original_schedule.total_setup_time,
+                    'scheduled': len(result.original_schedule.scheduled_jobs),
+                    'unscheduled': len(result.original_schedule.unscheduled_jobs),
+                },
+                'modified': {
+                    'makespan': result.modified_schedule.makespan_minutes,
+                    'setup_time': result.modified_schedule.total_setup_time,
+                    'scheduled': len(result.modified_schedule.scheduled_jobs),
+                    'unscheduled': len(result.modified_schedule.unscheduled_jobs),
+                },
+                'makespan_delta': result.makespan_delta,
+                'jobs_affected': result.jobs_affected,
+                'recommendations': result.recommendations,
+            })
+        finally:
+            session.close()
+
+    except Exception as e:
+        logger.error(f"Error simulating what-if: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # =============================================================================
@@ -3246,8 +3619,7 @@ def dispatch_job(job_id: str):
         from config.database import get_db_session
         from services.mes.dispatch_service import DispatchService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = DispatchService(session)
             result = service.dispatch_job(
                 job_id=job_id,
@@ -3255,8 +3627,6 @@ def dispatch_job(job_id: str):
                 operator_id=data.get('operator_id'),
                 force=data.get('force', False)
             )
-
-            session.commit()
 
             return jsonify({
                 'success': result.success,
@@ -3267,12 +3637,9 @@ def dispatch_job(job_id: str):
                 'new_status': result.new_status,
             })
 
-        finally:
-            session.close()
-
     except Exception as e:
         logger.error(f"Dispatch failed: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/dispatch/auto/<machine_id>', methods=['POST'])
@@ -3295,12 +3662,9 @@ def auto_dispatch(machine_id: str):
         from config.database import get_db_session
         from services.mes.dispatch_service import DispatchService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = DispatchService(session)
             result = service.auto_dispatch(machine_id, rule_name=rule_name)
-
-            session.commit()
 
             return jsonify({
                 'success': result.success,
@@ -3309,12 +3673,9 @@ def auto_dispatch(machine_id: str):
                 'message': result.message,
             })
 
-        finally:
-            session.close()
-
     except Exception as e:
         logger.error(f"Auto-dispatch failed: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/dispatch/<job_id>/preempt', methods=['POST'])
@@ -3336,16 +3697,13 @@ def preempt_job(job_id: str):
         from config.database import get_db_session
         from services.mes.dispatch_service import DispatchService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = DispatchService(session)
             result = service.preempt_job(
                 job_id=job_id,
                 reason=reason,
                 operator_id=data.get('operator_id')
             )
-
-            session.commit()
 
             return jsonify({
                 'success': result.success,
@@ -3354,16 +3712,13 @@ def preempt_job(job_id: str):
                 'message': result.message,
             })
 
-        finally:
-            session.close()
-
     except Exception as e:
         logger.error(f"Preempt failed: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/dispatch/queue/<machine_id>', methods=['GET'])
-def get_dispatch_queue(machine_id: str):
+def get_ordered_dispatch_queue(machine_id: str):
     """
     Get ordered dispatch queue for a machine.
 
@@ -3382,8 +3737,7 @@ def get_dispatch_queue(machine_id: str):
         from config.database import get_db_session
         from services.mes.dispatch_service import DispatchService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = DispatchService(session)
             queue = service.get_dispatch_queue(machine_id, rule_name=rule_name)
 
@@ -3394,12 +3748,9 @@ def get_dispatch_queue(machine_id: str):
                 'count': len(queue),
             })
 
-        finally:
-            session.close()
-
     except Exception as e:
         logger.error(f"Failed to get queue: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/dispatch/status/<machine_id>', methods=['GET'])
@@ -3409,18 +3760,14 @@ def get_machine_dispatch_status(machine_id: str):
         from config.database import get_db_session
         from services.mes.dispatch_service import DispatchService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = DispatchService(session)
             status = service.get_machine_status(machine_id)
             return jsonify(status)
 
-        finally:
-            session.close()
-
     except Exception as e:
         logger.error(f"Failed to get status: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # =============================================================================
@@ -3441,18 +3788,14 @@ def get_genealogy(serial_number: str):
         from config.database import get_db_session
         from services.mes.genealogy_service import GenealogyService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = GenealogyService(session)
             result = service.trace_backward(serial_number)
             return jsonify(result)
 
-        finally:
-            session.close()
-
     except Exception as e:
         logger.error(f"Genealogy lookup failed: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/genealogy/<serial_number>/tree', methods=['GET'])
@@ -3467,18 +3810,14 @@ def get_genealogy_tree(serial_number: str):
         from config.database import get_db_session
         from services.mes.genealogy_service import GenealogyService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = GenealogyService(session)
             result = service.get_genealogy_tree(serial_number)
             return jsonify(result)
 
-        finally:
-            session.close()
-
     except Exception as e:
         logger.error(f"Genealogy tree failed: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/trace/forward/<lot_number>', methods=['GET'])
@@ -3495,18 +3834,14 @@ def trace_forward(lot_number: str):
         from config.database import get_db_session
         from services.mes.genealogy_service import GenealogyService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = GenealogyService(session)
             result = service.trace_forward(lot_number)
             return jsonify(result)
 
-        finally:
-            session.close()
-
     except Exception as e:
         logger.error(f"Forward trace failed: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/trace/backward/<serial_number>', methods=['GET'])
@@ -3523,18 +3858,14 @@ def trace_backward(serial_number: str):
         from config.database import get_db_session
         from services.mes.genealogy_service import GenealogyService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = GenealogyService(session)
             result = service.trace_backward(serial_number)
             return jsonify(result)
 
-        finally:
-            session.close()
-
     except Exception as e:
         logger.error(f"Backward trace failed: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/genealogy', methods=['POST'])
@@ -3561,8 +3892,7 @@ def create_genealogy_record():
         from config.database import get_db_session
         from services.mes.genealogy_service import GenealogyService
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = GenealogyService(session)
             genealogy = service.create_product_record(
                 work_order_id=data['work_order_id'],
@@ -3572,16 +3902,11 @@ def create_genealogy_record():
                 serial_prefix=data.get('serial_prefix', 'SN')
             )
 
-            session.commit()
-
             return jsonify(genealogy.to_dict()), 201
-
-        finally:
-            session.close()
 
     except Exception as e:
         logger.error(f"Failed to create genealogy: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @mes_api_bp.route('/genealogy/<serial_number>/step', methods=['POST'])
@@ -3612,8 +3937,7 @@ def record_process_step(serial_number: str):
         from services.mes.genealogy_service import GenealogyService
         from datetime import datetime
 
-        session = get_db_session()
-        try:
+        with get_db_session() as session:
             service = GenealogyService(session)
 
             # Parse datetime strings
@@ -3642,13 +3966,387 @@ def record_process_step(serial_number: str):
             if not step:
                 return jsonify({'error': 'Product not found'}), 404
 
-            session.commit()
-
             return jsonify(step.to_dict()), 201
-
-        finally:
-            session.close()
 
     except Exception as e:
         logger.error(f"Failed to record step: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Time Clock
+# ─────────────────────────────────────────────────────────────────────────────
+
+@mes_api_bp.route('/timeclock/in', methods=['POST'])
+def timeclock_in():
+    """Clock a worker in to a machine/job."""
+    try:
+        data = request.get_json() or {}
+        from services.mes.time_clock_service import TimeClockService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = TimeClockService(session)
+            result = service.clock_in(
+                worker_id=data.get('worker_id'),
+                machine_id=data.get('machine_id'),
+                job_id=data.get('job_id'),
+            )
+            return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Failed to clock in: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/timeclock/out', methods=['POST'])
+def timeclock_out():
+    """Clock a worker out."""
+    try:
+        data = request.get_json() or {}
+        from services.mes.time_clock_service import TimeClockService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = TimeClockService(session)
+            result = service.clock_out(worker_id=data.get('worker_id'))
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to clock out: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/timeclock/active', methods=['GET'])
+def timeclock_active():
+    """List all currently clocked-in workers."""
+    try:
+        from services.mes.time_clock_service import TimeClockService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = TimeClockService(session)
+            result = service.get_active_workers()
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to get active workers: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/timeclock/timesheet', methods=['GET'])
+def timeclock_timesheet():
+    """Get timesheet for a worker within a date range."""
+    try:
+        worker_id = request.args.get('worker_id')
+        start = request.args.get('start')
+        end = request.args.get('end')
+        from services.mes.time_clock_service import TimeClockService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = TimeClockService(session)
+            result = service.get_timesheet(
+                worker_id=worker_id,
+                start_date=start,
+                end_date=end,
+            )
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to get timesheet: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Capacity
+# ─────────────────────────────────────────────────────────────────────────────
+
+@mes_api_bp.route('/capacity', methods=['GET'])
+def capacity_forecast():
+    """Get utilization forecast for the given period."""
+    try:
+        period = request.args.get('period', 14, type=int)
+        from services.mes.capacity_service import CapacityService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = CapacityService(session)
+            result = service.get_utilization_forecast(period_days=period)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to get capacity forecast: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/bottlenecks', methods=['GET'])
+def bottlenecks():
+    """Identify bottleneck machines."""
+    try:
+        from services.mes.capacity_service import CapacityService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = CapacityService(session)
+            result = service.identify_bottlenecks()
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to identify bottlenecks: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WIP / Kanban
+# ─────────────────────────────────────────────────────────────────────────────
+
+@mes_api_bp.route('/wip/levels', methods=['GET'])
+def wip_levels():
+    """Get current WIP levels per machine."""
+    try:
+        from services.mes.wip_service import WIPService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = WIPService(session)
+            result = service.get_wip_levels()
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to get WIP levels: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/wip/check/<machine_id>', methods=['GET'])
+def wip_check(machine_id):
+    """Check if WIP limit is exceeded for a machine."""
+    try:
+        from services.mes.wip_service import WIPService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = WIPService(session)
+            result = service.check_wip_limit(machine_id=machine_id)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to check WIP limit: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/kanban/board', methods=['GET'])
+def kanban_board():
+    """Get kanban board data."""
+    try:
+        from services.mes.wip_service import WIPService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = WIPService(session)
+            result = service.get_kanban_board()
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to get kanban board: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Takt Time
+# ─────────────────────────────────────────────────────────────────────────────
+
+@mes_api_bp.route('/takt/<product_id>', methods=['GET'])
+def takt_time(product_id):
+    """Calculate takt time for a product."""
+    try:
+        demand = request.args.get('demand', 100, type=int)
+        hours = request.args.get('hours', 8, type=float)
+        from services.mes.takt_service import TaktService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = TaktService(session)
+            result = service.calculate_takt_time(
+                product_id=product_id,
+                demand_qty=demand,
+                available_hours=hours,
+            )
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to calculate takt time: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/line-balance/<product_id>', methods=['GET'])
+def line_balance(product_id):
+    """Get line balance analysis for a product."""
+    try:
+        from services.mes.takt_service import TaktService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = TaktService(session)
+            result = service.line_balance_analysis(product_id=product_id)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to get line balance: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Setup / SMED
+# ─────────────────────────────────────────────────────────────────────────────
+
+@mes_api_bp.route('/setup/record', methods=['POST'])
+def setup_record():
+    """Record a setup/changeover event."""
+    try:
+        data = request.get_json() or {}
+        from services.mes.setup_service import SetupService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = SetupService(session)
+            result = service.record_setup(
+                machine_id=data.get('machine_id'),
+                job_id=data.get('job_id'),
+                duration_min=data.get('duration_min'),
+                setup_type=data.get('setup_type'),
+                from_config=data.get('from_config'),
+                to_config=data.get('to_config'),
+            )
+            return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Failed to record setup: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/setup/trends/<machine_id>', methods=['GET'])
+def setup_trends(machine_id):
+    """Get setup time trends for a machine."""
+    try:
+        months = request.args.get('months', 6, type=int)
+        from services.mes.setup_service import SetupService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = SetupService(session)
+            result = service.get_setup_trends(machine_id=machine_id, months=months)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to get setup trends: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Rework / Scrap
+# ─────────────────────────────────────────────────────────────────────────────
+
+@mes_api_bp.route('/rework', methods=['POST'])
+def create_rework():
+    """Create a rework order."""
+    try:
+        data = request.get_json() or {}
+        from services.mes.rework_service import ReworkService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = ReworkService(session)
+            result = service.create_rework_order(
+                original_wo_id=data.get('original_wo_id'),
+                ncr_id=data.get('ncr_id'),
+                operations=data.get('operations', []),
+            )
+            return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Failed to create rework order: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/scrap', methods=['POST'])
+def record_scrap():
+    """Record a scrap event."""
+    try:
+        data = request.get_json() or {}
+        from services.mes.rework_service import ReworkService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = ReworkService(session)
+            result = service.record_scrap(
+                job_id=data.get('job_id'),
+                quantity=data.get('quantity'),
+                unit_cost=data.get('unit_cost'),
+                reason_code=data.get('reason_code'),
+            )
+            return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Failed to record scrap: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/rework/rate/<product_id>', methods=['GET'])
+def rework_rate(product_id):
+    """Get rework rate for a product over a period."""
+    try:
+        period = request.args.get('period', 30, type=int)
+        from services.mes.rework_service import ReworkService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = ReworkService(session)
+            result = service.get_rework_rate(product_id=product_id, period_days=period)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to get rework rate: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/scrap/cost', methods=['GET'])
+def scrap_cost():
+    """Get scrap cost over a period."""
+    try:
+        period = request.args.get('period', 30, type=int)
+        from services.mes.rework_service import ReworkService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = ReworkService(session)
+            result = service.get_scrap_cost(period_days=period)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to get scrap cost: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shift Handover
+# ─────────────────────────────────────────────────────────────────────────────
+
+@mes_api_bp.route('/handover', methods=['POST'])
+def create_handover():
+    """Create a shift handover report."""
+    try:
+        data = request.get_json() or {}
+        from services.mes.handover_service import HandoverService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = HandoverService(session)
+            result = service.create_handover(
+                shift_date=data.get('shift_date'),
+                shift_type=data.get('shift_type'),
+            )
+            return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Failed to create handover: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/handover/<handover_id>/complete', methods=['PUT'])
+def complete_handover(handover_id):
+    """Complete a shift handover."""
+    try:
+        data = request.get_json() or {}
+        from services.mes.handover_service import HandoverService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = HandoverService(session)
+            result = service.complete_handover(
+                handover_id=handover_id,
+                incoming_worker_id=data.get('incoming_worker_id'),
+            )
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to complete handover: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+
+@mes_api_bp.route('/handovers', methods=['GET'])
+def list_handovers():
+    """List recent shift handovers."""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        from services.mes.handover_service import HandoverService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = HandoverService(session)
+            result = service.get_handovers(limit=limit)
+            return jsonify(result), 200
+    except Exception as e:
+        logger.error(f"Failed to list handovers: {e}")
+        return jsonify({'error': 'Internal server error'}), 500

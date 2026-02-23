@@ -456,41 +456,26 @@
                     renderGenealogyTree(data.tree);
                     loadComponentHistory(componentId);
                 } else {
-                    // Demo data
-                    renderDemoTree(componentId);
+                    showNoResults(componentId);
                 }
             } catch(e) {
-                renderDemoTree(serial || lot || part);
+                showNoResults(serial || lot || part);
             }
         }
 
-        function renderDemoTree(componentId) {
+        function showNoResults(componentId) {
             const tree = document.getElementById('genealogyTree');
             tree.innerHTML = `
-                <div class="tree-node parent">
-                    <strong><i class="bi bi-box me-2"></i>ASSEMBLY-001</strong>
-                    <span class="badge bg-success ms-2">Final Assembly</span>
-                    <div class="small text-muted">Work Order: WO-2024-0042</div>
-                </div>
-                <div class="tree-connector"></div>
-                <div class="tree-node">
-                    <strong><i class="bi bi-cpu me-2"></i>${componentId || 'SN-2024-001234'}</strong>
-                    <span class="badge bg-info ms-2">Component</span>
-                    <div class="small text-muted">Registered: 2024-01-15 | Lot: LOT-2024-A1</div>
-                </div>
-                <div class="tree-connector"></div>
-                <div class="tree-node child">
-                    <strong><i class="bi bi-gear me-2"></i>BEARING-6205-A</strong>
-                    <span class="badge bg-warning ms-2">Sub-component</span>
-                    <div class="small text-muted">Supplier: SKF | Lot: SKF-2024-0122</div>
-                </div>
-                <div class="tree-node child">
-                    <strong><i class="bi bi-gear me-2"></i>SEAL-KIT-001</strong>
-                    <span class="badge bg-warning ms-2">Sub-component</span>
-                    <div class="small text-muted">Supplier: Parker | Lot: PKR-2024-0055</div>
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-search" style="font-size: 2rem;"></i>
+                    <p class="mt-2">No genealogy data found for <strong>${componentId || 'this component'}</strong></p>
+                    <small>Register components using the form below to build traceability records.</small>
                 </div>
             `;
-            loadDemoHistory();
+            const history = document.getElementById('componentHistory');
+            if (history) {
+                history.innerHTML = '<p class="text-muted">No history available.</p>';
+            }
         }
 
         function renderGenealogyTree(tree) {
@@ -498,49 +483,28 @@
             container.innerHTML = JSON.stringify(tree, null, 2);
         }
 
-        function loadDemoHistory() {
-            const history = document.getElementById('componentHistory');
-            history.innerHTML = `
-                <div class="timeline-item">
-                    <div class="timeline-time">2024-01-15 14:32</div>
-                    <div class="timeline-content">
-                        <strong>Assembled into ASSEMBLY-001</strong>
-                        <div class="small text-muted">Work Order WO-2024-0042 | Machine CNC-001</div>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-time">2024-01-15 11:20</div>
-                    <div class="timeline-content">
-                        <strong>Quality Inspection Passed</strong>
-                        <div class="small text-muted">Inspector: J. Smith | All dimensions within spec</div>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-time">2024-01-15 09:30</div>
-                    <div class="timeline-content">
-                        <strong>Component Registered</strong>
-                        <div class="small text-muted">Receiving inspection completed | COC verified</div>
-                    </div>
-                </div>
-                <div class="timeline-item">
-                    <div class="timeline-time">2024-01-14 16:00</div>
-                    <div class="timeline-content">
-                        <strong>Received from Supplier</strong>
-                        <div class="small text-muted">SKF | PO-2024-0088 | Qty: 50</div>
-                    </div>
-                </div>
-            `;
-        }
-
         async function loadComponentHistory(componentId) {
             try {
                 const res = await fetch(`/api/genealogy/components/${componentId}/history`);
                 if (res.ok) {
                     const data = await res.json();
-                    // Render history
+                    const history = document.getElementById('componentHistory');
+                    if (data.history && data.history.length > 0) {
+                        history.innerHTML = data.history.map(h => `
+                            <div class="timeline-item">
+                                <div class="timeline-time">${new Date(h.timestamp).toLocaleString()}</div>
+                                <div class="timeline-content">
+                                    <strong>${h.event}</strong>
+                                    <div class="small text-muted">${h.details || ''}</div>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        history.innerHTML = '<p class="text-muted">No history records found.</p>';
+                    }
                 }
             } catch(e) {
-                loadDemoHistory();
+                console.error('Failed to load component history:', e);
             }
         }
 

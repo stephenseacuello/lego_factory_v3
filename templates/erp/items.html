@@ -1,21 +1,246 @@
 {% extends "base.html" %}
 {% block title %}Items - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">Items</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-upc-scan me-2"></i>Item Master</h2>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Items</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>New Item</button>
-    </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>Item #</th><th>Description</th><th>Category</th><th>UOM</th><th>Cost</th><th>Price</th></tr></thead>
-            <tbody>
-                <tr><td>ITM-001</td><td>Standard 2x4 Brick - Red</td><td>Finished Goods</td><td>EA</td><td>$0.12</td><td>$0.25</td></tr>
-                <tr><td>ITM-002</td><td>ABS Filament - Red 1kg</td><td>Raw Material</td><td>KG</td><td>$18.00</td><td>-</td></tr>
-                <tr><td>ITM-003</td><td>Technic Beam 1x5</td><td>Finished Goods</td><td>EA</td><td>$0.08</td><td>$0.18</td></tr>
-            </tbody>
-        </table>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-upc-scan me-2"></i>Item Master</h2>
+    <div class="d-flex gap-2">
+        <select id="typeFilter" class="form-select form-select-sm" style="width:auto;" onchange="loadData()">
+            <option value="">All Types</option>
+            <option value="raw_material">Raw Material</option>
+            <option value="component">Component</option>
+            <option value="finished_good">Finished Good</option>
+            <option value="product">Product</option>
+            <option value="consumable">Consumable</option>
+        </select>
+        <select id="statusFilter" class="form-select form-select-sm" style="width:auto;" onchange="loadData()">
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="pending">Pending</option>
+            <option value="obsolete">Obsolete</option>
+        </select>
+        <button class="btn btn-sm btn-outline-primary" onclick="loadData()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
     </div>
 </div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body text-center">
+                <h3 class="mb-0" id="totalItems">--</h3>
+                <small class="text-muted">Total Items</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card success">
+            <div class="card-body text-center">
+                <h3 class="mb-0" id="activeItems">--</h3>
+                <small class="text-muted">Active</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning">
+            <div class="card-body text-center">
+                <h3 class="mb-0" id="rawMaterialItems">--</h3>
+                <small class="text-muted">Raw Materials</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card danger">
+            <div class="card-body text-center">
+                <h3 class="mb-0" id="finishedGoodItems">--</h3>
+                <small class="text-muted">Finished Goods</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Items Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Items (<span id="itemCount">0</span>)</span>
+    </div>
+    <div class="card-body p-0">
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <div class="mt-2 text-muted">Loading items...</div>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="text-center py-5" style="display:none;">
+            <i class="bi bi-exclamation-triangle display-4 text-danger d-block mb-2"></i>
+            <div class="text-muted">Failed to load items. Please try again.</div>
+            <button class="btn btn-sm btn-outline-primary mt-2" onclick="loadData()">
+                <i class="bi bi-arrow-clockwise me-1"></i>Retry
+            </button>
+        </div>
+
+        <!-- Data Table -->
+        <div class="table-responsive" id="tableContainer" style="display:none;">
+            <table class="table table-hover mb-0" id="itemsTable">
+                <thead class="table-light">
+                    <tr>
+                        <th>Item ID</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Category</th>
+                        <th>UOM</th>
+                        <th class="text-end">Cost</th>
+                        <th class="text-end">Price</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="itemsTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+    let refreshTimer = null;
+
+    function formatType(type) {
+        if (!type) return '-';
+        return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function typeBadge(type) {
+        const map = {
+            'raw_material': 'bg-info',
+            'finished_good': 'bg-success',
+            'component': 'bg-primary',
+            'consumable': 'bg-secondary',
+            'product': 'bg-warning text-dark'
+        };
+        const cls = map[type] || 'bg-secondary';
+        return `<span class="badge ${cls}">${formatType(type)}</span>`;
+    }
+
+    function statusBadge(status) {
+        const map = {
+            'active': 'bg-success',
+            'pending': 'bg-warning text-dark',
+            'obsolete': 'bg-secondary'
+        };
+        const cls = map[status] || 'bg-secondary';
+        const label = status ? status.charAt(0).toUpperCase() + status.slice(1) : '-';
+        return `<span class="badge ${cls}">${label}</span>`;
+    }
+
+    function formatCurrency(value) {
+        if (value === null || value === undefined) return '-';
+        return currencyFmt.format(value);
+    }
+
+    async function loadData() {
+        const spinner = document.getElementById('loadingSpinner');
+        const errorState = document.getElementById('errorState');
+        const tableContainer = document.getElementById('tableContainer');
+
+        spinner.style.display = '';
+        errorState.style.display = 'none';
+        tableContainer.style.display = 'none';
+
+        try {
+            const typeFilter = document.getElementById('typeFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+
+            const params = new URLSearchParams();
+            if (typeFilter) params.append('type', typeFilter);
+            if (statusFilter) params.append('status', statusFilter);
+
+            const queryString = params.toString();
+            const url = '/api/erp/items' + (queryString ? '?' + queryString : '');
+
+            const res = await fetch(url, {
+                headers: {
+                    'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || 'demo-token')
+                }
+            });
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const data = await res.json();
+            const items = data.items || data || [];
+
+            // Update stat cards
+            const allItems = items;
+            document.getElementById('totalItems').textContent = allItems.length;
+            document.getElementById('activeItems').textContent = allItems.filter(i => i.status === 'active').length;
+            document.getElementById('rawMaterialItems').textContent = allItems.filter(i => i.item_type === 'raw_material').length;
+            document.getElementById('finishedGoodItems').textContent = allItems.filter(i => i.item_type === 'finished_good').length;
+
+            // Update item count in card header
+            document.getElementById('itemCount').textContent = allItems.length;
+
+            // Render table
+            const tbody = document.getElementById('itemsTableBody');
+            if (allItems.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                            No items found
+                        </td>
+                    </tr>`;
+            } else {
+                tbody.innerHTML = allItems.map(item => `
+                    <tr>
+                        <td><code>${item.item_id || '-'}</code></td>
+                        <td>${item.name || '-'}</td>
+                        <td>${typeBadge(item.item_type)}</td>
+                        <td>${item.category || '-'}</td>
+                        <td>${item.base_uom || '-'}</td>
+                        <td class="text-end">${formatCurrency(item.standard_cost)}</td>
+                        <td class="text-end">${formatCurrency(item.list_price)}</td>
+                        <td>${statusBadge(item.status)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            spinner.style.display = 'none';
+            tableContainer.style.display = '';
+
+        } catch (error) {
+            console.error('Failed to load items:', error);
+            spinner.style.display = 'none';
+            errorState.style.display = '';
+        }
+    }
+
+    // Auto-refresh every 30 seconds
+    function startAutoRefresh() {
+        stopAutoRefresh();
+        refreshTimer = setInterval(loadData, 30000);
+    }
+
+    function stopAutoRefresh() {
+        if (refreshTimer) {
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+        }
+    }
+
+    // Initial load
+    loadData();
+    startAutoRefresh();
+</script>
 {% endblock %}

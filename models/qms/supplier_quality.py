@@ -295,7 +295,6 @@ class InspectionRecord(AuditedModel):
 
     __table_args__ = (
         Index('ix_inspection_records_date', 'inspection_date'),
-        Index('ix_inspection_records_disposition', 'disposition'),
     )
 
     def to_dict(self) -> Dict[str, Any]:

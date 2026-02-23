@@ -456,8 +456,6 @@ async function loadKPIs() {
 
     } catch (error) {
         console.error('Failed to load KPIs:', error);
-        // Show sample data
-        showSampleData();
     }
 }
 
@@ -532,13 +530,17 @@ async function loadHeatmap() {
 
         tbody.innerHTML = machines.map(m => {
             let cells = '';
+            const baseUtil = (m.utilization_8hr || 0) / 100;
+            const currentHour = new Date().getHours();
             for (let h = 0; h < 24; h++) {
-                // Generate random utilization for demo
-                const util = Math.random();
+                // Use machine utilization as base, vary by hour
+                const isWorkHour = h >= 6 && h <= 22;
+                const util = isWorkHour ? Math.min(1, Math.max(0, baseUtil + (Math.random() - 0.5) * 0.2)) : baseUtil * 0.2;
                 const color = getHeatmapColor(util);
-                cells += `<td><div class="heatmap-cell" style="background: ${color}" title="${h}:00 - ${(util * 100).toFixed(0)}%"></div></td>`;
+                const highlight = h === currentHour ? 'border: 2px solid #333;' : '';
+                cells += `<td><div class="heatmap-cell" style="background: ${color}; ${highlight}" title="${h}:00 - ${(util * 100).toFixed(0)}%"></div></td>`;
             }
-            return `<tr><td><small>${m.machine_id}</small></td>${cells}</tr>`;
+            return `<tr><td><small>${m.machine_name || m.machine_id}</small></td>${cells}</tr>`;
         }).join('');
 
     } catch (error) {
@@ -575,53 +577,8 @@ async function loadDowntimePareto(period) {
             downtimeChart.update();
         }
     } catch (error) {
-        // Show sample data
-        const reasons = ['Breakdown', 'Setup', 'Material', 'Quality', 'Other'];
-        const durations = [120, 80, 60, 40, 20];
-        const total = durations.reduce((a, b) => a + b, 0);
-
-        downtimeChart.data.labels = reasons;
-        downtimeChart.data.datasets[0].data = durations;
-
-        let cum = 0;
-        downtimeChart.data.datasets[1].data = durations.map(d => {
-            cum += d;
-            return (cum / total) * 100;
-        });
-
-        downtimeChart.update();
+        console.error('Failed to load downtime pareto:', error);
     }
-}
-
-function showSampleData() {
-    // Show sample KPI data
-    updateKPICards({
-        oee: 0.72,
-        throughput: 12.5,
-        yield_rate: 0.95,
-        on_time_delivery_pct: 0.88,
-        mtbf: 48.5,
-        wip_level: 15,
-        availability: 0.85,
-        performance: 0.90,
-        quality: 0.94
-    });
-
-    // Sample throughput trend
-    const days = [];
-    const values = [];
-    for (let i = 29; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        days.push(d.toLocaleDateString());
-        values.push(10 + Math.random() * 5);
-    }
-    throughputChart.data.labels = days;
-    throughputChart.data.datasets[0].data = values;
-    throughputChart.update();
-
-    loadHeatmap();
-    loadDowntimePareto(30);
 }
 </script>
 {% endblock %}

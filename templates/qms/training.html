@@ -1,24 +1,226 @@
 {% extends "base.html" %}
 {% block title %}Training - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">Quality</a></li>
+<li class="breadcrumb-item active">Training</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-mortarboard me-2"></i>Training Management</h2>
-<div class="row g-3 mb-4">
-    <div class="col-md-3"><div class="card bg-success text-white text-center p-3"><h3>92%</h3><small>Compliance Rate</small></div></div>
-    <div class="col-md-3"><div class="card bg-warning text-dark text-center p-3"><h3>8</h3><small>Overdue</small></div></div>
-    <div class="col-md-3"><div class="card bg-info text-white text-center p-3"><h3>15</h3><small>Due This Month</small></div></div>
-    <div class="col-md-3"><div class="card bg-primary text-white text-center p-3"><h3>156</h3><small>Completed YTD</small></div></div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-mortarboard me-2"></i>Training Management</h2>
+    <button class="btn btn-outline-secondary" onclick="loadData()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
 </div>
-<div class="card">
-    <div class="card-header">Training Records</div>
-    <div class="card-body">
-        <table class="table">
-            <thead><tr><th>Employee</th><th>Course</th><th>Due Date</th><th>Status</th></tr></thead>
-            <tbody>
-                <tr><td>John Smith</td><td>Machine Safety</td><td>Jan 20, 2026</td><td><span class="badge bg-warning text-dark">Due Soon</span></td></tr>
-                <tr><td>Jane Doe</td><td>Quality Procedures</td><td>Jan 15, 2026</td><td><span class="badge bg-success">Completed</span></td></tr>
-                <tr><td>Bob Wilson</td><td>GMP Refresher</td><td>Jan 10, 2026</td><td><span class="badge bg-danger">Overdue</span></td></tr>
-            </tbody>
-        </table>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statTotal">--</h3>
+            <small class="text-muted">Total Records</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card success text-center p-3">
+            <h3 class="mb-0" id="statCompleted">--</h3>
+            <small class="text-muted">Completed</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statScheduled">--</h3>
+            <small class="text-muted">Scheduled / In Progress</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning text-center p-3">
+            <h3 class="mb-0" id="statExpired">--</h3>
+            <small class="text-muted">Expired / Overdue</small>
+        </div>
     </div>
 </div>
+
+<!-- Filters -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <select class="form-select" id="filterStatus" onchange="loadData()">
+            <option value="">All Statuses</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="expired">Expired</option>
+            <option value="waived">Waived</option>
+        </select>
+    </div>
+</div>
+
+<!-- Training Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-1"></i>Training Records</span>
+        <span class="text-muted" id="tableCount"></span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Trainee</th>
+                        <th>Course</th>
+                        <th>Category</th>
+                        <th>Scheduled Date</th>
+                        <th>Status</th>
+                        <th>Score</th>
+                        <th>Expiry</th>
+                    </tr>
+                </thead>
+                <tbody id="trainingTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            Loading training records...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const STATUS_BADGES = {
+        completed:   'bg-success',
+        in_progress: 'bg-primary',
+        scheduled:   'bg-info',
+        failed:      'bg-danger',
+        expired:     'bg-warning text-dark',
+        waived:      'bg-secondary'
+    };
+
+    function formatLabel(str) {
+        if (!str) return '';
+        return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        try {
+            return new Date(dateStr).toLocaleDateString();
+        } catch (e) {
+            return dateStr;
+        }
+    }
+
+    function updateStats(records) {
+        const total = records.length;
+        const completed = records.filter(r => r.status === 'completed').length;
+        const scheduled = records.filter(r => r.status === 'scheduled' || r.status === 'in_progress').length;
+        const expired = records.filter(r => r.status === 'expired' || r.status === 'failed').length;
+
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statCompleted').textContent = completed;
+        document.getElementById('statScheduled').textContent = scheduled;
+        document.getElementById('statExpired').textContent = expired;
+    }
+
+    function renderTable(records) {
+        const tbody = document.getElementById('trainingTableBody');
+        const countEl = document.getElementById('tableCount');
+
+        if (!records || records.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                        No training records found
+                    </td>
+                </tr>`;
+            countEl.textContent = '0 records';
+            return;
+        }
+
+        countEl.textContent = `${records.length} record${records.length !== 1 ? 's' : ''}`;
+
+        tbody.innerHTML = records.map(rec => {
+            const trainee = rec.trainee_name || rec.trainee_id || '-';
+            const course = rec.course_title || '-';
+            const category = rec.course_category || '-';
+            const scheduledDate = formatDate(rec.scheduled_date);
+            const status = (rec.status || '').toLowerCase();
+            const statusClass = STATUS_BADGES[status] || 'bg-secondary';
+            const expiryDate = formatDate(rec.expiry_date);
+
+            let scoreDisplay = '-';
+            if (rec.assessment_score != null) {
+                const passIcon = rec.assessment_passed
+                    ? '<i class="bi bi-check-circle text-success ms-1"></i>'
+                    : '<i class="bi bi-x-circle text-danger ms-1"></i>';
+                scoreDisplay = `${rec.assessment_score}%${passIcon}`;
+            }
+
+            let rowClass = '';
+            if (status === 'expired') rowClass = 'table-warning';
+            if (status === 'failed') rowClass = 'table-danger';
+
+            return `<tr class="${rowClass}">
+                <td>${trainee}</td>
+                <td>${course}</td>
+                <td>${category}</td>
+                <td>${scheduledDate}</td>
+                <td><span class="badge ${statusClass}">${formatLabel(status)}</span></td>
+                <td>${scoreDisplay}</td>
+                <td>${expiryDate}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function loadData() {
+        const statusFilter = document.getElementById('filterStatus').value;
+
+        let url = '/api/qms/training/records';
+        const params = new URLSearchParams();
+        if (statusFilter) params.append('status', statusFilter);
+        const qs = params.toString();
+        if (qs) url += '?' + qs;
+
+        const token = localStorage.getItem('access_token') || 'demo-token';
+
+        try {
+            const response = await fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const records = data.records || data.data || [];
+
+            updateStats(records);
+            renderTable(records);
+        } catch (error) {
+            console.error('Failed to load training records:', error);
+            document.getElementById('trainingTableBody').innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-circle display-6 d-block mb-2"></i>
+                        Failed to load training records. Please try again.
+                    </td>
+                </tr>`;
+        }
+    }
+
+    // Initial load
+    loadData();
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadData, 30000);
+</script>
 {% endblock %}

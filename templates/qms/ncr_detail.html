@@ -1,44 +1,339 @@
 {% extends "base.html" %}
 {% block title %}NCR Detail - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('qms_web.ncr_list') }}">NCRs</a></li>
+<li class="breadcrumb-item active" id="breadcrumbNCR">{{ ncr_number }}</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-exclamation-triangle me-2"></i>NCR-2026-001</h2>
-<div class="row">
-    <div class="col-md-8">
-        <div class="card mb-3">
-            <div class="card-header">Description</div>
-            <div class="card-body">
-                <p><strong>Title:</strong> Dimensional out of spec - Brick 2x4</p>
-                <p><strong>Description:</strong> During routine inspection, multiple 2x4 bricks from batch B-2026-0115 were found to have stud height 0.3mm below specification (4.8mm vs 5.1mm required).</p>
-                <p><strong>Quantity Affected:</strong> 500 units</p>
-                <p><strong>Work Order:</strong> WO-2026-0042</p>
-            </div>
-        </div>
-        <div class="card">
-            <div class="card-header">Investigation</div>
-            <div class="card-body">
-                <p class="text-muted">Investigation pending...</p>
-            </div>
-        </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-exclamation-triangle me-2"></i><span id="ncrTitle">{{ ncr_number }}</span></h2>
+    <a href="{{ url_for('qms_web.ncr_list') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Back to List
+    </a>
+</div>
+
+<!-- Loading State -->
+<div id="loadingState" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status"></div>
+    <p class="text-muted mt-2">Loading NCR details...</p>
+</div>
+
+<!-- Error State -->
+<div id="errorState" class="d-none">
+    <div class="alert alert-danger text-center">
+        <i class="bi bi-exclamation-circle me-2"></i><span id="errorMsg">Failed to load NCR</span>
     </div>
-    <div class="col-md-4">
-        <div class="card mb-3">
-            <div class="card-header">Status</div>
-            <div class="card-body">
-                <p><strong>Status:</strong> <span class="badge bg-danger">Open</span></p>
-                <p><strong>Severity:</strong> Critical</p>
-                <p><strong>Source:</strong> In-Process Inspection</p>
-                <p><strong>Created:</strong> Jan 17, 2026</p>
-                <p><strong>Owner:</strong> Quality Team</p>
+</div>
+
+<!-- Content (hidden until loaded) -->
+<div id="ncrContent" class="d-none">
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-md-8">
+            <!-- Description Card -->
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-file-text me-1"></i>Description</div>
+                <div class="card-body">
+                    <h5 id="detailTitle" class="mb-3"></h5>
+                    <p id="detailDescription" class="mb-3"></p>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Item</small>
+                            <strong id="detailItem">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Lot / Batch</small>
+                            <strong id="detailLot">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Work Order</small>
+                            <strong id="detailWO">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Qty Affected</small>
+                            <strong id="detailQtyAffected">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Qty Inspected</small>
+                            <strong id="detailQtyInspected">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Detection Stage</small>
+                            <strong id="detailStage">-</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Containment Card -->
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-shield-check me-1"></i>Containment Action</div>
+                <div class="card-body">
+                    <p id="detailContainment" class="text-muted">No containment action recorded</p>
+                    <div class="row g-3" id="containmentMeta" style="display:none;">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Contained By</small>
+                            <strong id="detailContainBy">-</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Containment Date</small>
+                            <strong id="detailContainDate">-</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Investigation / Root Cause Card -->
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-search me-1"></i>Investigation & Root Cause</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Investigation Lead</small>
+                        <strong id="detailInvestLead">-</strong>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Root Cause Category</small>
+                        <strong id="detailRCCategory">-</strong>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Root Cause Analysis</small>
+                        <p id="detailRootCause" class="mt-1 text-muted">Investigation pending...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Disposition Card -->
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-clipboard-check me-1"></i>Disposition</div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Disposition</small>
+                            <span id="detailDisposition" class="badge bg-secondary">Pending</span>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Approved By</small>
+                            <strong id="detailDispApprover">-</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Disposition Date</small>
+                            <strong id="detailDispDate">-</strong>
+                        </div>
+                    </div>
+                    <div class="mt-2" id="dispReasonWrap" style="display:none;">
+                        <small class="text-muted d-block">Reason</small>
+                        <p id="detailDispReason" class="mt-1"></p>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="card">
-            <div class="card-header">Actions</div>
-            <div class="card-body">
-                <button class="btn btn-warning w-100 mb-2">Start Investigation</button>
-                <button class="btn btn-outline-primary w-100 mb-2">Create CAPA</button>
-                <button class="btn btn-outline-secondary w-100">Close NCR</button>
+
+        <!-- Sidebar -->
+        <div class="col-md-4">
+            <!-- Status Card -->
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-info-circle me-1"></i>Status</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Status</small>
+                        <span id="detailStatus" class="badge bg-secondary fs-6">-</span>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Severity</small>
+                        <span id="detailSeverity" class="badge bg-secondary">-</span>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">NCR Type</small>
+                        <strong id="detailType">-</strong>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Detected By</small>
+                        <strong id="detailDetectedBy">-</strong>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Detected Date</small>
+                        <strong id="detailDetectedDate">-</strong>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Detection Location</small>
+                        <strong id="detailLocation">-</strong>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">CAPA Required</small>
+                        <span id="detailCAPAReq" class="badge bg-secondary">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cost Card -->
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-currency-dollar me-1"></i>Cost Impact</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Estimated Cost</small>
+                        <h4 id="detailEstCost" class="text-danger mb-0">-</h4>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Actual Cost</small>
+                        <h4 id="detailActCost" class="mb-0">-</h4>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dates Card -->
+            <div class="card mb-3">
+                <div class="card-header"><i class="bi bi-calendar me-1"></i>Timeline</div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <small class="text-muted d-block">Created</small>
+                        <strong id="detailCreated">-</strong>
+                    </div>
+                    <div class="mb-2">
+                        <small class="text-muted d-block">Target Close</small>
+                        <strong id="detailTargetClose">-</strong>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Actual Close</small>
+                        <strong id="detailActualClose">-</strong>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const NCR_NUMBER = {{ ncr_number | tojson }};
+const token = localStorage.getItem('access_token') || 'demo-token';
+const authHeaders = { 'Authorization': `Bearer ${token}` };
+
+const STATUS_BADGES = {
+    draft: 'bg-secondary', open: 'bg-danger', under_investigation: 'bg-warning text-dark',
+    containment: 'bg-info', disposition: 'bg-primary', closed: 'bg-success', voided: 'bg-dark',
+};
+const SEVERITY_BADGES = {
+    critical: 'bg-danger', major: 'bg-warning text-dark', minor: 'bg-info', observation: 'bg-secondary',
+};
+const DISPOSITION_BADGES = {
+    use_as_is: 'bg-success', rework: 'bg-warning text-dark', scrap: 'bg-danger',
+    return_to_vendor: 'bg-info', sort_and_inspect: 'bg-primary',
+};
+
+function formatLabel(str) {
+    if (!str) return '-';
+    return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function formatDate(d) {
+    if (!d) return '-';
+    try { return new Date(d).toLocaleDateString(); } catch { return d; }
+}
+
+function formatCurrency(n) {
+    if (n == null) return '-';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+}
+
+function fmt(n) {
+    if (n == null) return '-';
+    return new Intl.NumberFormat('en-US').format(n);
+}
+
+async function loadNCR() {
+    const loadEl = document.getElementById('loadingState');
+    const errorEl = document.getElementById('errorState');
+    const contentEl = document.getElementById('ncrContent');
+
+    try {
+        const res = await fetch(`/api/qms/ncrs/${encodeURIComponent(NCR_NUMBER)}`, { headers: authHeaders });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const ncr = await res.json();
+
+        // Title
+        document.getElementById('ncrTitle').textContent = `${ncr.ncr_number} — ${ncr.title || ''}`;
+
+        // Description section
+        document.getElementById('detailTitle').textContent = ncr.title || '-';
+        document.getElementById('detailDescription').textContent = ncr.description || 'No description provided.';
+        document.getElementById('detailItem').textContent = ncr.item_id || '-';
+        document.getElementById('detailLot').textContent = ncr.lot_number || '-';
+        document.getElementById('detailWO').textContent = ncr.work_order_id || '-';
+        document.getElementById('detailQtyAffected').textContent = fmt(ncr.quantity_affected);
+        document.getElementById('detailQtyInspected').textContent = fmt(ncr.quantity_inspected);
+        document.getElementById('detailStage').textContent = formatLabel(ncr.detection_stage);
+
+        // Containment
+        if (ncr.containment_action) {
+            document.getElementById('detailContainment').textContent = ncr.containment_action;
+            document.getElementById('detailContainment').classList.remove('text-muted');
+            document.getElementById('containmentMeta').style.display = '';
+            document.getElementById('detailContainBy').textContent = ncr.containment_by || '-';
+            document.getElementById('detailContainDate').textContent = formatDate(ncr.containment_date);
+        }
+
+        // Investigation
+        document.getElementById('detailInvestLead').textContent = ncr.investigation_lead || '-';
+        document.getElementById('detailRCCategory').textContent = formatLabel(ncr.root_cause_category);
+        if (ncr.root_cause) {
+            document.getElementById('detailRootCause').textContent = ncr.root_cause;
+            document.getElementById('detailRootCause').classList.remove('text-muted');
+        }
+
+        // Disposition
+        const dispBadge = DISPOSITION_BADGES[ncr.disposition] || 'bg-secondary';
+        document.getElementById('detailDisposition').className = `badge ${dispBadge}`;
+        document.getElementById('detailDisposition').textContent = ncr.disposition ? formatLabel(ncr.disposition) : 'Pending';
+        document.getElementById('detailDispApprover').textContent = ncr.disposition_approved_by || '-';
+        document.getElementById('detailDispDate').textContent = formatDate(ncr.disposition_date);
+        if (ncr.disposition_reason) {
+            document.getElementById('dispReasonWrap').style.display = '';
+            document.getElementById('detailDispReason').textContent = ncr.disposition_reason;
+        }
+
+        // Status sidebar
+        const statusBadge = STATUS_BADGES[ncr.status] || 'bg-secondary';
+        document.getElementById('detailStatus').className = `badge ${statusBadge} fs-6`;
+        document.getElementById('detailStatus').textContent = formatLabel(ncr.status);
+
+        const sevBadge = SEVERITY_BADGES[ncr.severity] || 'bg-secondary';
+        document.getElementById('detailSeverity').className = `badge ${sevBadge}`;
+        document.getElementById('detailSeverity').textContent = formatLabel(ncr.severity);
+
+        document.getElementById('detailType').textContent = formatLabel(ncr.ncr_type);
+        document.getElementById('detailDetectedBy').textContent = ncr.detected_by || '-';
+        document.getElementById('detailDetectedDate').textContent = formatDate(ncr.detected_date);
+        document.getElementById('detailLocation').textContent = ncr.detection_location || '-';
+
+        const capaReq = ncr.capa_required;
+        document.getElementById('detailCAPAReq').className = `badge ${capaReq ? 'bg-warning text-dark' : 'bg-secondary'}`;
+        document.getElementById('detailCAPAReq').textContent = capaReq ? 'Yes' : 'No';
+
+        // Cost
+        document.getElementById('detailEstCost').textContent = formatCurrency(ncr.estimated_cost);
+        document.getElementById('detailActCost').textContent = formatCurrency(ncr.actual_cost);
+
+        // Timeline
+        document.getElementById('detailCreated').textContent = formatDate(ncr.created_at);
+        document.getElementById('detailTargetClose').textContent = formatDate(ncr.target_close_date);
+        document.getElementById('detailActualClose').textContent = formatDate(ncr.actual_close_date);
+
+        // Show content
+        loadEl.classList.add('d-none');
+        contentEl.classList.remove('d-none');
+
+    } catch (e) {
+        console.error('Failed to load NCR:', e);
+        loadEl.classList.add('d-none');
+        document.getElementById('errorMsg').textContent = `Failed to load NCR: ${e.message}`;
+        errorEl.classList.remove('d-none');
+    }
+}
+
+loadNCR();
+</script>
 {% endblock %}

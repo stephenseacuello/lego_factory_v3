@@ -222,12 +222,17 @@ class PurchaseOrder(AuditedModel):
             'id': str(self.id),
             'po_number': self.po_number,
             'vendor_id': str(self.vendor_id),
+            'vendor_name': self.vendor.name if self.vendor else None,
             'status': self.status.value if self.status else None,
             'order_date': self.order_date.isoformat() if self.order_date else None,
             'required_date': self.required_date.isoformat() if self.required_date else None,
+            'promised_date': self.promised_date.isoformat() if self.promised_date else None,
             'subtotal': self.subtotal,
+            'tax_amount': self.tax_amount,
             'total': self.total,
             'quantity_received': self.quantity_received,
+            'shipping_method': self.shipping_method,
+            'payment_terms': self.payment_terms,
         }
 
 

@@ -1,21 +1,219 @@
 {% extends "base.html" %}
 {% block title %}Sales Orders - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">Sales Orders</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-cart me-2"></i>Sales Orders</h2>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Order List</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>New Order</button>
-    </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>Order #</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
-            <tbody>
-                <tr><td>SO-1001</td><td>ACME Corp</td><td>$12,500</td><td><span class="badge bg-success">Shipped</span></td><td>Jan 15</td></tr>
-                <tr><td>SO-1002</td><td>TechParts Inc</td><td>$8,750</td><td><span class="badge bg-warning text-dark">Processing</span></td><td>Jan 16</td></tr>
-                <tr><td>SO-1003</td><td>BuildRight LLC</td><td>$22,000</td><td><span class="badge bg-info">Pending</span></td><td>Jan 17</td></tr>
-            </tbody>
-        </table>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-cart me-2"></i>Sales Orders</h2>
+  <button class="btn btn-outline-secondary" onclick="loadData()">
+    <i class="bi bi-arrow-clockwise"></i> Refresh
+  </button>
 </div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card stat-card text-center p-3">
+      <h3 class="mb-0" id="statTotal">--</h3>
+      <small class="text-muted">Total Orders</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card warning text-center p-3">
+      <h3 class="mb-0" id="statOpenValue">--</h3>
+      <small class="text-muted">Open Value</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card success text-center p-3">
+      <h3 class="mb-0" id="statShipped">--</h3>
+      <small class="text-muted">Shipped</small>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card stat-card text-center p-3">
+      <h3 class="mb-0" id="statCompleted">--</h3>
+      <small class="text-muted">Completed</small>
+    </div>
+  </div>
+</div>
+
+<!-- Status Filter -->
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <select class="form-select" id="filterStatus" onchange="loadData()">
+      <option value="">All Statuses</option>
+      <option value="draft">Draft</option>
+      <option value="pending_approval">Pending Approval</option>
+      <option value="approved">Approved</option>
+      <option value="released">Released</option>
+      <option value="partially_shipped">Partially Shipped</option>
+      <option value="shipped">Shipped</option>
+      <option value="invoiced">Invoiced</option>
+      <option value="completed">Completed</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  </div>
+</div>
+
+<!-- Sales Orders Table -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table me-1"></i>Sales Orders</span>
+    <span class="text-muted" id="tableCount"></span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Order #</th>
+            <th>Customer</th>
+            <th>Order Date</th>
+            <th>Requested Date</th>
+            <th class="text-end">Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="orderTableBody">
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">
+              <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+              Loading sales orders...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const STATUS_BADGES = {
+        draft:              'bg-secondary',
+        pending_approval:   'bg-warning text-dark',
+        approved:           'bg-info',
+        released:           'bg-primary',
+        partially_shipped:  'bg-info',
+        shipped:            'bg-success',
+        invoiced:           'bg-dark',
+        completed:          'bg-success',
+        cancelled:          'bg-danger'
+    };
+
+    const fmt = n => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+
+    function formatLabel(str) {
+        if (!str) return '';
+        return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        try {
+            return new Date(dateStr).toLocaleDateString();
+        } catch (e) {
+            return dateStr;
+        }
+    }
+
+    function updateStats(orders) {
+        const total = orders.length;
+        const closedStatuses = ['completed', 'cancelled'];
+        const openOrders = orders.filter(o => !closedStatuses.includes(o.status));
+        const openValue = openOrders.reduce((sum, o) => sum + (o.total || 0), 0);
+        const shipped = orders.filter(o => o.status === 'shipped').length;
+        const completed = orders.filter(o => o.status === 'completed').length;
+
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statOpenValue').textContent = fmt(openValue);
+        document.getElementById('statShipped').textContent = shipped;
+        document.getElementById('statCompleted').textContent = completed;
+    }
+
+    function renderTable(orders) {
+        const tbody = document.getElementById('orderTableBody');
+        const countEl = document.getElementById('tableCount');
+
+        if (!orders || orders.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                        No sales orders found
+                    </td>
+                </tr>`;
+            countEl.textContent = '0 records';
+            return;
+        }
+
+        countEl.textContent = `${orders.length} record${orders.length !== 1 ? 's' : ''}`;
+
+        tbody.innerHTML = orders.map(order => {
+            const orderNumber = order.order_number || order.id || '-';
+            const customer = order.customer_name || order.customer_id || '-';
+            const orderDate = formatDate(order.order_date);
+            const requestedDate = formatDate(order.requested_date);
+            const total = order.total != null ? fmt(order.total) : '-';
+            const status = (order.status || '').toLowerCase();
+            const statusClass = STATUS_BADGES[status] || 'bg-secondary';
+
+            return `<tr>
+                <td class="fw-bold">${orderNumber}</td>
+                <td>${customer}</td>
+                <td>${orderDate}</td>
+                <td>${requestedDate}</td>
+                <td class="text-end">${total}</td>
+                <td><span class="badge ${statusClass}">${formatLabel(status)}</span></td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function loadData() {
+        const statusFilter = document.getElementById('filterStatus').value;
+
+        let url = '/api/erp/sales-orders';
+        if (statusFilter) url += '?status=' + encodeURIComponent(statusFilter);
+
+        const token = localStorage.getItem('access_token') || 'demo-token';
+
+        try {
+            const response = await fetch(url, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const orders = data.sales_orders || data.data || [];
+
+            updateStats(orders);
+            renderTable(orders);
+        } catch (error) {
+            console.error('Failed to load sales orders:', error);
+            document.getElementById('orderTableBody').innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-circle display-6 d-block mb-2"></i>
+                        Failed to load sales orders. Please try again.
+                    </td>
+                </tr>`;
+        }
+    }
+
+    // Initial load
+    loadData();
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadData, 30000);
+</script>
 {% endblock %}

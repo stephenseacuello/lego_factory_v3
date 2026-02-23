@@ -532,55 +532,21 @@ class GcodeManager {
                 const data = await response.json();
                 this.populateMachines(data.machines || []);
             } else {
-                this.loadDemoMachines();
+                console.error('Failed to load machines: server returned ' + response.status);
+                this.showMachineLoadError();
             }
         } catch (error) {
-            console.log('Using demo machine data');
-            this.loadDemoMachines();
+            console.error('Failed to load machines:', error);
+            this.showMachineLoadError();
         }
     }
 
-    loadDemoMachines() {
-        // Work envelopes by machine type (mm)
-        const workEnvelopes = {
-            'cnc_mill': { x: 203, y: 152, z: 76 },      // Bantam-class
-            'cnc_lathe': { x: 150, y: 150, z: 300 },    // Lathe (X=radius, Y=radius, Z=length)
-            'laser_cutter': { x: 400, y: 300, z: 10 },  // Longer Ray5
-            'printer_3d': { x: 256, y: 256, z: 256 },   // Bambu P1S
-            'robot_arm': { x: 400, y: 400, z: 400 },    // xArm Lite 6
-            'conveyor': { x: 400, y: 100, z: 50 }       // Niryo Conveyor
-        };
-
-        // Machines from config/machines.json
-        const machineList = [
-            { machine_id: 'bantam-explorer', name: 'Bantam Desktop Explorer CNC', machine_type: 'cnc_mill' },
-            { machine_id: 'coastrunner-cr1', name: 'CoastRunner CR-1', machine_type: 'cnc_mill' },
-            { machine_id: 'rownd-lathe', name: 'Rownd Lathe', machine_type: 'cnc_lathe' },
-            { machine_id: 'labfab-runner', name: 'LabFab Runner CNC', machine_type: 'cnc_mill' },
-            { machine_id: 'longer-ray-laser', name: 'Longer Ray5 20W Laser', machine_type: 'laser_cutter' },
-            { machine_id: 'creality-cr30', name: 'Creality CR-30 PrintMill', machine_type: 'printer_3d' },
-            { machine_id: 'bambu-ps1', name: 'Bambu Lab P1S', machine_type: 'printer_3d' },
-            { machine_id: 'niryo-ned2', name: 'Niryo Ned2 Robot', machine_type: 'robot_arm' },
-            { machine_id: 'niryo-conveyor', name: 'Niryo Conveyor Belt', machine_type: 'conveyor' },
-            { machine_id: 'xarm-lite6', name: 'xArm Lite 6', machine_type: 'robot_arm' }
-        ];
-
-        // Build machines object with work envelopes
-        this.machines = {};
-        machineList.forEach(m => {
-            this.machines[m.machine_id] = {
-                name: m.name,
-                machine_type: m.machine_type,
-                workEnvelope: workEnvelopes[m.machine_type] || { x: 200, y: 200, z: 100 }
-            };
-        });
-
-        this.populateMachineSelector();
-
-        // Set default machine
-        if (!this.targetMachine && machineList.length > 0) {
-            this.setTargetMachine(machineList[0].machine_id);
-        }
+    showMachineLoadError() {
+        const select = document.getElementById('targetMachine');
+        select.innerHTML = '<option value="">No machines available</option>';
+        document.getElementById('machineConnectionStatus').textContent = 'Disconnected';
+        document.getElementById('machineConnectionStatus').className = 'badge bg-danger me-2';
+        document.getElementById('targetMachineName').textContent = 'No machine selected';
     }
 
     populateMachines(machines) {
@@ -1086,21 +1052,13 @@ class GcodeManager {
                 const data = await response.json();
                 this.displayFiles(data.files || []);
             } else {
-                this.displayFiles(this.getDemoFiles());
+                console.error('Failed to load G-code files: server returned ' + response.status);
+                this.displayFiles([]);
             }
         } catch (error) {
-            this.displayFiles(this.getDemoFiles());
+            console.error('Failed to load G-code files:', error);
+            this.displayFiles([]);
         }
-    }
-
-    getDemoFiles() {
-        return [
-            { name: 'lego_2x4_brick.nc', size: 2048, modified: new Date().toISOString() },
-            { name: 'lego_1x1_round.nc', size: 1536, modified: new Date().toISOString() },
-            { name: 'lego_baseplate.nc', size: 4096, modified: new Date().toISOString() },
-            { name: 'test_square.nc', size: 512, modified: new Date().toISOString() },
-            { name: 'surfacing.nc', size: 768, modified: new Date().toISOString() }
-        ];
     }
 
     displayFiles(files) {
@@ -1143,11 +1101,12 @@ class GcodeManager {
                 const data = await response.json();
                 this.editor.value = data.content;
             } else {
-                // Demo mode
-                this.editor.value = `; Demo file: ${filename}\n; This is sample G-code\n\nG21\nG90\nG0 X0 Y0 Z5\nG1 Z0 F100\nG1 X50 Y50 F500\nG0 Z5\nM30`;
+                console.error('Failed to load file: server returned ' + response.status);
+                this.editor.value = `; Error: Could not load ${filename}`;
             }
         } catch (error) {
-            this.editor.value = `; Demo file: ${filename}\n; This is sample G-code\n\nG21\nG90\nG0 X0 Y0 Z5\nG1 Z0 F100\nG1 X50 Y50 F500\nG0 Z5\nM30`;
+            console.error('Failed to load file:', error);
+            this.editor.value = `; Error: Could not load ${filename}`;
         }
 
         this.currentFile = filename;
@@ -1214,7 +1173,8 @@ class GcodeManager {
                 alert('File saved successfully!');
             }
         } catch (error) {
-            console.log('Demo mode: save simulated');
+            console.error('Failed to save file:', error);
+            alert('Failed to save file to server.');
         }
 
         this.saveModal.hide();
@@ -1255,10 +1215,12 @@ class GcodeManager {
             if (response.ok) {
                 alert(`G-code sent to ${machineName} successfully!`);
             } else {
-                alert(`Demo mode: G-code would be sent to ${machineName}`);
+                console.error('Failed to send G-code: server returned ' + response.status);
+                alert(`Failed to send G-code to ${machineName}. Server returned status ${response.status}.`);
             }
         } catch (error) {
-            alert(`Demo mode: G-code would be sent to ${machineName}`);
+            console.error('Failed to send G-code:', error);
+            alert(`Failed to send G-code to ${machineName}. Check the connection and try again.`);
         }
     }
 }

@@ -445,44 +445,209 @@ Content-Type: application/json
 }
 ```
 
-### Scheduling
+### Scheduling & Optimization
 
-#### Get Schedule
+#### Get Gantt Chart Data
+
+Returns all machines, scheduled jobs, dependency chains, critical path, and maintenance windows for Gantt visualization.
 
 ```http
-GET /api/mes/schedule?start_date=2024-01-21&end_date=2024-01-28
+GET /api/mes/scheduling/gantt
 ```
 
-#### Run Scheduler
+**Response:**
+```json
+{
+  "machines": [
+    {"id": "bambu-ps1", "name": "Bambu Lab P1S", "status": "running"}
+  ],
+  "jobs": [
+    {
+      "job_id": "JOB-2026-0001",
+      "machine_id": "bambu-ps1",
+      "work_order_id": "WO-2026-P001",
+      "start": "2026-02-16T08:00:00",
+      "end": "2026-02-16T09:30:00",
+      "status": "running",
+      "product": "Injection - 2x4 Brick Red",
+      "priority": 3,
+      "eligible_machines": ["bambu-ps1", "creality-cr30"],
+      "depends_on": null
+    }
+  ],
+  "time_range": {
+    "start": "2026-02-15T08:00:00",
+    "end": "2026-02-18T08:00:00"
+  },
+  "critical_path": {
+    "job_ids": ["JOB-2026-0068", "JOB-2026-0069", "JOB-2026-0070"],
+    "total_duration_minutes": 252,
+    "jobs_count": 3
+  },
+  "maintenance_windows": [
+    {
+      "machine_id": "creality-cr30",
+      "start": "2026-02-17T10:00:00",
+      "end": "2026-02-17T12:00:00",
+      "type": "maintenance",
+      "reason": "PM - Belt tension & calibration"
+    }
+  ]
+}
+```
+
+#### Run Schedule Optimizer
+
+Runs the CP-SAT constraint solver or heuristic to optimize the schedule. Supports three objectives.
 
 ```http
-POST /api/mes/schedule/optimize
+POST /api/mes/scheduling/reschedule
 Content-Type: application/json
 
 {
-  "horizon_hours": 168,
-  "objective": "minimize_makespan",
-  "respect_due_dates": true
+  "algorithm": "cpsat",
+  "objective": "makespan",
+  "apply": true
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `algorithm` | string | No | `cpsat` (default) or `heuristic` |
+| `objective` | string | No | `makespan` (default), `due_date`, or `setup_time` |
+| `apply` | boolean | No | Whether to persist changes (default: true) |
+
+**Response:**
+```json
+{
+  "makespan": 562,
+  "total_setup_time": 45,
+  "scheduled_count": 74,
+  "unscheduled_count": 0,
+  "solver_status": "OPTIMAL",
+  "applied": true,
+  "schedule": [
+    {
+      "job_id": "JOB-2026-0001",
+      "machine_id": "bambu-ps1",
+      "start_time": "2026-02-16T08:00:00",
+      "end_time": "2026-02-16T09:30:00"
+    }
+  ]
+}
+```
+
+#### What-If Scenario Simulation
+
+Simulates schedule changes without modifying the actual schedule.
+
+```http
+POST /api/mes/scheduling/what-if
+Content-Type: application/json
+
+{
+  "name": "Rush order test",
+  "changes": [
+    {
+      "type": "add_job",
+      "job_id": "RUSH-001",
+      "work_order_id": "WO-RUSH",
+      "duration_minutes": 120,
+      "priority": 1,
+      "setup_time": 10
+    }
+  ]
+}
+```
+
+**Change Types:**
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `add_job` | `job_id`, `duration_minutes`, `priority`, `setup_time` | Inject a new job |
+| `add_maintenance` | `machine_id`, `start_time`, `end_time` | Add machine downtime |
+| `change_priority` | `job_id`, `priority` | Change a job's priority |
+
+**Response:**
+```json
+{
+  "scenario_id": "WIF-20260217-001",
+  "makespan_delta": 45,
+  "jobs_affected": ["JOB-2026-0010", "JOB-2026-0015"],
+  "original": {"makespan": 562, "unscheduled": 0},
+  "modified": {"makespan": 607, "unscheduled": 0},
+  "recommendations": [
+    "Warning: Rush order increases makespan by 45 minutes",
+    "Note: 2 jobs will shift to accommodate rush order"
+  ]
+}
+```
+
+#### Reschedule Individual Job
+
+Move a job to a different machine or time slot.
+
+```http
+POST /api/mes/jobs/{job_id}/reschedule
+Content-Type: application/json
+
+{
+  "machine_id": "bambu-ps1",
+  "scheduled_start": "2026-02-16T10:00:00",
+  "scheduled_end": "2026-02-16T11:30:00",
+  "force": false
+}
+```
+
+Returns `409 Conflict` with `conflicts` array if scheduling conflicts are detected (unless `force: true`).
+
+### Dispatch
+
+#### Get Dispatch Rules
+
+```http
+GET /api/mes/dispatch/rules
+```
+
+**Response:**
+```json
+{
+  "rules": ["spt", "lpt", "edd", "fifo", "wspt", "critical_ratio", "setup_min", "slack_time"],
+  "composite_rules": ["balanced", "urgent_first", "efficient"]
+}
+```
+
+#### Auto-Dispatch Next Job
+
+Automatically selects and dispatches the best job for a machine based on the selected rule.
+
+```http
+POST /api/mes/dispatch/auto/{machine_id}
+Content-Type: application/json
+
+{
+  "rule": "balanced"
 }
 ```
 
 **Response:**
 ```json
 {
-  "schedule_id": "SCH-2024-001",
-  "jobs_scheduled": 45,
-  "makespan_hours": 156,
-  "solver_status": "OPTIMAL",
-  "jobs": [
-    {
-      "job_id": "JOB-001",
-      "work_order_id": "WO-001",
-      "machine_id": "MACHINE-001",
-      "start_time": "2024-01-21T08:00:00",
-      "end_time": "2024-01-21T10:30:00"
-    }
-  ]
+  "success": true,
+  "job_id": "JOB-2026-0042",
+  "machine_id": "bambu-ps1",
+  "rule": "balanced",
+  "score": 0.87
 }
+```
+
+#### Get Dispatch Queue
+
+```http
+GET /api/mes/dispatch/queue?machine_id=bambu-ps1&rule=wspt
+```
 ```
 
 ### OEE (Overall Equipment Effectiveness)

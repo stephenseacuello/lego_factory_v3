@@ -99,6 +99,12 @@ def gcode_manager():
     return render_template('scada/gcode_manager.html')
 
 
+@scada_bp.route('/downtime')
+def downtime_analysis():
+    """Downtime Pareto analysis dashboard."""
+    return render_template('scada/downtime_analysis.html')
+
+
 # =============================================================================
 # MES Routes (Level 3)
 # =============================================================================
@@ -187,6 +193,60 @@ def operator():
     return render_template('mes/operator.html')
 
 
+@mes_bp.route('/capacity')
+def capacity():
+    """Capacity planning & bottleneck analysis."""
+    return render_template('mes/capacity.html')
+
+
+@mes_bp.route('/kanban')
+def kanban():
+    """WIP Kanban board."""
+    return render_template('mes/kanban.html')
+
+
+@mes_bp.route('/timeclock')
+def timeclock():
+    """Time clock & labor tracking."""
+    return render_template('mes/timeclock.html')
+
+
+@mes_bp.route('/line-balance')
+def line_balance():
+    """Takt time & line balancing."""
+    return render_template('mes/line_balance.html')
+
+
+@mes_bp.route('/downtime')
+def downtime():
+    """MES production downtime tracking."""
+    return render_template('mes/downtime.html')
+
+
+@mes_bp.route('/labor')
+def labor():
+    """Labor management & skills matrix."""
+    return render_template('mes/labor.html')
+
+
+@mes_bp.route('/setup-analysis')
+def setup_analysis():
+    """Setup time & SMED tracking."""
+    return render_template('mes/setup_analysis.html')
+
+
+@mes_bp.route('/rework')
+def rework():
+    """Rework & scrap analysis."""
+    return render_template('mes/rework_analysis.html')
+
+
+@mes_bp.route('/shift-handover')
+def shift_handover():
+    """Shift handover checklist."""
+    return render_template('mes/shift_handover.html')
+
+
 # =============================================================================
 # ERP Routes (Level 4)
 # =============================================================================
@@ -219,6 +279,48 @@ def costing():
 def vendors():
     """Vendor management."""
     return render_template('erp/vendors.html')
+
+
+@erp_bp.route('/budget')
+def budget():
+    """Budget vs actual reporting."""
+    return render_template('erp/budget_vs_actual.html')
+
+
+@erp_bp.route('/job-costing')
+def job_costing():
+    """Job costing analysis."""
+    return render_template('erp/job_costing.html')
+
+
+@erp_bp.route('/cashflow')
+def cashflow():
+    """Cash flow dashboard."""
+    return render_template('erp/cashflow.html')
+
+
+@erp_bp.route('/fixed-assets')
+def fixed_assets():
+    """Fixed asset register & depreciation."""
+    return render_template('erp/fixed_assets.html')
+
+
+@erp_bp.route('/customers')
+def customers():
+    """Customer management."""
+    return render_template('erp/customers.html')
+
+
+@erp_bp.route('/items')
+def items():
+    """Item master."""
+    return render_template('erp/items.html')
+
+
+@erp_bp.route('/purchase-orders')
+def purchase_orders():
+    """Purchase order management."""
+    return render_template('erp/purchase_orders.html')
 
 
 # =============================================================================
@@ -259,6 +361,12 @@ def ncr_list():
     return render_template('qms/ncr_list.html')
 
 
+@qms_bp.route('/ncrs/<ncr_number>')
+def ncr_detail(ncr_number):
+    """NCR detail view."""
+    return render_template('qms/ncr_detail.html', ncr_number=ncr_number)
+
+
 @qms_bp.route('/spc')
 def spc():
     """SPC control charts dashboard."""
@@ -269,6 +377,36 @@ def spc():
 def inspections():
     """Quality inspections dashboard."""
     return render_template('qms/inspection.html')
+
+
+@qms_bp.route('/supplier-scorecard')
+def supplier_scorecard():
+    """Supplier quality scorecard."""
+    return render_template('qms/supplier_scorecard.html')
+
+
+@qms_bp.route('/capas')
+def capas():
+    """CAPA list."""
+    return render_template('qms/capa_list.html')
+
+
+@qms_bp.route('/audits')
+def audits():
+    """Audit management."""
+    return render_template('qms/audits.html')
+
+
+@qms_bp.route('/calibration')
+def calibration():
+    """Calibration management."""
+    return render_template('qms/calibration.html')
+
+
+@qms_bp.route('/training')
+def training():
+    """Training management."""
+    return render_template('qms/training.html')
 
 
 # =============================================================================
@@ -287,6 +425,30 @@ def cmms_work_orders():
     return render_template('cmms/work_orders.html')
 
 
+@cmms_bp.route('/reliability')
+def reliability():
+    """MTBF/MTTR reliability dashboard."""
+    return render_template('cmms/reliability.html')
+
+
+@cmms_bp.route('/pm-calendar')
+def pm_calendar():
+    """PM calendar view."""
+    return render_template('cmms/pm_calendar.html')
+
+
+@cmms_bp.route('/pm-schedules')
+def pm_schedules():
+    """PM schedules list."""
+    return render_template('cmms/pm_schedules.html')
+
+
+@cmms_bp.route('/spare-parts')
+def spare_parts():
+    """Spare parts inventory."""
+    return render_template('cmms/spare_parts.html')
+
+
 # =============================================================================
 # Unity Digital Twin Routes
 # =============================================================================
@@ -294,7 +456,7 @@ def cmms_work_orders():
 @unity_bp.route('/viewer')
 def viewer():
     """3D digital twin viewer."""
-    return render_template('unity/viewer.html')
+    return render_template('unity/viewer.html', scene={'entities': {}}, config={})
 
 
 # =============================================================================

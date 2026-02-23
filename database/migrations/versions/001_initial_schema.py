@@ -90,7 +90,15 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(['tag_id'], ['tags.id']),
         sa.PrimaryKeyConstraint('tag_id', 'timestamp')
     )
-    op.execute("SELECT create_hypertable('tag_values', 'timestamp', if_not_exists => TRUE)")
+    try:
+        conn = op.get_bind()
+        conn.execute(sa.text("SAVEPOINT hypertable_sp"))
+        conn.execute(sa.text("SELECT create_hypertable('tag_values', 'timestamp', if_not_exists => TRUE)"))
+        conn.execute(sa.text("RELEASE SAVEPOINT hypertable_sp"))
+    except Exception as e:
+        conn = op.get_bind()
+        conn.execute(sa.text("ROLLBACK TO SAVEPOINT hypertable_sp"))
+        print(f"Note: Could not create hypertable (TimescaleDB may not be installed): {e}")
 
     op.create_table('alarm_groups',
         sa.Column('id', postgresql.UUID(as_uuid=True), server_default=sa.text('uuid_generate_v4()'), nullable=False),

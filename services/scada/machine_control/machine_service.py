@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 def _emit_machine_event(event_type: str, data: Dict[str, Any]):
     """
-    Emit machine event to WebSocket clients.
-    Gracefully handles case where SocketIO isn't initialized.
+    Emit machine event to WebSocket clients and persist to database.
+    Gracefully handles case where SocketIO or DB isn't initialized.
     """
     try:
         from services.websocket.socket_service import emit_to_namespace, emit_to_room
@@ -44,6 +44,46 @@ def _emit_machine_event(event_type: str, data: Dict[str, Any]):
         logger.debug("WebSocket service not available, skipping machine emit")
     except Exception as e:
         logger.warning(f"Failed to emit machine event: {e}")
+
+    # Persist to database as DataCollectionEvent
+    _persist_machine_event(event_type, data)
+
+
+def _persist_machine_event(event_type: str, data: Dict[str, Any]):
+    """Persist a machine event to the data_collection_events table."""
+    try:
+        from config.database import get_db_session
+        from models.mes.sensor_data import DataCollectionEvent
+
+        # Map WebSocket event types to DataCollectionEvent event_types
+        evt_type_map = {
+            'machine_connected': 'connection_restored',
+            'machine_disconnected': 'connection_lost',
+            'machine_status_changed': 'state_change',
+            'machine_alarm': 'alarm_raised',
+            'machine_alarm_cleared': 'alarm_cleared',
+        }
+        db_event_type = evt_type_map.get(event_type, 'state_change')
+
+        machine_id = data.get('machine_id', 'unknown')
+        state = data.get('state', '')
+
+        with get_db_session() as session:
+            event = DataCollectionEvent(
+                timestamp=datetime.utcnow(),
+                machine_id=machine_id,
+                event_type=db_event_type,
+                description=f"{event_type}: state={state}",
+                new_state=state,
+                data={k: v for k, v in data.items()
+                      if k not in ('machine_id', 'timestamp')},
+                source='machine',
+            )
+            session.add(event)
+            session.commit()
+    except Exception as e:
+        # Never let DB errors break machine control flow
+        logger.debug(f"Could not persist machine event to DB: {e}")
 
 
 class MachineState(Enum):
@@ -833,3 +873,87 @@ def get_machine(machine_id: str) -> Optional[MachineController]:
 def list_machines() -> List[str]:
     """List all registered machines"""
     return machine_manager.list_machines()
+
+
+class MachineDBService:
+    """Database-backed machine CRUD service."""
+
+    def __init__(self, session):
+        self.session = session
+
+    def get_machines(self) -> List[dict]:
+        from models.scada.machines import Machine
+        machines = self.session.query(Machine).filter(
+            Machine.is_deleted == False
+        ).all()
+        return [m.to_dict() for m in machines]
+
+    def get_machine(self, machine_id: str) -> Optional[dict]:
+        from models.scada.machines import Machine
+        machine = self.session.query(Machine).filter(
+            Machine.machine_id == machine_id,
+            Machine.is_deleted == False
+        ).first()
+        return machine.to_dict() if machine else None
+
+    def create_machine(self, data: dict) -> dict:
+        from models.scada.machines import Machine
+        machine = Machine(**data)
+        self.session.add(machine)
+        self.session.flush()
+        return machine.to_dict()
+
+    def update_machine(self, machine_id: str, data: dict) -> Optional[dict]:
+        from models.scada.machines import Machine
+        machine = self.session.query(Machine).filter(
+            Machine.machine_id == machine_id,
+            Machine.is_deleted == False
+        ).first()
+        if not machine:
+            return None
+        for key, value in data.items():
+            if hasattr(machine, key):
+                setattr(machine, key, value)
+        self.session.flush()
+        return machine.to_dict()
+
+    def delete_machine(self, machine_id: str) -> bool:
+        from models.scada.machines import Machine
+        machine = self.session.query(Machine).filter(
+            Machine.machine_id == machine_id,
+            Machine.is_deleted == False
+        ).first()
+        if not machine:
+            return False
+        machine.is_deleted = True
+        self.session.flush()
+        return True
+
+    def get_events(self, machine_id: str, limit: int = 100, event_type: str = None) -> List[dict]:
+        from models.scada.machines import Machine, MachineEvent
+        machine = self.session.query(Machine).filter(
+            Machine.machine_id == machine_id
+        ).first()
+        if not machine:
+            return []
+        query = self.session.query(MachineEvent).filter(
+            MachineEvent.machine_id == machine.id
+        )
+        if event_type:
+            query = query.filter(MachineEvent.event_type == event_type)
+        events = query.order_by(MachineEvent.created_at.desc()).limit(limit).all()
+        return [{
+            'id': str(e.id),
+            'machine_id': str(e.machine_id),
+            'event_type': e.event_type,
+            'previous_state': e.previous_state,
+            'new_state': e.new_state,
+            'details': e.details,
+            'operator': e.operator,
+            'created_at': e.created_at.isoformat() if e.created_at else None,
+        } for e in events]
+
+
+def get_machine_service(session) -> MachineDBService:
+    """Get a database-backed machine service instance."""
+    return MachineDBService(session)

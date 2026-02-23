@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Recipe {{ recipe_id }} - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="{{ url_for('scada_web.recipes') }}">Recipes</a></li>
+<li class="breadcrumb-item active">{{ recipe_id }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-journal-code me-2"></i>Recipe: {{ recipe_id }}</h2>
+    <a href="{{ url_for('scada_web.recipes') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back to Recipes
+    </a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Recipe Info</div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr><th>Name</th><td id="recipeName">--</td></tr>
+                    <tr><th>Version</th><td id="recipeVersion">--</td></tr>
+                    <tr><th>Product</th><td id="recipeProduct">--</td></tr>
+                    <tr><th>Status</th><td id="recipeStatus">--</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Parameters</div>
+            <div class="card-body">
+                <div id="recipeParams"><em>Loading...</em></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const recipeId = '{{ recipe_id }}';
+    fetch(`/api/scada/recipes/${recipeId}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('recipeName').textContent = data.name || '--';
+            document.getElementById('recipeVersion').textContent = data.version || '--';
+            document.getElementById('recipeProduct').textContent = data.product || '--';
+            document.getElementById('recipeStatus').textContent = data.status || '--';
+            if (data.parameters) {
+                const list = Object.entries(data.parameters)
+                    .map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+                document.getElementById('recipeParams').innerHTML = `<table class="table table-sm">${list}</table>`;
+            }
+        })
+        .catch(() => {
+            document.getElementById('recipeParams').innerHTML = '<em>Could not load recipe data.</em>';
+        });
+});
+</script>
+{% endblock %}

@@ -55,9 +55,10 @@ LEGO Factory v3 is a comprehensive manufacturing execution system built on the I
 +--------v--------+  +-------v-------+  +-------v-------+
 |   ERP Services  |  | MES Services  |  | QMS Services  |
 | - ItemService   |  | - Scheduling  |  | - Documents   |
-| - SalesService  |  | - OEEService  |  | - NCRService  |
-| - Purchasing    |  | - WorkOrders  |  | - CAPAs       |
-| - MRPService    |  +-------+-------+  +-------+-------+
+| - SalesService  |  | - Dispatch    |  | - NCRService  |
+| - Purchasing    |  | - OEEService  |  | - CAPAs       |
+| - MRPService    |  | - WorkOrders  |  +-------+-------+
++--------+--------+  +-------+-------+
 +--------+--------+          |                   |
          |                   |                   |
          +-------------------+-------------------+
@@ -78,6 +79,90 @@ LEGO Factory v3 is a comprehensive manufacturing execution system built on the I
 | - RecipeService |  | - Prediction  |  | - Defect Det. |
 +-----------------+  +---------------+  +---------------+
 ```
+
+## Scheduling & Optimization Subsystem
+
+The scheduling system is the core of the MES layer, combining constraint-based optimization with real-time dispatch and interactive visualization.
+
+### Architecture
+
+```
+                    +----------------------------+
+                    |   Scheduling UI (Gantt)    |
+                    |  scheduling.html + JS      |
+                    +-------------+--------------+
+                                  |
+                    +-------------v--------------+
+                    |    MES API (mes_api.py)     |
+                    |  /scheduling/gantt          |
+                    |  /scheduling/reschedule     |
+                    |  /scheduling/what-if        |
+                    |  /dispatch/auto/{machine}   |
+                    +---+--------+----------+----+
+                        |        |          |
+           +------------v--+ +---v------+ +-v-----------+
+           | Scheduling    | | Dispatch | | What-If     |
+           | Service       | | Service  | | Simulator   |
+           | - CP-SAT      | | - 8 rules| | - Scenario  |
+           | - Heuristic   | | - SPT    | |   cloning   |
+           | - Setup matrix| | - EDD    | | - Impact    |
+           | - Critical    | | - WSPT   | |   analysis  |
+           |   path        | | - etc.   | |             |
+           +-------+-------+ +----+-----+ +------+------+
+                   |               |              |
+           +-------v---------------v--------------v------+
+           |              Database Layer                   |
+           |  Jobs, Operations, WorkOrders,                |
+           |  MachineAvailability, SetupMatrix              |
+           +----------------------------------------------+
+```
+
+### CP-SAT Constraint Solver
+
+The scheduling optimizer uses Google OR-Tools CP-SAT (Constraint Programming - Satisfiability) solver:
+
+- **Variables**: Job start times, machine assignments, job ordering
+- **Constraints**: Machine capacity (1 job at a time), operation precedence, maintenance blackouts, eligible machines
+- **Objectives**: Minimize makespan, minimize weighted tardiness, minimize setup time
+- **Fallback**: Priority-based greedy heuristic when OR-Tools is unavailable
+
+### Setup Time Matrix
+
+Material changeover times between product types (PLA, ABS, PETG, etc.) are defined in `MATERIAL_SETUP_MATRIX` with per-machine multipliers. The `setup_time` objective groups similar materials on the same machine to minimize changeovers.
+
+### Critical Path Computation
+
+The critical path is the longest chain of dependent jobs by total duration. Computed via DFS traversal of `depends_on` relationships in `_compute_critical_path()`. Returned in the Gantt API response and visualized with orange glow + red arrows.
+
+### Dispatch Rules
+
+| Rule | Algorithm | Best For |
+|------|-----------|----------|
+| SPT | Shortest Processing Time | Minimizing average flow time |
+| LPT | Longest Processing Time | Load balancing |
+| EDD | Earliest Due Date | Meeting deadlines |
+| FIFO | First In, First Out | Fairness |
+| WSPT | Weighted SPT | Priority-weighted throughput |
+| Critical Ratio | Due date / remaining time | Urgency-based |
+| Setup Min | Group by material type | Reducing changeovers |
+| Slack Time | Due date - processing time | Tight schedules |
+
+Composite rules (`balanced`, `urgent_first`, `efficient`) combine multiple factors with weighted scoring.
+
+### Maintenance-Aware Scheduling
+
+The scheduler integrates with CMMS to respect maintenance windows:
+1. `get_maintenance_blackouts()` fetches from `MachineAvailability` (MES) and `MaintenanceWorkOrder` (CMMS)
+2. `schedule_with_maintenance()` excludes blackout periods from available machine time
+3. Gantt chart renders maintenance blocks as hatched overlay with reason text
+
+### WebSocket Events
+
+| Event | Direction | Description |
+|-------|-----------|-------------|
+| `job_dispatched` | Server → Client | Job assigned to machine |
+| `job_completed` | Server → Client | Job finished (triggers auto-dispatch) |
+| `job_rescheduled` | Server → Client | Job moved to new time/machine |
 
 ## Key Workflows
 
@@ -151,6 +236,7 @@ Asset Registration → PM Schedule → Work Order Generation → Execution → C
 | ORM | SQLAlchemy 2.x | Database access |
 | Migrations | Alembic | Schema management |
 | Task Queue | Celery (optional) | Background jobs |
+| Optimization | Google OR-Tools CP-SAT | Schedule optimization |
 | Caching | Redis | Session/data cache |
 
 ### Database

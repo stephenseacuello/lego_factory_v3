@@ -1,21 +1,211 @@
 {% extends "base.html" %}
 {% block title %}Vendors - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">Vendors</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-truck me-2"></i>Vendors</h2>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Vendor List</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>New Vendor</button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-truck me-2"></i>Vendors</h2>
+    <button class="btn btn-outline-secondary" onclick="loadData()">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+    </button>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statTotal">--</h3>
+            <small class="text-muted">Total Vendors</small>
+        </div>
     </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>ID</th><th>Name</th><th>Contact</th><th>Lead Time</th><th>Rating</th><th>YTD Spend</th></tr></thead>
-            <tbody>
-                <tr><td>V-001</td><td>Raw Materials Co</td><td>supply@rawmat.com</td><td>5 days</td><td><span class="text-warning">★★★★☆</span></td><td>$125,000</td></tr>
-                <tr><td>V-002</td><td>Precision Tools Ltd</td><td>orders@prectools.com</td><td>14 days</td><td><span class="text-warning">★★★★★</span></td><td>$78,500</td></tr>
-                <tr><td>V-003</td><td>Polymer Supply Inc</td><td>sales@polysupply.com</td><td>7 days</td><td><span class="text-warning">★★★☆☆</span></td><td>$45,200</td></tr>
-            </tbody>
-        </table>
+    <div class="col-md-3">
+        <div class="card stat-card success text-center p-3">
+            <h3 class="mb-0" id="statActive">--</h3>
+            <small class="text-muted">Active</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card text-center p-3">
+            <h3 class="mb-0" id="statLeadTime">--</h3>
+            <small class="text-muted">Lead Time Avg</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card warning text-center p-3">
+            <h3 class="mb-0" id="statPaymentTerms">--</h3>
+            <small class="text-muted">Payment Terms</small>
+        </div>
     </div>
 </div>
+
+<!-- Status Filter -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <select class="form-select" id="filterStatus" onchange="loadData()">
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="hold">Hold</option>
+            <option value="prospect">Prospect</option>
+        </select>
+    </div>
+</div>
+
+<!-- Vendors Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-1"></i>Vendor List</span>
+        <span class="text-muted" id="tableCount"></span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>City</th>
+                        <th>Lead Time</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="vendorTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                            Loading vendors...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const STATUS_BADGES = {
+        active:   'bg-success',
+        inactive: 'bg-secondary',
+        hold:     'bg-warning text-dark',
+        prospect: 'bg-info'
+    };
+
+    function formatLabel(str) {
+        if (!str) return '';
+        return str.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function mostCommonTerm(vendors) {
+        if (!vendors || vendors.length === 0) return '--';
+        const counts = {};
+        vendors.forEach(v => {
+            const term = v.payment_terms || 'unknown';
+            counts[term] = (counts[term] || 0) + 1;
+        });
+        const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+        return formatLabel(top[0]);
+    }
+
+    function updateStats(vendors) {
+        const total = vendors.length;
+        const active = vendors.filter(v => v.status === 'active').length;
+        const avgLead = total > 0
+            ? (vendors.reduce((sum, v) => sum + (v.lead_time_days || 0), 0) / total).toFixed(1)
+            : 0;
+
+        document.getElementById('statTotal').textContent = total;
+        document.getElementById('statActive').textContent = active;
+        document.getElementById('statLeadTime').textContent = avgLead + ' days';
+        document.getElementById('statPaymentTerms').textContent = mostCommonTerm(vendors);
+    }
+
+    function renderTable(vendors) {
+        const tbody = document.getElementById('vendorTableBody');
+        const countEl = document.getElementById('tableCount');
+
+        if (!vendors || vendors.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-inbox display-6 d-block mb-2"></i>
+                        No vendors found
+                    </td>
+                </tr>`;
+            countEl.textContent = '0 records';
+            return;
+        }
+
+        countEl.textContent = `${vendors.length} record${vendors.length !== 1 ? 's' : ''}`;
+
+        tbody.innerHTML = vendors.map(vendor => {
+            const id = vendor.partner_id || vendor.id || '-';
+            const name = vendor.name || '-';
+            const email = vendor.email || '-';
+            const phone = vendor.phone || '-';
+            const city = vendor.city || '-';
+            const leadTime = vendor.lead_time_days != null ? vendor.lead_time_days + ' days' : '-';
+            const status = (vendor.status || '').toLowerCase();
+            const statusClass = STATUS_BADGES[status] || 'bg-secondary';
+
+            return `<tr>
+                <td class="fw-bold">${id}</td>
+                <td>${name}</td>
+                <td>${email}</td>
+                <td>${phone}</td>
+                <td>${city}</td>
+                <td>${leadTime}</td>
+                <td><span class="badge ${statusClass}">${formatLabel(status)}</span></td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function loadData() {
+        const statusFilter = document.getElementById('filterStatus').value;
+
+        let url = '/api/erp/partners?type=vendor';
+        if (statusFilter) url += '&status=' + encodeURIComponent(statusFilter);
+
+        const token = localStorage.getItem('access_token') || 'demo-token';
+
+        try {
+            const response = await fetch(url, {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            const vendors = data.partners || data.data || [];
+
+            updateStats(vendors);
+            renderTable(vendors);
+        } catch (error) {
+            console.error('Failed to load vendors:', error);
+            document.getElementById('vendorTableBody').innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-danger py-4">
+                        <i class="bi bi-exclamation-circle display-6 d-block mb-2"></i>
+                        Failed to load vendors. Please try again.
+                    </td>
+                </tr>`;
+        }
+    }
+
+    // Initial load
+    loadData();
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadData, 30000);
+</script>
 {% endblock %}

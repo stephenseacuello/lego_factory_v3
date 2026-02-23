@@ -297,8 +297,13 @@ def upgrade() -> None:
 
     # Convert to TimescaleDB hypertable (if TimescaleDB is available)
     try:
-        op.execute("SELECT create_hypertable('sensor_readings', 'timestamp', if_not_exists => TRUE)")
+        conn = op.get_bind()
+        conn.execute(sa.text("SAVEPOINT hypertable_sp"))
+        conn.execute(sa.text("SELECT create_hypertable('sensor_readings', 'timestamp', if_not_exists => TRUE)"))
+        conn.execute(sa.text("RELEASE SAVEPOINT hypertable_sp"))
     except Exception as e:
+        conn = op.get_bind()
+        conn.execute(sa.text("ROLLBACK TO SAVEPOINT hypertable_sp"))
         print(f"Note: Could not create hypertable (TimescaleDB may not be installed): {e}")
 
     # =========================================================================

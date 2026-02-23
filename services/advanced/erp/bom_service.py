@@ -10,7 +10,7 @@ Bill of Materials management:
 
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from models import Part, BOM
 
@@ -144,7 +144,9 @@ class BOMService:
         Returns:
             List of BOM components with quantities
         """
-        query = self.session.query(BOM).filter(
+        query = self.session.query(BOM).options(
+            joinedload(BOM.child_part)  # Eager load child parts to avoid N+1
+        ).filter(
             BOM.parent_part_id == part_id,
             BOM.bom_type == bom_type
         )
@@ -215,7 +217,9 @@ class BOMService:
         if level >= max_levels:
             return
 
-        bom_lines = self.session.query(BOM).filter(
+        bom_lines = self.session.query(BOM).options(
+            joinedload(BOM.child_part)  # Eager load to avoid N+1 on recursion
+        ).filter(
             BOM.parent_part_id == part_id,
             BOM.bom_type == bom_type
         ).order_by(BOM.sequence).all()

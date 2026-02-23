@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Kanban Board - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Kanban Board</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-kanban"></i> Kanban Board</h2>
+  <button class="btn btn-sm btn-outline-primary" onclick="loadBoard()"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+</div>
+
+<div class="row g-3" id="kanbanBoard">
+  {% for col in ['queued', 'in_setup', 'running', 'qc', 'complete'] %}
+  <div class="col">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>{{ col.replace('_', ' ').title() }}</strong>
+        <span class="badge bg-secondary" id="count-{{ col }}">0</span>
+      </div>
+      <div class="card-body p-2" id="col-{{ col }}" style="min-height:400px; overflow-y:auto; max-height:70vh; background:#f8f9fa;"></div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="mt-3">
+  <small class="text-muted">
+    <i class="bi bi-circle-fill text-danger"></i> High &nbsp;
+    <i class="bi bi-circle-fill text-warning"></i> Medium &nbsp;
+    <i class="bi bi-circle-fill text-info"></i> Low &nbsp;
+    <i class="bi bi-exclamation-diamond text-danger"></i> WIP Limit Exceeded
+  </small>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const COLUMNS = ['queued', 'in_setup', 'running', 'qc', 'complete'];
+const PRIORITY_COLORS = { high: 'danger', medium: 'warning', low: 'info', normal: 'secondary' };
+
+function priorityBorder(p) {
+  return `border-start border-4 border-${PRIORITY_COLORS[p] || 'secondary'}`;
+}
+
+function renderCard(item) {
+  const p = (item.priority || 'normal').toLowerCase();
+  return `<div class="card mb-2 ${priorityBorder(p)}">
+    <div class="card-body p-2">
+      <div class="d-flex justify-content-between">
+        <strong class="small">${item.work_order || item.job_id || ''}</strong>
+        <span class="badge bg-${PRIORITY_COLORS[p] || 'secondary'}">${p}</span>
+      </div>
+      <div class="small text-muted">${item.product || ''}</div>
+      <div class="small">Machine: <strong>${item.machine_id || '-'}</strong></div>
+      ${item.wip_limit ? `<span class="badge ${item.wip_count > item.wip_limit ? 'bg-danger' : 'bg-outline-secondary border'} mt-1">WIP: ${item.wip_count || 0}/${item.wip_limit}</span>` : ''}
+      <div class="small text-muted mt-1">Qty: ${item.quantity || 0}</div>
+    </div>
+  </div>`;
+}
+
+async function loadBoard() {
+  try {
+    const res = await fetch('/api/mes/kanban/board');
+    const data = await res.json();
+    COLUMNS.forEach(col => {
+      const items = data[col] || [];
+      document.getElementById(`col-${col}`).innerHTML = items.map(renderCard).join('') || '<p class="text-muted small text-center mt-3">No items</p>';
+      document.getElementById(`count-${col}`).textContent = items.length;
+    });
+  } catch (e) {
+    console.error('Failed to load kanban board:', e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', loadBoard);
+setInterval(loadBoard, 30000);
+</script>
+{% endblock %}

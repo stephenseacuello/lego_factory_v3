@@ -213,7 +213,7 @@ def validate_request(schema: Type[T], *, partial: bool = False):
         def wrapper(*args, **kwargs):
             # Get JSON data from request
             try:
-                data = request.get_json(force=False, silent=True)
+                data = request.get_json(force=True, silent=True)
             except Exception as e:
                 logger.warning(f"Failed to parse JSON: {e}")
                 return validation_error_response(

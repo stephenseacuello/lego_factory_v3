@@ -48,7 +48,7 @@ def run_async(coro):
 
 
 @tags_bp.route('', methods=['GET'])
-@jwt_required()
+@jwt_required(optional=True)
 def list_tags():
     """Get all tags with filtering"""
     try:
@@ -72,7 +72,7 @@ def list_tags():
             return jsonify({'tags': tags, 'count': len(tags)})
     except Exception as e:
         logger.error(f"Error listing tags: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/<tag_id>', methods=['GET'])
@@ -88,7 +88,7 @@ def get_tag(tag_id: str):
             return jsonify(tag)
     except Exception as e:
         logger.error(f"Error getting tag {tag_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('', methods=['POST'])
@@ -125,7 +125,7 @@ def create_tag(validated_data: TagCreate):
             return jsonify(tag), 201
     except Exception as e:
         logger.error(f"Error creating tag: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/<tag_id>', methods=['PUT'])
@@ -167,7 +167,7 @@ def update_tag(validated_data: TagUpdate, tag_id: str):
             return jsonify(tag)
     except Exception as e:
         logger.error(f"Error updating tag {tag_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/<tag_id>', methods=['DELETE'])
@@ -194,7 +194,7 @@ def delete_tag(tag_id: str):
             return jsonify({'message': 'Tag deleted'})
     except Exception as e:
         logger.error(f"Error deleting tag {tag_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/<tag_id>/value', methods=['GET'])
@@ -215,7 +215,7 @@ def get_tag_value(tag_id: str):
         })
     except Exception as e:
         logger.error(f"Error getting tag value {tag_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/<tag_id>/value', methods=['PUT'])
@@ -252,7 +252,7 @@ def set_tag_value(validated_data: TagValueWrite, tag_id: str):
         return jsonify({'message': 'Value written', 'tag_id': tag_id})
     except Exception as e:
         logger.error(f"Error writing tag value {tag_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/values', methods=['GET'])
@@ -277,7 +277,7 @@ def get_tag_values():
         return jsonify({'values': result, 'count': len(result)})
     except Exception as e:
         logger.error(f"Error getting tag values: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/values', methods=['PUT'])
@@ -317,7 +317,7 @@ def set_tag_values(validated_data: TagValueBulkWrite):
         return jsonify({'message': 'Values written', 'count': len(validated_data.values)})
     except Exception as e:
         logger.error(f"Error writing tag values: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/groups', methods=['GET'])
@@ -333,7 +333,7 @@ def list_tag_groups():
             return jsonify({'groups': groups, 'count': len(groups)})
     except Exception as e:
         logger.error(f"Error listing tag groups: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/groups', methods=['POST'])
@@ -368,7 +368,7 @@ def create_tag_group(validated_data: TagGroupCreate):
             return jsonify(group), 201
     except Exception as e:
         logger.error(f"Error creating tag group: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/bulk', methods=['POST'])
@@ -405,7 +405,7 @@ def bulk_create_tags(validated_data: TagBulkCreate):
             return jsonify({'tags': tags, 'count': len(tags)}), 201
     except Exception as e:
         logger.error(f"Error bulk creating tags: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/export', methods=['GET'])
@@ -421,7 +421,7 @@ def export_tags():
             return jsonify({'tags': tags, 'count': len(tags)})
     except Exception as e:
         logger.error(f"Error exporting tags: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/import', methods=['POST'])
@@ -458,7 +458,7 @@ def import_tags(validated_data: TagImportRequest):
             return jsonify(result)
     except Exception as e:
         logger.error(f"Error importing tags: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @tags_bp.route('/types', methods=['GET'])
@@ -507,4 +507,4 @@ def scale_tag_value(validated_data: TagScaleRequest, tag_id: str):
             })
     except Exception as e:
         logger.error(f"Error scaling tag value {tag_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500

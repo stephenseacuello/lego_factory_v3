@@ -79,6 +79,51 @@
             margin-top: 0.5rem;
         }
 
+        .sidebar-toggle {
+            color: rgba(255,255,255,0.6);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0.65rem 1rem;
+            margin-top: 0.25rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            border-radius: 0.375rem;
+            margin-left: 0.5rem;
+            margin-right: 0.5rem;
+            user-select: none;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .sidebar-toggle:hover {
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.9);
+        }
+
+        .sidebar-toggle .toggle-chevron {
+            transition: transform 0.2s ease;
+            font-size: 0.65rem;
+        }
+
+        .sidebar-toggle[aria-expanded="true"] .toggle-chevron {
+            transform: rotate(180deg);
+        }
+
+        .sidebar-toggle[aria-expanded="true"] {
+            color: rgba(255,255,255,0.85);
+        }
+
+        .sidebar-collapse .nav-link {
+            padding: 0.5rem 1rem 0.5rem 2.25rem;
+            font-size: 0.875rem;
+        }
+
+        .sidebar-divider {
+            border-top: 1px solid rgba(255,255,255,0.08);
+            margin: 0.5rem 1rem;
+        }
+
         .main-content {
             margin-left: var(--sidebar-width);
             padding: 1.5rem;
@@ -162,248 +207,306 @@
             LEGO Factory v3
         </div>
 
+        {# ── Determine active section from current endpoint ── #}
+        {% set ep = request.endpoint|default('') %}
+        {% set active_section = '' %}
+        {% if ep.startswith('scada_web.') %}{% set active_section = 'shopfloor' %}
+        {% elif ep in ('mes_web.work_orders','mes_web.work_order_detail','mes_web.scheduling','mes_web.dispatch','mes_web.oee','mes_web.resources','mes_web.resource_detail','mes_web.materials','mes_web.operator') %}{% set active_section = 'production' %}
+        {% elif ep in ('mes_web.performance','mes_web.process_monitor','mes_web.shift_report','mes_web.genealogy','mes_web.algorithm_compare','simulation_views.simulation_dashboard','simulation_views.algorithm_comparison') %}{% set active_section = 'analytics' %}
+        {% elif ep.startswith('lego_web.') %}{% set active_section = 'design' %}
+        {% elif ep.startswith('erp_web.') or ep.startswith('crm_web.') %}{% set active_section = 'business' %}
+        {% elif ep.startswith('qms_web.') %}{% set active_section = 'quality' %}
+        {% elif ep.startswith('cmms_web.') or ep.startswith('ml_web.') or ep.startswith('unity_web.') %}{% set active_section = 'maintain' %}
+        {% endif %}
+
+        {# ── Pinned items (always visible) ── #}
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'dashboard_web.home' %}active{% endif %}" href="{{ url_for('dashboard_web.home') }}">
+                <a class="nav-link {% if ep == 'dashboard_web.home' %}active{% endif %}" href="{{ url_for('dashboard_web.home') }}">
                     <i class="bi bi-house me-2"></i> Home
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'dashboard.home' %}active{% endif %}" href="/dashboard">
+                <a class="nav-link {% if ep == 'dashboard.home' %}active{% endif %}" href="/dashboard">
                     <i class="bi bi-speedometer2 me-2"></i> Dashboard
                 </a>
             </li>
-
-            <div class="sidebar-section">Control / Level 1</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'scada_web.operator_control' %}active{% endif %}" href="{{ url_for('scada_web.operator_control') }}">
-                    <i class="bi bi-joystick me-2"></i> Control
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'scada_web.sensors' %}active{% endif %}" href="{{ url_for('scada_web.sensors') }}">
-                    <i class="bi bi-thermometer-half me-2"></i> Sensors
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'scada_web.gcode_manager' %}active{% endif %}" href="{{ url_for('scada_web.gcode_manager') }}">
-                    <i class="bi bi-code-slash me-2"></i> G-code Manager
-                </a>
-            </li>
-
-            <div class="sidebar-section">SCADA / Level 2</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'scada_web.machines' or request.endpoint == 'scada_web.machine_detail' or request.endpoint == 'scada_web.machine_control' %}active{% endif %}" href="{{ url_for('scada_web.machines') }}">
-                    <i class="bi bi-cpu me-2"></i> Machines
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'scada_web.alarms' or request.endpoint == 'scada_web.alarm_detail' %}active{% endif %}" href="{{ url_for('scada_web.alarms') }}">
-                    <i class="bi bi-bell me-2"></i> Alarms
-                    {% if active_alarm_count|default(0) > 0 %}
-                    <span class="badge bg-danger ms-auto">{{ active_alarm_count }}</span>
-                    {% endif %}
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'scada_web.historian' %}active{% endif %}" href="{{ url_for('scada_web.historian') }}">
-                    <i class="bi bi-graph-up me-2"></i> Historian
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'scada_web.recipes' or request.endpoint == 'scada_web.recipe_detail' %}active{% endif %}" href="{{ url_for('scada_web.recipes') }}">
-                    <i class="bi bi-file-code me-2"></i> Recipes
-                </a>
-            </li>
-
-            <div class="sidebar-section">MES / Level 3</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.work_orders' or request.endpoint == 'mes_web.work_order_detail' %}active{% endif %}" href="{{ url_for('mes_web.work_orders') }}">
-                    <i class="bi bi-clipboard-check me-2"></i> Work Orders
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.scheduling' %}active{% endif %}" href="{{ url_for('mes_web.scheduling') }}">
-                    <i class="bi bi-calendar3 me-2"></i> Scheduling
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.oee' %}active{% endif %}" href="{{ url_for('mes_web.oee') }}">
-                    <i class="bi bi-pie-chart me-2"></i> OEE
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.resources' or request.endpoint == 'mes_web.resource_detail' %}active{% endif %}" href="{{ url_for('mes_web.resources') }}">
-                    <i class="bi bi-hdd-stack me-2"></i> Resources
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.materials' %}active{% endif %}" href="{{ url_for('mes_web.materials') }}">
-                    <i class="bi bi-box-seam me-2"></i> Materials
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.algorithm_compare' %}active{% endif %}" href="{{ url_for('mes_web.algorithm_compare') }}">
-                    <i class="bi bi-graph-up-arrow me-2"></i> Algorithm Compare
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.dispatch' %}active{% endif %}" href="{{ url_for('mes_web.dispatch') }}">
-                    <i class="bi bi-send me-2"></i> Dispatch
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.genealogy' %}active{% endif %}" href="{{ url_for('mes_web.genealogy') }}">
-                    <i class="bi bi-diagram-3 me-2"></i> Genealogy
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.process_monitor' %}active{% endif %}" href="{{ url_for('mes_web.process_monitor') }}">
-                    <i class="bi bi-activity me-2"></i> Process Monitor
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.performance' %}active{% endif %}" href="{{ url_for('mes_web.performance') }}">
-                    <i class="bi bi-speedometer me-2"></i> Performance
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.shift_report' %}active{% endif %}" href="{{ url_for('mes_web.shift_report') }}">
-                    <i class="bi bi-file-text me-2"></i> Shift Report
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'mes_web.operator' %}active{% endif %}" href="{{ url_for('mes_web.operator') }}">
-                    <i class="bi bi-person-workspace me-2"></i> Operator View
-                </a>
-            </li>
-
-            <div class="sidebar-section">LEGO Design</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'lego_web.catalog' %}active{% endif %}" href="{{ url_for('lego_web.catalog') }}">
-                    <i class="bi bi-grid-3x3 me-2"></i> Brick Catalog
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'lego_web.designer' %}active{% endif %}" href="{{ url_for('lego_web.designer') }}">
-                    <i class="bi bi-pencil-square me-2"></i> Brick Designer
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'lego_web.export_jobs' %}active{% endif %}" href="{{ url_for('lego_web.export_jobs') }}">
-                    <i class="bi bi-box-arrow-up me-2"></i> Export Jobs
-                </a>
-            </li>
-
-            <div class="sidebar-section">ERP / Level 4</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'erp_web.sales_orders' %}active{% endif %}" href="{{ url_for('erp_web.sales_orders') }}">
-                    <i class="bi bi-cart me-2"></i> Sales Orders
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'erp_web.inventory' %}active{% endif %}" href="{{ url_for('erp_web.inventory') }}">
-                    <i class="bi bi-boxes me-2"></i> Inventory
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'erp_web.mrp' %}active{% endif %}" href="{{ url_for('erp_web.mrp') }}">
-                    <i class="bi bi-diagram-3 me-2"></i> MRP
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'erp_web.costing' %}active{% endif %}" href="{{ url_for('erp_web.costing') }}">
-                    <i class="bi bi-calculator me-2"></i> Costing
-                </a>
-            </li>
-
-            <div class="sidebar-section">CRM</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'crm_web.dashboard' %}active{% endif %}" href="{{ url_for('crm_web.dashboard') }}">
-                    <i class="bi bi-people me-2"></i> Dashboard
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'crm_web.customers' %}active{% endif %}" href="{{ url_for('crm_web.customers') }}">
-                    <i class="bi bi-building me-2"></i> Customers
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'crm_web.contacts' %}active{% endif %}" href="{{ url_for('crm_web.contacts') }}">
-                    <i class="bi bi-person-lines-fill me-2"></i> Contacts
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'crm_web.activities' %}active{% endif %}" href="{{ url_for('crm_web.activities') }}">
-                    <i class="bi bi-journal-text me-2"></i> Activities
-                </a>
-            </li>
-
-            <div class="sidebar-section">QMS</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'qms_web.documents' %}active{% endif %}" href="{{ url_for('qms_web.documents') }}">
-                    <i class="bi bi-file-earmark-text me-2"></i> Documents
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'qms_web.ncr_list' %}active{% endif %}" href="{{ url_for('qms_web.ncr_list') }}">
-                    <i class="bi bi-exclamation-triangle me-2"></i> NCR/CAPA
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'qms_web.spc' %}active{% endif %}" href="{{ url_for('qms_web.spc') }}">
-                    <i class="bi bi-graph-up me-2"></i> SPC
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'qms_web.inspections' %}active{% endif %}" href="{{ url_for('qms_web.inspections') }}">
-                    <i class="bi bi-clipboard-check me-2"></i> Inspections
-                </a>
-            </li>
-
-            <div class="sidebar-section">Maintenance</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'cmms_web.assets' %}active{% endif %}" href="{{ url_for('cmms_web.assets') }}">
-                    <i class="bi bi-gear me-2"></i> Assets
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'cmms_web.cmms_work_orders' %}active{% endif %}" href="{{ url_for('cmms_web.cmms_work_orders') }}">
-                    <i class="bi bi-wrench me-2"></i> Work Orders
-                </a>
-            </li>
-
-            <div class="sidebar-section">Digital Twin</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'unity_web.viewer' %}active{% endif %}" href="{{ url_for('unity_web.viewer') }}">
-                    <i class="bi bi-badge-3d me-2"></i> 3D View
-                </a>
-            </li>
-
-            <div class="sidebar-section">ML / Analytics</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'ml_web.fingerprint' %}active{% endif %}" href="{{ url_for('ml_web.fingerprint') }}">
-                    <i class="bi bi-fingerprint me-2"></i> Fingerprinting
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'ml_web.anomaly' %}active{% endif %}" href="{{ url_for('ml_web.anomaly') }}">
-                    <i class="bi bi-activity me-2"></i> Anomaly Detection
-                </a>
-            </li>
-
-            <div class="sidebar-section">Simulation</div>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'simulation_views.simulation_dashboard' %}active{% endif %}" href="{{ url_for('simulation_views.simulation_dashboard') }}">
-                    <i class="bi bi-play-circle me-2"></i> Run Simulation
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link {% if request.endpoint == 'simulation_views.algorithm_comparison' %}active{% endif %}" href="{{ url_for('simulation_views.algorithm_comparison') }}">
-                    <i class="bi bi-bar-chart-steps me-2"></i> Compare Algorithms
-                </a>
-            </li>
         </ul>
+
+        <div class="sidebar-divider"></div>
+
+        {# ── 1. Shop Floor (SCADA Level 1 + 2) ── #}
+        <div class="sidebar-toggle" data-bs-toggle="collapse" data-bs-target="#nav-shopfloor" aria-expanded="{{ 'true' if active_section == 'shopfloor' else 'false' }}">
+            <i class="bi bi-joystick me-2"></i> Shop Floor
+            <i class="bi bi-chevron-down ms-auto toggle-chevron"></i>
+        </div>
+        <div class="collapse sidebar-collapse {% if active_section == 'shopfloor' %}show{% endif %}" id="nav-shopfloor">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'scada_web.operator_control' %}active{% endif %}" href="{{ url_for('scada_web.operator_control') }}">
+                        <i class="bi bi-joystick me-2"></i> Control
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'scada_web.sensors' %}active{% endif %}" href="{{ url_for('scada_web.sensors') }}">
+                        <i class="bi bi-thermometer-half me-2"></i> Sensors
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'scada_web.gcode_manager' %}active{% endif %}" href="{{ url_for('scada_web.gcode_manager') }}">
+                        <i class="bi bi-code-slash me-2"></i> G-code Manager
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'scada_web.machines' or ep == 'scada_web.machine_detail' or ep == 'scada_web.machine_control' %}active{% endif %}" href="{{ url_for('scada_web.machines') }}">
+                        <i class="bi bi-cpu me-2"></i> Machines
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'scada_web.alarms' or ep == 'scada_web.alarm_detail' %}active{% endif %}" href="{{ url_for('scada_web.alarms') }}">
+                        <i class="bi bi-bell me-2"></i> Alarms
+                        {% if active_alarm_count|default(0) > 0 %}
+                        <span class="badge bg-danger ms-auto">{{ active_alarm_count }}</span>
+                        {% endif %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'scada_web.historian' %}active{% endif %}" href="{{ url_for('scada_web.historian') }}">
+                        <i class="bi bi-graph-up me-2"></i> Historian
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'scada_web.recipes' or ep == 'scada_web.recipe_detail' %}active{% endif %}" href="{{ url_for('scada_web.recipes') }}">
+                        <i class="bi bi-file-code me-2"></i> Recipes
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        {# ── 2. Production (MES core) ── #}
+        <div class="sidebar-toggle" data-bs-toggle="collapse" data-bs-target="#nav-production" aria-expanded="{{ 'true' if active_section == 'production' else 'false' }}">
+            <i class="bi bi-clipboard-check me-2"></i> Production
+            <i class="bi bi-chevron-down ms-auto toggle-chevron"></i>
+        </div>
+        <div class="collapse sidebar-collapse {% if active_section == 'production' %}show{% endif %}" id="nav-production">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.work_orders' or ep == 'mes_web.work_order_detail' %}active{% endif %}" href="{{ url_for('mes_web.work_orders') }}">
+                        <i class="bi bi-clipboard-check me-2"></i> Work Orders
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.scheduling' %}active{% endif %}" href="{{ url_for('mes_web.scheduling') }}">
+                        <i class="bi bi-calendar3 me-2"></i> Scheduling
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.dispatch' %}active{% endif %}" href="{{ url_for('mes_web.dispatch') }}">
+                        <i class="bi bi-send me-2"></i> Dispatch
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.oee' %}active{% endif %}" href="{{ url_for('mes_web.oee') }}">
+                        <i class="bi bi-pie-chart me-2"></i> OEE
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.resources' or ep == 'mes_web.resource_detail' %}active{% endif %}" href="{{ url_for('mes_web.resources') }}">
+                        <i class="bi bi-hdd-stack me-2"></i> Resources
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.materials' %}active{% endif %}" href="{{ url_for('mes_web.materials') }}">
+                        <i class="bi bi-box-seam me-2"></i> Materials
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.operator' %}active{% endif %}" href="{{ url_for('mes_web.operator') }}">
+                        <i class="bi bi-person-workspace me-2"></i> Operator View
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        {# ── 3. Analytics & Simulation ── #}
+        <div class="sidebar-toggle" data-bs-toggle="collapse" data-bs-target="#nav-analytics" aria-expanded="{{ 'true' if active_section == 'analytics' else 'false' }}">
+            <i class="bi bi-graph-up-arrow me-2"></i> Analytics
+            <i class="bi bi-chevron-down ms-auto toggle-chevron"></i>
+        </div>
+        <div class="collapse sidebar-collapse {% if active_section == 'analytics' %}show{% endif %}" id="nav-analytics">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.performance' %}active{% endif %}" href="{{ url_for('mes_web.performance') }}">
+                        <i class="bi bi-speedometer me-2"></i> Performance
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.process_monitor' %}active{% endif %}" href="{{ url_for('mes_web.process_monitor') }}">
+                        <i class="bi bi-activity me-2"></i> Process Monitor
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.shift_report' %}active{% endif %}" href="{{ url_for('mes_web.shift_report') }}">
+                        <i class="bi bi-file-text me-2"></i> Shift Report
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.genealogy' %}active{% endif %}" href="{{ url_for('mes_web.genealogy') }}">
+                        <i class="bi bi-diagram-3 me-2"></i> Genealogy
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'mes_web.algorithm_compare' or ep == 'simulation_views.algorithm_comparison' %}active{% endif %}" href="{{ url_for('mes_web.algorithm_compare') }}">
+                        <i class="bi bi-bar-chart-steps me-2"></i> Algorithm Compare
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'simulation_views.simulation_dashboard' %}active{% endif %}" href="{{ url_for('simulation_views.simulation_dashboard') }}">
+                        <i class="bi bi-play-circle me-2"></i> Run Simulation
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        {# ── 4. LEGO Design ── #}
+        <div class="sidebar-toggle" data-bs-toggle="collapse" data-bs-target="#nav-design" aria-expanded="{{ 'true' if active_section == 'design' else 'false' }}">
+            <i class="bi bi-bricks me-2"></i> LEGO Design
+            <i class="bi bi-chevron-down ms-auto toggle-chevron"></i>
+        </div>
+        <div class="collapse sidebar-collapse {% if active_section == 'design' %}show{% endif %}" id="nav-design">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'lego_web.catalog' %}active{% endif %}" href="{{ url_for('lego_web.catalog') }}">
+                        <i class="bi bi-grid-3x3 me-2"></i> Brick Catalog
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'lego_web.designer' %}active{% endif %}" href="{{ url_for('lego_web.designer') }}">
+                        <i class="bi bi-pencil-square me-2"></i> Brick Designer
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'lego_web.export_jobs' %}active{% endif %}" href="{{ url_for('lego_web.export_jobs') }}">
+                        <i class="bi bi-box-arrow-up me-2"></i> Export Jobs
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        {# ── 5. Business (ERP + CRM) ── #}
+        <div class="sidebar-toggle" data-bs-toggle="collapse" data-bs-target="#nav-business" aria-expanded="{{ 'true' if active_section == 'business' else 'false' }}">
+            <i class="bi bi-building me-2"></i> Business
+            <i class="bi bi-chevron-down ms-auto toggle-chevron"></i>
+        </div>
+        <div class="collapse sidebar-collapse {% if active_section == 'business' %}show{% endif %}" id="nav-business">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'erp_web.sales_orders' %}active{% endif %}" href="{{ url_for('erp_web.sales_orders') }}">
+                        <i class="bi bi-cart me-2"></i> Sales Orders
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'erp_web.inventory' %}active{% endif %}" href="{{ url_for('erp_web.inventory') }}">
+                        <i class="bi bi-boxes me-2"></i> Inventory
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'erp_web.mrp' %}active{% endif %}" href="{{ url_for('erp_web.mrp') }}">
+                        <i class="bi bi-diagram-3 me-2"></i> MRP
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'erp_web.costing' %}active{% endif %}" href="{{ url_for('erp_web.costing') }}">
+                        <i class="bi bi-calculator me-2"></i> Costing
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'crm_web.dashboard' %}active{% endif %}" href="{{ url_for('crm_web.dashboard') }}">
+                        <i class="bi bi-people me-2"></i> CRM Dashboard
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'crm_web.customers' %}active{% endif %}" href="{{ url_for('crm_web.customers') }}">
+                        <i class="bi bi-person-lines-fill me-2"></i> Customers
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'crm_web.contacts' %}active{% endif %}" href="{{ url_for('crm_web.contacts') }}">
+                        <i class="bi bi-person-vcard me-2"></i> Contacts
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'crm_web.activities' %}active{% endif %}" href="{{ url_for('crm_web.activities') }}">
+                        <i class="bi bi-journal-text me-2"></i> Activities
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        {# ── 6. Quality (QMS) ── #}
+        <div class="sidebar-toggle" data-bs-toggle="collapse" data-bs-target="#nav-quality" aria-expanded="{{ 'true' if active_section == 'quality' else 'false' }}">
+            <i class="bi bi-shield-check me-2"></i> Quality
+            <i class="bi bi-chevron-down ms-auto toggle-chevron"></i>
+        </div>
+        <div class="collapse sidebar-collapse {% if active_section == 'quality' %}show{% endif %}" id="nav-quality">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'qms_web.documents' %}active{% endif %}" href="{{ url_for('qms_web.documents') }}">
+                        <i class="bi bi-file-earmark-text me-2"></i> Documents
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'qms_web.ncr_list' %}active{% endif %}" href="{{ url_for('qms_web.ncr_list') }}">
+                        <i class="bi bi-exclamation-triangle me-2"></i> NCR/CAPA
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'qms_web.spc' %}active{% endif %}" href="{{ url_for('qms_web.spc') }}">
+                        <i class="bi bi-graph-up me-2"></i> SPC
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'qms_web.inspections' %}active{% endif %}" href="{{ url_for('qms_web.inspections') }}">
+                        <i class="bi bi-clipboard-check me-2"></i> Inspections
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        {# ── 7. Maintenance & AI (CMMS + ML + Digital Twin) ── #}
+        <div class="sidebar-toggle" data-bs-toggle="collapse" data-bs-target="#nav-maintain" aria-expanded="{{ 'true' if active_section == 'maintain' else 'false' }}">
+            <i class="bi bi-gear me-2"></i> Maintenance & AI
+            <i class="bi bi-chevron-down ms-auto toggle-chevron"></i>
+        </div>
+        <div class="collapse sidebar-collapse {% if active_section == 'maintain' %}show{% endif %}" id="nav-maintain">
+            <ul class="nav flex-column">
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'cmms_web.assets' %}active{% endif %}" href="{{ url_for('cmms_web.assets') }}">
+                        <i class="bi bi-gear me-2"></i> Assets
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'cmms_web.cmms_work_orders' %}active{% endif %}" href="{{ url_for('cmms_web.cmms_work_orders') }}">
+                        <i class="bi bi-wrench me-2"></i> Work Orders
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'unity_web.viewer' %}active{% endif %}" href="{{ url_for('unity_web.viewer') }}">
+                        <i class="bi bi-badge-3d me-2"></i> 3D Digital Twin
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'ml_web.fingerprint' %}active{% endif %}" href="{{ url_for('ml_web.fingerprint') }}">
+                        <i class="bi bi-fingerprint me-2"></i> Fingerprinting
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if ep == 'ml_web.anomaly' %}active{% endif %}" href="{{ url_for('ml_web.anomaly') }}">
+                        <i class="bi bi-activity me-2"></i> Anomaly Detection
+                    </a>
+                </li>
+            </ul>
+        </div>
     </nav>
 
     <!-- Main Content -->

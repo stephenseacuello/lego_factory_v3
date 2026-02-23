@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% block title %}Shift Handover - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">MES</a></li>
+<li class="breadcrumb-item active">Shift Handover</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-arrow-left-right"></i> Shift Handover</h2>
+  <div class="d-flex gap-2">
+    <button class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+    <button class="btn btn-sm btn-primary" onclick="toggleForm()"><i class="bi bi-plus-circle"></i> Create Handover</button>
+  </div>
+</div>
+
+<!-- Handover Form -->
+<div class="card mb-4 d-none" id="handoverForm">
+  <div class="card-header bg-primary text-white">New Shift Handover</div>
+  <div class="card-body">
+    <form id="hoForm">
+      <div class="row g-3 mb-3">
+        <div class="col-md-3">
+          <label class="form-label">Outgoing Shift</label>
+          <select class="form-select" name="outgoing_shift">
+            <option>Morning</option><option>Afternoon</option><option>Night</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Incoming Shift</label>
+          <select class="form-select" name="incoming_shift">
+            <option>Afternoon</option><option>Night</option><option>Morning</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Outgoing Supervisor</label>
+          <input type="text" class="form-control" name="outgoing_supervisor" required>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Incoming Supervisor</label>
+          <input type="text" class="form-control" name="incoming_supervisor">
+        </div>
+      </div>
+
+      {% set sections = [
+        ('safety', 'Safety', ['PPE compliance', 'Incident reports', 'Hazard observations', 'Emergency equipment check']),
+        ('quality', 'Quality', ['Quality alerts active', 'SPC charts reviewed', 'Non-conformances open', 'Calibration status']),
+        ('production', 'Production', ['Production targets met', 'Work orders on schedule', 'Material availability', 'Changeovers pending']),
+        ('maintenance', 'Maintenance', ['Equipment breakdowns', 'Preventive maintenance due', 'Spare parts availability', 'Lubrication schedule'])
+      ] %}
+
+      {% for key, title, items in sections %}
+      <div class="card mb-3">
+        <div class="card-header"><i class="bi bi-clipboard-check"></i> {{ title }}</div>
+        <div class="card-body p-0">
+          <table class="table table-sm mb-0">
+            <thead class="table-light">
+              <tr><th>Item</th><th style="width:200px">Status</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              {% for item in items %}
+              <tr>
+                <td>{{ item }}</td>
+                <td>
+                  <div class="btn-group btn-group-sm w-100" role="group">
+                    <input type="radio" class="btn-check" name="{{ key }}_{{ loop.index }}_status" value="ok" id="{{ key }}_{{ loop.index }}_ok" checked>
+                    <label class="btn btn-outline-success" for="{{ key }}_{{ loop.index }}_ok">OK</label>
+                    <input type="radio" class="btn-check" name="{{ key }}_{{ loop.index }}_status" value="attention" id="{{ key }}_{{ loop.index }}_att">
+                    <label class="btn btn-outline-warning" for="{{ key }}_{{ loop.index }}_att">Attention</label>
+                    <input type="radio" class="btn-check" name="{{ key }}_{{ loop.index }}_status" value="critical" id="{{ key }}_{{ loop.index }}_crit">
+                    <label class="btn btn-outline-danger" for="{{ key }}_{{ loop.index }}_crit">Critical</label>
+                  </div>
+                </td>
+                <td><input type="text" class="form-control form-control-sm" name="{{ key }}_{{ loop.index }}_notes"></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endfor %}
+
+      <div class="mb-3">
+        <label class="form-label">Additional Comments</label>
+        <textarea class="form-control" name="comments" rows="3"></textarea>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-primary" onclick="submitHandover()"><i class="bi bi-check-lg"></i> Submit Handover</button>
+        <button type="button" class="btn btn-secondary" onclick="toggleForm()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Recent Handovers -->
+<div class="card">
+  <div class="card-header"><i class="bi bi-clock-history"></i> Recent Handovers</div>
+  <div class="card-body p-0">
+    <table class="table table-sm table-hover mb-0" id="handoverTable">
+      <thead class="table-light">
+        <tr><th>Date/Time</th><th>From Shift</th><th>To Shift</th><th>Supervisor</th><th>Issues</th><th>Status</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleForm() {
+  document.getElementById('handoverForm').classList.toggle('d-none');
+}
+
+async function loadHandovers() {
+  try {
+    const res = await fetch('/api/mes/handovers');
+    const data = await res.json();
+    const rows = data.handovers || data || [];
+    const tbody = document.querySelector('#handoverTable tbody');
+    tbody.innerHTML = rows.map(h => {
+      const issues = (h.critical_count || 0) + (h.attention_count || 0);
+      const badge = h.critical_count > 0 ? 'danger' : h.attention_count > 0 ? 'warning' : 'success';
+      const label = h.critical_count > 0 ? 'Critical' : h.attention_count > 0 ? 'Attention' : 'Clear';
+      return `<tr>
+        <td>${h.created_at || h.date || ''}</td>
+        <td>${h.outgoing_shift || ''}</td>
+        <td>${h.incoming_shift || ''}</td>
+        <td>${h.outgoing_supervisor || ''}</td>
+        <td>${issues} issue${issues !== 1 ? 's' : ''}</td>
+        <td><span class="badge bg-${badge}">${label}</span></td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" class="text-center text-muted">No handovers found</td></tr>';
+  } catch (e) { console.error('Failed to load handovers:', e); }
+}
+
+async function submitHandover() {
+  const form = document.getElementById('hoForm');
+  const fd = new FormData(form);
+  const body = Object.fromEntries(fd.entries());
+
+  const sections = ['safety', 'quality', 'production', 'maintenance'];
+  const checklist = {};
+  sections.forEach(s => {
+    checklist[s] = [];
+    for (let i = 1; i <= 4; i++) {
+      checklist[s].push({
+        status: fd.get(`${s}_${i}_status`) || 'ok',
+        notes: fd.get(`${s}_${i}_notes`) || ''
+      });
+    }
+  });
+  body.checklist = checklist;
+
+  try {
+    const res = await fetch('/api/mes/handovers', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    if (res.ok) {
+      toggleForm();
+      form.reset();
+      loadHandovers();
+    }
+  } catch (e) { console.error(e); }
+}
+
+document.addEventListener('DOMContentLoaded', loadHandovers);
+</script>
+{% endblock %}

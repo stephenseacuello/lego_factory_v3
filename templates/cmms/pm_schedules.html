@@ -1,22 +1,260 @@
 {% extends "base.html" %}
 {% block title %}PM Schedules - LEGO Factory v3{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">Maintenance</a></li>
+<li class="breadcrumb-item active">PM Schedules</li>
+{% endblock %}
+
 {% block content %}
-<h2><i class="bi bi-calendar-check me-2"></i>Preventive Maintenance Schedules</h2>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-calendar-check me-2"></i>Preventive Maintenance Schedules</h2>
+    <button class="btn btn-outline-secondary btn-sm" onclick="loadData()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white text-center p-3">
+            <h3 id="activeSchedules">0</h3>
+            <small>Active Schedules</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark text-center p-3">
+            <h3 id="dueWithin7">0</h3>
+            <small>Due Within 7 Days</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-danger text-white text-center p-3">
+            <h3 id="overdueCount">0</h3>
+            <small>Overdue</small>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white text-center p-3">
+            <h3 id="triggerBreakdown">-</h3>
+            <small>Calendar / Meter</small>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Controls -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-auto">
+                <label class="form-label mb-0 fw-semibold"><i class="bi bi-funnel me-1"></i>Filters:</label>
+            </div>
+            <div class="col-auto">
+                <select class="form-select form-select-sm" id="triggerFilter" onchange="renderTable()" style="width: auto;">
+                    <option value="">All Triggers</option>
+                    <option value="calendar">Calendar</option>
+                    <option value="meter">Meter</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <select class="form-select form-select-sm" id="statusFilter" onchange="renderTable()" style="width: auto;">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- PM Schedules Table -->
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span>PM Schedule List</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>New Schedule</button>
+        <span class="text-muted small" id="lastUpdated"></span>
     </div>
     <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>Schedule ID</th><th>Asset</th><th>Frequency</th><th>Last Completed</th><th>Next Due</th><th>Status</th></tr></thead>
-            <tbody>
-                <tr><td>PM-001</td><td>3D Printer #1</td><td>Monthly</td><td>Jan 10, 2026</td><td>Feb 10, 2026</td><td><span class="badge bg-success">On Track</span></td></tr>
-                <tr><td>PM-002</td><td>CNC Mill #1</td><td>Weekly</td><td>Jan 13, 2026</td><td>Jan 20, 2026</td><td><span class="badge bg-warning text-dark">Due Soon</span></td></tr>
-                <tr><td>PM-003</td><td>Injection Molder</td><td>Quarterly</td><td>Oct 1, 2025</td><td>Jan 1, 2026</td><td><span class="badge bg-danger">Overdue</span></td></tr>
-                <tr><td>PM-004</td><td>Robot Arm - Niryo</td><td>Monthly</td><td>Dec 12, 2025</td><td>Jan 12, 2026</td><td><span class="badge bg-danger">Overdue</span></td></tr>
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table class="table table-hover" id="pmTable">
+                <thead>
+                    <tr>
+                        <th>PM ID</th>
+                        <th>Name</th>
+                        <th>Asset</th>
+                        <th>Trigger</th>
+                        <th>Frequency</th>
+                        <th>Last Completed</th>
+                        <th>Next Due</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="dataBody">
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let pmSchedules = [];
+
+async function loadData() {
+    try {
+        const response = await fetch('/api/cmms/pm-schedules');
+        const data = await response.json();
+        pmSchedules = data.pm_schedules || data.data || [];
+
+        renderTable();
+        updateStats();
+        document.getElementById('lastUpdated').textContent =
+            'Updated ' + new Date().toLocaleTimeString();
+    } catch (error) {
+        console.error('Failed to load PM schedules:', error);
+        const tbody = document.getElementById('dataBody');
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4"><i class="bi bi-exclamation-triangle me-2"></i>Failed to load data. Retrying...</td></tr>';
+    }
+}
+
+function getScheduleStatus(nextDueDate) {
+    if (!nextDueDate) return { label: 'No Date', cls: 'bg-secondary' };
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(nextDueDate);
+    due.setHours(0, 0, 0, 0);
+    const diffDays = Math.floor((due - today) / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) {
+        return { label: 'Overdue', cls: 'bg-danger' };
+    } else if (diffDays <= 7) {
+        return { label: 'Due Soon', cls: 'bg-warning text-dark' };
+    } else {
+        return { label: 'On Track', cls: 'bg-success' };
+    }
+}
+
+function renderTable() {
+    const tbody = document.getElementById('dataBody');
+    const triggerFilter = document.getElementById('triggerFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+
+    let filtered = pmSchedules;
+
+    if (triggerFilter) {
+        filtered = filtered.filter(pm => pm.trigger_type === triggerFilter);
+    }
+    if (statusFilter === 'active') {
+        filtered = filtered.filter(pm => pm.is_active === true);
+    } else if (statusFilter === 'inactive') {
+        filtered = filtered.filter(pm => pm.is_active === false);
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox me-2"></i>No PM schedules found</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map(pm => {
+        const status = getScheduleStatus(pm.next_due_date);
+        const triggerLabel = pm.trigger_type === 'calendar'
+            ? '<span class="badge bg-info"><i class="bi bi-calendar3 me-1"></i>Calendar</span>'
+            : pm.trigger_type === 'meter'
+                ? '<span class="badge bg-secondary"><i class="bi bi-speedometer me-1"></i>Meter</span>'
+                : `<span class="badge bg-secondary">${pm.trigger_type || 'N/A'}</span>`;
+
+        const frequency = pm.trigger_type === 'calendar'
+            ? formatFrequency(pm.frequency_days)
+            : pm.meter_interval
+                ? `Every ${pm.meter_interval} units`
+                : 'N/A';
+
+        const lastCompleted = pm.last_completed_date
+            ? formatDate(pm.last_completed_date)
+            : '<span class="text-muted">Never</span>';
+
+        const nextDue = pm.next_due_date
+            ? formatDate(pm.next_due_date)
+            : '<span class="text-muted">Not set</span>';
+
+        return `
+            <tr>
+                <td><code>${pm.pm_id}</code></td>
+                <td>${pm.name || 'N/A'}</td>
+                <td>${pm.asset_id || 'N/A'}</td>
+                <td>${triggerLabel}</td>
+                <td>${frequency}</td>
+                <td>${lastCompleted}</td>
+                <td>${nextDue}</td>
+                <td><span class="badge ${status.cls}">${status.label}</span></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function formatFrequency(days) {
+    if (!days) return 'N/A';
+    if (days === 1) return 'Daily';
+    if (days === 7) return 'Weekly';
+    if (days === 14) return 'Bi-weekly';
+    if (days === 30 || days === 31) return 'Monthly';
+    if (days === 90 || days === 91) return 'Quarterly';
+    if (days === 180 || days === 182) return 'Semi-annual';
+    if (days === 365 || days === 366) return 'Annual';
+    return `Every ${days} days`;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return 'N/A';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function updateStats() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const active = pmSchedules.filter(pm => pm.is_active !== false);
+    const calendarCount = pmSchedules.filter(pm => pm.trigger_type === 'calendar').length;
+    const meterCount = pmSchedules.filter(pm => pm.trigger_type === 'meter').length;
+
+    let overdueCount = 0;
+    let dueWithin7 = 0;
+
+    pmSchedules.forEach(pm => {
+        if (!pm.next_due_date) return;
+        const due = new Date(pm.next_due_date);
+        due.setHours(0, 0, 0, 0);
+        const diffDays = Math.floor((due - today) / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 0) {
+            overdueCount++;
+        } else if (diffDays <= 7) {
+            dueWithin7++;
+        }
+    });
+
+    document.getElementById('activeSchedules').textContent = active.length;
+    document.getElementById('dueWithin7').textContent = dueWithin7;
+    document.getElementById('overdueCount').textContent = overdueCount;
+    document.getElementById('triggerBreakdown').textContent = calendarCount + ' / ' + meterCount;
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadData();
+});
+
+// Auto-refresh every 30 seconds
+setInterval(loadData, 30000);
+</script>
 {% endblock %}

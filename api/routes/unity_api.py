@@ -15,6 +15,8 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 
+from config.demo_mode import is_demo_mode_enabled
+
 logger = logging.getLogger(__name__)
 
 unity_api_bp = Blueprint('unity_api', __name__, url_prefix='/api/unity')
@@ -40,7 +42,9 @@ def get_scene_state():
     """Get complete scene state for Unity."""
     service = get_unity_service()
     if not service:
-        return _demo_scene_state()
+        if is_demo_mode_enabled():
+            return _demo_scene_state()
+        return jsonify({'error': 'Service not configured'}), 503
 
     scene_id = request.args.get('scene_id')
     state = service.get_scene_state(scene_id)
@@ -57,12 +61,14 @@ def list_scenes():
     """List available scenes."""
     service = get_unity_service()
     if not service:
-        return jsonify({
-            'scenes': [
-                {'scene_id': 'factory_floor', 'name': 'LEGO Factory Floor', 'active': True},
-            ],
-            'count': 1,
-        })
+        if is_demo_mode_enabled():
+            return jsonify({
+                'scenes': [
+                    {'scene_id': 'factory_floor', 'name': 'LEGO Factory Floor', 'active': True},
+                ],
+                'count': 1,
+            })
+        return jsonify({'error': 'Service not configured'}), 503
 
     scenes = [{
         'scene_id': s.scene_id,
@@ -105,7 +111,9 @@ def list_entities():
     """
     service = get_unity_service()
     if not service:
-        return _demo_entities()
+        if is_demo_mode_enabled():
+            return _demo_entities()
+        return jsonify({'error': 'Service not configured'}), 503
 
     entity_type = request.args.get('type')
 
@@ -142,7 +150,9 @@ def get_entity(entity_id: str):
     """Get entity state."""
     service = get_unity_service()
     if not service:
-        return _demo_entity(entity_id)
+        if is_demo_mode_enabled():
+            return _demo_entity(entity_id)
+        return jsonify({'error': 'Service not configured'}), 503
 
     entity = service.get_entity(entity_id)
     if not entity:
@@ -749,6 +759,9 @@ def get_state_at_playback_time(session_id: str):
 @jwt_required()
 def get_anomaly_overlays():
     """Get ML anomaly data for visualization overlay."""
+    if not is_demo_mode_enabled():
+        return jsonify({'error': 'Service not configured'}), 503
+
     return jsonify({
         'anomalies': [
             {
@@ -767,6 +780,9 @@ def get_anomaly_overlays():
 @jwt_required()
 def get_maintenance_overlays():
     """Get maintenance status for visualization overlay."""
+    if not is_demo_mode_enabled():
+        return jsonify({'error': 'Service not configured'}), 503
+
     return jsonify({
         'maintenance_items': [
             {

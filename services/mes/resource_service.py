@@ -542,9 +542,22 @@ class ResourceService:
 
         return {'success': True, 'lot_number': lot.lot_number}
 
+    # Mapping from MES (material_type, color) to ERP item_id
+    MATERIAL_TO_ERP_ITEM = {
+        ('PLA', 'Red'):    'PLA-RED-1KG',
+        ('PLA', 'Blue'):   'PLA-BLU-1KG',
+        ('PLA', 'Yellow'): 'PLA-YLW-1KG',
+        ('PLA', 'White'):  'PLA-WHT-1KG',
+        ('Resin', 'Grey'): 'RESIN-GRY-1L',
+        ('ABS', 'Green'):  'ABS-GRN-SHT',
+        ('ABS', 'Grey'):   'ABS-GRY-SHT',
+        ('Nylon', 'Black'): 'NYL-ROD-12',  # 12mm default
+    }
+
     def consume_material(self, reservation_id: str, quantity: Optional[float] = None) -> Dict[str, Any]:
         """
         Mark material as consumed from a reservation.
+        Also creates an ERP inventory issue transaction (MES→ERP integration).
         """
         reservation = self.session.query(MaterialReservation).filter(
             MaterialReservation.id == reservation_id
@@ -573,12 +586,51 @@ class ResourceService:
 
         self.session.flush()
 
+        # MES→ERP: Create inventory issue transaction
+        self._post_erp_material_issue(lot, consume_qty, reservation.job_id)
+
         return {
             'success': True,
             'lot_number': lot.lot_number,
             'quantity_consumed': consume_qty,
             'lot_remaining': lot.quantity_available,
         }
+
+    def _post_erp_material_issue(self, lot, quantity: float, job_id=None):
+        """Post an ERP inventory issue transaction for consumed material."""
+        try:
+            from services.erp.inventory_service import InventoryService
+
+            erp_item_id = self.MATERIAL_TO_ERP_ITEM.get(
+                (lot.material_type, lot.color)
+            )
+            if not erp_item_id:
+                logger.debug(f"No ERP item mapping for ({lot.material_type}, {lot.color})")
+                return
+
+            # Determine the from_location based on material category
+            location_map = {
+                'filament': 'PROD-FDM',
+                'resin': 'PROD-SLA',
+                'sheet': 'PROD-CNC',
+                'rod': 'PROD-CNC',
+            }
+            from_location = location_map.get(lot.material_category, 'WH-RAW')
+
+            inv_service = InventoryService(self.session)
+            inv_service.process_transaction({
+                'transaction_type': 'issue',
+                'item_id': erp_item_id,
+                'from_location_id': from_location,
+                'quantity': quantity,
+                'reference_type': 'work_order',
+                'reference_id': str(job_id) if job_id else None,
+                'notes': f"MES material consumption from lot {lot.lot_number}",
+                'created_by': 'mes_integration',
+            })
+            logger.info(f"Posted ERP issue: {erp_item_id} qty={quantity} from {from_location}")
+        except Exception as e:
+            logger.warning(f"Could not post ERP material issue: {e}")
 
     def create_material_lot(self, data: Dict[str, Any]) -> MaterialLot:
         """Create a new material lot."""
@@ -590,8 +642,8 @@ class ResourceService:
             material_category=data.get('material_category'),
             color=data.get('color'),
             color_hex=data.get('color_hex'),
-            quantity_received=data['quantity'],
-            quantity_available=data['quantity'],
+            quantity_received=data.get('quantity_received', data.get('quantity')),
+            quantity_available=data.get('quantity_received', data.get('quantity')),
             unit_of_measure=data.get('unit_of_measure', 'g'),
             location=data.get('location'),
             supplier=data.get('supplier'),

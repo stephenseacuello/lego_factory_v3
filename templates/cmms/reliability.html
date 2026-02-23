@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}Reliability Analysis - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">CMMS</a></li>
+<li class="breadcrumb-item active">Reliability Analysis</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-graph-up me-2"></i>Reliability Analysis</h2>
+  <div>
+    <select class="form-select form-select-sm d-inline-block w-auto" id="periodSelect">
+      <option value="30">Last 30 Days</option>
+      <option value="90" selected>Last 90 Days</option>
+      <option value="180">Last 6 Months</option>
+      <option value="365">Last Year</option>
+    </select>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card border-start border-success border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Avg MTBF</div>
+        <div class="fs-2 fw-bold text-success" id="avgMtbf">--</div>
+        <div class="text-muted small">hours</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-start border-danger border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Avg MTTR</div>
+        <div class="fs-2 fw-bold text-danger" id="avgMttr">--</div>
+        <div class="text-muted small">hours</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-start border-primary border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Availability</div>
+        <div class="fs-2 fw-bold text-primary" id="availability">--</div>
+        <div class="text-muted small">%</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card border-start border-warning border-4 h-100">
+      <div class="card-body">
+        <div class="text-muted small text-uppercase">Worst Performer</div>
+        <div class="fs-4 fw-bold text-warning" id="worstPerformer">--</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MTBF/MTTR Trend Chart -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0"><i class="bi bi-activity me-2"></i>MTBF / MTTR Trend</h5>
+  </div>
+  <div class="card-body">
+    <canvas id="trendChart" height="300"></canvas>
+  </div>
+</div>
+
+<div class="row">
+  <!-- Worst Performers Table -->
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Worst Performers</h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead class="table-dark">
+              <tr>
+                <th>Asset</th>
+                <th>MTBF (h)</th>
+                <th>MTTR (h)</th>
+                <th>Availability</th>
+                <th>Failures</th>
+              </tr>
+            </thead>
+            <tbody id="worstPerformersBody">
+              <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                  <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asset Drill-Down -->
+  <div class="col-lg-6 mb-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="bi bi-search me-2"></i>Asset Drill-Down</h5>
+        <span class="badge bg-info" id="selectedAssetBadge" style="display:none"></span>
+      </div>
+      <div class="card-body">
+        <div id="drillDownPlaceholder" class="text-center text-muted py-5">
+          <i class="bi bi-cursor fs-1 d-block mb-2"></i>
+          Click an asset in the Worst Performers table to view its reliability trend.
+        </div>
+        <canvas id="assetTrendChart" height="250" style="display:none"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  let trendChart = null;
+  let assetTrendChart = null;
+
+  async function loadReliabilityData() {
+    const days = document.getElementById('periodSelect').value;
+    try {
+      const res = await fetch(`/api/cmms/reliability/worst-performers?days=${days}`);
+      const data = await res.json();
+
+      // Summary cards
+      if (data.summary) {
+        document.getElementById('avgMtbf').textContent = data.summary.avg_mtbf ?? '--';
+        document.getElementById('avgMttr').textContent = data.summary.avg_mttr ?? '--';
+        document.getElementById('availability').textContent = data.summary.availability ?? '--';
+        document.getElementById('worstPerformer').textContent = data.summary.worst_performer ?? '--';
+      }
+
+      // Trend chart
+      if (data.trend) {
+        renderTrendChart(data.trend);
+      }
+
+      // Worst performers table
+      const assets = data.assets || [];
+      const tbody = document.getElementById('worstPerformersBody');
+      if (assets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No data available.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = assets.map(a => `
+        <tr class="cursor-pointer" role="button" onclick="loadAssetDrillDown('${a.id}', '${a.name}')">
+          <td>
+            <i class="bi bi-gear me-1"></i><strong>${a.name}</strong>
+            <div class="text-muted small">${a.id}</div>
+          </td>
+          <td>${a.mtbf}</td>
+          <td>${a.mttr}</td>
+          <td>
+            <div class="progress" style="min-width:80px">
+              <div class="progress-bar ${a.availability >= 90 ? 'bg-success' : a.availability >= 75 ? 'bg-warning' : 'bg-danger'}"
+                   style="width:${a.availability}%">${a.availability}%</div>
+            </div>
+          </td>
+          <td><span class="badge bg-danger">${a.failure_count}</span></td>
+        </tr>
+      `).join('');
+    } catch (err) {
+      console.error('Failed to load reliability data:', err);
+    }
+  }
+
+  function renderTrendChart(trend) {
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+
+    trendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: trend.labels || [],
+        datasets: [
+          {
+            label: 'MTBF (hours)',
+            data: trend.mtbf || [],
+            borderColor: '#198754',
+            backgroundColor: 'rgba(25, 135, 84, 0.1)',
+            fill: true,
+            tension: 0.3,
+            yAxisID: 'y'
+          },
+          {
+            label: 'MTTR (hours)',
+            data: trend.mttr || [],
+            borderColor: '#dc3545',
+            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+            fill: true,
+            tension: 0.3,
+            yAxisID: 'y1'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'top' } },
+        scales: {
+          y: {
+            type: 'linear',
+            position: 'left',
+            title: { display: true, text: 'MTBF (hours)' },
+            beginAtZero: true
+          },
+          y1: {
+            type: 'linear',
+            position: 'right',
+            title: { display: true, text: 'MTTR (hours)' },
+            beginAtZero: true,
+            grid: { drawOnChartArea: false }
+          }
+        }
+      }
+    });
+  }
+
+  async function loadAssetDrillDown(assetId, assetName) {
+    const days = document.getElementById('periodSelect').value;
+    document.getElementById('drillDownPlaceholder').style.display = 'none';
+    const canvas = document.getElementById('assetTrendChart');
+    canvas.style.display = 'block';
+    const badge = document.getElementById('selectedAssetBadge');
+    badge.style.display = 'inline';
+    badge.textContent = assetName;
+
+    try {
+      const res = await fetch(`/api/cmms/assets/${assetId}/reliability?days=${days}`);
+      const data = await res.json();
+
+      const ctx = canvas.getContext('2d');
+      if (assetTrendChart) assetTrendChart.destroy();
+
+      assetTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: data.labels || [],
+          datasets: [
+            {
+              label: 'MTBF (hours)',
+              data: data.mtbf || [],
+              borderColor: '#198754',
+              tension: 0.3
+            },
+            {
+              label: 'MTTR (hours)',
+              data: data.mttr || [],
+              borderColor: '#dc3545',
+              tension: 0.3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: `Reliability Trend: ${assetName}` },
+            legend: { position: 'top' }
+          },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'Hours' } }
+          }
+        }
+      });
+    } catch (err) {
+      console.error('Failed to load asset drill-down:', err);
+    }
+  }
+
+  document.getElementById('periodSelect').addEventListener('change', loadReliabilityData);
+  document.addEventListener('DOMContentLoaded', loadReliabilityData);
+</script>
+{% endblock %}

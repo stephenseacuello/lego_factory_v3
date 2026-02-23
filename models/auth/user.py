@@ -367,9 +367,8 @@ class TokenBlocklist(Base):
         nullable=False
     )
 
-    # Index for efficient token lookup and cleanup
+    # Index for efficient token cleanup (jti index is already created by index=True on column)
     __table_args__ = (
-        Index('ix_token_blocklist_jti', 'jti'),
         Index('ix_token_blocklist_expires', 'expires_at'),
     )
 

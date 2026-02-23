@@ -17,6 +17,8 @@ from datetime import datetime, date, timedelta
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+from api.middleware.rate_limiter import heavy_computation_limit
+
 logger = logging.getLogger(__name__)
 
 erp_api_bp = Blueprint('erp_api', __name__, url_prefix='/api/erp')
@@ -106,36 +108,40 @@ def list_gl_accounts():
 @jwt_required()
 def create_gl_account():
     """Create a GL account."""
-    session = get_db_session()
-    if not session:
-        return jsonify({'error': 'Database not available'}), 503
-
     data = request.get_json()
     if not data or 'account_number' not in data or 'name' not in data:
         return jsonify({'error': 'account_number and name required'}), 400
 
     try:
+        from config.database import get_db_session
         from services.erp.financial_service import FinancialService
 
-        service = FinancialService(session)
-        account = service.create_account(data)
-        session.commit()
-
-        return jsonify(account), 201
+        with get_db_session() as session:
+            service = FinancialService(session)
+            account = service.create_account(data)
+            return jsonify(account), 201
     except Exception as e:
-        session.rollback()
         logger.error(f"Error creating GL account: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @erp_api_bp.route('/gl/accounts/<account_number>/balance', methods=['GET'])
 @jwt_required()
 def get_account_balance(account_number: str):
     """Get GL account balance."""
-    session = get_db_session()
-    if not session:
+    try:
+        from config.database import get_db_session
+        from services.erp.financial_service import FinancialService
+
+        with get_db_session() as session:
+            as_of = request.args.get('as_of')
+            as_of_date = date.fromisoformat(as_of) if as_of else None
+
+            service = FinancialService(session)
+            balance = service.get_account_balance(account_number, as_of_date)
+
+            return jsonify(balance)
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -143,26 +149,8 @@ def get_account_balance(account_number: str):
             data = get_demo_account_balance(account_number)
             return jsonify({**data, 'demo': True})
 
-        return jsonify({
-            'error': 'ERP service unavailable',
-            'message': 'The Enterprise Resource Planning system is not available. Please check system status.'
-        }), 503
-
-    try:
-        from services.erp.financial_service import FinancialService
-
-        as_of = request.args.get('as_of')
-        as_of_date = date.fromisoformat(as_of) if as_of else None
-
-        service = FinancialService(session)
-        balance = service.get_account_balance(account_number, as_of_date)
-
-        return jsonify(balance)
-    except Exception as e:
         logger.error(f"Error getting account balance: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -173,8 +161,27 @@ def get_account_balance(account_number: str):
 @jwt_required()
 def list_journal_entries():
     """List journal entries."""
-    session = get_db_session()
-    if not session:
+    try:
+        from config.database import get_db_session
+        from services.erp.financial_service import FinancialService
+
+        with get_db_session() as session:
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+
+            service = FinancialService(session)
+            journals = service.get_journal_entries(
+                status=request.args.get('status'),
+                start_date=date.fromisoformat(start_date) if start_date else None,
+                end_date=date.fromisoformat(end_date) if end_date else None,
+                limit=int(request.args.get('limit', 100)),
+            )
+
+            return jsonify({
+                'journal_entries': journals,
+                'count': len(journals),
+            })
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -182,99 +189,57 @@ def list_journal_entries():
             data = get_demo_journal_entries()
             return jsonify({**data, 'demo': True})
 
-        return jsonify({
-            'error': 'ERP service unavailable',
-            'message': 'The Enterprise Resource Planning system is not available. Please check system status.'
-        }), 503
-
-    try:
-        from services.erp.financial_service import FinancialService
-
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-
-        service = FinancialService(session)
-        journals = service.get_journal_entries(
-            status=request.args.get('status'),
-            start_date=date.fromisoformat(start_date) if start_date else None,
-            end_date=date.fromisoformat(end_date) if end_date else None,
-            limit=int(request.args.get('limit', 100)),
-        )
-
-        return jsonify({
-            'journal_entries': journals,
-            'count': len(journals),
-        })
-    except Exception as e:
         logger.error(f"Error listing journal entries: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @erp_api_bp.route('/gl/journal-entries', methods=['POST'])
 @jwt_required()
 def create_journal_entry():
     """Create a journal entry."""
-    session = get_db_session()
-    if not session:
-        return jsonify({'error': 'Database not available'}), 503
-
     data = request.get_json()
     if not data or 'description' not in data or 'lines' not in data:
         return jsonify({'error': 'description and lines required'}), 400
 
     try:
+        from config.database import get_db_session
         from services.erp.financial_service import FinancialService
 
         if 'journal_date' in data:
             data['journal_date'] = date.fromisoformat(data['journal_date'])
 
-        service = FinancialService(session)
-        journal = service.create_journal_entry(data)
-        session.commit()
-
-        return jsonify(journal), 201
+        with get_db_session() as session:
+            service = FinancialService(session)
+            journal = service.create_journal_entry(data)
+            return jsonify(journal), 201
     except ValueError as e:
-        session.rollback()
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
-        session.rollback()
         logger.error(f"Error creating journal entry: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @erp_api_bp.route('/gl/journal-entries/<journal_number>/post', methods=['POST'])
 @jwt_required()
 def post_journal_entry(journal_number: str):
     """Post a journal entry."""
-    session = get_db_session()
-    if not session:
-        return jsonify({'error': 'Database not available'}), 503
-
     try:
+        from config.database import get_db_session
         from services.erp.financial_service import FinancialService
 
         data = request.get_json() or {}
-        service = FinancialService(session)
-        journal = service.post_journal_entry(
-            journal_number,
-            user_id=data.get('user_id', 'system')
-        )
-        session.commit()
-
-        return jsonify(journal)
+        with get_db_session() as session:
+            service = FinancialService(session)
+            journal = service.post_journal_entry(
+                journal_number,
+                user_id=data.get('user_id', 'system')
+            )
+            return jsonify(journal)
     except ValueError as e:
-        session.rollback()
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
-        session.rollback()
         logger.error(f"Error posting journal entry: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -285,8 +250,23 @@ def post_journal_entry(journal_number: str):
 @jwt_required()
 def list_ap_invoices():
     """List AP invoices."""
-    session = get_db_session()
-    if not session:
+    try:
+        from config.database import get_db_session
+        from services.erp.financial_service import FinancialService
+
+        with get_db_session() as session:
+            service = FinancialService(session)
+            invoices = service.get_ap_invoices(
+                vendor_id=request.args.get('vendor_id'),
+                status=request.args.get('status'),
+                limit=int(request.args.get('limit', 100)),
+            )
+
+            return jsonify({
+                'invoices': invoices,
+                'count': len(invoices),
+            })
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -294,45 +274,20 @@ def list_ap_invoices():
             data = get_demo_ap_invoices()
             return jsonify({**data, 'demo': True})
 
-        return jsonify({
-            'error': 'ERP service unavailable',
-            'message': 'The Enterprise Resource Planning system is not available. Please check system status.'
-        }), 503
-
-    try:
-        from services.erp.financial_service import FinancialService
-
-        service = FinancialService(session)
-        invoices = service.get_ap_invoices(
-            vendor_id=request.args.get('vendor_id'),
-            status=request.args.get('status'),
-            limit=int(request.args.get('limit', 100)),
-        )
-
-        return jsonify({
-            'invoices': invoices,
-            'count': len(invoices),
-        })
-    except Exception as e:
         logger.error(f"Error listing AP invoices: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @erp_api_bp.route('/ap/invoices', methods=['POST'])
 @jwt_required()
 def create_ap_invoice():
     """Create an AP invoice."""
-    session = get_db_session()
-    if not session:
-        return jsonify({'error': 'Database not available'}), 503
-
     data = request.get_json()
     if not data or 'vendor_id' not in data:
         return jsonify({'error': 'vendor_id required'}), 400
 
     try:
+        from config.database import get_db_session
         from services.erp.financial_service import FinancialService
 
         if 'invoice_date' in data:
@@ -340,25 +295,29 @@ def create_ap_invoice():
         if 'due_date' in data:
             data['due_date'] = date.fromisoformat(data['due_date'])
 
-        service = FinancialService(session)
-        invoice = service.create_ap_invoice(data)
-        session.commit()
-
-        return jsonify(invoice), 201
+        with get_db_session() as session:
+            service = FinancialService(session)
+            invoice = service.create_ap_invoice(data)
+            return jsonify(invoice), 201
     except Exception as e:
-        session.rollback()
         logger.error(f"Error creating AP invoice: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @erp_api_bp.route('/ap/aging', methods=['GET'])
 @jwt_required()
 def get_ap_aging():
     """Get AP aging report."""
-    session = get_db_session()
-    if not session:
+    try:
+        from config.database import get_db_session
+        from services.erp.financial_service import FinancialService
+
+        with get_db_session() as session:
+            service = FinancialService(session)
+            aging = service.get_ap_aging()
+
+            return jsonify(aging)
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -366,23 +325,8 @@ def get_ap_aging():
             data = get_demo_ap_aging()
             return jsonify({**data, 'demo': True})
 
-        return jsonify({
-            'error': 'ERP service unavailable',
-            'message': 'The Enterprise Resource Planning system is not available. Please check system status.'
-        }), 503
-
-    try:
-        from services.erp.financial_service import FinancialService
-
-        service = FinancialService(session)
-        aging = service.get_ap_aging()
-
-        return jsonify(aging)
-    except Exception as e:
         logger.error(f"Error getting AP aging: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -393,8 +337,23 @@ def get_ap_aging():
 @jwt_required()
 def list_ar_invoices():
     """List AR invoices."""
-    session = get_db_session()
-    if not session:
+    try:
+        from config.database import get_db_session
+        from services.erp.financial_service import FinancialService
+
+        with get_db_session() as session:
+            service = FinancialService(session)
+            invoices = service.get_ar_invoices(
+                customer_id=request.args.get('customer_id'),
+                status=request.args.get('status'),
+                limit=int(request.args.get('limit', 100)),
+            )
+
+            return jsonify({
+                'invoices': invoices,
+                'count': len(invoices),
+            })
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -402,45 +361,20 @@ def list_ar_invoices():
             data = get_demo_ar_invoices()
             return jsonify({**data, 'demo': True})
 
-        return jsonify({
-            'error': 'ERP service unavailable',
-            'message': 'The Enterprise Resource Planning system is not available. Please check system status.'
-        }), 503
-
-    try:
-        from services.erp.financial_service import FinancialService
-
-        service = FinancialService(session)
-        invoices = service.get_ar_invoices(
-            customer_id=request.args.get('customer_id'),
-            status=request.args.get('status'),
-            limit=int(request.args.get('limit', 100)),
-        )
-
-        return jsonify({
-            'invoices': invoices,
-            'count': len(invoices),
-        })
-    except Exception as e:
         logger.error(f"Error listing AR invoices: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @erp_api_bp.route('/ar/invoices', methods=['POST'])
 @jwt_required()
 def create_ar_invoice():
     """Create an AR invoice."""
-    session = get_db_session()
-    if not session:
-        return jsonify({'error': 'Database not available'}), 503
-
     data = request.get_json()
     if not data or 'customer_id' not in data:
         return jsonify({'error': 'customer_id required'}), 400
 
     try:
+        from config.database import get_db_session
         from services.erp.financial_service import FinancialService
 
         if 'invoice_date' in data:
@@ -448,25 +382,29 @@ def create_ar_invoice():
         if 'due_date' in data:
             data['due_date'] = date.fromisoformat(data['due_date'])
 
-        service = FinancialService(session)
-        invoice = service.create_ar_invoice(data)
-        session.commit()
-
-        return jsonify(invoice), 201
+        with get_db_session() as session:
+            service = FinancialService(session)
+            invoice = service.create_ar_invoice(data)
+            return jsonify(invoice), 201
     except Exception as e:
-        session.rollback()
         logger.error(f"Error creating AR invoice: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @erp_api_bp.route('/ar/aging', methods=['GET'])
 @jwt_required()
 def get_ar_aging():
     """Get AR aging report."""
-    session = get_db_session()
-    if not session:
+    try:
+        from config.database import get_db_session
+        from services.erp.financial_service import FinancialService
+
+        with get_db_session() as session:
+            service = FinancialService(session)
+            aging = service.get_ar_aging()
+
+            return jsonify(aging)
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -474,23 +412,8 @@ def get_ar_aging():
             data = get_demo_ar_aging()
             return jsonify({**data, 'demo': True})
 
-        return jsonify({
-            'error': 'ERP service unavailable',
-            'message': 'The Enterprise Resource Planning system is not available. Please check system status.'
-        }), 503
-
-    try:
-        from services.erp.financial_service import FinancialService
-
-        service = FinancialService(session)
-        aging = service.get_ar_aging()
-
-        return jsonify(aging)
-    except Exception as e:
         logger.error(f"Error getting AR aging: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -501,8 +424,19 @@ def get_ar_aging():
 @jwt_required()
 def get_trial_balance():
     """Get trial balance report."""
-    session = get_db_session()
-    if not session:
+    try:
+        from config.database import get_db_session
+        from services.erp.financial_service import FinancialService
+
+        with get_db_session() as session:
+            as_of = request.args.get('as_of')
+            as_of_date = date.fromisoformat(as_of) if as_of else None
+
+            service = FinancialService(session)
+            trial_balance = service.get_trial_balance(as_of_date)
+
+            return jsonify(trial_balance)
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -510,34 +444,32 @@ def get_trial_balance():
             data = get_demo_trial_balance()
             return jsonify({**data, 'demo': True})
 
-        return jsonify({
-            'error': 'ERP service unavailable',
-            'message': 'The Enterprise Resource Planning system is not available. Please check system status.'
-        }), 503
-
-    try:
-        from services.erp.financial_service import FinancialService
-
-        as_of = request.args.get('as_of')
-        as_of_date = date.fromisoformat(as_of) if as_of else None
-
-        service = FinancialService(session)
-        trial_balance = service.get_trial_balance(as_of_date)
-
-        return jsonify(trial_balance)
-    except Exception as e:
         logger.error(f"Error getting trial balance: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @erp_api_bp.route('/reports/income-statement', methods=['GET'])
 @jwt_required()
 def get_income_statement():
     """Get income statement report."""
-    session = get_db_session()
-    if not session:
+    try:
+        from config.database import get_db_session
+        from services.erp.financial_service import FinancialService
+
+        with get_db_session() as session:
+            today = date.today()
+            start_date = date.fromisoformat(
+                request.args.get('start_date', date(today.year, today.month, 1).isoformat())
+            )
+            end_date = date.fromisoformat(
+                request.args.get('end_date', today.isoformat())
+            )
+
+            service = FinancialService(session)
+            income_statement = service.get_income_statement(start_date, end_date)
+
+            return jsonify(income_statement)
+    except Exception as e:
         # Check if demo mode is enabled
         from config.demo_mode import is_demo_mode_enabled
         if is_demo_mode_enabled():
@@ -545,31 +477,8 @@ def get_income_statement():
             data = get_demo_income_statement()
             return jsonify({**data, 'demo': True})
 
-        return jsonify({
-            'error': 'ERP service unavailable',
-            'message': 'The Enterprise Resource Planning system is not available. Please check system status.'
-        }), 503
-
-    try:
-        from services.erp.financial_service import FinancialService
-
-        today = date.today()
-        start_date = date.fromisoformat(
-            request.args.get('start_date', date(today.year, today.month, 1).isoformat())
-        )
-        end_date = date.fromisoformat(
-            request.args.get('end_date', today.isoformat())
-        )
-
-        service = FinancialService(session)
-        income_statement = service.get_income_statement(start_date, end_date)
-
-        return jsonify(income_statement)
-    except Exception as e:
         logger.error(f"Error getting income statement: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @erp_api_bp.route('/reports/dashboard', methods=['GET'])
@@ -667,7 +576,7 @@ def create_sales_order():
             return jsonify(order), 201
 
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Internal server error'}), 400
     except Exception as e:
         # Demo mode fallback
         from config.demo_mode import is_demo_mode_enabled
@@ -965,11 +874,432 @@ def create_item():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Inventory Management
+# ─────────────────────────────────────────────────────────────────────────────
+
+@erp_api_bp.route('/inventory/balances', methods=['GET'])
+@jwt_required(optional=True)
+def get_inventory_balances():
+    """
+    Get inventory balances.
+
+    Query params:
+    - item_id: Filter by item
+    - location_id: Filter by location
+    - below_reorder: Only show items below reorder point
+    - limit: Max results (default 100)
+    """
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            balances = service.get_balances(
+                item_id=request.args.get('item_id'),
+                location_id=request.args.get('location_id'),
+                below_reorder=request.args.get('below_reorder') == 'true',
+                limit=int(request.args.get('limit', 100)),
+            )
+            return jsonify({
+                'balances': balances,
+                'count': len(balances),
+            })
+
+    except Exception as e:
+        from config.demo_mode import is_demo_mode_enabled
+        if is_demo_mode_enabled():
+            return jsonify({
+                'balances': [
+                    {'item_id': 'PLA-RED', 'location_id': 'WH-01', 'quantity_on_hand': 150, 'quantity_reserved': 20, 'quantity_available': 130},
+                    {'item_id': 'PLA-BLUE', 'location_id': 'WH-01', 'quantity_on_hand': 100, 'quantity_reserved': 10, 'quantity_available': 90},
+                    {'item_id': 'ALU-6061', 'location_id': 'WH-02', 'quantity_on_hand': 500, 'quantity_reserved': 50, 'quantity_available': 450},
+                ],
+                'count': 3,
+                'demo': True
+            })
+
+        logger.error(f"Error getting inventory balances: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to get inventory balances'}), 500
+
+
+@erp_api_bp.route('/inventory/balances', methods=['POST'])
+@jwt_required()
+def adjust_inventory_balance():
+    """
+    Adjust inventory balance (add/remove stock).
+
+    JSON body:
+    - item_id: Item ID (required)
+    - location_id: Location ID (required)
+    - quantity: Quantity adjustment (positive or negative)
+    - adjustment_type: 'receipt', 'issue', 'adjustment', 'transfer'
+    - reference: Reference document
+    - reason: Reason for adjustment
+    """
+    data = request.get_json()
+    if not data or not data.get('item_id') or not data.get('location_id'):
+        return jsonify({'error': 'item_id and location_id required'}), 400
+
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            result = service.adjust_balance(
+                item_id=data['item_id'],
+                location_id=data['location_id'],
+                quantity=data.get('quantity', 0),
+                adjustment_type=data.get('adjustment_type', 'adjustment'),
+                reference=data.get('reference'),
+                reason=data.get('reason'),
+                user_id=get_jwt_identity()
+            )
+            return jsonify(result), 201
+
+    except Exception as e:
+        logger.error(f"Error adjusting inventory: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to adjust inventory'}), 500
+
+
+@erp_api_bp.route('/inventory/locations', methods=['GET'])
+@jwt_required(optional=True)
+def list_inventory_locations():
+    """
+    List inventory locations.
+
+    Query params:
+    - type: Filter by location type ('warehouse', 'bin', 'staging')
+    - is_active: Filter by active status
+    """
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            locations = service.get_locations(
+                location_type=request.args.get('type'),
+                is_active=request.args.get('is_active') != 'false',
+            )
+            return jsonify({
+                'locations': locations,
+                'count': len(locations),
+            })
+
+    except Exception as e:
+        from config.demo_mode import is_demo_mode_enabled
+        if is_demo_mode_enabled():
+            return jsonify({
+                'locations': [
+                    {'location_id': 'WH-01', 'name': 'Main Warehouse', 'type': 'warehouse', 'is_active': True},
+                    {'location_id': 'WH-02', 'name': 'Raw Materials', 'type': 'warehouse', 'is_active': True},
+                    {'location_id': 'STG-01', 'name': 'Staging Area', 'type': 'staging', 'is_active': True},
+                    {'location_id': 'WIP-01', 'name': 'Work in Progress', 'type': 'wip', 'is_active': True},
+                ],
+                'count': 4,
+                'demo': True
+            })
+
+        logger.error(f"Error listing locations: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to list locations'}), 500
+
+
+@erp_api_bp.route('/inventory/locations', methods=['POST'])
+@jwt_required()
+def create_inventory_location():
+    """
+    Create an inventory location.
+
+    JSON body:
+    - location_id: Location ID (optional, auto-generated)
+    - name: Location name (required)
+    - type: Location type ('warehouse', 'bin', 'staging', 'wip')
+    - parent_location_id: Parent location for hierarchy
+    """
+    data = request.get_json()
+    if not data or not data.get('name'):
+        return jsonify({'error': 'name is required'}), 400
+
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            location = service.create_location(
+                name=data['name'],
+                location_id=data.get('location_id'),
+                location_type=data.get('type', 'warehouse'),
+                parent_location_id=data.get('parent_location_id'),
+            )
+            return jsonify(location), 201
+
+    except Exception as e:
+        logger.error(f"Error creating location: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create location'}), 500
+
+
+@erp_api_bp.route('/inventory/lots', methods=['GET'])
+@jwt_required(optional=True)
+def list_inventory_lots():
+    """
+    List inventory lots.
+
+    Query params:
+    - item_id: Filter by item
+    - location_id: Filter by location
+    - status: Filter by lot status ('available', 'quarantine', 'expired')
+    - limit: Max results (default 100)
+    """
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            lots = service.get_lots(
+                item_id=request.args.get('item_id'),
+                location_id=request.args.get('location_id'),
+                status=request.args.get('status'),
+                limit=int(request.args.get('limit', 100)),
+            )
+            return jsonify({
+                'lots': lots,
+                'count': len(lots),
+            })
+
+    except Exception as e:
+        from config.demo_mode import is_demo_mode_enabled
+        if is_demo_mode_enabled():
+            return jsonify({
+                'lots': [
+                    {'lot_number': 'LOT-2024-001', 'item_id': 'PLA-RED', 'quantity': 100, 'status': 'available', 'expiry_date': None},
+                    {'lot_number': 'LOT-2024-002', 'item_id': 'PLA-BLUE', 'quantity': 75, 'status': 'available', 'expiry_date': None},
+                    {'lot_number': 'LOT-2024-003', 'item_id': 'RESIN-CLR', 'quantity': 50, 'status': 'available', 'expiry_date': '2024-06-30'},
+                ],
+                'count': 3,
+                'demo': True
+            })
+
+        logger.error(f"Error listing lots: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to list lots'}), 500
+
+
+@erp_api_bp.route('/inventory/lots', methods=['POST'])
+@jwt_required()
+def create_inventory_lot():
+    """
+    Create an inventory lot.
+
+    JSON body:
+    - item_id: Item ID (required)
+    - location_id: Location ID (required)
+    - quantity: Initial quantity (required)
+    - lot_number: Lot number (optional, auto-generated)
+    - expiry_date: Expiration date
+    - supplier_lot: Supplier's lot number
+    - vendor_id: Supplier/vendor ID
+    """
+    data = request.get_json()
+    if not data or not data.get('item_id') or not data.get('location_id'):
+        return jsonify({'error': 'item_id and location_id required'}), 400
+
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            lot = service.create_lot(
+                item_id=data['item_id'],
+                location_id=data['location_id'],
+                quantity=data.get('quantity', 0),
+                lot_number=data.get('lot_number'),
+                expiry_date=date.fromisoformat(data['expiry_date']) if data.get('expiry_date') else None,
+                supplier_lot=data.get('supplier_lot'),
+                vendor_id=data.get('vendor_id'),
+            )
+            return jsonify(lot), 201
+
+    except Exception as e:
+        logger.error(f"Error creating lot: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create lot'}), 500
+
+
+@erp_api_bp.route('/inventory/transactions', methods=['GET'])
+@jwt_required(optional=True)
+def list_inventory_transactions():
+    """
+    List inventory transactions.
+
+    Query params:
+    - item_id: Filter by item
+    - location_id: Filter by location
+    - transaction_type: Filter by type ('receipt', 'issue', 'transfer', 'adjustment')
+    - start_date: Filter by date range start
+    - end_date: Filter by date range end
+    - limit: Max results (default 100)
+    """
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            transactions = service.get_transactions(
+                item_id=request.args.get('item_id'),
+                location_id=request.args.get('location_id'),
+                transaction_type=request.args.get('transaction_type'),
+                start_date=date.fromisoformat(start_date) if start_date else None,
+                end_date=date.fromisoformat(end_date) if end_date else None,
+                limit=int(request.args.get('limit', 100)),
+            )
+            return jsonify({
+                'transactions': transactions,
+                'count': len(transactions),
+            })
+
+    except Exception as e:
+        from config.demo_mode import is_demo_mode_enabled
+        if is_demo_mode_enabled():
+            return jsonify({
+                'transactions': [
+                    {'transaction_id': 'TXN-001', 'item_id': 'PLA-RED', 'type': 'receipt', 'quantity': 100, 'timestamp': datetime.utcnow().isoformat()},
+                    {'transaction_id': 'TXN-002', 'item_id': 'PLA-RED', 'type': 'issue', 'quantity': -20, 'timestamp': datetime.utcnow().isoformat()},
+                ],
+                'count': 2,
+                'demo': True
+            })
+
+        logger.error(f"Error listing transactions: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to list transactions'}), 500
+
+
+@erp_api_bp.route('/inventory/cycle-count', methods=['POST'])
+@jwt_required()
+def create_cycle_count():
+    """
+    Create a cycle count.
+
+    JSON body:
+    - location_id: Location to count (required)
+    - items: Optional list of specific items to count
+    - count_type: 'full', 'abc', 'spot' (default 'full')
+    - scheduled_date: When to perform count
+    """
+    data = request.get_json()
+    if not data or not data.get('location_id'):
+        return jsonify({'error': 'location_id is required'}), 400
+
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            cycle_count = service.create_cycle_count(
+                location_id=data['location_id'],
+                items=data.get('items'),
+                count_type=data.get('count_type', 'full'),
+                scheduled_date=date.fromisoformat(data['scheduled_date']) if data.get('scheduled_date') else None,
+                created_by=get_jwt_identity()
+            )
+            return jsonify(cycle_count), 201
+
+    except Exception as e:
+        logger.error(f"Error creating cycle count: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create cycle count'}), 500
+
+
+@erp_api_bp.route('/inventory/cycle-count/<count_id>/record', methods=['POST'])
+@jwt_required()
+def record_cycle_count():
+    """
+    Record cycle count results.
+
+    JSON body:
+    - counts: List of {item_id, counted_quantity, lot_number (optional)}
+    """
+    count_id = request.view_args.get('count_id')
+    data = request.get_json()
+
+    if not data or not data.get('counts'):
+        return jsonify({'error': 'counts list is required'}), 400
+
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            result = service.record_cycle_count(
+                count_id=count_id,
+                counts=data['counts'],
+                counted_by=get_jwt_identity()
+            )
+            return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Error recording cycle count: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to record cycle count'}), 500
+
+
+@erp_api_bp.route('/inventory/transfer', methods=['POST'])
+@jwt_required()
+def create_inventory_transfer():
+    """
+    Transfer inventory between locations.
+
+    JSON body:
+    - item_id: Item to transfer (required)
+    - from_location_id: Source location (required)
+    - to_location_id: Destination location (required)
+    - quantity: Quantity to transfer (required)
+    - lot_number: Specific lot to transfer (optional)
+    - reference: Transfer reference
+    """
+    data = request.get_json()
+    required = ['item_id', 'from_location_id', 'to_location_id', 'quantity']
+    missing = [f for f in required if not data.get(f)]
+    if missing:
+        return jsonify({'error': f'Missing required fields: {", ".join(missing)}'}), 400
+
+    try:
+        from config.database import get_db_session
+        from services.erp.inventory_service import InventoryService
+
+        with get_db_session() as session:
+            service = InventoryService(session)
+            result = service.transfer_inventory(
+                item_id=data['item_id'],
+                from_location_id=data['from_location_id'],
+                to_location_id=data['to_location_id'],
+                quantity=data['quantity'],
+                lot_number=data.get('lot_number'),
+                reference=data.get('reference'),
+                user_id=get_jwt_identity()
+            )
+            return jsonify(result), 201
+
+    except ValueError as e:
+        return jsonify({'error': 'Internal server error'}), 400
+    except Exception as e:
+        logger.error(f"Error creating transfer: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create transfer'}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MRP (Material Requirements Planning)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @erp_api_bp.route('/mrp/run', methods=['POST'])
 @jwt_required()
+@heavy_computation_limit
 def run_mrp():
     """
     Run MRP (Material Requirements Planning).
@@ -1098,31 +1428,24 @@ def get_mrp_shortages():
 @jwt_required()
 def create_payment():
     """Create a payment."""
-    session = get_db_session()
-    if not session:
-        return jsonify({'error': 'Database not available'}), 503
-
     data = request.get_json()
     if not data or 'payment_type' not in data or 'partner_id' not in data or 'amount' not in data:
         return jsonify({'error': 'payment_type, partner_id, and amount required'}), 400
 
     try:
+        from config.database import get_db_session
         from services.erp.financial_service import FinancialService
 
         if 'payment_date' in data:
             data['payment_date'] = date.fromisoformat(data['payment_date'])
 
-        service = FinancialService(session)
-        payment = service.create_payment(data)
-        session.commit()
-
-        return jsonify(payment), 201
+        with get_db_session() as session:
+            service = FinancialService(session)
+            payment = service.create_payment(data)
+            return jsonify(payment), 201
     except Exception as e:
-        session.rollback()
         logger.error(f"Error creating payment: {e}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        session.close()
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1134,6 +1457,7 @@ def create_payment():
 def list_partners():
     """List all partners (customers and vendors)."""
     try:
+        from config.database import get_db_session
         from models.erp.partners import Partner
 
         with get_db_session() as session:
@@ -1169,6 +1493,7 @@ def list_partners():
 def get_partner(partner_id: str):
     """Get a specific partner."""
     try:
+        from config.database import get_db_session
         from models.erp.partners import Partner
 
         with get_db_session() as session:
@@ -1178,7 +1503,7 @@ def get_partner(partner_id: str):
             return jsonify({'error': 'Partner not found'}), 404
     except Exception as e:
         logger.error(f"Error getting partner {partner_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1490,6 +1815,58 @@ def delete_sales_order(order_id: str):
         return jsonify({'error': 'Failed to delete sales order'}), 500
 
 
+@erp_api_bp.route('/purchase-orders', methods=['GET'])
+@jwt_required()
+def list_purchase_orders():
+    """List purchase orders with optional filters."""
+    try:
+        from config.database import get_db_session
+        from models.erp.purchasing import PurchaseOrder, PurchaseOrderStatus
+
+        status = request.args.get('status')
+        vendor_id = request.args.get('vendor_id')
+        limit = min(int(request.args.get('limit', 100)), 500)
+
+        with get_db_session() as session:
+            query = session.query(PurchaseOrder).filter(PurchaseOrder.is_deleted == False)
+
+            if status:
+                try:
+                    query = query.filter(PurchaseOrder.status == PurchaseOrderStatus(status))
+                except ValueError:
+                    pass
+            if vendor_id:
+                query = query.filter(PurchaseOrder.vendor_id == vendor_id)
+
+            pos = query.order_by(PurchaseOrder.order_date.desc().nullslast()).limit(limit).all()
+            return jsonify({
+                'purchase_orders': [po.to_dict() for po in pos],
+                'count': len(pos)
+            })
+
+    except Exception as e:
+        logger.error(f"Error listing purchase orders: {e}", exc_info=True)
+        # Demo fallback
+        from config.demo_mode import is_demo_mode_enabled
+        if is_demo_mode_enabled():
+            demo_pos = [
+                {'po_number': 'PO-2026-001', 'vendor_id': 'VEND001', 'status': 'sent',
+                 'order_date': (date.today() - timedelta(days=10)).isoformat(),
+                 'required_date': (date.today() + timedelta(days=5)).isoformat(),
+                 'total': 1250.00, 'quantity_received': 0},
+                {'po_number': 'PO-2026-002', 'vendor_id': 'VEND002', 'status': 'partially_received',
+                 'order_date': (date.today() - timedelta(days=20)).isoformat(),
+                 'required_date': (date.today() - timedelta(days=3)).isoformat(),
+                 'total': 890.50, 'quantity_received': 15},
+                {'po_number': 'PO-2026-003', 'vendor_id': 'VEND003', 'status': 'draft',
+                 'order_date': date.today().isoformat(),
+                 'required_date': (date.today() + timedelta(days=14)).isoformat(),
+                 'total': 2100.00, 'quantity_received': 0},
+            ]
+            return jsonify({'purchase_orders': demo_pos, 'count': len(demo_pos)})
+        return jsonify({'error': 'Internal server error'}), 500
+
+
 @erp_api_bp.route('/purchase-orders/<po_id>', methods=['DELETE'])
 @jwt_required()
 def delete_purchase_order(po_id: str):
@@ -1739,3 +2116,242 @@ def run_cost_rollup():
     except Exception as e:
         logger.error(f"Error running cost rollup: {e}", exc_info=True)
         return jsonify({'error': 'Cost rollup failed', 'updated': 0}), 500
+
+
+# ---------------------------------------------------------------------------
+# Budget Endpoints
+# ---------------------------------------------------------------------------
+
+@erp_api_bp.route('/budget', methods=['GET'])
+@jwt_required(optional=True)
+def get_budget_vs_actual():
+    """Get budget vs actual for a given period."""
+    period = request.args.get('period')
+    if not period:
+        return jsonify({'error': 'period query parameter is required (fiscal year, e.g. 2024)'}), 400
+
+    try:
+        fiscal_year = int(period)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'period must be a fiscal year integer (e.g. 2024)'}), 400
+
+    try:
+        from services.erp.budget_service import BudgetService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = BudgetService(session)
+            result = service.get_budget_vs_actual(fiscal_year)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error fetching budget vs actual: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch budget vs actual'}), 500
+
+
+@erp_api_bp.route('/budget', methods=['POST'])
+@jwt_required()
+def create_budget():
+    """Create a new budget."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Request body is required'}), 400
+
+    fiscal_year = data.get('fiscal_year')
+    lines = data.get('lines')
+    if not fiscal_year or not lines:
+        return jsonify({'error': 'fiscal_year and lines are required'}), 400
+
+    try:
+        from services.erp.budget_service import BudgetService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = BudgetService(session)
+            result = service.create_budget(fiscal_year, lines)
+            return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Error creating budget: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to create budget'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Job Costing Endpoints
+# ---------------------------------------------------------------------------
+
+@erp_api_bp.route('/job-cost/<wo_number>', methods=['GET'])
+@jwt_required()
+def get_job_cost(wo_number):
+    """Get job cost breakdown for a work order."""
+    try:
+        from services.erp.job_costing_service import JobCostingService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = JobCostingService(session)
+            result = service.calculate_job_cost(wo_number)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error fetching job cost for {wo_number}: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch job cost'}), 500
+
+
+@erp_api_bp.route('/profitability', methods=['GET'])
+@jwt_required()
+def get_job_profitability():
+    """Get job profitability summary."""
+    period = request.args.get('period', 'month')
+
+    try:
+        from services.erp.job_costing_service import JobCostingService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = JobCostingService(session)
+            result = service.get_profitability_summary(period)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error fetching job profitability: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch job profitability'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Cash Flow Endpoints
+# ---------------------------------------------------------------------------
+
+@erp_api_bp.route('/cashflow', methods=['GET'])
+@jwt_required(optional=True)
+def get_cash_flow_statement():
+    """Get cash flow statement for a given period."""
+    period = request.args.get('period')
+    if not period:
+        return jsonify({'error': 'period query parameter is required (number of days, e.g. 30)'}), 400
+
+    try:
+        period_days = int(period)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'period must be a number of days (e.g. 30)'}), 400
+
+    try:
+        from services.erp.cashflow_service import CashFlowService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = CashFlowService(session)
+            result = service.get_cash_flow_statement(period_days)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error fetching cash flow statement: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch cash flow statement'}), 500
+
+
+@erp_api_bp.route('/cashflow/forecast', methods=['GET'])
+@jwt_required()
+def get_cash_flow_forecast():
+    """Get cash flow forecast."""
+    weeks = request.args.get('weeks', 12, type=int)
+
+    try:
+        from services.erp.cashflow_service import CashFlowService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = CashFlowService(session)
+            result = service.forecast_cash_flow(weeks)
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error fetching cash flow forecast: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch cash flow forecast'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Fixed Assets Endpoints
+# ---------------------------------------------------------------------------
+
+@erp_api_bp.route('/fixed-assets', methods=['GET'])
+@jwt_required()
+def get_asset_register():
+    """Get the fixed asset register."""
+    try:
+        from services.erp.depreciation_service import DepreciationService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = DepreciationService(session)
+            result = service.get_asset_register()
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error fetching asset register: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to fetch asset register'}), 500
+
+
+@erp_api_bp.route('/fixed-assets', methods=['POST'])
+@jwt_required()
+def register_fixed_asset():
+    """Register a new fixed asset."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Request body is required'}), 400
+
+    required_fields = ['cmms_asset_id', 'acquisition_date', 'acquisition_cost',
+                       'useful_life_months', 'salvage_value', 'depreciation_method']
+    missing = [f for f in required_fields if f not in data]
+    if missing:
+        return jsonify({'error': f'Missing required fields: {", ".join(missing)}'}), 400
+
+    try:
+        from services.erp.depreciation_service import DepreciationService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = DepreciationService(session)
+            result = service.register_asset(
+                cmms_asset_id=data['cmms_asset_id'],
+                acquisition_date=data['acquisition_date'],
+                acquisition_cost=data['acquisition_cost'],
+                useful_life_months=data['useful_life_months'],
+                salvage_value=data['salvage_value'],
+                depreciation_method=data['depreciation_method']
+            )
+            return jsonify(result), 201
+    except Exception as e:
+        logger.error(f"Error registering fixed asset: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to register fixed asset'}), 500
+
+
+@erp_api_bp.route('/fixed-assets/run-depreciation', methods=['POST'])
+@jwt_required()
+def run_depreciation():
+    """Run monthly depreciation."""
+    data = request.get_json()
+    if not data or 'period' not in data:
+        return jsonify({'error': 'period is required'}), 400
+
+    try:
+        from services.erp.depreciation_service import DepreciationService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = DepreciationService(session)
+            result = service.run_depreciation(data['period'])
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f"Error running depreciation: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to run depreciation'}), 500
+
+
+# ---------------------------------------------------------------------------
+# Invoice PDF Endpoint
+# ---------------------------------------------------------------------------
+
+@erp_api_bp.route('/ar/invoices/<invoice_id>/pdf', methods=['GET'])
+@jwt_required()
+def download_invoice_pdf(invoice_id):
+    """Download an invoice as PDF."""
+    try:
+        import io
+        from flask import send_file
+        from services.erp.invoice_pdf_service import InvoicePDFService
+        from config.database import get_db_session
+        with get_db_session() as session:
+            service = InvoicePDFService(session)
+            pdf_bytes = service.generate_invoice_pdf(invoice_id)
+            return send_file(
+                io.BytesIO(pdf_bytes),
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f'invoice_{invoice_id}.pdf'
+            )
+    except Exception as e:
+        logger.error(f"Error generating invoice PDF for {invoice_id}: {e}", exc_info=True)
+        return jsonify({'error': 'Failed to generate invoice PDF'}), 500

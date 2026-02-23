@@ -269,11 +269,15 @@ class InventoryBalance(AuditedModel):
         return {
             'id': str(self.id),
             'item_id': str(self.item_id),
+            'item_name': self.item.name if self.item else None,
+            'item_number': self.item.item_id if self.item else None,
             'location_id': str(self.location_id),
+            'location_name': self.location.name if self.location else None,
             'lot_id': str(self.lot_id) if self.lot_id else None,
             'quantity_on_hand': self.quantity_on_hand,
             'quantity_available': self.quantity_available,
             'quantity_allocated': self.quantity_allocated,
+            'quantity_on_order': self.quantity_on_order,
             'unit_cost': self.unit_cost,
             'total_value': self.total_value,
         }

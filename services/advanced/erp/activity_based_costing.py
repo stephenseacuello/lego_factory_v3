@@ -118,6 +118,7 @@ class ActivityBasedCostingService:
     def __init__(self):
         self._activities: Dict[str, Activity] = {}
         self._consumptions: List[ActivityConsumption] = []
+        self._max_consumptions = 10000
         self._setup_default_activities()
 
     def _setup_default_activities(self):
@@ -337,6 +338,8 @@ class ActivityBasedCostingService:
             calculated_cost=cost,
         )
 
+        if len(self._consumptions) >= self._max_consumptions:
+            self._consumptions = self._consumptions[-self._max_consumptions // 2:]
         self._consumptions.append(consumption)
         return consumption
 

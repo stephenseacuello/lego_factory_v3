@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Supplier Quality Scorecard - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">QMS</a></li>
+<li class="breadcrumb-item active">Supplier Quality Scorecard</li>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-award me-2"></i>Supplier Quality Scorecard</h2>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#inspectionModal">
+    <i class="bi bi-clipboard-check me-1"></i>Record Inspection
+  </button>
+</div>
+
+<!-- At-Risk Suppliers Alert -->
+<div id="atRiskSection" class="mb-4" style="display:none;">
+  <div class="alert alert-danger d-flex align-items-start">
+    <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+    <div>
+      <h6 class="alert-heading mb-1">At-Risk Suppliers</h6>
+      <ul id="atRiskList" class="mb-0"></ul>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Rankings Table -->
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header">Supplier Rankings</div>
+      <div class="card-body table-responsive">
+        <table class="table table-hover align-middle" id="rankingsTable">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Supplier</th>
+              <th class="text-end">Delivery</th>
+              <th class="text-end">Quality</th>
+              <th class="text-end">Price</th>
+              <th class="text-end">Responsiveness</th>
+              <th class="text-end">Overall</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Radar Chart -->
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header">
+        <span>Supplier Detail</span>
+        <select id="supplierSelect" class="form-select form-select-sm d-inline-block ms-2" style="width:auto;"></select>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        <canvas id="radarChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Record Inspection Modal -->
+<div class="modal fade" id="inspectionModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Record Inspection</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="inspectionForm">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Supplier</label>
+            <input type="text" class="form-control" name="supplier" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Delivery Score (0-100)</label>
+            <input type="number" min="0" max="100" class="form-control" name="delivery" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Quality Score (0-100)</label>
+            <input type="number" min="0" max="100" class="form-control" name="quality" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Price Score (0-100)</label>
+            <input type="number" min="0" max="100" class="form-control" name="price" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Responsiveness Score (0-100)</label>
+            <input type="number" min="0" max="100" class="form-control" name="responsiveness" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea class="form-control" name="notes" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let radarChart, suppliers = [];
+
+  function scoreBadge(score) {
+    const cls = score > 80 ? 'bg-success' : score > 60 ? 'bg-warning text-dark' : 'bg-danger';
+    return `<span class="badge ${cls}">${score}</span>`;
+  }
+
+  async function loadRankings() {
+    const res = await fetch('/api/qms/suppliers/rankings');
+    const data = await res.json();
+    suppliers = data.items || data || [];
+
+    const tbody = document.querySelector('#rankingsTable tbody');
+    tbody.innerHTML = '';
+    const sel = document.getElementById('supplierSelect');
+    sel.innerHTML = '';
+
+    suppliers.forEach((s, i) => {
+      tbody.innerHTML += `<tr style="cursor:pointer" onclick="showRadar(${i})">
+        <td>${i + 1}</td>
+        <td>${s.name}</td>
+        <td class="text-end">${scoreBadge(s.delivery)}</td>
+        <td class="text-end">${scoreBadge(s.quality)}</td>
+        <td class="text-end">${scoreBadge(s.price)}</td>
+        <td class="text-end">${scoreBadge(s.responsiveness)}</td>
+        <td class="text-end">${scoreBadge(s.overall)}</td>
+      </tr>`;
+      sel.innerHTML += `<option value="${i}">${s.name}</option>`;
+    });
+
+    if (suppliers.length) showRadar(0);
+  }
+
+  function showRadar(idx) {
+    const s = suppliers[idx];
+    document.getElementById('supplierSelect').value = idx;
+    if (radarChart) radarChart.destroy();
+    radarChart = new Chart(document.getElementById('radarChart'), {
+      type: 'radar',
+      data: {
+        labels: ['Delivery','Quality','Price','Responsiveness'],
+        datasets: [{
+          label: s.name,
+          data: [s.delivery, s.quality, s.price, s.responsiveness],
+          backgroundColor: 'rgba(13,110,253,0.2)',
+          borderColor: '#0d6efd',
+          pointBackgroundColor: '#0d6efd'
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {r: {beginAtZero: true, max: 100}},
+        plugins: {legend: {position: 'top'}}
+      }
+    });
+  }
+
+  async function loadAtRisk() {
+    const res = await fetch('/api/qms/suppliers/at-risk');
+    const data = await res.json();
+    const items = data.items || data || [];
+    const section = document.getElementById('atRiskSection');
+    const list = document.getElementById('atRiskList');
+    if (items.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = '';
+    list.innerHTML = '';
+    items.forEach(s => {
+      list.innerHTML += `<li><strong>${s.name}</strong> - Score: ${s.overall || s.score} | ${s.reason || 'Below threshold'}</li>`;
+    });
+  }
+
+  document.getElementById('supplierSelect').addEventListener('change', e => showRadar(+e.target.value));
+
+  document.getElementById('inspectionForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    await fetch('/api/qms/suppliers/rankings', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(Object.fromEntries(fd))
+    });
+    bootstrap.Modal.getInstance(document.getElementById('inspectionModal')).hide();
+    e.target.reset();
+    loadRankings();
+    loadAtRisk();
+  });
+
+  loadRankings();
+  loadAtRisk();
+</script>
+{% endblock %}

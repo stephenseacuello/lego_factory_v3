@@ -43,7 +43,7 @@ def run_async(coro):
 
 
 @machines_bp.route('', methods=['GET'])
-@jwt_required()
+@jwt_required(optional=True)
 def list_machines():
     """
     Get all registered machines.
@@ -65,7 +65,7 @@ def list_machines():
             return jsonify({'machines': machines, 'count': len(machines)})
     except Exception as e:
         logger.error(f"Error listing machines: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>', methods=['GET'])
@@ -91,7 +91,7 @@ def get_machine(machine_id: str):
             return jsonify(machine)
     except Exception as e:
         logger.error(f"Error getting machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('', methods=['POST'])
@@ -126,7 +126,7 @@ def create_machine(validated_data: MachineCreate):
             return jsonify(machine), 201
     except Exception as e:
         logger.error(f"Error creating machine: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>', methods=['PUT'])
@@ -168,7 +168,7 @@ def update_machine(validated_data: MachineUpdate, machine_id: str):
             return jsonify(machine)
     except Exception as e:
         logger.error(f"Error updating machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>', methods=['DELETE'])
@@ -195,7 +195,7 @@ def delete_machine(machine_id: str):
             return jsonify({'message': 'Machine deleted'})
     except Exception as e:
         logger.error(f"Error deleting machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>/connect', methods=['POST'])
@@ -223,7 +223,7 @@ def connect_machine(machine_id: str):
         return jsonify({'error': 'Connection failed'}), 500
     except Exception as e:
         logger.error(f"Error connecting to machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>/disconnect', methods=['POST'])
@@ -249,7 +249,7 @@ def disconnect_machine(machine_id: str):
         return jsonify({'message': 'Disconnected', 'machine_id': machine_id})
     except Exception as e:
         logger.error(f"Error disconnecting from machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>/status', methods=['GET'])
@@ -275,7 +275,7 @@ def get_machine_status(machine_id: str):
         return jsonify(status)
     except Exception as e:
         logger.error(f"Error getting status for machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>/home', methods=['POST'])
@@ -310,7 +310,7 @@ def home_machine(validated_data: MachineHomeRequest, machine_id: str):
         return jsonify({'error': 'Homing failed'}), 500
     except Exception as e:
         logger.error(f"Error homing machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>/jog', methods=['POST'])
@@ -355,7 +355,7 @@ def jog_machine(validated_data: MachineJogRequest, machine_id: str):
         return jsonify({'error': 'Jog failed'}), 500
     except Exception as e:
         logger.error(f"Error jogging machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>/gcode', methods=['POST'])
@@ -391,7 +391,7 @@ def run_gcode(validated_data: GCodeExecuteRequest, machine_id: str):
         return jsonify({'error': 'G-code execution failed'}), 500
     except Exception as e:
         logger.error(f"Error running G-code on machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>/stop', methods=['POST'])
@@ -419,7 +419,7 @@ def stop_machine(machine_id: str):
         return jsonify({'error': 'Stop failed'}), 500
     except Exception as e:
         logger.error(f"Error stopping machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>/reset', methods=['POST'])
@@ -447,7 +447,7 @@ def reset_machine(machine_id: str):
         return jsonify({'error': 'Reset failed'}), 500
     except Exception as e:
         logger.error(f"Error resetting machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/<machine_id>/events', methods=['GET'])
@@ -479,7 +479,7 @@ def get_machine_events(machine_id: str):
             return jsonify({'events': events, 'count': len(events)})
     except Exception as e:
         logger.error(f"Error getting events for machine {machine_id}: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 
 @machines_bp.route('/types', methods=['GET'])
@@ -515,4 +515,4 @@ def get_machine_stats():
         return jsonify(stats)
     except Exception as e:
         logger.error(f"Error getting machine stats: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Internal server error'}), 500

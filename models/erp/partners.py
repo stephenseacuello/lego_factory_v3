@@ -126,10 +126,16 @@ class Partner(AuditedModel):
             'status': self.status.value if self.status else None,
             'email': self.email,
             'phone': self.phone,
+            'website': self.website,
+            'address_line1': self.address_line1,
             'city': self.city,
+            'state': self.state,
+            'postal_code': self.postal_code,
             'country': self.country,
             'payment_terms': self.payment_terms.value if self.payment_terms else None,
             'credit_limit': self.credit_limit,
+            'lead_time_days': self.lead_time_days,
+            'currency': self.currency,
         }
 
 

@@ -1,21 +1,174 @@
 {% extends "base.html" %}
 {% block title %}Customers - LEGO Factory v3{% endblock %}
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('dashboard_web.home') }}">Home</a></li>
+<li class="breadcrumb-item"><a href="#">ERP</a></li>
+<li class="breadcrumb-item active">Customers</li>
+{% endblock %}
 {% block content %}
-<h2><i class="bi bi-people me-2"></i>Customers</h2>
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Customer List</span>
-        <button class="btn btn-sm btn-primary"><i class="bi bi-plus me-1"></i>New Customer</button>
-    </div>
-    <div class="card-body">
-        <table class="table table-hover">
-            <thead><tr><th>ID</th><th>Name</th><th>Contact</th><th>City</th><th>Credit Limit</th><th>Balance</th></tr></thead>
-            <tbody>
-                <tr><td>C-001</td><td>ACME Corp</td><td>john@acme.com</td><td>New York</td><td>$50,000</td><td>$12,500</td></tr>
-                <tr><td>C-002</td><td>TechParts Inc</td><td>sales@techparts.com</td><td>Chicago</td><td>$25,000</td><td>$8,750</td></tr>
-                <tr><td>C-003</td><td>BuildRight LLC</td><td>orders@buildright.com</td><td>Los Angeles</td><td>$100,000</td><td>$22,000</td></tr>
-            </tbody>
-        </table>
-    </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2><i class="bi bi-people me-2"></i>Customers</h2>
+  <button class="btn btn-sm btn-outline-primary" onclick="loadData()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+  </button>
 </div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card text-bg-primary">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Total Customers</div>
+        <div class="fs-3 fw-bold" id="totalCustomers">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-success">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Active</div>
+        <div class="fs-3 fw-bold" id="activeCount">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-warning">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">On Hold</div>
+        <div class="fs-3 fw-bold" id="holdCount">--</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-bg-info">
+      <div class="card-body">
+        <div class="text-uppercase small opacity-75">Prospects</div>
+        <div class="fs-3 fw-bold" id="prospectCount">--</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter -->
+<div class="mb-3" style="max-width: 250px;">
+  <select class="form-select" id="statusFilter" onchange="loadData()">
+    <option value="">All Statuses</option>
+    <option value="active">Active</option>
+    <option value="inactive">Inactive</option>
+    <option value="hold">On Hold</option>
+    <option value="prospect">Prospect</option>
+  </select>
+</div>
+
+<!-- Data Table -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table me-2"></i>Customer List</span>
+    <span class="badge bg-secondary" id="recordCount">0 records</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Phone</th>
+            <th>City</th>
+            <th>Status</th>
+            <th class="text-end">Credit Limit</th>
+          </tr>
+        </thead>
+        <tbody id="customersTableBody">
+          <tr>
+            <td colspan="7" class="text-center text-muted py-4">
+              <div class="spinner-border spinner-border-sm me-2" role="status"></div>Loading...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const currencyFmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+  function statusBadge(status) {
+    const map = {
+      active: 'bg-success',
+      inactive: 'bg-secondary',
+      hold: 'bg-warning text-dark',
+      prospect: 'bg-info'
+    };
+    const cls = map[status] || 'bg-secondary';
+    const label = (status || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return `<span class="badge ${cls}">${label}</span>`;
+  }
+
+  async function loadData() {
+    const tbody = document.getElementById('customersTableBody');
+    const filter = document.getElementById('statusFilter').value;
+
+    try {
+      const url = '/api/erp/customers' + (filter ? '?status=' + encodeURIComponent(filter) : '');
+      const res = await fetch(url, {
+        headers: {
+          'Authorization': 'Bearer ' + (localStorage.getItem('access_token') || 'demo-token')
+        }
+      });
+
+      if (!res.ok) {
+        throw new Error('API returned ' + res.status);
+      }
+
+      const data = await res.json();
+      const customers = data.customers || [];
+
+      // Update summary cards
+      const total = customers.length;
+      const active = customers.filter(c => c.status === 'active').length;
+      const hold = customers.filter(c => c.status === 'hold').length;
+      const prospect = customers.filter(c => c.status === 'prospect').length;
+
+      document.getElementById('totalCustomers').textContent = total;
+      document.getElementById('activeCount').textContent = active;
+      document.getElementById('holdCount').textContent = hold;
+      document.getElementById('prospectCount').textContent = prospect;
+      document.getElementById('recordCount').textContent = customers.length + ' records';
+
+      // Populate table
+      if (customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No customers found.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = customers.map(c => `
+        <tr>
+          <td><code>${c.partner_id || ''}</code></td>
+          <td>${c.name || ''}</td>
+          <td>${c.email ? '<a href="mailto:' + c.email + '">' + c.email + '</a>' : '-'}</td>
+          <td>${c.phone || '-'}</td>
+          <td>${[c.city, c.state].filter(Boolean).join(', ') || '-'}</td>
+          <td>${statusBadge(c.status)}</td>
+          <td class="text-end">${c.credit_limit != null ? currencyFmt.format(c.credit_limit) : '-'}</td>
+        </tr>
+      `).join('');
+
+    } catch (err) {
+      console.error('Failed to load customers:', err);
+      tbody.innerHTML = `<tr>
+        <td colspan="7" class="text-center text-danger py-4">
+          <i class="bi bi-exclamation-triangle me-2"></i>Failed to load customers. ${err.message || 'Please try again.'}
+        </td>
+      </tr>`;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', loadData);
+  setInterval(loadData, 30000);
+</script>
 {% endblock %}

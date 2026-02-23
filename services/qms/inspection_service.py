@@ -89,7 +89,7 @@ class InspectionService:
         )
 
         self.session.add(record)
-        self.session.commit()
+        self.session.flush()
 
         # Emit event
         emit_event('inspection_created', {
@@ -159,7 +159,7 @@ class InspectionService:
         if record.status == 'pending':
             record.status = 'in_progress'
 
-        self.session.commit()
+        self.session.flush()
 
         return measurement, passed
 
@@ -228,7 +228,7 @@ class InspectionService:
         if critical_failures or (failed_count > 0 and record.result == InspectionResult.REJECT):
             ncr = self._auto_ncr_on_fail(record, failed_measurements, critical_failures)
 
-        self.session.commit()
+        self.session.flush()
 
         # Emit event
         emit_event('inspection_completed', {
@@ -292,7 +292,7 @@ class InspectionService:
             title=f"Inspection Failure - {record.serial_number or record.lot_number or record.job_id}",
             description=description,
             ncr_type=NCRType.PRODUCT,
-            status=NCRStatus.OPEN,
+            status=NCRStatus.DRAFT,
             severity=severity,
             source='inspection',
             source_reference=record.inspection_number,
@@ -525,6 +525,43 @@ class InspectionService:
                 result[inspection_type]['failed'] += 1
 
         return result
+
+
+    def get_inspections(
+        self,
+        status: str = None,
+        job_id: str = None,
+        plan_id: str = None,
+    ) -> List[Dict[str, Any]]:
+        """Get inspections with optional filtering."""
+        query = self.session.query(InspectionRecord)
+
+        if status:
+            query = query.filter(InspectionRecord.status == status)
+        if job_id:
+            query = query.filter(InspectionRecord.job_id == job_id)
+        if plan_id:
+            query = query.filter(InspectionRecord.plan_id == plan_id)
+
+        records = query.order_by(InspectionRecord.inspection_date.desc()).limit(100).all()
+        return [r.to_dict() for r in records]
+
+    def get_inspection_plans(self) -> List[Dict[str, Any]]:
+        """Get all inspection plans."""
+        plans = self.session.query(InspectionPlan).order_by(InspectionPlan.name).all()
+        return [p.to_dict() for p in plans]
+
+    def get_inspection_detail(self, result_id: str) -> Dict[str, Any]:
+        """Get a specific inspection result with all measurements."""
+        from uuid import UUID as _UUID
+        try:
+            rid = _UUID(result_id)
+        except (ValueError, TypeError):
+            return None
+        try:
+            return self.get_inspection(rid)
+        except ValueError:
+            return None
 
 
 # Required import for timedelta
