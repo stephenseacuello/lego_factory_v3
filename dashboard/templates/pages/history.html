@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}History - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Operation History</h1>
+    <div class="page-actions">
+        <button class="btn btn-secondary" id="undoBtn" {{ 'disabled' if not stats.can_undo else '' }}>
+            ↶ Undo
+        </button>
+        <button class="btn btn-secondary" id="redoBtn" {{ 'disabled' if not stats.can_redo else '' }}>
+            ↷ Redo
+        </button>
+        <a href="{{ url_for('history.export_history') }}" class="btn btn-secondary">
+            ⬇ Export
+        </a>
+    </div>
+</div>
+
+<!-- Statistics -->
+<section class="section">
+    <div class="card-grid card-grid-4">
+        <div class="card stat-card">
+            <div class="stat-value">{{ stats.total_operations | default(0) }}</div>
+            <div class="stat-label">Total Operations</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-value">{{ (stats.by_status.completed if stats.by_status else 0) | default(0) }}</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-value">{{ (stats.by_status.failed if stats.by_status else 0) | default(0) }}</div>
+            <div class="stat-label">Failed</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-value">{{ "%.0f"|format(stats.average_time_ms | default(0)) }}ms</div>
+            <div class="stat-label">Avg. Time</div>
+        </div>
+    </div>
+</section>
+
+<!-- Filters -->
+<div class="filter-bar">
+    <form action="{{ url_for('history.history_list') }}" method="get" class="filter-form">
+        <select name="type" class="filter-select" onchange="this.form.submit()">
+            <option value="">All Types</option>
+            {% for op_type in op_types %}
+            <option value="{{ op_type }}" {{ 'selected' if current_type == op_type else '' }}>
+                {{ op_type | replace('_', ' ') | title }}
+            </option>
+            {% endfor %}
+        </select>
+        
+        <select name="limit" class="filter-select" onchange="this.form.submit()">
+            <option value="25" {{ 'selected' if limit == 25 else '' }}>25 items</option>
+            <option value="50" {{ 'selected' if limit == 50 else '' }}>50 items</option>
+            <option value="100" {{ 'selected' if limit == 100 else '' }}>100 items</option>
+        </select>
+    </form>
+</div>
+
+<!-- Operation List -->
+<div class="card">
+    {% if operations %}
+    <div class="operation-timeline">
+        {% for op in operations %}
+        <div class="operation-entry {{ op.status | default('completed') }}" data-id="{{ op.id }}">
+            <div class="operation-status">
+                {% if op.status == 'completed' %}
+                <span class="status-icon success">✓</span>
+                {% elif op.status == 'failed' %}
+                <span class="status-icon error">✗</span>
+                {% elif op.status == 'undone' %}
+                <span class="status-icon warning">↶</span>
+                {% else %}
+                <span class="status-icon">○</span>
+                {% endif %}
+            </div>
+            
+            <div class="operation-content">
+                <div class="operation-header">
+                    <span class="operation-type">{{ op.type | replace('_', ' ') | title }}</span>
+                    <span class="operation-time">{{ op.datetime | default('') }}</span>
+                </div>
+                
+                {% if op.component_name %}
+                <div class="operation-detail">
+                    <span class="label">Component:</span> {{ op.component_name }}
+                </div>
+                {% endif %}
+                
+                {% if op.duration_ms %}
+                <div class="operation-detail">
+                    <span class="label">Duration:</span> {{ "%.0f"|format(op.duration_ms) }}ms
+                </div>
+                {% endif %}
+                
+                {% if op.error %}
+                <div class="operation-error">
+                    {{ op.error }}
+                </div>
+                {% endif %}
+            </div>
+            
+            <div class="operation-actions">
+                {% if op.can_undo and op.status == 'completed' %}
+                <button class="btn btn-small undo-single-btn" data-id="{{ op.id }}">Undo</button>
+                {% endif %}
+                <button class="btn btn-small btn-outline view-details-btn" data-op='{{ op | tojson }}'>
+                    Details
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No operations recorded yet</p>
+        <p class="hint">Create a brick to see it appear here</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Undo button
+document.getElementById('undoBtn').addEventListener('click', function() {
+    this.disabled = true;
+    
+    fetch('/history/undo', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                App.toast('Operation undone', 'success');
+                window.location.reload();
+            } else {
+                App.toast('Failed to undo: ' + (data.error || 'Unknown error'), 'error');
+                this.disabled = false;
+            }
+        })
+        .catch(e => {
+            App.toast('Error: ' + e.message, 'error');
+            this.disabled = false;
+        });
+});
+
+// Redo button
+document.getElementById('redoBtn').addEventListener('click', function() {
+    this.disabled = true;
+    
+    fetch('/history/redo', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                App.toast('Operation redone', 'success');
+                window.location.reload();
+            } else {
+                App.toast('Failed to redo: ' + (data.error || 'Unknown error'), 'error');
+                this.disabled = false;
+            }
+        });
+});
+
+// View details
+document.querySelectorAll('.view-details-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const op = JSON.parse(this.dataset.op);
+        
+        App.modal('Operation Details', `
+            <div class="json-viewer">
+                <pre>${JSON.stringify(op, null, 2)}</pre>
+            </div>
+        `, [
+            {text: 'Close', class: 'btn-secondary', action: 'close'}
+        ]);
+    });
+});
+</script>
+{% endblock %}

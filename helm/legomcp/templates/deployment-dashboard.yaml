@@ -1,0 +1,140 @@
+{{/*
+LegoMCP Dashboard Deployment
+PhD-Level Manufacturing Platform
+*/}}
+{{- if .Values.dashboard.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "legomcp.fullname" . }}-dashboard
+  labels:
+    {{- include "legomcp.dashboard.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.dashboard.autoscaling.enabled }}
+  replicas: {{ .Values.dashboard.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "legomcp.dashboard.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5000"
+        prometheus.io/path: "/metrics"
+      labels:
+        {{- include "legomcp.dashboard.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- include "legomcp.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "legomcp.serviceAccountName" . }}
+      securityContext:
+        {{- include "legomcp.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: dashboard
+          securityContext:
+            {{- include "legomcp.containerSecurityContext" . | nindent 12 }}
+          image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.dashboard.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.dashboard.service.targetPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "legomcp.fullname" . }}-config
+            {{- with .Values.dashboard.envFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          env:
+            {{- include "legomcp.commonEnv" . | nindent 12 }}
+            {{- with .Values.dashboard.env }}
+            {{- range $key, $value := . }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+            {{- end }}
+          {{- include "legomcp.livenessProbe" . | nindent 10 }}
+          {{- include "legomcp.readinessProbe" . | nindent 10 }}
+          {{- include "legomcp.startupProbe" . | nindent 10 }}
+          resources:
+            {{- toYaml .Values.dashboard.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /app/.cache
+            {{- if .Values.persistence.uploads.enabled }}
+            - name: uploads
+              mountPath: /app/uploads
+            {{- end }}
+            {{- if .Values.persistence.exports.enabled }}
+            - name: exports
+              mountPath: /app/exports
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        {{- if .Values.persistence.uploads.enabled }}
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ include "legomcp.fullname" . }}-uploads
+        {{- end }}
+        {{- if .Values.persistence.exports.enabled }}
+        - name: exports
+          persistentVolumeClaim:
+            claimName: {{ include "legomcp.fullname" . }}-exports
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.dashboard.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.dashboard.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "legomcp.dashboard.selectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+      {{- end }}
+      {{- with .Values.dashboard.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "legomcp.fullname" . }}-dashboard
+  labels:
+    {{- include "legomcp.dashboard.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.dashboard.service.type }}
+  ports:
+    - port: {{ .Values.dashboard.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "legomcp.dashboard.selectorLabels" . | nindent 4 }}
+{{- end }}

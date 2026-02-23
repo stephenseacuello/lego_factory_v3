@@ -1,0 +1,636 @@
+{% extends "base.html" %}
+
+{% block title %}Financials Dashboard - LEGO MCP v6.0{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-currency-dollar me-2"></i>Financial Management Dashboard</h2>
+            <p class="text-muted mb-0">Enterprise AR/AP, General Ledger & Cash Management</p>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-outline-primary" onclick="refreshDashboard()">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#journalEntryModal">
+                <i class="bi bi-plus-lg me-1"></i>Journal Entry
+            </button>
+        </div>
+    </div>
+
+    <!-- Financial Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-1">Cash Balance</h6>
+                            <h3 class="card-title mb-0" id="cashBalance">$0.00</h3>
+                        </div>
+                        <i class="bi bi-cash-stack fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-1">Accounts Receivable</h6>
+                            <h3 class="card-title mb-0" id="totalAR">$0.00</h3>
+                            <small id="dsoValue">DSO: -- days</small>
+                        </div>
+                        <i class="bi bi-receipt fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-1">Accounts Payable</h6>
+                            <h3 class="card-title mb-0" id="totalAP">$0.00</h3>
+                            <small id="dpoValue">DPO: -- days</small>
+                        </div>
+                        <i class="bi bi-credit-card fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-1">Net Working Capital</h6>
+                            <h3 class="card-title mb-0" id="netWorkingCapital">$0.00</h3>
+                        </div>
+                        <i class="bi bi-graph-up-arrow fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Row -->
+    <div class="row mb-4">
+        <!-- AR Aging Chart -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>AR Aging Analysis</h5>
+                    <a href="/api/erp/financials/ar/page" class="btn btn-sm btn-outline-primary">
+                        View Details
+                    </a>
+                </div>
+                <div class="card-body">
+                    <canvas id="arAgingChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- AP Aging Chart -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>AP Aging Analysis</h5>
+                    <a href="/api/erp/financials/ap/page" class="btn btn-sm btn-outline-primary">
+                        View Details
+                    </a>
+                </div>
+                <div class="card-body">
+                    <canvas id="apAgingChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Second Row -->
+    <div class="row mb-4">
+        <!-- Recent Invoices -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Recent Invoices (AR)</h5>
+                    <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#invoiceModal">
+                        <i class="bi bi-plus-lg me-1"></i>New Invoice
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 300px;">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Customer</th>
+                                    <th>Amount</th>
+                                    <th>Due</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoicesTable">
+                                <tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Bills -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-receipt-cutoff me-2"></i>Recent Bills (AP)</h5>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#billModal">
+                        <i class="bi bi-plus-lg me-1"></i>New Bill
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 300px;">
+                        <table class="table table-hover table-sm mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Bill #</th>
+                                    <th>Vendor</th>
+                                    <th>Amount</th>
+                                    <th>Due</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billsTable">
+                                <tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Third Row -->
+    <div class="row mb-4">
+        <!-- Trial Balance Summary -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>Trial Balance Summary</h5>
+                    <a href="/api/erp/financials/gl/page" class="btn btn-sm btn-outline-primary">
+                        Full Report
+                    </a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 300px;">
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Name</th>
+                                    <th class="text-end">Debit</th>
+                                    <th class="text-end">Credit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trialBalanceTable">
+                                <tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                            <tfoot class="table-dark">
+                                <tr>
+                                    <th colspan="2">Totals</th>
+                                    <th class="text-end" id="totalDebits">$0.00</th>
+                                    <th class="text-end" id="totalCredits">$0.00</th>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cash Forecast -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-calendar-week me-2"></i>30-Day Cash Forecast</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="cashForecastChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Schedule -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Upcoming Payment Schedule</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Due Date</th>
+                                    <th>Bill #</th>
+                                    <th>Vendor</th>
+                                    <th>Amount</th>
+                                    <th>Payment Method</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentScheduleTable">
+                                <tr><td colspan="6" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Journal Entry Modal -->
+<div class="modal fade" id="journalEntryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Journal Entry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="journalEntryForm">
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <input type="text" class="form-control" id="jeDescription" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Entry Date</label>
+                        <input type="date" class="form-control" id="jeDate">
+                    </div>
+                    <h6>Journal Lines</h6>
+                    <div id="journalLines">
+                        <div class="row mb-2 journal-line">
+                            <div class="col-md-3">
+                                <select class="form-select" name="account">
+                                    <option value="">Select Account</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <input type="number" class="form-control" name="debit" placeholder="Debit" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="number" class="form-control" name="credit" placeholder="Credit" step="0.01">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="text" class="form-control" name="description" placeholder="Line description">
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addJournalLine()">
+                        <i class="bi bi-plus me-1"></i>Add Line
+                    </button>
+                    <div class="mt-3 d-flex justify-content-between">
+                        <span>Total Debits: <strong id="jeTotalDebits">$0.00</strong></span>
+                        <span>Total Credits: <strong id="jeTotalCredits">$0.00</strong></span>
+                        <span id="jeBalance" class="badge bg-success">Balanced</span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createJournalEntry()">Create Entry</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const API_BASE = '/api/erp/financials';
+let arAgingChart, apAgingChart, cashForecastChart;
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+    refreshDashboard();
+});
+
+function initCharts() {
+    // AR Aging Chart
+    const arCtx = document.getElementById('arAgingChart').getContext('2d');
+    arAgingChart = new Chart(arCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Current', '31-60 Days', '61-90 Days', '91-120 Days', 'Over 120'],
+            datasets: [{
+                label: 'Amount',
+                data: [0, 0, 0, 0, 0],
+                backgroundColor: ['#28a745', '#17a2b8', '#ffc107', '#fd7e14', '#dc3545']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: value => '$' + value.toLocaleString() }
+                }
+            }
+        }
+    });
+
+    // AP Aging Chart
+    const apCtx = document.getElementById('apAgingChart').getContext('2d');
+    apAgingChart = new Chart(apCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Current', '31-60 Days', '61-90 Days', 'Over 90 Days'],
+            datasets: [{
+                label: 'Amount',
+                data: [0, 0, 0, 0],
+                backgroundColor: ['#28a745', '#17a2b8', '#ffc107', '#dc3545']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { callback: value => '$' + value.toLocaleString() }
+                }
+            }
+        }
+    });
+
+    // Cash Forecast Chart
+    const cfCtx = document.getElementById('cashForecastChart').getContext('2d');
+    cashForecastChart = new Chart(cfCtx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Projected Cash',
+                data: [],
+                borderColor: '#28a745',
+                fill: false,
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    ticks: { callback: value => '$' + value.toLocaleString() }
+                }
+            }
+        }
+    });
+}
+
+async function refreshDashboard() {
+    await Promise.all([
+        loadSummary(),
+        loadARData(),
+        loadAPData(),
+        loadTrialBalance()
+    ]);
+}
+
+async function loadSummary() {
+    try {
+        const response = await fetch(`${API_BASE}/summary`);
+        const data = await response.json();
+
+        document.getElementById('cashBalance').textContent = formatCurrency(data.cash_balance);
+        document.getElementById('totalAR').textContent = formatCurrency(data.total_ar);
+        document.getElementById('totalAP').textContent = formatCurrency(data.total_ap);
+        document.getElementById('netWorkingCapital').textContent = formatCurrency(data.net_working_capital);
+        document.getElementById('dsoValue').textContent = `DSO: ${data.ar_dso || 0} days`;
+        document.getElementById('dpoValue').textContent = `DPO: ${data.ap_dpo || 0} days`;
+    } catch (error) {
+        console.error('Error loading summary:', error);
+    }
+}
+
+async function loadARData() {
+    try {
+        // Load AR aging
+        const agingResponse = await fetch(`${API_BASE}/ar/aging`);
+        const aging = await agingResponse.json();
+
+        if (aging.buckets) {
+            arAgingChart.data.datasets[0].data = [
+                aging.buckets.current?.amount || 0,
+                aging.buckets['31_60']?.amount || 0,
+                aging.buckets['61_90']?.amount || 0,
+                aging.buckets['91_120']?.amount || 0,
+                aging.buckets.over_120?.amount || 0
+            ];
+            arAgingChart.update();
+        }
+
+        // Load recent invoices
+        const invoicesResponse = await fetch(`${API_BASE}/ar/invoices?limit=10`);
+        const invoices = await invoicesResponse.json();
+
+        const tbody = document.getElementById('invoicesTable');
+        if (invoices.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No invoices</td></tr>';
+        } else {
+            tbody.innerHTML = invoices.map(inv => `
+                <tr>
+                    <td><a href="#">${inv.invoice_number}</a></td>
+                    <td>${inv.customer_name}</td>
+                    <td>${formatCurrency(inv.total_amount)}</td>
+                    <td>${inv.due_date}</td>
+                    <td><span class="badge ${getStatusBadge(inv.status)}">${inv.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Load cash forecast
+        const forecastResponse = await fetch(`${API_BASE}/ar/forecast?days=30`);
+        const forecast = await forecastResponse.json();
+
+        // Update forecast chart with sample projection
+        const today = new Date();
+        const labels = [];
+        const values = [];
+        let runningCash = 10000; // Starting estimate
+
+        for (let i = 0; i < 30; i++) {
+            const date = new Date(today);
+            date.setDate(date.getDate() + i);
+            labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+
+            // Add expected receipts for this day
+            const dayReceipts = forecast.filter(f => f.expected_date === date.toISOString().split('T')[0]);
+            dayReceipts.forEach(r => runningCash += r.amount);
+
+            values.push(runningCash);
+        }
+
+        cashForecastChart.data.labels = labels;
+        cashForecastChart.data.datasets[0].data = values;
+        cashForecastChart.update();
+
+    } catch (error) {
+        console.error('Error loading AR data:', error);
+    }
+}
+
+async function loadAPData() {
+    try {
+        // Load AP aging
+        const agingResponse = await fetch(`${API_BASE}/ap/aging`);
+        const aging = await agingResponse.json();
+
+        if (aging.buckets) {
+            apAgingChart.data.datasets[0].data = [
+                aging.buckets.current?.amount || 0,
+                aging.buckets['31_60']?.amount || 0,
+                aging.buckets['61_90']?.amount || 0,
+                aging.buckets.over_90?.amount || 0
+            ];
+            apAgingChart.update();
+        }
+
+        // Load recent bills
+        const billsResponse = await fetch(`${API_BASE}/ap/bills?limit=10`);
+        const bills = await billsResponse.json();
+
+        const tbody = document.getElementById('billsTable');
+        if (bills.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No bills</td></tr>';
+        } else {
+            tbody.innerHTML = bills.map(bill => `
+                <tr>
+                    <td><a href="#">${bill.bill_number}</a></td>
+                    <td>${bill.vendor_name}</td>
+                    <td>${formatCurrency(bill.total_amount)}</td>
+                    <td>${bill.due_date}</td>
+                    <td><span class="badge ${getStatusBadge(bill.status)}">${bill.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // Load payment schedule
+        const scheduleResponse = await fetch(`${API_BASE}/ap/schedule`);
+        const schedule = await scheduleResponse.json();
+
+        const scheduleBody = document.getElementById('paymentScheduleTable');
+        if (schedule.length === 0) {
+            scheduleBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No upcoming payments</td></tr>';
+        } else {
+            scheduleBody.innerHTML = schedule.map(s => `
+                <tr>
+                    <td>${s.due_date}</td>
+                    <td>${s.bill_number}</td>
+                    <td>${s.vendor}</td>
+                    <td>${formatCurrency(s.amount)}</td>
+                    <td>${s.preferred_method.toUpperCase()}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="payBill('${s.bill_id}')">
+                            <i class="bi bi-check me-1"></i>Pay
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+    } catch (error) {
+        console.error('Error loading AP data:', error);
+    }
+}
+
+async function loadTrialBalance() {
+    try {
+        const response = await fetch(`${API_BASE}/gl/trial-balance`);
+        const data = await response.json();
+
+        const tbody = document.getElementById('trialBalanceTable');
+
+        if (!data.accounts || data.accounts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No data</td></tr>';
+        } else {
+            tbody.innerHTML = data.accounts.slice(0, 10).map(acc => `
+                <tr>
+                    <td>${acc.account_number}</td>
+                    <td>${acc.account_name}</td>
+                    <td class="text-end">${acc.debit_balance > 0 ? formatCurrency(acc.debit_balance) : ''}</td>
+                    <td class="text-end">${acc.credit_balance > 0 ? formatCurrency(acc.credit_balance) : ''}</td>
+                </tr>
+            `).join('');
+        }
+
+        document.getElementById('totalDebits').textContent = formatCurrency(data.total_debits || 0);
+        document.getElementById('totalCredits').textContent = formatCurrency(data.total_credits || 0);
+
+    } catch (error) {
+        console.error('Error loading trial balance:', error);
+    }
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD'
+    }).format(value || 0);
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'paid': 'bg-success',
+        'draft': 'bg-secondary',
+        'pending': 'bg-warning text-dark',
+        'sent': 'bg-info',
+        'overdue': 'bg-danger',
+        'partially_paid': 'bg-primary'
+    };
+    return badges[status] || 'bg-secondary';
+}
+
+function addJournalLine() {
+    const container = document.getElementById('journalLines');
+    const line = container.querySelector('.journal-line').cloneNode(true);
+    line.querySelectorAll('input').forEach(input => input.value = '');
+    container.appendChild(line);
+}
+
+async function createJournalEntry() {
+    // Implementation for creating journal entry
+    alert('Journal entry creation - implementation pending');
+}
+
+async function payBill(billId) {
+    if (!confirm('Process payment for this bill?')) return;
+
+    try {
+        const response = await fetch(`${API_BASE}/ap/bills/${billId}/pay`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ payment_method: 'ach' })
+        });
+
+        if (response.ok) {
+            alert('Payment processed successfully');
+            refreshDashboard();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + (error.error || 'Failed to process payment'));
+        }
+    } catch (error) {
+        console.error('Error processing payment:', error);
+    }
+}
+</script>
+{% endblock %}

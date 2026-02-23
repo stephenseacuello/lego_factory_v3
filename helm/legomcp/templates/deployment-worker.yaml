@@ -1,0 +1,260 @@
+{{/*
+LegoMCP Worker Deployment
+PhD-Level Manufacturing Platform
+*/}}
+{{- if .Values.worker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "legomcp.fullname" . }}-worker
+  labels:
+    {{- include "legomcp.worker.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.worker.autoscaling.enabled }}
+  replicas: {{ .Values.worker.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "legomcp.worker.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+      labels:
+        {{- include "legomcp.worker.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- include "legomcp.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "legomcp.serviceAccountName" . }}
+      securityContext:
+        {{- include "legomcp.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: worker
+          securityContext:
+            {{- include "legomcp.containerSecurityContext" . | nindent 12 }}
+          image: "{{ .Values.worker.image.repository }}:{{ .Values.worker.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - worker
+            - worker
+            - --loglevel=info
+            - --concurrency={{ .Values.worker.celery.concurrency }}
+            - -Q
+            - {{ .Values.worker.celery.queues | join "," }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "legomcp.fullname" . }}-config
+            - configMapRef:
+                name: {{ include "legomcp.fullname" . }}-worker-config
+          env:
+            {{- include "legomcp.commonEnv" . | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - worker
+                - inspect
+                - ping
+                - -d
+                - celery@$HOSTNAME
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - worker
+                - inspect
+                - ping
+                - -d
+                - celery@$HOSTNAME
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /app/.cache
+            {{- if .Values.persistence.models.enabled }}
+            - name: models
+              mountPath: /app/models
+            {{- end }}
+            {{- if .Values.persistence.uploads.enabled }}
+            - name: uploads
+              mountPath: /app/uploads
+            {{- end }}
+            {{- if .Values.persistence.exports.enabled }}
+            - name: exports
+              mountPath: /app/exports
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        {{- if .Values.persistence.models.enabled }}
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ include "legomcp.fullname" . }}-models
+        {{- end }}
+        {{- if .Values.persistence.uploads.enabled }}
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ include "legomcp.fullname" . }}-uploads
+        {{- end }}
+        {{- if .Values.persistence.exports.enabled }}
+        - name: exports
+          persistentVolumeClaim:
+            claimName: {{ include "legomcp.fullname" . }}-exports
+        {{- end }}
+      {{- with .Values.worker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.worker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "legomcp.worker.selectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+      {{- end }}
+      {{- with .Values.worker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+---
+{{/*
+LegoMCP ML Worker Deployment (GPU-enabled)
+*/}}
+{{- if .Values.mlWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "legomcp.fullname" . }}-ml-worker
+  labels:
+    {{- include "legomcp.mlWorker.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.mlWorker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "legomcp.mlWorker.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate  # GPU pods need Recreate strategy
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
+      labels:
+        {{- include "legomcp.mlWorker.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- include "legomcp.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "legomcp.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: ml-worker
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          image: "{{ .Values.mlWorker.image.repository }}:{{ .Values.mlWorker.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.mlWorker.image.pullPolicy }}
+          command:
+            - celery
+            - -A
+            - worker
+            - worker
+            - --loglevel=info
+            - --concurrency={{ .Values.mlWorker.celery.concurrency }}
+            - -Q
+            - {{ .Values.mlWorker.celery.queues | join "," }}
+            - --pool=solo  # Required for GPU tasks
+          envFrom:
+            - configMapRef:
+                name: {{ include "legomcp.fullname" . }}-config
+            - configMapRef:
+                name: {{ include "legomcp.fullname" . }}-ml-worker-config
+          env:
+            {{- include "legomcp.commonEnv" . | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - worker
+                - inspect
+                - ping
+                - -d
+                - celery@$HOSTNAME
+            initialDelaySeconds: 120
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.mlWorker.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /app/.cache
+            - name: dshm
+              mountPath: /dev/shm
+            {{- if .Values.persistence.models.enabled }}
+            - name: models
+              mountPath: /app/models
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 4Gi
+        {{- if .Values.persistence.models.enabled }}
+        - name: models
+          persistentVolumeClaim:
+            claimName: {{ include "legomcp.fullname" . }}-models
+        {{- end }}
+      {{- with .Values.mlWorker.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mlWorker.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.mlWorker.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

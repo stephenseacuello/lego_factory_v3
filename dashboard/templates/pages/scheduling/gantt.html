@@ -1,0 +1,1669 @@
+{% extends "base.html" %}
+
+{% block title %}Production Scheduling - LEGO MCP v6.0{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --sc-primary: #8b5cf6;
+        --sc-secondary: #06b6d4;
+        --sc-accent: #a78bfa;
+        --sc-success: #10b981;
+        --sc-warning: #f59e0b;
+        --sc-danger: #ef4444;
+        --sc-info: #3b82f6;
+        --sc-dark: #0f172a;
+        --sc-darker: #020617;
+        --sc-card: #1e293b;
+        --sc-card-hover: #334155;
+        --sc-border: #334155;
+        --sc-text: #f8fafc;
+        --sc-text-muted: #94a3b8;
+        --sc-glow: rgba(139, 92, 246, 0.3);
+        --sc-job-1: #3b82f6;
+        --sc-job-2: #10b981;
+        --sc-job-3: #f59e0b;
+        --sc-job-4: #8b5cf6;
+        --sc-job-5: #ef4444;
+        --sc-job-6: #06b6d4;
+        --sc-job-7: #ec4899;
+        --sc-job-8: #14b8a6;
+    }
+
+    .scheduling-page {
+        background: linear-gradient(135deg, var(--sc-darker) 0%, var(--sc-dark) 100%);
+        min-height: 100vh;
+        padding: 24px;
+    }
+
+    /* Header Section */
+    .sc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 24px;
+        gap: 24px;
+        flex-wrap: wrap;
+    }
+
+    .sc-title-section h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--sc-primary), var(--sc-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0 0 8px 0;
+    }
+
+    .sc-subtitle {
+        color: var(--sc-text-muted);
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .sc-version-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(6, 182, 212, 0.15));
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 20px;
+        font-size: 0.8rem;
+        color: var(--sc-primary);
+    }
+
+    .sc-controls {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .sc-control-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .sc-control-group label {
+        font-size: 0.85rem;
+        color: var(--sc-text-muted);
+    }
+
+    .sc-select {
+        padding: 10px 14px;
+        background: var(--sc-card);
+        border: 1px solid var(--sc-border);
+        border-radius: 8px;
+        color: var(--sc-text);
+        font-size: 0.9rem;
+        cursor: pointer;
+        min-width: 140px;
+    }
+
+    .sc-select:focus {
+        outline: none;
+        border-color: var(--sc-primary);
+        box-shadow: 0 0 0 3px var(--sc-glow);
+    }
+
+    .sc-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid var(--sc-border);
+        background: var(--sc-card);
+        color: var(--sc-text);
+    }
+
+    .sc-btn:hover {
+        background: var(--sc-card-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .sc-btn-primary {
+        background: linear-gradient(135deg, var(--sc-primary), var(--sc-secondary));
+        border: none;
+        color: white;
+        font-weight: 600;
+    }
+
+    .sc-btn-primary:hover {
+        box-shadow: 0 4px 20px var(--sc-glow);
+    }
+
+    .sc-btn-success {
+        background: var(--sc-success);
+        border: none;
+        color: white;
+    }
+
+    /* KPI Summary Cards */
+    .sc-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .sc-kpi-card {
+        background: var(--sc-card);
+        border-radius: 12px;
+        padding: 18px;
+        border: 1px solid var(--sc-border);
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s;
+    }
+
+    .sc-kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .sc-kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--kpi-color), transparent);
+    }
+
+    .sc-kpi-card.makespan { --kpi-color: var(--sc-primary); }
+    .sc-kpi-card.utilization { --kpi-color: var(--sc-success); }
+    .sc-kpi-card.tardiness { --kpi-color: var(--sc-warning); }
+    .sc-kpi-card.jobs { --kpi-color: var(--sc-info); }
+    .sc-kpi-card.energy { --kpi-color: var(--sc-secondary); }
+    .sc-kpi-card.status { --kpi-color: var(--sc-success); }
+
+    .sc-kpi-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+
+    .sc-kpi-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+
+    .sc-kpi-card.makespan .sc-kpi-icon { background: rgba(139, 92, 246, 0.15); }
+    .sc-kpi-card.utilization .sc-kpi-icon { background: rgba(16, 185, 129, 0.15); }
+    .sc-kpi-card.tardiness .sc-kpi-icon { background: rgba(245, 158, 11, 0.15); }
+    .sc-kpi-card.jobs .sc-kpi-icon { background: rgba(59, 130, 246, 0.15); }
+    .sc-kpi-card.energy .sc-kpi-icon { background: rgba(6, 182, 212, 0.15); }
+    .sc-kpi-card.status .sc-kpi-icon { background: rgba(16, 185, 129, 0.15); }
+
+    .sc-kpi-trend {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.75rem;
+        padding: 3px 8px;
+        border-radius: 6px;
+    }
+
+    .sc-kpi-trend.up {
+        color: var(--sc-success);
+        background: rgba(16, 185, 129, 0.1);
+    }
+
+    .sc-kpi-trend.down {
+        color: var(--sc-danger);
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .sc-kpi-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--sc-text);
+        margin-bottom: 2px;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .sc-kpi-value .unit {
+        font-size: 0.6em;
+        color: var(--sc-text-muted);
+    }
+
+    .sc-kpi-label {
+        font-size: 0.8rem;
+        color: var(--sc-text-muted);
+    }
+
+    .sc-kpi-sparkline {
+        height: 28px;
+        margin-top: 10px;
+    }
+
+    /* Algorithm Tabs */
+    .sc-algo-section {
+        margin-bottom: 20px;
+    }
+
+    .sc-algo-tabs {
+        display: flex;
+        gap: 8px;
+        padding: 6px;
+        background: var(--sc-card);
+        border-radius: 12px;
+        border: 1px solid var(--sc-border);
+        width: fit-content;
+    }
+
+    .sc-algo-tab {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        color: var(--sc-text-muted);
+        background: transparent;
+        border: none;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .sc-algo-tab:hover {
+        color: var(--sc-text);
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .sc-algo-tab.active {
+        background: linear-gradient(135deg, var(--sc-primary), var(--sc-secondary));
+        color: white;
+    }
+
+    .sc-algo-badge {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Main Layout */
+    .sc-main-grid {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 20px;
+    }
+
+    /* Gantt Chart Container */
+    .sc-gantt-container {
+        background: var(--sc-card);
+        border-radius: 16px;
+        border: 1px solid var(--sc-border);
+        overflow: hidden;
+    }
+
+    .sc-gantt-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 18px 24px;
+        border-bottom: 1px solid var(--sc-border);
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), transparent);
+    }
+
+    .sc-gantt-title {
+        font-weight: 600;
+        color: var(--sc-text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .sc-gantt-tools {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+
+    .sc-zoom-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        border: 1px solid var(--sc-border);
+        background: var(--sc-dark);
+        color: var(--sc-text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .sc-zoom-btn:hover {
+        background: var(--sc-card-hover);
+        color: var(--sc-text);
+        border-color: var(--sc-primary);
+    }
+
+    .sc-gantt-body {
+        padding: 20px;
+        overflow-x: auto;
+        position: relative;
+    }
+
+    .sc-gantt-chart {
+        min-width: 1000px;
+        position: relative;
+    }
+
+    /* Time Scale */
+    .sc-timescale {
+        display: flex;
+        border-bottom: 2px solid var(--sc-border);
+        margin-left: 140px;
+        margin-bottom: 12px;
+    }
+
+    .sc-timescale-hour {
+        flex: 1;
+        min-width: 50px;
+        text-align: center;
+        padding: 10px 0;
+        font-size: 0.75rem;
+        color: var(--sc-text-muted);
+        border-right: 1px solid var(--sc-border);
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .sc-timescale-hour:last-child {
+        border-right: none;
+    }
+
+    .sc-timescale-hour.current {
+        color: var(--sc-danger);
+        font-weight: 600;
+    }
+
+    /* Gantt Rows */
+    .sc-gantt-row {
+        display: flex;
+        align-items: center;
+        height: 50px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        transition: background 0.2s;
+    }
+
+    .sc-gantt-row:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .sc-gantt-row:last-child {
+        border-bottom: none;
+    }
+
+    .sc-gantt-label {
+        width: 140px;
+        flex-shrink: 0;
+        padding: 0 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .sc-machine-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        background: rgba(139, 92, 246, 0.15);
+    }
+
+    .sc-machine-info {
+        flex: 1;
+    }
+
+    .sc-machine-name {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--sc-text);
+    }
+
+    .sc-machine-status {
+        font-size: 0.7rem;
+        color: var(--sc-success);
+    }
+
+    .sc-gantt-track {
+        flex: 1;
+        height: 100%;
+        position: relative;
+        background: repeating-linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.02) 0px,
+            rgba(255, 255, 255, 0.02) 50px,
+            transparent 50px,
+            transparent 100px
+        );
+    }
+
+    /* Gantt Bars */
+    .sc-gantt-bar {
+        position: absolute;
+        height: 34px;
+        top: 8px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        font-size: 0.75rem;
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .sc-gantt-bar:hover {
+        transform: scaleY(1.15);
+        z-index: 10;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    }
+
+    .sc-gantt-bar.job-1 { background: linear-gradient(135deg, var(--sc-job-1), #60a5fa); }
+    .sc-gantt-bar.job-2 { background: linear-gradient(135deg, var(--sc-job-2), #34d399); }
+    .sc-gantt-bar.job-3 { background: linear-gradient(135deg, var(--sc-job-3), #fbbf24); }
+    .sc-gantt-bar.job-4 { background: linear-gradient(135deg, var(--sc-job-4), #a78bfa); }
+    .sc-gantt-bar.job-5 { background: linear-gradient(135deg, var(--sc-job-5), #f87171); }
+    .sc-gantt-bar.job-6 { background: linear-gradient(135deg, var(--sc-job-6), #22d3ee); }
+    .sc-gantt-bar.job-7 { background: linear-gradient(135deg, var(--sc-job-7), #f472b6); }
+    .sc-gantt-bar.job-8 { background: linear-gradient(135deg, var(--sc-job-8), #2dd4bf); }
+
+    .sc-bar-content {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        overflow: hidden;
+    }
+
+    .sc-bar-progress {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 6px 0 0 6px;
+    }
+
+    /* Now Line */
+    .sc-now-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--sc-danger);
+        z-index: 5;
+        box-shadow: 0 0 10px var(--sc-danger);
+    }
+
+    .sc-now-line::before {
+        content: 'NOW';
+        position: absolute;
+        top: -24px;
+        left: -14px;
+        font-size: 0.65rem;
+        color: var(--sc-danger);
+        font-weight: 700;
+        background: var(--sc-card);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+
+    /* Loading Overlay */
+    .sc-loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.9);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 16px;
+        z-index: 100;
+        border-radius: 12px;
+    }
+
+    .sc-loading-overlay.active {
+        display: flex;
+    }
+
+    .sc-spinner {
+        width: 50px;
+        height: 50px;
+        border: 4px solid var(--sc-border);
+        border-top-color: var(--sc-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .sc-loading-text {
+        color: var(--sc-text);
+        font-size: 0.95rem;
+    }
+
+    /* Right Sidebar */
+    .sc-sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    /* Job Queue Panel */
+    .sc-panel {
+        background: var(--sc-card);
+        border-radius: 16px;
+        border: 1px solid var(--sc-border);
+        overflow: hidden;
+    }
+
+    .sc-panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--sc-border);
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), transparent);
+    }
+
+    .sc-panel-title {
+        font-weight: 600;
+        color: var(--sc-text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .sc-panel-badge {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: rgba(139, 92, 246, 0.15);
+        color: var(--sc-primary);
+    }
+
+    .sc-panel-content {
+        padding: 16px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    /* Job Queue Items */
+    .sc-job-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 10px;
+        margin-bottom: 8px;
+        transition: all 0.2s;
+        cursor: pointer;
+        border: 1px solid transparent;
+    }
+
+    .sc-job-item:hover {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--sc-border);
+    }
+
+    .sc-job-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .sc-job-color {
+        width: 8px;
+        height: 40px;
+        border-radius: 4px;
+        flex-shrink: 0;
+    }
+
+    .sc-job-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .sc-job-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--sc-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .sc-job-detail {
+        font-size: 0.75rem;
+        color: var(--sc-text-muted);
+        display: flex;
+        gap: 8px;
+        margin-top: 4px;
+    }
+
+    .sc-job-priority {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+
+    .sc-job-priority.high {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--sc-danger);
+    }
+
+    .sc-job-priority.medium {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--sc-warning);
+    }
+
+    .sc-job-priority.low {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--sc-success);
+    }
+
+    /* Pareto Panel */
+    .sc-pareto-panel {
+        display: none;
+    }
+
+    .sc-pareto-panel.active {
+        display: block;
+    }
+
+    .sc-pareto-grid {
+        display: grid;
+        gap: 10px;
+    }
+
+    .sc-pareto-solution {
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 10px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .sc-pareto-solution:hover {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--sc-border);
+    }
+
+    .sc-pareto-solution.selected {
+        border-color: var(--sc-primary);
+        background: rgba(139, 92, 246, 0.1);
+    }
+
+    .sc-pareto-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .sc-pareto-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: var(--sc-text);
+    }
+
+    .sc-pareto-rank {
+        font-size: 0.7rem;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: rgba(139, 92, 246, 0.15);
+        color: var(--sc-primary);
+    }
+
+    .sc-pareto-objectives {
+        display: grid;
+        gap: 6px;
+    }
+
+    .sc-pareto-obj {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+    }
+
+    .sc-pareto-obj-label {
+        color: var(--sc-text-muted);
+    }
+
+    .sc-pareto-obj-value {
+        font-weight: 600;
+        color: var(--sc-text);
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Optimization Log */
+    .sc-opt-log {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .sc-log-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 0.8rem;
+    }
+
+    .sc-log-item:last-child {
+        border-bottom: none;
+    }
+
+    .sc-log-time {
+        color: var(--sc-text-muted);
+        font-family: 'JetBrains Mono', monospace;
+        flex-shrink: 0;
+        font-size: 0.7rem;
+    }
+
+    .sc-log-type {
+        font-size: 0.65rem;
+        padding: 2px 6px;
+        border-radius: 4px;
+        flex-shrink: 0;
+    }
+
+    .sc-log-type.info { background: rgba(59, 130, 246, 0.15); color: var(--sc-info); }
+    .sc-log-type.success { background: rgba(16, 185, 129, 0.15); color: var(--sc-success); }
+    .sc-log-type.warning { background: rgba(245, 158, 11, 0.15); color: var(--sc-warning); }
+
+    .sc-log-message {
+        color: var(--sc-text);
+        flex: 1;
+    }
+
+    /* Toast Notifications */
+    .sc-toast-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .sc-toast {
+        background: var(--sc-card);
+        border: 1px solid var(--sc-border);
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 320px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        animation: toastSlide 0.4s ease-out;
+    }
+
+    @keyframes toastSlide {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .sc-toast.success { border-left: 4px solid var(--sc-success); }
+    .sc-toast.warning { border-left: 4px solid var(--sc-warning); }
+    .sc-toast.error { border-left: 4px solid var(--sc-danger); }
+    .sc-toast.info { border-left: 4px solid var(--sc-primary); }
+
+    .sc-toast-icon {
+        font-size: 1.3rem;
+    }
+
+    .sc-toast-content {
+        flex: 1;
+    }
+
+    .sc-toast-title {
+        font-weight: 600;
+        color: var(--sc-text);
+        font-size: 0.95rem;
+    }
+
+    .sc-toast-message {
+        font-size: 0.85rem;
+        color: var(--sc-text-muted);
+        margin-top: 2px;
+    }
+
+    .sc-toast-close {
+        background: none;
+        border: none;
+        color: var(--sc-text-muted);
+        cursor: pointer;
+        padding: 4px;
+        font-size: 1.1rem;
+    }
+
+    /* Connection Status */
+    .sc-connection-status {
+        position: fixed;
+        bottom: 24px;
+        left: 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        background: var(--sc-card);
+        border: 1px solid var(--sc-border);
+        border-radius: 10px;
+        z-index: 100;
+    }
+
+    .sc-connection-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--sc-success);
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .sc-connection-dot.disconnected {
+        background: var(--sc-danger);
+        animation: none;
+    }
+
+    .sc-connection-text {
+        font-size: 0.85rem;
+        color: var(--sc-text);
+    }
+
+    /* Empty State */
+    .sc-empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--sc-text-muted);
+    }
+
+    .sc-empty-icon {
+        font-size: 4rem;
+        margin-bottom: 16px;
+        opacity: 0.5;
+    }
+
+    .sc-empty-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: var(--sc-text);
+        margin-bottom: 8px;
+    }
+
+    .sc-empty-text {
+        font-size: 0.9rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 1400px) {
+        .sc-kpi-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 1100px) {
+        .sc-main-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .sc-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scheduling-page">
+    <!-- Header -->
+    <div class="sc-header">
+        <div class="sc-title-section">
+            <h1>Production Scheduling</h1>
+            <div class="sc-subtitle">
+                <span>Multi-algorithm optimization engine</span>
+                <span class="sc-version-badge">
+                    <i class="bi bi-cpu"></i>
+                    v6.0 Phase 17
+                </span>
+            </div>
+        </div>
+        <div class="sc-controls">
+            <div class="sc-control-group">
+                <label>Horizon:</label>
+                <select class="sc-select" id="horizonSelect">
+                    <option value="480">8 Hours</option>
+                    <option value="960">16 Hours</option>
+                    <option value="1440" selected>24 Hours</option>
+                    <option value="2880">48 Hours</option>
+                </select>
+            </div>
+            <button class="sc-btn" onclick="loadCurrentSchedule()">
+                <i class="bi bi-arrow-clockwise"></i>
+                Refresh
+            </button>
+            <button class="sc-btn sc-btn-primary" onclick="runOptimization()">
+                <i class="bi bi-lightning-charge-fill"></i>
+                Optimize Schedule
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="sc-kpi-grid">
+        <div class="sc-kpi-card makespan">
+            <div class="sc-kpi-header">
+                <div class="sc-kpi-icon">⏱️</div>
+                <div class="sc-kpi-trend down">
+                    <i class="bi bi-arrow-down"></i>
+                    <span>-8%</span>
+                </div>
+            </div>
+            <div class="sc-kpi-value" id="kpiMakespan">--<span class="unit">min</span></div>
+            <div class="sc-kpi-label">Makespan</div>
+            <div class="sc-kpi-sparkline" id="sparkMakespan"></div>
+        </div>
+
+        <div class="sc-kpi-card utilization">
+            <div class="sc-kpi-header">
+                <div class="sc-kpi-icon">📊</div>
+                <div class="sc-kpi-trend up">
+                    <i class="bi bi-arrow-up"></i>
+                    <span>+5.2%</span>
+                </div>
+            </div>
+            <div class="sc-kpi-value" id="kpiUtilization">--<span class="unit">%</span></div>
+            <div class="sc-kpi-label">Utilization</div>
+            <div class="sc-kpi-sparkline" id="sparkUtilization"></div>
+        </div>
+
+        <div class="sc-kpi-card tardiness">
+            <div class="sc-kpi-header">
+                <div class="sc-kpi-icon">⚠️</div>
+                <div class="sc-kpi-trend down">
+                    <i class="bi bi-arrow-down"></i>
+                    <span>-12%</span>
+                </div>
+            </div>
+            <div class="sc-kpi-value" id="kpiTardiness">--<span class="unit">min</span></div>
+            <div class="sc-kpi-label">Total Tardiness</div>
+            <div class="sc-kpi-sparkline" id="sparkTardiness"></div>
+        </div>
+
+        <div class="sc-kpi-card jobs">
+            <div class="sc-kpi-header">
+                <div class="sc-kpi-icon">📋</div>
+                <div class="sc-kpi-trend up">
+                    <i class="bi bi-arrow-up"></i>
+                    <span>+3</span>
+                </div>
+            </div>
+            <div class="sc-kpi-value" id="kpiJobs">--</div>
+            <div class="sc-kpi-label">Jobs Scheduled</div>
+            <div class="sc-kpi-sparkline" id="sparkJobs"></div>
+        </div>
+
+        <div class="sc-kpi-card energy">
+            <div class="sc-kpi-header">
+                <div class="sc-kpi-icon">⚡</div>
+                <div class="sc-kpi-trend down">
+                    <i class="bi bi-arrow-down"></i>
+                    <span>-15%</span>
+                </div>
+            </div>
+            <div class="sc-kpi-value" id="kpiEnergy">--<span class="unit">kWh</span></div>
+            <div class="sc-kpi-label">Energy</div>
+            <div class="sc-kpi-sparkline" id="sparkEnergy"></div>
+        </div>
+
+        <div class="sc-kpi-card status">
+            <div class="sc-kpi-header">
+                <div class="sc-kpi-icon">✅</div>
+            </div>
+            <div class="sc-kpi-value" id="kpiStatus" style="font-size: 1.3rem;">Ready</div>
+            <div class="sc-kpi-label">Optimization Status</div>
+        </div>
+    </div>
+
+    <!-- Algorithm Tabs -->
+    <div class="sc-algo-section">
+        <div class="sc-algo-tabs">
+            <button class="sc-algo-tab active" data-algo="cp-sat">
+                <i class="bi bi-bullseye"></i>
+                CP-SAT
+                <span class="sc-algo-badge">Optimal</span>
+            </button>
+            <button class="sc-algo-tab" data-algo="nsga2">
+                <i class="bi bi-diagram-3"></i>
+                NSGA-II
+                <span class="sc-algo-badge">Pareto</span>
+            </button>
+            <button class="sc-algo-tab" data-algo="qaoa">
+                <i class="bi bi-cpu"></i>
+                QAOA
+                <span class="sc-algo-badge">Quantum</span>
+            </button>
+            <button class="sc-algo-tab" data-algo="rl">
+                <i class="bi bi-robot"></i>
+                PPO/SAC
+                <span class="sc-algo-badge">RL</span>
+            </button>
+            <button class="sc-algo-tab" data-algo="greedy">
+                <i class="bi bi-lightning"></i>
+                Greedy
+                <span class="sc-algo-badge">Fast</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="sc-main-grid">
+        <!-- Gantt Chart -->
+        <div class="sc-gantt-container">
+            <div class="sc-gantt-header">
+                <div class="sc-gantt-title">
+                    <i class="bi bi-bar-chart-steps"></i>
+                    Schedule Gantt Chart
+                </div>
+                <div class="sc-gantt-tools">
+                    <button class="sc-zoom-btn" onclick="adjustZoom(-1)" title="Zoom Out">
+                        <i class="bi bi-dash"></i>
+                    </button>
+                    <span id="zoomLevel" style="color: var(--sc-text-muted); font-size: 0.85rem; min-width: 40px; text-align: center;">2x</span>
+                    <button class="sc-zoom-btn" onclick="adjustZoom(1)" title="Zoom In">
+                        <i class="bi bi-plus"></i>
+                    </button>
+                    <button class="sc-zoom-btn" onclick="exportSchedule()" title="Export">
+                        <i class="bi bi-download"></i>
+                    </button>
+                    <button class="sc-zoom-btn" onclick="toggleFullscreen()" title="Fullscreen">
+                        <i class="bi bi-fullscreen"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="sc-gantt-body" id="ganttBody">
+                <div class="sc-loading-overlay" id="loadingOverlay">
+                    <div class="sc-spinner"></div>
+                    <div class="sc-loading-text">Optimizing schedule...</div>
+                </div>
+                <div class="sc-gantt-chart" id="ganttChart">
+                    <div class="sc-timescale" id="ganttTimescale"></div>
+                    <div id="ganttRows">
+                        <div class="sc-empty-state">
+                            <div class="sc-empty-icon">📊</div>
+                            <div class="sc-empty-title">No Schedule Generated</div>
+                            <div class="sc-empty-text">Click "Optimize Schedule" to generate a production schedule</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="sc-sidebar">
+            <!-- Job Queue Panel -->
+            <div class="sc-panel">
+                <div class="sc-panel-header">
+                    <div class="sc-panel-title">
+                        <i class="bi bi-list-task"></i>
+                        Job Queue
+                    </div>
+                    <span class="sc-panel-badge" id="jobCount">0 jobs</span>
+                </div>
+                <div class="sc-panel-content" id="jobQueue">
+                    <div class="sc-job-item">
+                        <div class="sc-job-color" style="background: var(--sc-job-1);"></div>
+                        <div class="sc-job-info">
+                            <div class="sc-job-name">LEGO-2x4-Brick-100</div>
+                            <div class="sc-job-detail">
+                                <span>6 ops</span>
+                                <span>45 min</span>
+                            </div>
+                        </div>
+                        <span class="sc-job-priority high">High</span>
+                    </div>
+                    <div class="sc-job-item">
+                        <div class="sc-job-color" style="background: var(--sc-job-2);"></div>
+                        <div class="sc-job-info">
+                            <div class="sc-job-name">LEGO-1x2-Plate-200</div>
+                            <div class="sc-job-detail">
+                                <span>4 ops</span>
+                                <span>30 min</span>
+                            </div>
+                        </div>
+                        <span class="sc-job-priority medium">Med</span>
+                    </div>
+                    <div class="sc-job-item">
+                        <div class="sc-job-color" style="background: var(--sc-job-3);"></div>
+                        <div class="sc-job-info">
+                            <div class="sc-job-name">LEGO-4x4-Base-50</div>
+                            <div class="sc-job-detail">
+                                <span>8 ops</span>
+                                <span>60 min</span>
+                            </div>
+                        </div>
+                        <span class="sc-job-priority low">Low</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pareto Panel (for NSGA-II) -->
+            <div class="sc-panel sc-pareto-panel" id="paretoPanel">
+                <div class="sc-panel-header">
+                    <div class="sc-panel-title">
+                        <i class="bi bi-diagram-3"></i>
+                        Pareto Solutions
+                    </div>
+                    <span class="sc-panel-badge" id="paretoCount">0 solutions</span>
+                </div>
+                <div class="sc-panel-content">
+                    <div class="sc-pareto-grid" id="paretoGrid">
+                        <!-- Pareto solutions loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Optimization Log -->
+            <div class="sc-panel">
+                <div class="sc-panel-header">
+                    <div class="sc-panel-title">
+                        <i class="bi bi-terminal"></i>
+                        Optimization Log
+                    </div>
+                    <button class="sc-zoom-btn" onclick="clearLog()" title="Clear">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+                <div class="sc-panel-content">
+                    <div class="sc-opt-log" id="optLog">
+                        <div class="sc-log-item">
+                            <span class="sc-log-time">--:--:--</span>
+                            <span class="sc-log-type info">INFO</span>
+                            <span class="sc-log-message">Ready to optimize</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="sc-toast-container" id="toastContainer"></div>
+
+<!-- Connection Status -->
+<div class="sc-connection-status">
+    <div class="sc-connection-dot" id="connectionDot"></div>
+    <span class="sc-connection-text" id="connectionText">Scheduler Ready</span>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    // State
+    const state = {
+        currentSchedule: null,
+        zoom: 2,
+        algorithm: 'cp-sat',
+        connected: false
+    };
+
+    // Socket.IO
+    let socket;
+
+    function initWebSocket() {
+        try {
+            socket = io('/scheduling', {
+                transports: ['websocket'],
+                reconnection: true
+            });
+
+            socket.on('connect', () => {
+                state.connected = true;
+                updateConnectionStatus(true);
+                addLog('success', 'Connected to scheduler');
+            });
+
+            socket.on('disconnect', () => {
+                state.connected = false;
+                updateConnectionStatus(false);
+            });
+
+            socket.on('schedule_update', (data) => {
+                if (data.schedule) {
+                    displaySchedule(data.schedule);
+                    updateStats(data.schedule);
+                }
+            });
+
+            socket.on('optimization_progress', (data) => {
+                addLog('info', `Progress: ${data.iteration}/${data.total} - Best: ${data.best_objective}`);
+            });
+        } catch(e) {
+            console.log('WebSocket not available');
+            updateConnectionStatus(true);
+        }
+    }
+
+    function updateConnectionStatus(connected) {
+        const dot = document.getElementById('connectionDot');
+        const text = document.getElementById('connectionText');
+        if (connected) {
+            dot.classList.remove('disconnected');
+            text.textContent = 'Scheduler Ready';
+        } else {
+            dot.classList.add('disconnected');
+            text.textContent = 'Reconnecting...';
+        }
+    }
+
+    // Toast notifications
+    function showToast(type, title, message) {
+        const container = document.getElementById('toastContainer');
+        const icons = { success: '✅', warning: '⚠️', error: '❌', info: 'ℹ️' };
+
+        const toast = document.createElement('div');
+        toast.className = `sc-toast ${type}`;
+        toast.innerHTML = `
+            <span class="sc-toast-icon">${icons[type]}</span>
+            <div class="sc-toast-content">
+                <div class="sc-toast-title">${title}</div>
+                <div class="sc-toast-message">${message}</div>
+            </div>
+            <button class="sc-toast-close" onclick="this.parentElement.remove()">×</button>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    // Log
+    function addLog(type, message) {
+        const log = document.getElementById('optLog');
+        const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+        const html = `
+            <div class="sc-log-item">
+                <span class="sc-log-time">${time}</span>
+                <span class="sc-log-type ${type}">${type.toUpperCase()}</span>
+                <span class="sc-log-message">${message}</span>
+            </div>
+        `;
+        log.insertAdjacentHTML('afterbegin', html);
+        while (log.children.length > 50) log.lastChild.remove();
+    }
+
+    function clearLog() {
+        document.getElementById('optLog').innerHTML = '';
+        addLog('info', 'Log cleared');
+    }
+
+    // Algorithm tabs
+    document.querySelectorAll('.sc-algo-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.sc-algo-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            state.algorithm = this.dataset.algo;
+
+            // Show/hide Pareto panel for NSGA-II
+            const paretoPanel = document.getElementById('paretoPanel');
+            paretoPanel.classList.toggle('active', state.algorithm === 'nsga2');
+
+            addLog('info', `Algorithm: ${state.algorithm.toUpperCase()}`);
+        });
+    });
+
+    // Run optimization
+    async function runOptimization() {
+        const horizon = parseInt(document.getElementById('horizonSelect').value);
+        showLoading(true);
+        addLog('info', `Starting ${state.algorithm.toUpperCase()} optimization...`);
+
+        try {
+            const endpoint = state.algorithm === 'nsga2'
+                ? '/api/scheduling/optimize/nsga2'
+                : '/api/scheduling/optimize/cp-sat';
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ horizon, time_limit: 30 })
+            });
+
+            const data = await response.json();
+
+            if (state.algorithm === 'nsga2' && data.pareto_front) {
+                displayParetoFront(data.pareto_front);
+            }
+
+            if (data.schedule || data.best_schedule) {
+                const schedule = data.schedule || data.best_schedule;
+                state.currentSchedule = schedule;
+                displaySchedule(schedule);
+                updateStats(schedule);
+                showToast('success', 'Optimization Complete', `Makespan: ${schedule.makespan} min`);
+                addLog('success', `Optimal solution found: ${schedule.makespan} min`);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showToast('error', 'Error', 'Optimization failed');
+            addLog('warning', 'Optimization failed - using demo data');
+            loadDemoSchedule();
+        }
+
+        showLoading(false);
+    }
+
+    // Seeded generator for reproducible schedule data
+    function seededValue(seed) {
+        return (Math.sin(seed) * 10000) % 1;
+    }
+
+    function loadDemoSchedule() {
+        const horizon = parseInt(document.getElementById('horizonSelect').value);
+        const machines = ['Printer-01', 'Printer-02', 'Printer-03', 'Assembler-01', 'QC-Station'];
+        const jobs = ['J001', 'J002', 'J003', 'J004', 'J005', 'J006'];
+
+        // Use time-based seed for reproducible but time-varying schedules
+        const timeSeed = Math.floor(Date.now() / 300000); // Changes every 5 min
+
+        const operations = [];
+        machines.forEach((machine, mi) => {
+            let currentTime = Math.abs(seededValue(timeSeed + mi)) * 60;
+            for (let i = 0; i < 4; i++) {
+                const seed = timeSeed + mi * 10 + i;
+                const duration = 30 + Math.abs(seededValue(seed)) * 90;
+                const jobIdx = Math.floor(Math.abs(seededValue(seed + 100)) * jobs.length);
+                const progress = (mi * 4 + i) / 20; // Deterministic progress based on position
+                operations.push({
+                    machine_id: machine,
+                    job_id: jobs[jobIdx % jobs.length],
+                    operation_id: `OP-${mi}-${i}`,
+                    start_time: currentTime,
+                    end_time: currentTime + duration,
+                    progress: progress
+                });
+                currentTime += duration + Math.abs(seededValue(seed + 200)) * 20;
+            }
+        });
+
+        // Pattern-based objectives
+        const hour = new Date().getHours();
+        const shiftBonus = (hour >= 6 && hour < 14) ? 0.05 : (hour >= 14 && hour < 22) ? 0.02 : 0;
+
+        const schedule = {
+            operations,
+            makespan: Math.max(...operations.map(o => o.end_time)),
+            objectives: {
+                total_tardiness: 20 + Math.floor(Math.sin(timeSeed * 0.1) * 15),
+                utilization: 0.82 + shiftBonus + Math.sin(timeSeed * 0.2) * 0.05,
+                energy_kwh: 120 + Math.sin(timeSeed * 0.3) * 20
+            },
+            status: 'optimal'
+        };
+
+        state.currentSchedule = schedule;
+        displaySchedule(schedule);
+        updateStats(schedule);
+    }
+
+    function displaySchedule(schedule) {
+        const operations = schedule.operations || [];
+        const horizon = parseInt(document.getElementById('horizonSelect').value);
+
+        const machineOps = {};
+        operations.forEach(op => {
+            if (!machineOps[op.machine_id]) machineOps[op.machine_id] = [];
+            machineOps[op.machine_id].push(op);
+        });
+
+        // Time scale
+        const timescale = document.getElementById('ganttTimescale');
+        const hours = Math.ceil(horizon / 60);
+        const currentHour = new Date().getHours();
+        timescale.innerHTML = Array.from({length: hours}, (_, i) =>
+            `<div class="sc-timescale-hour ${i === currentHour ? 'current' : ''}">${String(i).padStart(2, '0')}:00</div>`
+        ).join('');
+
+        // Gantt rows
+        const rowsDiv = document.getElementById('ganttRows');
+        const machines = Object.keys(machineOps).sort();
+
+        if (machines.length === 0) {
+            rowsDiv.innerHTML = `
+                <div class="sc-empty-state">
+                    <div class="sc-empty-icon">📊</div>
+                    <div class="sc-empty-title">No Operations</div>
+                    <div class="sc-empty-text">Schedule is empty</div>
+                </div>
+            `;
+            return;
+        }
+
+        const trackWidth = 900 * state.zoom;
+        const pxPerMin = trackWidth / horizon;
+        const nowPosition = (new Date().getHours() * 60 + new Date().getMinutes()) * pxPerMin;
+
+        rowsDiv.innerHTML = machines.map(machine => {
+            const ops = machineOps[machine];
+            const machineIcon = machine.includes('Printer') ? '🖨️' :
+                               machine.includes('Assembler') ? '🔧' :
+                               machine.includes('QC') ? '🔍' : '⚙️';
+
+            const bars = ops.map((op, i) => {
+                const left = op.start_time * pxPerMin;
+                const width = Math.max(30, (op.end_time - op.start_time) * pxPerMin);
+                const jobIndex = (parseInt(op.job_id?.replace(/\D/g, '') || i) % 8) + 1;
+                const progress = (op.progress || 0) * 100;
+
+                return `
+                    <div class="sc-gantt-bar job-${jobIndex}"
+                         style="left: ${left}px; width: ${width}px;"
+                         title="${op.job_id}: ${op.operation_id}&#10;${op.start_time.toFixed(0)} - ${op.end_time.toFixed(0)} min"
+                         onclick="selectOperation('${op.operation_id}')">
+                        ${progress > 0 ? `<div class="sc-bar-progress" style="width: ${progress}%"></div>` : ''}
+                        <span class="sc-bar-content">${op.job_id || op.operation_id}</span>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="sc-gantt-row">
+                    <div class="sc-gantt-label">
+                        <div class="sc-machine-icon">${machineIcon}</div>
+                        <div class="sc-machine-info">
+                            <div class="sc-machine-name">${machine}</div>
+                            <div class="sc-machine-status">Active</div>
+                        </div>
+                    </div>
+                    <div class="sc-gantt-track" style="width: ${trackWidth}px;">
+                        ${bars}
+                        <div class="sc-now-line" style="left: ${nowPosition}px;"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function updateStats(schedule) {
+        document.getElementById('kpiMakespan').innerHTML = `${schedule.makespan?.toFixed(0) || '--'}<span class="unit">min</span>`;
+        document.getElementById('kpiTardiness').innerHTML = `${schedule.objectives?.total_tardiness?.toFixed(0) || '0'}<span class="unit">min</span>`;
+        document.getElementById('kpiUtilization').innerHTML = `${((schedule.objectives?.utilization || 0) * 100).toFixed(1)}<span class="unit">%</span>`;
+        document.getElementById('kpiJobs').textContent = schedule.operations?.length || 0;
+        document.getElementById('kpiEnergy').innerHTML = `${schedule.objectives?.energy_kwh?.toFixed(1) || '--'}<span class="unit">kWh</span>`;
+
+        const statusEl = document.getElementById('kpiStatus');
+        const status = schedule.status || 'unknown';
+        statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        statusEl.style.color = status === 'optimal' ? 'var(--sc-success)' :
+                               status === 'feasible' ? 'var(--sc-warning)' : 'var(--sc-text)';
+    }
+
+    function displayParetoFront(solutions) {
+        const grid = document.getElementById('paretoGrid');
+        document.getElementById('paretoCount').textContent = `${solutions.length} solutions`;
+
+        grid.innerHTML = solutions.slice(0, 5).map((sol, i) => `
+            <div class="sc-pareto-solution" onclick="selectParetoSolution(${i})">
+                <div class="sc-pareto-header">
+                    <span class="sc-pareto-name">Solution ${i + 1}</span>
+                    <span class="sc-pareto-rank">#${i + 1}</span>
+                </div>
+                <div class="sc-pareto-objectives">
+                    <div class="sc-pareto-obj">
+                        <span class="sc-pareto-obj-label">Makespan</span>
+                        <span class="sc-pareto-obj-value">${sol.makespan?.toFixed(0) || '--'} min</span>
+                    </div>
+                    <div class="sc-pareto-obj">
+                        <span class="sc-pareto-obj-label">Tardiness</span>
+                        <span class="sc-pareto-obj-value">${sol.tardiness?.toFixed(0) || '0'}</span>
+                    </div>
+                    <div class="sc-pareto-obj">
+                        <span class="sc-pareto-obj-label">Energy</span>
+                        <span class="sc-pareto-obj-value">${sol.energy_kwh?.toFixed(1) || '--'} kWh</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function selectParetoSolution(index) {
+        document.querySelectorAll('.sc-pareto-solution').forEach((el, i) => {
+            el.classList.toggle('selected', i === index);
+        });
+        showToast('info', 'Solution Selected', `Viewing Pareto solution #${index + 1}`);
+    }
+
+    function selectOperation(opId) {
+        showToast('info', 'Operation Selected', opId);
+    }
+
+    function adjustZoom(delta) {
+        state.zoom = Math.max(1, Math.min(4, state.zoom + delta * 0.5));
+        document.getElementById('zoomLevel').textContent = state.zoom + 'x';
+        if (state.currentSchedule) displaySchedule(state.currentSchedule);
+    }
+
+    function showLoading(show) {
+        document.getElementById('loadingOverlay').classList.toggle('active', show);
+    }
+
+    function loadCurrentSchedule() {
+        addLog('info', 'Refreshing schedule...');
+        if (state.currentSchedule) {
+            displaySchedule(state.currentSchedule);
+            showToast('success', 'Refreshed', 'Schedule updated');
+        }
+    }
+
+    function exportSchedule() {
+        if (state.currentSchedule) {
+            const blob = new Blob([JSON.stringify(state.currentSchedule, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'schedule.json';
+            a.click();
+            showToast('success', 'Exported', 'Schedule saved to JSON');
+        }
+    }
+
+    function toggleFullscreen() {
+        const container = document.querySelector('.sc-gantt-container');
+        if (!document.fullscreenElement) {
+            container.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    // Sparklines
+    function createSparkline(containerId, color, data) {
+        const trace = {
+            y: data,
+            type: 'scatter',
+            mode: 'lines',
+            line: { color, width: 2 },
+            fill: 'tozeroy',
+            fillcolor: color.replace(')', ', 0.1)').replace('rgb', 'rgba')
+        };
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            margin: { t: 0, r: 0, b: 0, l: 0 },
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            showlegend: false
+        };
+        Plotly.newPlot(containerId, [trace], layout, { displayModeBar: false, responsive: true });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        initWebSocket();
+
+        // Sparklines with pattern-based data
+        const sparkSeed = Math.floor(Date.now() / 300000); // 5-minute stability
+        createSparkline('sparkMakespan', 'rgb(139, 92, 246)', Array.from({length: 15}, (_, i) =>
+            400 + 50 + Math.sin((sparkSeed + i) * 0.5) * 50));
+        createSparkline('sparkUtilization', 'rgb(16, 185, 129)', Array.from({length: 15}, (_, i) =>
+            70 + 10 + Math.sin((sparkSeed + i) * 0.7) * 10));
+        createSparkline('sparkTardiness', 'rgb(245, 158, 11)', Array.from({length: 15}, (_, i) =>
+            10 + 15 + Math.sin((sparkSeed + i) * 0.3) * 15));
+        createSparkline('sparkJobs', 'rgb(59, 130, 246)', Array.from({length: 15}, (_, i) =>
+            15 + 5 + Math.sin((sparkSeed + i) * 0.9) * 5));
+        createSparkline('sparkEnergy', 'rgb(6, 182, 212)', Array.from({length: 15}, (_, i) =>
+            100 + 25 + Math.sin((sparkSeed + i) * 0.4) * 25));
+
+        showToast('success', 'Scheduler Ready', 'Multi-algorithm optimization available');
+    });
+</script>
+{% endblock %}

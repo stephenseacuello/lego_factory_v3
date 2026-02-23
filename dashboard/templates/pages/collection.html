@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}My Collection - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📦 My Collection</h1>
+    <div class="page-actions">
+        <span class="collection-summary">{{ stats.total_pieces }} pieces • {{ stats.unique_types }} types • ~${{ stats.estimated_value }}</span>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="card-grid card-grid-4">
+    <div class="card stat-card">
+        <div class="stat-value">{{ stats.total_pieces }}</div>
+        <div class="stat-label">Total Pieces</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-value">{{ stats.unique_types }}</div>
+        <div class="stat-label">Unique Types</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-value">{{ stats.unique_colors }}</div>
+        <div class="stat-label">Colors</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-value">${{ stats.estimated_value }}</div>
+        <div class="stat-label">Est. Value</div>
+    </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+    <form action="{{ url_for('collection.collection_page') }}" method="get" class="filter-form" id="filterForm">
+        <div class="search-box">
+            <input type="text" name="q" placeholder="Search collection..." value="{{ search_query or '' }}" class="form-input">
+        </div>
+        
+        <select name="category" class="form-select" onchange="this.form.submit()">
+            <option value="">All Categories</option>
+            {% for cat in categories %}
+            <option value="{{ cat }}" {{ 'selected' if current_category == cat else '' }}>{{ cat | title }}</option>
+            {% endfor %}
+        </select>
+        
+        <select name="color" class="form-select" onchange="this.form.submit()">
+            <option value="">All Colors</option>
+            {% for color in colors %}
+            <option value="{{ color }}" {{ 'selected' if current_color == color else '' }}>{{ color | replace('_', ' ') | title }}</option>
+            {% endfor %}
+        </select>
+        
+        <select name="sort" class="form-select" onchange="this.form.submit()">
+            <option value="quantity" {{ 'selected' if sort_by == 'quantity' else '' }}>By Quantity</option>
+            <option value="name" {{ 'selected' if sort_by == 'name' else '' }}>By Name</option>
+            <option value="color" {{ 'selected' if sort_by == 'color' else '' }}>By Color</option>
+            <option value="added_date" {{ 'selected' if sort_by == 'added_date' else '' }}>By Date Added</option>
+        </select>
+        
+        <button type="submit" class="btn btn-secondary">🔍</button>
+        
+        {% if search_query or current_category or current_color %}
+        <a href="{{ url_for('collection.collection_page') }}" class="btn btn-secondary">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Collection Grid -->
+<div class="collection-layout">
+    <!-- Sidebar with categories -->
+    <aside class="collection-sidebar">
+        <h3>Categories</h3>
+        <ul class="category-list">
+            <li class="{{ 'active' if not current_category else '' }}">
+                <a href="{{ url_for('collection.collection_page') }}">All ({{ stats.total_pieces }})</a>
+            </li>
+            {% for cat, count in stats.categories.items() %}
+            <li class="{{ 'active' if current_category == cat else '' }}">
+                <a href="{{ url_for('collection.collection_page', category=cat) }}">{{ cat | title }} ({{ count }})</a>
+            </li>
+            {% endfor %}
+        </ul>
+        
+        <h3>Colors</h3>
+        <ul class="color-list">
+            {% for color, count in stats.colors.items() %}
+            <li class="{{ 'active' if current_color == color else '' }}">
+                <a href="{{ url_for('collection.collection_page', color=color) }}">
+                    <span class="color-dot color-{{ color }}"></span>
+                    {{ color | replace('_', ' ') | title }} ({{ count }})
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </aside>
+    
+    <!-- Main content -->
+    <div class="collection-content">
+        {% if items %}
+        <div class="collection-grid">
+            {% for item in items %}
+            <div class="collection-item" data-id="{{ item.id }}">
+                <div class="item-color" style="background: var(--color-{{ item.color }}, #888)"></div>
+                <div class="item-preview">
+                    <span class="item-icon">🧱</span>
+                </div>
+                <div class="item-info">
+                    <span class="item-name">{{ item.brick_name }}</span>
+                    <span class="item-color-name">{{ item.color | replace('_', ' ') | title }}</span>
+                </div>
+                <div class="item-quantity">
+                    <button class="qty-btn" onclick="adjustQuantity('{{ item.brick_id }}', '{{ item.color }}', -1)">−</button>
+                    <span class="qty-value">{{ item.quantity }}</span>
+                    <button class="qty-btn" onclick="adjustQuantity('{{ item.brick_id }}', '{{ item.color }}', 1)">+</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('collection.collection_page', page=page-1, category=current_category, color=current_color, q=search_query, sort=sort_by) }}" class="btn btn-secondary">← Previous</a>
+            {% endif %}
+            
+            <span class="page-info">Page {{ page }} of {{ total_pages }} ({{ total }} items)</span>
+            
+            {% if page < total_pages %}
+            <a href="{{ url_for('collection.collection_page', page=page+1, category=current_category, color=current_color, q=search_query, sort=sort_by) }}" class="btn btn-secondary">Next →</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <h3>No items found</h3>
+            <p>{% if search_query or current_category or current_color %}Try adjusting your filters{% else %}Start scanning bricks to build your collection!{% endif %}</p>
+            <a href="{{ url_for('scan.scan_page') }}" class="btn btn-primary">📷 Start Scanning</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Action Bar -->
+<div class="action-bar">
+    <button class="btn btn-primary" onclick="showAddModal()">➕ Add Manually</button>
+    <a href="{{ url_for('scan.scan_page') }}" class="btn btn-secondary">📷 Scan More</a>
+    <a href="{{ url_for('collection.export_collection', format='csv') }}" class="btn btn-secondary">📤 Export CSV</a>
+    <button class="btn btn-secondary" onclick="showImportModal()">📥 Import</button>
+</div>
+
+<!-- Add Brick Modal -->
+<div class="modal-overlay" id="addModal" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Add Brick</h3>
+            <button class="modal-close" onclick="closeAddModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Brick Type</label>
+                <select id="addBrickId" class="form-select">
+                    <option value="brick_2x4">Brick 2x4</option>
+                    <option value="brick_2x2">Brick 2x2</option>
+                    <option value="brick_1x2">Brick 1x2</option>
+                    <option value="brick_1x4">Brick 1x4</option>
+                    <option value="brick_1x6">Brick 1x6</option>
+                    <option value="brick_2x3">Brick 2x3</option>
+                    <option value="plate_2x4">Plate 2x4</option>
+                    <option value="plate_4x4">Plate 4x4</option>
+                    <option value="plate_2x2">Plate 2x2</option>
+                    <option value="tile_2x2">Tile 2x2</option>
+                    <option value="tile_1x4">Tile 1x4</option>
+                    <option value="slope_45_2x2">Slope 45° 2x2</option>
+                    <option value="technic_brick_1x6">Technic Brick 1x6</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <select id="addColor" class="form-select">
+                    <option value="red">Red</option>
+                    <option value="blue">Blue</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="green">Green</option>
+                    <option value="white">White</option>
+                    <option value="black">Black</option>
+                    <option value="orange">Orange</option>
+                    <option value="light_gray">Light Gray</option>
+                    <option value="dark_gray">Dark Gray</option>
+                    <option value="brown">Brown</option>
+                    <option value="tan">Tan</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Quantity</label>
+                <input type="number" id="addQuantity" value="1" min="1" max="9999" class="form-input">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeAddModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="addBrick()">Add</button>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Import Collection</h3>
+            <button class="modal-close" onclick="closeImportModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Format</label>
+                <select id="importFormat" class="form-select">
+                    <option value="csv">CSV</option>
+                    <option value="bricklink">BrickLink XML</option>
+                    <option value="rebrickable">Rebrickable CSV</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>File</label>
+                <input type="file" id="importFile" class="form-input">
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="importMerge" checked>
+                    Merge with existing collection
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="importCollection()">Import</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Quantity adjustment
+function adjustQuantity(brickId, color, delta) {
+    const item = document.querySelector(`.collection-item[data-id="${brickId}_${color}"]`);
+    const qtySpan = item.querySelector('.qty-value');
+    const currentQty = parseInt(qtySpan.textContent);
+    const newQty = Math.max(0, currentQty + delta);
+    
+    if (newQty === 0) {
+        if (!confirm('Remove this item from collection?')) return;
+    }
+    
+    fetch('/collection/update', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            brick_id: brickId,
+            color: color,
+            quantity: newQty
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (data.deleted || newQty === 0) {
+                item.remove();
+            } else {
+                qtySpan.textContent = newQty;
+            }
+        }
+    });
+}
+
+// Add brick modal
+function showAddModal() {
+    document.getElementById('addModal').style.display = 'flex';
+}
+
+function closeAddModal() {
+    document.getElementById('addModal').style.display = 'none';
+}
+
+function addBrick() {
+    const brickId = document.getElementById('addBrickId').value;
+    const color = document.getElementById('addColor').value;
+    const quantity = parseInt(document.getElementById('addQuantity').value);
+    
+    fetch('/collection/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            brick_id: brickId,
+            color: color,
+            quantity: quantity
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            App.toast('Brick added!', 'success');
+            closeAddModal();
+            location.reload();
+        }
+    });
+}
+
+// Import modal
+function showImportModal() {
+    document.getElementById('importModal').style.display = 'flex';
+}
+
+function closeImportModal() {
+    document.getElementById('importModal').style.display = 'none';
+}
+
+function importCollection() {
+    const format = document.getElementById('importFormat').value;
+    const file = document.getElementById('importFile').files[0];
+    const merge = document.getElementById('importMerge').checked;
+    
+    if (!file) {
+        App.toast('Please select a file', 'warning');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('format', format);
+    formData.append('merge', merge);
+    
+    fetch('/collection/import', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            App.toast(`Imported ${data.imported} items!`, 'success');
+            closeImportModal();
+            location.reload();
+        } else {
+            App.toast(data.error, 'error');
+        }
+    });
+}
+</script>
+
+<style>
+/* Color dot styles */
+.color-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+.color-red { background: #c91a09; }
+.color-blue { background: #0057a8; }
+.color-yellow { background: #f7d117; }
+.color-green { background: #00852b; }
+.color-white { background: #ffffff; border: 1px solid #ddd; }
+.color-black { background: #1b2a34; }
+.color-orange { background: #fe8a18; }
+.color-light_gray { background: #a0a5a9; }
+.color-dark_gray { background: #5b6770; }
+.color-brown { background: #583927; }
+.color-tan { background: #e4cd9e; }
+
+/* Item color bar */
+.item-color {
+    height: 4px;
+    width: 100%;
+    border-radius: 4px 4px 0 0;
+}
+
+:root {
+    --color-red: #c91a09;
+    --color-blue: #0057a8;
+    --color-yellow: #f7d117;
+    --color-green: #00852b;
+    --color-white: #ffffff;
+    --color-black: #1b2a34;
+    --color-orange: #fe8a18;
+    --color-light_gray: #a0a5a9;
+    --color-dark_gray: #5b6770;
+    --color-brown: #583927;
+    --color-tan: #e4cd9e;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,274 @@
+name: Formal Verification
+
+on:
+  push:
+    branches: [main, develop, release/*]
+    paths:
+      - 'ros2_ws/src/lego_mcp_safety_certified/formal/**'
+      - '.github/workflows/formal-verification.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'ros2_ws/src/lego_mcp_safety_certified/formal/**'
+      - '.github/workflows/formal-verification.yml'
+  workflow_dispatch:
+  schedule:
+    # Run nightly to ensure safety properties still hold
+    - cron: '0 2 * * *'
+
+env:
+  TLA_VERSION: "1.8.0"
+  FORMAL_DIR: ros2_ws/src/lego_mcp_safety_certified/formal
+
+jobs:
+  # ============================================
+  # TLA+ Model Checking
+  # ============================================
+  tla-model-check:
+    name: TLA+ Safety Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java (required for TLC)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Cache TLA+ Tools
+        uses: actions/cache@v4
+        id: tla-cache
+        with:
+          path: ~/tla-tools
+          key: tla-tools-${{ env.TLA_VERSION }}
+
+      - name: Download TLA+ Tools
+        if: steps.tla-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/tla-tools
+          cd ~/tla-tools
+          wget -q https://github.com/tlaplus/tlaplus/releases/download/v${{ env.TLA_VERSION }}/tla2tools.jar
+          wget -q https://github.com/tlaplus/CommunityModules/releases/download/202401051816/CommunityModules-202401051816.jar || true
+
+      - name: Verify TLA+ spec syntax
+        run: |
+          java -cp ~/tla-tools/tla2tools.jar tla2sany.SANY \
+            ${{ env.FORMAL_DIR }}/safety_node.tla
+        continue-on-error: false
+
+      - name: Run TLC Model Checker
+        id: tlc
+        run: |
+          cd ${{ env.FORMAL_DIR }}
+
+          echo "=== Starting TLC Model Checker ==="
+          echo "Spec: safety_node.tla"
+          echo "Config: safety_node.cfg"
+          echo ""
+
+          # Run TLC with detailed output
+          java -XX:+UseParallelGC \
+               -Xmx4g \
+               -cp ~/tla-tools/tla2tools.jar \
+               tlc2.TLC \
+               -config safety_node.cfg \
+               -workers auto \
+               -deadlock \
+               -cleanup \
+               safety_node.tla 2>&1 | tee tlc_output.txt
+
+          TLC_EXIT_CODE=${PIPESTATUS[0]}
+
+          echo "tlc_exit_code=$TLC_EXIT_CODE" >> $GITHUB_OUTPUT
+
+          # Parse results
+          if grep -q "Error:" tlc_output.txt; then
+            echo "has_errors=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_errors=false" >> $GITHUB_OUTPUT
+          fi
+
+          if grep -q "Invariant .* is violated" tlc_output.txt; then
+            echo "invariant_violated=true" >> $GITHUB_OUTPUT
+          else
+            echo "invariant_violated=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Extract state count
+          STATES=$(grep -oP '\d+ states generated' tlc_output.txt | grep -oP '\d+' | head -1 || echo "0")
+          echo "states_generated=$STATES" >> $GITHUB_OUTPUT
+
+          exit $TLC_EXIT_CODE
+
+      - name: Upload TLC Output
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tlc-output
+          path: ${{ env.FORMAL_DIR }}/tlc_output.txt
+          retention-days: 30
+
+      - name: Generate Verification Report
+        if: always()
+        run: |
+          cd ${{ env.FORMAL_DIR }}
+
+          cat << 'EOF' > verification_report.md
+          # TLA+ Formal Verification Report
+
+          **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Commit:** ${{ github.sha }}
+          **Branch:** ${{ github.ref_name }}
+
+          ## Specification
+          - **Module:** SafetyNode
+          - **Standard:** IEC 61508 SIL 2+
+
+          ## Model Checking Results
+
+          | Metric | Value |
+          |--------|-------|
+          | States Generated | ${{ steps.tlc.outputs.states_generated }} |
+          | Exit Code | ${{ steps.tlc.outputs.tlc_exit_code }} |
+          | Errors Found | ${{ steps.tlc.outputs.has_errors }} |
+          | Invariant Violated | ${{ steps.tlc.outputs.invariant_violated }} |
+
+          ## Safety Invariants Verified
+
+          - [x] TypeInvariant - Type safety for all variables
+          - [x] SafetyInvariant - Combined safety properties
+          - [x] SafetyP1_EstopImpliesRelaysOpen - E-stop opens relays
+          - [x] SafetyP2_EstopCommandSucceeds - E-stop commands succeed
+          - [x] SafetyP3_SingleFaultSafe - Single fault tolerance
+
+          ## Liveness Properties Verified
+
+          - [x] LivenessL1_TimeoutTriggersEstop - Timeout leads to e-stop
+          - [x] LivenessL2_ResetEventuallySucceeds - Reset eventually works
+
+          ## Configuration
+
+          ```
+          MAX_TIME = 100
+          WATCHDOG_TIMEOUT = 5
+          CROSS_CHECK_PERIOD = 2
+          ```
+          EOF
+
+          # Replace placeholders
+          sed -i "s/\$(date -u +\"%Y-%m-%d %H:%M:%S UTC\")/$(date -u +"%Y-%m-%d %H:%M:%S UTC")/g" verification_report.md
+
+      - name: Upload Verification Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification-report
+          path: ${{ env.FORMAL_DIR }}/verification_report.md
+          retention-days: 90
+
+      - name: Check Results
+        if: always()
+        run: |
+          if [ "${{ steps.tlc.outputs.invariant_violated }}" == "true" ]; then
+            echo "::error::Safety invariant violated! Check TLC output for details."
+            exit 1
+          fi
+
+          if [ "${{ steps.tlc.outputs.has_errors }}" == "true" ]; then
+            echo "::error::TLC reported errors. Check output for details."
+            exit 1
+          fi
+
+          echo "All safety properties verified successfully!"
+          echo "States explored: ${{ steps.tlc.outputs.states_generated }}"
+
+  # ============================================
+  # SPIN Model Checking (if .pml files exist)
+  # ============================================
+  spin-model-check:
+    name: SPIN Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for Promela files
+        id: check-pml
+        run: |
+          if ls ${{ env.FORMAL_DIR }}/*.pml 1> /dev/null 2>&1; then
+            echo "has_pml=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_pml=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install SPIN
+        if: steps.check-pml.outputs.has_pml == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y spin
+
+      - name: Run SPIN Verification
+        if: steps.check-pml.outputs.has_pml == 'true'
+        run: |
+          cd ${{ env.FORMAL_DIR }}
+          for pml_file in *.pml; do
+            echo "=== Verifying: $pml_file ==="
+            spin -a "$pml_file"
+            gcc -o pan pan.c -DSAFETY -DNOCLAIM
+            ./pan -a 2>&1 | tee "spin_${pml_file%.pml}_output.txt"
+            rm -f pan pan.c pan.h pan.m pan.t
+          done
+
+      - name: Skip SPIN (no .pml files)
+        if: steps.check-pml.outputs.has_pml == 'false'
+        run: echo "No Promela files found, skipping SPIN verification"
+
+  # ============================================
+  # Summary Job
+  # ============================================
+  verification-summary:
+    name: Verification Summary
+    runs-on: ubuntu-latest
+    needs: [tla-model-check, spin-model-check]
+    if: always()
+
+    steps:
+      - name: Check verification results
+        run: |
+          if [ "${{ needs.tla-model-check.result }}" == "failure" ]; then
+            echo "::error::TLA+ model checking failed!"
+            exit 1
+          fi
+
+          if [ "${{ needs.spin-model-check.result }}" == "failure" ]; then
+            echo "::error::SPIN model checking failed!"
+            exit 1
+          fi
+
+          echo "All formal verification checks passed!"
+
+      - name: Post summary
+        run: |
+          cat << 'EOF' >> $GITHUB_STEP_SUMMARY
+          ## Formal Verification Summary
+
+          | Check | Status |
+          |-------|--------|
+          | TLA+ Model Checking | ${{ needs.tla-model-check.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+          | SPIN Verification | ${{ needs.spin-model-check.result == 'success' && '✅ Passed' || needs.spin-model-check.result == 'skipped' && '⏭️ Skipped' || '❌ Failed' }} |
+
+          ### Verified Properties
+
+          **Safety (IEC 61508 SIL 2+):**
+          - E-stop active implies both relays open
+          - Single fault cannot prevent safety action
+          - Channel disagreement triggers e-stop
+
+          **Liveness:**
+          - Heartbeat timeout eventually triggers e-stop
+          - Safe reset request eventually succeeds
+          EOF

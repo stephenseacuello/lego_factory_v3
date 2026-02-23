@@ -1,0 +1,490 @@
+{% extends "base.html" %}
+
+{% block title %}QFD Cascade - 4-Phase Deployment{% endblock %}
+
+{% block head %}
+<style>
+    .cascade-container {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+        padding: 1rem;
+    }
+
+    .phase-card {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border-left: 4px solid var(--accent-color);
+    }
+
+    .phase-card.phase-1 { border-left-color: #3b82f6; }
+    .phase-card.phase-2 { border-left-color: #10b981; }
+    .phase-card.phase-3 { border-left-color: #f59e0b; }
+    .phase-card.phase-4 { border-left-color: #ef4444; }
+
+    .phase-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .phase-number {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: white;
+    }
+
+    .phase-1 .phase-number { background: #3b82f6; }
+    .phase-2 .phase-number { background: #10b981; }
+    .phase-3 .phase-number { background: #f59e0b; }
+    .phase-4 .phase-number { background: #ef4444; }
+
+    .hoq-mini {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 1rem;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .hoq-mini .whats, .hoq-mini .hows {
+        padding: 0.5rem;
+    }
+
+    .hoq-mini h4 {
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+    }
+
+    .requirement-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .requirement-list li {
+        padding: 0.25rem 0;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .requirement-list .importance {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: bold;
+    }
+
+    .importance.high { background: #fee2e2; color: #991b1b; }
+    .importance.medium { background: #fef3c7; color: #92400e; }
+    .importance.low { background: #d1fae5; color: #065f46; }
+
+    .cascade-arrow {
+        display: flex;
+        justify-content: center;
+        padding: 0.5rem 0;
+    }
+
+    .cascade-arrow svg {
+        width: 24px;
+        height: 24px;
+        color: var(--text-secondary);
+    }
+
+    .relationship-matrix {
+        display: grid;
+        gap: 2px;
+        background: var(--border-color);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .matrix-cell {
+        background: var(--bg-primary);
+        padding: 0.25rem;
+        text-align: center;
+        font-size: 0.75rem;
+    }
+
+    .matrix-cell.strong { background: #065f46; color: white; }
+    .matrix-cell.moderate { background: #d97706; color: white; }
+    .matrix-cell.weak { background: #9ca3af; color: white; }
+
+    .phase-metrics {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .metric-badge {
+        background: var(--bg-primary);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+    }
+
+    .cascade-flow {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        margin-bottom: 2rem;
+    }
+
+    .flow-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .flow-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .flow-arrow {
+        color: var(--text-secondary);
+    }
+
+    .controls-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: var(--accent-color);
+        color: white;
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <header class="page-header">
+        <h1>QFD Cascade - 4-Phase Deployment</h1>
+        <p>Quality Function Deployment from Customer Requirements to Production</p>
+    </header>
+
+    <div class="controls-bar">
+        <button class="btn btn-primary" onclick="createNewCascade()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New QFD Cascade
+        </button>
+        <button class="btn btn-secondary" onclick="loadProject()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Load Project
+        </button>
+        <button class="btn btn-secondary" onclick="exportReport()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export Report
+        </button>
+    </div>
+
+    <!-- Cascade Flow Visualization -->
+    <div class="cascade-flow">
+        <div class="flow-step">
+            <div class="flow-icon" style="background: #dbeafe;">👥</div>
+            <span>Customer</span>
+        </div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">
+            <div class="flow-icon" style="background: #dbeafe;">📐</div>
+            <span>Design</span>
+        </div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">
+            <div class="flow-icon" style="background: #d1fae5;">🧩</div>
+            <span>Parts</span>
+        </div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">
+            <div class="flow-icon" style="background: #fef3c7;">⚙️</div>
+            <span>Process</span>
+        </div>
+        <span class="flow-arrow">→</span>
+        <div class="flow-step">
+            <div class="flow-icon" style="background: #fee2e2;">🏭</div>
+            <span>Production</span>
+        </div>
+    </div>
+
+    <div class="cascade-container">
+        <!-- Phase 1: Product Planning -->
+        <div class="phase-card phase-1">
+            <div class="phase-header">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="phase-number">1</div>
+                    <div>
+                        <h3>Product Planning HOQ</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">Customer Requirements → Design Requirements</p>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="editPhase(1)">Edit</button>
+            </div>
+
+            <div class="hoq-mini">
+                <div class="whats">
+                    <h4>WHATs (Customer Requirements)</h4>
+                    <ul class="requirement-list">
+                        <li><span class="importance high">10</span> Compatible with official LEGO</li>
+                        <li><span class="importance high">9</span> Bricks connect firmly</li>
+                        <li><span class="importance medium">8</span> Easy to separate</li>
+                        <li><span class="importance medium">7</span> Accurate colors</li>
+                        <li><span class="importance low">6</span> Smooth surface finish</li>
+                    </ul>
+                </div>
+                <div class="hows">
+                    <h4>HOWs (Design Requirements)</h4>
+                    <ul class="requirement-list">
+                        <li>Stud diameter: 4.8mm ±0.02</li>
+                        <li>Clutch force: 2.0N (1.0-3.0N)</li>
+                        <li>Dimensional accuracy: 99.5%</li>
+                        <li>Color ΔE: ≤2.0</li>
+                        <li>Surface roughness Ra: ≤1.6μm</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="phase-metrics">
+                <span class="metric-badge">5 Customer Requirements</span>
+                <span class="metric-badge">5 Design Requirements</span>
+                <span class="metric-badge">18 Relationships Mapped</span>
+            </div>
+        </div>
+
+        <div class="cascade-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <polyline points="19 12 12 19 5 12"></polyline>
+            </svg>
+        </div>
+
+        <!-- Phase 2: Part Deployment -->
+        <div class="phase-card phase-2">
+            <div class="phase-header">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="phase-number">2</div>
+                    <div>
+                        <h3>Part Deployment HOQ</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">Design Requirements → Part Characteristics</p>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="editPhase(2)">Edit</button>
+            </div>
+
+            <div class="hoq-mini">
+                <div class="whats">
+                    <h4>WHATs (From Phase 1 HOWs)</h4>
+                    <ul class="requirement-list">
+                        <li><span class="importance high">9</span> Stud diameter precision</li>
+                        <li><span class="importance high">9</span> Clutch force range</li>
+                        <li><span class="importance medium">8</span> Dimensional accuracy</li>
+                        <li><span class="importance medium">7</span> Color consistency</li>
+                        <li><span class="importance low">6</span> Surface quality</li>
+                    </ul>
+                </div>
+                <div class="hows">
+                    <h4>HOWs (Part Characteristics)</h4>
+                    <ul class="requirement-list">
+                        <li>Stud geometry (taper, height)</li>
+                        <li>Anti-stud tube design</li>
+                        <li>Wall thickness uniformity</li>
+                        <li>Material composition</li>
+                        <li>Layer adhesion strength</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="phase-metrics">
+                <span class="metric-badge">5 Design Requirements</span>
+                <span class="metric-badge">5 Part Characteristics</span>
+                <span class="metric-badge">15 Relationships Mapped</span>
+            </div>
+        </div>
+
+        <div class="cascade-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <polyline points="19 12 12 19 5 12"></polyline>
+            </svg>
+        </div>
+
+        <!-- Phase 3: Process Planning -->
+        <div class="phase-card phase-3">
+            <div class="phase-header">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="phase-number">3</div>
+                    <div>
+                        <h3>Process Planning HOQ</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">Part Characteristics → Process Parameters</p>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="editPhase(3)">Edit</button>
+            </div>
+
+            <div class="hoq-mini">
+                <div class="whats">
+                    <h4>WHATs (From Phase 2 HOWs)</h4>
+                    <ul class="requirement-list">
+                        <li><span class="importance high">9</span> Stud geometry</li>
+                        <li><span class="importance high">9</span> Anti-stud design</li>
+                        <li><span class="importance medium">8</span> Wall uniformity</li>
+                        <li><span class="importance medium">7</span> Material composition</li>
+                        <li><span class="importance medium">7</span> Layer adhesion</li>
+                    </ul>
+                </div>
+                <div class="hows">
+                    <h4>HOWs (Process Parameters)</h4>
+                    <ul class="requirement-list">
+                        <li>Nozzle temperature: 200-215°C</li>
+                        <li>Print speed: 40-60mm/s</li>
+                        <li>Layer height: 0.12-0.16mm</li>
+                        <li>Infill pattern: Grid 20%</li>
+                        <li>Cooling fan speed: 100%</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="phase-metrics">
+                <span class="metric-badge">5 Part Characteristics</span>
+                <span class="metric-badge">5 Process Parameters</span>
+                <span class="metric-badge">20 Relationships Mapped</span>
+            </div>
+        </div>
+
+        <div class="cascade-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <polyline points="19 12 12 19 5 12"></polyline>
+            </svg>
+        </div>
+
+        <!-- Phase 4: Production Planning -->
+        <div class="phase-card phase-4">
+            <div class="phase-header">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="phase-number">4</div>
+                    <div>
+                        <h3>Production Planning HOQ</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.875rem;">Process Parameters → Production Requirements</p>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" onclick="editPhase(4)">Edit</button>
+            </div>
+
+            <div class="hoq-mini">
+                <div class="whats">
+                    <h4>WHATs (From Phase 3 HOWs)</h4>
+                    <ul class="requirement-list">
+                        <li><span class="importance high">9</span> Temperature control</li>
+                        <li><span class="importance high">9</span> Speed consistency</li>
+                        <li><span class="importance medium">8</span> Layer precision</li>
+                        <li><span class="importance medium">7</span> Infill quality</li>
+                        <li><span class="importance medium">7</span> Cooling effectiveness</li>
+                    </ul>
+                </div>
+                <div class="hows">
+                    <h4>HOWs (Production Requirements)</h4>
+                    <ul class="requirement-list">
+                        <li>Printer calibration SOP</li>
+                        <li>Quality inspection checklist</li>
+                        <li>Operator training program</li>
+                        <li>Preventive maintenance schedule</li>
+                        <li>SPC control charts</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="phase-metrics">
+                <span class="metric-badge">5 Process Parameters</span>
+                <span class="metric-badge">5 Production Requirements</span>
+                <span class="metric-badge">16 Relationships Mapped</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function createNewCascade() {
+    window.location.href = '/quality/hoq?mode=new';
+}
+
+function loadProject() {
+    // Show project selector modal
+    alert('Project selector coming soon');
+}
+
+function exportReport() {
+    fetch('/api/v6/quality/qfd/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: 'pdf' })
+    })
+    .then(response => response.blob())
+    .then(blob => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'qfd_cascade_report.pdf';
+        a.click();
+    });
+}
+
+function editPhase(phaseNumber) {
+    window.location.href = `/quality/hoq?phase=${phaseNumber}`;
+}
+</script>
+{% endblock %}

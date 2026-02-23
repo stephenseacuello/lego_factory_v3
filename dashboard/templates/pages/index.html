@@ -1,0 +1,1158 @@
+{% extends "base.html" %}
+
+{% block title %}LEGO MCP - Manufacturing Command Center{% endblock %}
+
+{% block styles %}
+<style>
+    .command-center {
+        padding: 0;
+    }
+
+    /* Dashboard Header */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, var(--hmi-primary) 0%, #1e40af 100%);
+        color: white;
+        border-radius: var(--hmi-card-radius);
+        margin-bottom: 1.5rem;
+    }
+
+    .dashboard-header h1 {
+        margin: 0;
+        font-size: 1.75rem;
+        font-weight: 700;
+    }
+
+    .dashboard-header .subtitle {
+        opacity: 0.9;
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    .header-stats {
+        display: flex;
+        gap: 2rem;
+        align-items: center;
+    }
+
+    .header-stat {
+        text-align: center;
+    }
+
+    .header-stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .header-stat-label {
+        font-size: 0.75rem;
+        opacity: 0.85;
+        text-transform: uppercase;
+    }
+
+    /* Grid Layout */
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 1rem;
+    }
+
+    .grid-col-3 { grid-column: span 3; }
+    .grid-col-4 { grid-column: span 4; }
+    .grid-col-6 { grid-column: span 6; }
+    .grid-col-8 { grid-column: span 8; }
+    .grid-col-12 { grid-column: span 12; }
+
+    @media (max-width: 1200px) {
+        .grid-col-3 { grid-column: span 6; }
+        .grid-col-4 { grid-column: span 6; }
+    }
+
+    @media (max-width: 768px) {
+        .grid-col-3, .grid-col-4, .grid-col-6, .grid-col-8 {
+            grid-column: span 12;
+        }
+    }
+
+    /* KPI Row */
+    .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .kpi-row {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .kpi-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    /* OEE Section */
+    .oee-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+        padding: 1.5rem;
+    }
+
+    .oee-main-gauge {
+        flex-shrink: 0;
+    }
+
+    .oee-breakdown {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .oee-factor {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .oee-factor-label {
+        width: 100px;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .oee-factor-bar {
+        flex: 1;
+        height: 8px;
+        background: var(--hmi-card-border);
+        border-radius: 4px;
+        overflow: hidden;
+        min-width: 120px;
+    }
+
+    .oee-factor-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .oee-factor-fill.availability { background: var(--hmi-blue); }
+    .oee-factor-fill.performance { background: var(--hmi-green); }
+    .oee-factor-fill.quality { background: var(--hmi-purple); }
+
+    .oee-factor-value {
+        width: 50px;
+        text-align: right;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    /* Equipment Grid */
+    .equipment-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .equipment-mini {
+        background: var(--hmi-card-bg);
+        border: 1px solid var(--hmi-card-border);
+        border-radius: 8px;
+        padding: 0.75rem;
+        text-align: center;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .equipment-mini::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+    }
+
+    .equipment-mini.running::before { background: var(--hmi-green); }
+    .equipment-mini.idle::before { background: var(--hmi-yellow); }
+    .equipment-mini.down::before { background: var(--hmi-red); }
+    .equipment-mini.maintenance::before { background: var(--hmi-orange); }
+
+    .equipment-mini-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .equipment-mini-name {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .equipment-mini-status {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    /* Work Order Row */
+    .wo-row {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--hmi-card-border);
+        gap: 1rem;
+    }
+
+    .wo-row:last-child {
+        border-bottom: none;
+    }
+
+    .wo-priority {
+        width: 4px;
+        height: 36px;
+        border-radius: 2px;
+        flex-shrink: 0;
+    }
+
+    .wo-priority.critical { background: var(--hmi-red); }
+    .wo-priority.high { background: var(--hmi-orange); }
+    .wo-priority.medium { background: var(--hmi-yellow); }
+    .wo-priority.low { background: var(--hmi-green); }
+
+    .wo-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .wo-number {
+        font-weight: 600;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+    }
+
+    .wo-part {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .wo-progress-container {
+        width: 120px;
+        flex-shrink: 0;
+    }
+
+    .wo-qty {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-align: right;
+    }
+
+    /* Activity Feed */
+    .activity-feed {
+        max-height: 350px;
+        overflow-y: auto;
+    }
+
+    .activity-item {
+        display: flex;
+        align-items: flex-start;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--hmi-card-border);
+        gap: 0.75rem;
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        flex-shrink: 0;
+    }
+
+    .activity-icon.quality { background: rgba(34, 197, 94, 0.1); }
+    .activity-icon.production { background: rgba(59, 130, 246, 0.1); }
+    .activity-icon.maintenance { background: rgba(249, 115, 22, 0.1); }
+    .activity-icon.alert { background: rgba(239, 68, 68, 0.1); }
+
+    .activity-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .activity-text {
+        font-size: 0.875rem;
+        color: var(--text-primary);
+        line-height: 1.4;
+    }
+
+    .activity-time {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Quick Actions Grid */
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.75rem;
+    }
+
+    .quick-action {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 1.25rem 0.75rem;
+        background: var(--hmi-card-bg);
+        border: 1px solid var(--hmi-card-border);
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--text-primary);
+        transition: all 0.2s ease;
+    }
+
+    .quick-action:hover {
+        background: var(--hmi-primary);
+        color: white;
+        border-color: var(--hmi-primary);
+        transform: translateY(-2px);
+    }
+
+    .quick-action-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .quick-action-text {
+        font-size: 0.75rem;
+        font-weight: 500;
+        text-align: center;
+    }
+
+    @media (max-width: 768px) {
+        .quick-actions {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    /* Service Status */
+    .service-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    .service-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+    }
+
+    .service-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    .service-dot.connected { background: var(--hmi-green); }
+    .service-dot.disconnected { background: var(--hmi-red); }
+    .service-dot.degraded { background: var(--hmi-yellow); }
+
+    .service-name {
+        font-size: 0.75rem;
+        font-weight: 500;
+        flex: 1;
+    }
+
+    .service-latency {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Chart Placeholder */
+    .chart-area {
+        height: 200px;
+        background: linear-gradient(180deg, transparent 0%, var(--bg-tertiary) 100%);
+        border-radius: 8px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-around;
+        padding: 1rem;
+    }
+
+    .chart-bar {
+        width: 30px;
+        background: linear-gradient(180deg, var(--hmi-primary) 0%, var(--hmi-blue) 100%);
+        border-radius: 4px 4px 0 0;
+        opacity: 0.8;
+        transition: height 0.5s ease;
+    }
+
+    /* Alerts Panel */
+    .alerts-panel {
+        max-height: 250px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="command-center">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div>
+            <h1>Manufacturing Command Center</h1>
+            <div class="subtitle">LEGO MCP v6.0 World-Class Manufacturing Platform</div>
+        </div>
+        <div class="header-stats">
+            <div class="header-stat">
+                <div class="header-stat-value" id="liveOEE">--</div>
+                <div class="header-stat-label">Plant OEE</div>
+            </div>
+            <div class="header-stat">
+                <div class="header-stat-value" id="liveProduction">--</div>
+                <div class="header-stat-label">Parts Today</div>
+            </div>
+            <div class="header-stat">
+                <div class="header-stat-value" id="liveQuality">--</div>
+                <div class="header-stat-label">Quality</div>
+            </div>
+            <div class="hmi-connection-status" id="connectionStatus">
+                <span class="connection-dot"></span>
+                <span class="connection-text">Connecting...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards Row -->
+    <div class="kpi-row">
+        <div class="hmi-kpi-card">
+            <div class="hmi-kpi-icon" style="background: rgba(34, 197, 94, 0.1); color: var(--hmi-green);">
+                <span>Running</span>
+            </div>
+            <div class="hmi-kpi-value" id="runningMachines">-</div>
+            <div class="hmi-kpi-label">Running Machines</div>
+            <div class="hmi-kpi-trend trend-up">
+                <span>+2</span> vs yesterday
+            </div>
+        </div>
+
+        <div class="hmi-kpi-card">
+            <div class="hmi-kpi-icon" style="background: rgba(249, 115, 22, 0.1); color: var(--hmi-orange);">
+                <span>Active</span>
+            </div>
+            <div class="hmi-kpi-value" id="activeWOs">-</div>
+            <div class="hmi-kpi-label">Active Work Orders</div>
+            <div class="hmi-kpi-trend">
+                <span>3</span> urgent
+            </div>
+        </div>
+
+        <div class="hmi-kpi-card">
+            <div class="hmi-kpi-icon" style="background: rgba(59, 130, 246, 0.1); color: var(--hmi-blue);">
+                <span>Parts</span>
+            </div>
+            <div class="hmi-kpi-value" id="partsToday">-</div>
+            <div class="hmi-kpi-label">Parts Today</div>
+            <div class="hmi-kpi-trend trend-up">
+                <span>+15%</span> vs target
+            </div>
+        </div>
+
+        <div class="hmi-kpi-card">
+            <div class="hmi-kpi-icon" style="background: rgba(34, 197, 94, 0.1); color: var(--hmi-green);">
+                <span>Pass</span>
+            </div>
+            <div class="hmi-kpi-value" id="qualityRate">-</div>
+            <div class="hmi-kpi-label">Quality Rate</div>
+            <div class="hmi-kpi-trend trend-up">
+                <span>+0.2%</span> this shift
+            </div>
+        </div>
+
+        <div class="hmi-kpi-card">
+            <div class="hmi-kpi-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--hmi-red);">
+                <span>Alert</span>
+            </div>
+            <div class="hmi-kpi-value" id="activeAlerts">-</div>
+            <div class="hmi-kpi-label">Active Alerts</div>
+            <div class="hmi-kpi-trend trend-down">
+                <span>2</span> critical
+            </div>
+        </div>
+
+        <div class="hmi-kpi-card">
+            <div class="hmi-kpi-icon" style="background: rgba(168, 85, 247, 0.1); color: var(--hmi-purple);">
+                <span>AI</span>
+            </div>
+            <div class="hmi-kpi-value" id="aiActions">-</div>
+            <div class="hmi-kpi-label">AI Actions Today</div>
+            <div class="hmi-kpi-trend trend-up">
+                <span>98%</span> success
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="dashboard-grid">
+        <!-- Plant OEE Panel -->
+        <div class="grid-col-4">
+            <div class="hmi-card">
+                <div class="hmi-card-header">
+                    <h3>Plant OEE</h3>
+                    <span class="hmi-live-indicator">LIVE</span>
+                </div>
+                <div class="oee-container">
+                    <div class="oee-main-gauge">
+                        <div class="hmi-gauge hmi-gauge-lg">
+                            <svg viewBox="0 0 120 120">
+                                <circle class="hmi-gauge-bg" cx="60" cy="60" r="50"/>
+                                <circle class="hmi-gauge-fill" cx="60" cy="60" r="50"
+                                        stroke-dasharray="314.16"
+                                        stroke-dashoffset="78.54"
+                                        id="oeeGauge"/>
+                            </svg>
+                            <div class="hmi-gauge-value" id="oeeValue">--</div>
+                            <div class="hmi-gauge-label">OEE</div>
+                        </div>
+                    </div>
+                    <div class="oee-breakdown">
+                        <div class="oee-factor">
+                            <span class="oee-factor-label">Availability</span>
+                            <div class="oee-factor-bar">
+                                <div class="oee-factor-fill availability" id="availBar" style="width: 0%"></div>
+                            </div>
+                            <span class="oee-factor-value" id="availValue">--%</span>
+                        </div>
+                        <div class="oee-factor">
+                            <span class="oee-factor-label">Performance</span>
+                            <div class="oee-factor-bar">
+                                <div class="oee-factor-fill performance" id="perfBar" style="width: 0%"></div>
+                            </div>
+                            <span class="oee-factor-value" id="perfValue">--%</span>
+                        </div>
+                        <div class="oee-factor">
+                            <span class="oee-factor-label">Quality</span>
+                            <div class="oee-factor-bar">
+                                <div class="oee-factor-fill quality" id="qualBar" style="width: 0%"></div>
+                            </div>
+                            <span class="oee-factor-value" id="qualValue">--%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Equipment Status -->
+        <div class="grid-col-4">
+            <div class="hmi-card">
+                <div class="hmi-card-header">
+                    <h3>Equipment Status</h3>
+                    <a href="/api/mes/work-centers/page" class="hmi-btn hmi-btn-sm">View All</a>
+                </div>
+                <div class="equipment-grid" id="equipmentGrid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Service Status -->
+        <div class="grid-col-4">
+            <div class="hmi-card">
+                <div class="hmi-card-header">
+                    <h3>System Health</h3>
+                    <a href="{{ url_for('status.status_page') }}" class="hmi-btn hmi-btn-sm">Details</a>
+                </div>
+                <div class="service-grid" id="serviceGrid">
+                    {% for service_id, service in status.services.items() %}
+                    <div class="service-item">
+                        <span class="service-dot {{ service.status }}"></span>
+                        <span class="service-name">{{ service.name }}</span>
+                        {% if service.latency_ms %}
+                        <span class="service-latency">{{ service.latency_ms }}ms</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="service-item">
+                        <span class="service-dot connected"></span>
+                        <span class="service-name">MCP Server</span>
+                        <span class="service-latency">{{ catalog_stats.total }} tools</span>
+                    </div>
+                    <div class="service-item">
+                        <span class="service-dot" id="wsStatusDot"></span>
+                        <span class="service-name">WebSocket</span>
+                        <span class="service-latency" id="wsLatency">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Work Orders -->
+        <div class="grid-col-6">
+            <div class="hmi-card">
+                <div class="hmi-card-header">
+                    <h3>Active Work Orders</h3>
+                    <a href="/api/mes/work-orders/page" class="hmi-btn hmi-btn-sm">View All</a>
+                </div>
+                <div id="workOrdersList">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Feed -->
+        <div class="grid-col-6">
+            <div class="hmi-card">
+                <div class="hmi-card-header">
+                    <h3>Activity Feed</h3>
+                    <a href="{{ url_for('history.history_list') }}" class="hmi-btn hmi-btn-sm">History</a>
+                </div>
+                <div class="activity-feed" id="activityFeed">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Production Trend -->
+        <div class="grid-col-8">
+            <div class="hmi-card">
+                <div class="hmi-card-header">
+                    <h3>Production Trend (Last 24 Hours)</h3>
+                    <div class="hmi-btn-group">
+                        <button class="hmi-btn hmi-btn-sm active" data-period="24h">24H</button>
+                        <button class="hmi-btn hmi-btn-sm" data-period="7d">7D</button>
+                        <button class="hmi-btn hmi-btn-sm" data-period="30d">30D</button>
+                    </div>
+                </div>
+                <div class="chart-area" id="productionChart">
+                    <!-- SVG chart will be rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts Panel -->
+        <div class="grid-col-4">
+            <div class="hmi-card">
+                <div class="hmi-card-header">
+                    <h3>Active Alerts</h3>
+                    <span class="hmi-badge hmi-badge-danger" id="alertCount">0</span>
+                </div>
+                <div class="alerts-panel" id="alertsPanel">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="grid-col-12">
+            <div class="hmi-card">
+                <div class="hmi-card-header">
+                    <h3>Quick Actions</h3>
+                </div>
+                <div class="quick-actions">
+                    <a href="/api/mes/shop-floor/page" class="quick-action">
+                        <span class="quick-action-icon">Shop</span>
+                        <span class="quick-action-text">Shop Floor</span>
+                    </a>
+                    <a href="/api/mes/work-orders/page" class="quick-action">
+                        <span class="quick-action-icon">WO</span>
+                        <span class="quick-action-text">Work Orders</span>
+                    </a>
+                    <a href="/api/quality/inspections/page" class="quick-action">
+                        <span class="quick-action-icon">QC</span>
+                        <span class="quick-action-text">Quality</span>
+                    </a>
+                    <a href="/api/scheduling/optimize/page" class="quick-action">
+                        <span class="quick-action-icon">Sched</span>
+                        <span class="quick-action-text">Scheduling</span>
+                    </a>
+                    <a href="/api/twin/maintenance/page" class="quick-action">
+                        <span class="quick-action-icon">Maint</span>
+                        <span class="quick-action-text">Maintenance</span>
+                    </a>
+                    <a href="/api/ai/copilot/page" class="quick-action">
+                        <span class="quick-action-icon">AI</span>
+                        <span class="quick-action-text">AI Copilot</span>
+                    </a>
+                    <a href="/api/quality/fmea/page" class="quick-action">
+                        <span class="quick-action-icon">FMEA</span>
+                        <span class="quick-action-text">FMEA</span>
+                    </a>
+                    <a href="{{ url_for('catalog.list_bricks') }}" class="quick-action">
+                        <span class="quick-action-icon">Cat</span>
+                        <span class="quick-action-text">Brick Catalog</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="hmi-toast-container" id="toastContainer"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Dashboard Command Center - Real-time Manufacturing HMI
+(function() {
+    'use strict';
+
+    // State
+    let socket = null;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT = 5;
+    let pollingInterval = null;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        initWebSocket();
+        loadInitialData();
+        startPolling();
+    });
+
+    // WebSocket Connection
+    function initWebSocket() {
+        if (typeof io === 'undefined') {
+            console.warn('Socket.IO not available, using polling');
+            updateConnectionStatus('polling');
+            return;
+        }
+
+        socket = io({
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            reconnectionAttempts: MAX_RECONNECT
+        });
+
+        socket.on('connect', () => {
+            console.log('WebSocket connected');
+            reconnectAttempts = 0;
+            updateConnectionStatus('connected');
+
+            // Subscribe to all manufacturing events
+            socket.emit('manufacturing:subscribe');
+            socket.emit('quality:subscribe');
+            socket.emit('maintenance:subscribe');
+            socket.emit('andon:subscribe');
+        });
+
+        socket.on('disconnect', () => {
+            updateConnectionStatus('disconnected');
+        });
+
+        socket.on('connect_error', () => {
+            reconnectAttempts++;
+            if (reconnectAttempts >= MAX_RECONNECT) {
+                updateConnectionStatus('polling');
+            }
+        });
+
+        // Real-time event handlers
+        socket.on('mes:dashboard_update', handleDashboardUpdate);
+        socket.on('mes:machine_status', handleMachineStatus);
+        socket.on('mes:work_order_update', handleWorkOrderUpdate);
+        socket.on('mes:oee_update', handleOEEUpdate);
+        socket.on('mes:production_event', handleProductionEvent);
+        socket.on('quality:alert', handleQualityAlert);
+        socket.on('maintenance:alert', handleMaintenanceAlert);
+    }
+
+    function updateConnectionStatus(status) {
+        const statusEl = document.getElementById('connectionStatus');
+        const dot = statusEl.querySelector('.connection-dot');
+        const text = statusEl.querySelector('.connection-text');
+        const wsDot = document.getElementById('wsStatusDot');
+        const wsLatency = document.getElementById('wsLatency');
+
+        statusEl.className = 'hmi-connection-status ' + status;
+
+        switch(status) {
+            case 'connected':
+                text.textContent = 'Live';
+                wsDot.className = 'service-dot connected';
+                wsLatency.textContent = 'Live';
+                break;
+            case 'disconnected':
+                text.textContent = 'Disconnected';
+                wsDot.className = 'service-dot disconnected';
+                wsLatency.textContent = 'Offline';
+                break;
+            case 'polling':
+                text.textContent = 'Polling';
+                wsDot.className = 'service-dot degraded';
+                wsLatency.textContent = 'Polling';
+                break;
+            default:
+                text.textContent = 'Connecting...';
+                wsDot.className = 'service-dot';
+                wsLatency.textContent = '--';
+        }
+    }
+
+    // Load Initial Data
+    function loadInitialData() {
+        // Load shop floor dashboard
+        fetch('/api/mes/shop-floor/dashboard')
+            .then(r => r.ok ? r.json() : Promise.reject('Failed'))
+            .then(data => {
+                updateDashboardMetrics(data);
+                updateEquipmentGrid(data.work_centers || []);
+            })
+            .catch(err => {
+                console.log('Using mock data');
+                loadMockData();
+            });
+
+        // Load work orders
+        fetch('/api/mes/work-orders?status=in_progress&limit=5')
+            .then(r => r.ok ? r.json() : Promise.reject('Failed'))
+            .then(data => {
+                updateWorkOrders(data.work_orders || []);
+            })
+            .catch(() => {
+                updateWorkOrders(getMockWorkOrders());
+            });
+
+        // Load activity feed
+        loadActivityFeed();
+
+        // Load alerts
+        loadAlerts();
+
+        // Render production chart
+        renderProductionChart();
+    }
+
+    function loadMockData() {
+        // Mock dashboard data
+        const mockData = {
+            summary: {
+                total_work_centers: 8,
+                running_work_centers: 6,
+                active_work_orders: 12,
+                total_parts_scheduled: 1500,
+                total_parts_completed: 847
+            }
+        };
+
+        updateDashboardMetrics(mockData);
+        updateEquipmentGrid(getMockEquipment());
+
+        // Mock OEE
+        updateOEE({
+            oee: 78.5,
+            availability: 92.3,
+            performance: 88.7,
+            quality: 96.1
+        });
+    }
+
+    function getMockEquipment() {
+        return [
+            { code: 'PRN-001', name: 'Printer 1', status: 'in_use' },
+            { code: 'PRN-002', name: 'Printer 2', status: 'in_use' },
+            { code: 'PRN-003', name: 'Printer 3', status: 'available' },
+            { code: 'PRN-004', name: 'Printer 4', status: 'in_use' },
+            { code: 'PRN-005', name: 'Printer 5', status: 'maintenance' },
+            { code: 'PRN-006', name: 'Printer 6', status: 'in_use' },
+            { code: 'INS-001', name: 'Inspector 1', status: 'in_use' },
+            { code: 'PKG-001', name: 'Packager 1', status: 'available' }
+        ];
+    }
+
+    function getMockWorkOrders() {
+        return [
+            { work_order_number: 'WO-2024-0156', part: { part_number: '3001', name: '2x4 Brick' }, quantity_ordered: 500, quantity_completed: 347, priority: 9 },
+            { work_order_number: 'WO-2024-0155', part: { part_number: '3003', name: '2x2 Brick' }, quantity_ordered: 1000, quantity_completed: 823, priority: 7 },
+            { work_order_number: 'WO-2024-0154', part: { part_number: '3020', name: '2x4 Plate' }, quantity_ordered: 250, quantity_completed: 125, priority: 5 },
+            { work_order_number: 'WO-2024-0153', part: { part_number: '3010', name: '1x4 Brick' }, quantity_ordered: 400, quantity_completed: 280, priority: 3 }
+        ];
+    }
+
+    function updateDashboardMetrics(data) {
+        const summary = data.summary || {};
+
+        document.getElementById('runningMachines').textContent = summary.running_work_centers || 6;
+        document.getElementById('activeWOs').textContent = summary.active_work_orders || 12;
+        document.getElementById('partsToday').textContent = formatNumber(summary.total_parts_completed || 847);
+        document.getElementById('qualityRate').textContent = '96.1%';
+        document.getElementById('activeAlerts').textContent = '3';
+        document.getElementById('aiActions').textContent = '47';
+
+        // Header stats
+        document.getElementById('liveOEE').textContent = '78.5%';
+        document.getElementById('liveProduction').textContent = formatNumber(summary.total_parts_completed || 847);
+        document.getElementById('liveQuality').textContent = '96.1%';
+    }
+
+    function updateEquipmentGrid(equipment) {
+        const grid = document.getElementById('equipmentGrid');
+
+        const statusMap = {
+            'in_use': 'running',
+            'available': 'idle',
+            'offline': 'down',
+            'maintenance': 'maintenance'
+        };
+
+        const iconMap = {
+            'PRN': 'Printer',
+            'INS': 'QC',
+            'PKG': 'Pack',
+            'CNC': 'CNC',
+            'ASM': 'Assy'
+        };
+
+        grid.innerHTML = equipment.map(eq => {
+            const status = statusMap[eq.status] || 'idle';
+            const prefix = eq.code.split('-')[0];
+            const icon = iconMap[prefix] || 'Eq';
+
+            return `
+                <div class="equipment-mini ${status}">
+                    <div class="equipment-mini-icon">${icon}</div>
+                    <div class="equipment-mini-name">${eq.code}</div>
+                    <div class="equipment-mini-status">${status}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function updateWorkOrders(workOrders) {
+        const container = document.getElementById('workOrdersList');
+
+        if (!workOrders.length) {
+            container.innerHTML = '<div class="hmi-empty-state"><p>No active work orders</p></div>';
+            return;
+        }
+
+        container.innerHTML = workOrders.map(wo => {
+            const progress = wo.quantity_ordered ?
+                Math.round((wo.quantity_completed / wo.quantity_ordered) * 100) : 0;
+            const priorityClass = wo.priority >= 8 ? 'critical' :
+                                  wo.priority >= 6 ? 'high' :
+                                  wo.priority >= 4 ? 'medium' : 'low';
+
+            return `
+                <div class="wo-row">
+                    <div class="wo-priority ${priorityClass}"></div>
+                    <div class="wo-info">
+                        <div class="wo-number">${wo.work_order_number}</div>
+                        <div class="wo-part">${wo.part?.part_number || ''} - ${wo.part?.name || 'Unknown'}</div>
+                    </div>
+                    <div class="wo-progress-container">
+                        <div class="hmi-progress hmi-progress-sm">
+                            <div class="hmi-progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                        <div class="wo-qty">${wo.quantity_completed}/${wo.quantity_ordered}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function updateOEE(oee) {
+        const value = oee.oee || 0;
+        const dashOffset = 314.16 * (1 - value / 100);
+
+        document.getElementById('oeeGauge').style.strokeDashoffset = dashOffset;
+        document.getElementById('oeeValue').textContent = value.toFixed(1) + '%';
+
+        document.getElementById('availBar').style.width = (oee.availability || 0) + '%';
+        document.getElementById('availValue').textContent = (oee.availability || 0).toFixed(1) + '%';
+
+        document.getElementById('perfBar').style.width = (oee.performance || 0) + '%';
+        document.getElementById('perfValue').textContent = (oee.performance || 0).toFixed(1) + '%';
+
+        document.getElementById('qualBar').style.width = (oee.quality || 0) + '%';
+        document.getElementById('qualValue').textContent = (oee.quality || 0).toFixed(1) + '%';
+    }
+
+    function loadActivityFeed() {
+        const feed = document.getElementById('activityFeed');
+
+        const activities = [
+            { icon: 'quality', type: 'Quality', text: 'Part inspection passed - WO-2024-0156, Batch #47', time: '2 min ago' },
+            { icon: 'production', type: 'Production', text: 'Print completed - PRN-001, 25 parts', time: '5 min ago' },
+            { icon: 'maintenance', type: 'Maintenance', text: 'Scheduled maintenance reminder - PRN-005', time: '12 min ago' },
+            { icon: 'production', type: 'Production', text: 'Work order started - WO-2024-0157', time: '18 min ago' },
+            { icon: 'alert', type: 'Alert', text: 'Temperature variance detected - PRN-003', time: '25 min ago' },
+            { icon: 'quality', type: 'Quality', text: 'SPC control chart updated - Stud diameter', time: '32 min ago' },
+            { icon: 'production', type: 'Production', text: 'Batch completed - WO-2024-0154, 50 parts', time: '45 min ago' }
+        ];
+
+        feed.innerHTML = activities.map(a => `
+            <div class="activity-item">
+                <div class="activity-icon ${a.icon}">${a.type.charAt(0)}</div>
+                <div class="activity-content">
+                    <div class="activity-text">${a.text}</div>
+                    <div class="activity-time">${a.time}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function loadAlerts() {
+        const panel = document.getElementById('alertsPanel');
+        const countBadge = document.getElementById('alertCount');
+
+        const alerts = [
+            { severity: 'critical', title: 'Temperature Out of Spec', message: 'PRN-003 nozzle temp 225°C (max 220°C)', time: '5 min ago' },
+            { severity: 'warning', title: 'Maintenance Due', message: 'PRN-005 scheduled maintenance overdue', time: '2 hours ago' },
+            { severity: 'info', title: 'Low Filament', message: 'PRN-002 filament at 15%', time: '3 hours ago' }
+        ];
+
+        countBadge.textContent = alerts.length;
+
+        panel.innerHTML = alerts.map(a => `
+            <div class="hmi-alert hmi-alert-${a.severity}">
+                <div class="hmi-alert-title">${a.title}</div>
+                <div class="hmi-alert-message">${a.message}</div>
+                <div class="hmi-alert-time">${a.time}</div>
+            </div>
+        `).join('');
+    }
+
+    function renderProductionChart() {
+        const container = document.getElementById('productionChart');
+
+        // Generate deterministic hourly production data (shift-aware pattern)
+        const hours = 24;
+        const data = [];
+        for (let i = 0; i < hours; i++) {
+            // Production peaks during day/swing shifts (6am-10pm), lower at night
+            const shiftFactor = (i >= 6 && i < 22) ? 1.0 : 0.5;
+            // Sinusoidal variation within shift
+            const variation = 35 + Math.sin(i * 0.5) * 35;
+            data.push(30 + variation * shiftFactor);
+        }
+
+        const maxVal = Math.max(...data);
+
+        container.innerHTML = data.map((val, i) => {
+            const height = (val / maxVal) * 160;
+            return `<div class="chart-bar" style="height: ${height}px" title="Hour ${i}: ${Math.round(val)} parts"></div>`;
+        }).join('');
+    }
+
+    // WebSocket Event Handlers
+    function handleDashboardUpdate(data) {
+        updateDashboardMetrics(data);
+    }
+
+    function handleMachineStatus(data) {
+        // Update specific equipment card
+        const grid = document.getElementById('equipmentGrid');
+        const card = grid.querySelector(`[data-machine="${data.machine_id}"]`);
+        if (card) {
+            card.className = `equipment-mini ${data.status}`;
+        }
+    }
+
+    function handleWorkOrderUpdate(data) {
+        loadInitialData(); // Refresh work orders
+    }
+
+    function handleOEEUpdate(data) {
+        updateOEE(data);
+    }
+
+    function handleProductionEvent(data) {
+        // Add to activity feed
+        const feed = document.getElementById('activityFeed');
+        const newItem = document.createElement('div');
+        newItem.className = 'activity-item';
+        newItem.innerHTML = `
+            <div class="activity-icon production">P</div>
+            <div class="activity-content">
+                <div class="activity-text">${data.message}</div>
+                <div class="activity-time">Just now</div>
+            </div>
+        `;
+        feed.insertBefore(newItem, feed.firstChild);
+
+        showToast(data.message, 'success');
+    }
+
+    function handleQualityAlert(data) {
+        loadAlerts();
+        showToast('Quality Alert: ' + data.message, 'warning');
+    }
+
+    function handleMaintenanceAlert(data) {
+        loadAlerts();
+        showToast('Maintenance Alert: ' + data.message, 'info');
+    }
+
+    // Polling Fallback
+    function startPolling() {
+        pollingInterval = setInterval(() => {
+            if (!socket || !socket.connected) {
+                loadInitialData();
+            }
+        }, 30000);
+    }
+
+    // Utilities
+    function formatNumber(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    }
+
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `hmi-toast hmi-toast-${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // Initialize OEE with default values
+    setTimeout(() => {
+        updateOEE({
+            oee: 78.5,
+            availability: 92.3,
+            performance: 88.7,
+            quality: 96.1
+        });
+    }, 500);
+
+})();
+</script>
+{% endblock %}

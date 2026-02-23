@@ -1,0 +1,523 @@
+{% extends "base.html" %}
+
+{% block title %}Compliance & Audit Trail - LEGO MCP{% endblock %}
+
+{% block styles %}
+<style>
+    .compliance-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .compliance-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .compliance-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .compliance-card h3 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+    }
+
+    .compliance-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary);
+    }
+
+    .compliance-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        margin-top: 0.5rem;
+    }
+
+    .compliance-status.passed {
+        background: rgba(76, 175, 80, 0.15);
+        color: #4CAF50;
+    }
+
+    .compliance-status.warning {
+        background: rgba(255, 152, 0, 0.15);
+        color: #FF9800;
+    }
+
+    .compliance-status.failed {
+        background: rgba(244, 67, 54, 0.15);
+        color: #f44336;
+    }
+
+    .audit-table-container {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+        margin-bottom: 2rem;
+    }
+
+    .audit-table-container h2 {
+        margin: 0 0 1rem 0;
+        font-size: 1.1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .filter-controls {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .filter-controls select,
+    .filter-controls input {
+        padding: 0.5rem;
+        border-radius: 4px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        font-size: 0.85rem;
+    }
+
+    .audit-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .audit-table th,
+    .audit-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .audit-table th {
+        font-weight: 600;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+    }
+
+    .audit-table tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .action-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .action-badge.create {
+        background: rgba(33, 150, 243, 0.15);
+        color: #2196F3;
+    }
+
+    .action-badge.update {
+        background: rgba(156, 39, 176, 0.15);
+        color: #9C27B0;
+    }
+
+    .action-badge.delete {
+        background: rgba(244, 67, 54, 0.15);
+        color: #f44336;
+    }
+
+    .action-badge.approve {
+        background: rgba(76, 175, 80, 0.15);
+        color: #4CAF50;
+    }
+
+    .action-badge.reject {
+        background: rgba(255, 152, 0, 0.15);
+        color: #FF9800;
+    }
+
+    .action-badge.sign {
+        background: rgba(0, 188, 212, 0.15);
+        color: #00BCD4;
+    }
+
+    .signature-section {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+        margin-bottom: 2rem;
+    }
+
+    .signature-section h2 {
+        margin: 0 0 1rem 0;
+        font-size: 1.1rem;
+    }
+
+    .pending-signatures {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .signature-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+    }
+
+    .signature-info {
+        flex: 1;
+    }
+
+    .signature-doc {
+        font-weight: 600;
+    }
+
+    .signature-type {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .btn-sign {
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+    }
+
+    .btn-sign:hover {
+        opacity: 0.9;
+    }
+
+    .regulations-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+
+    .regulation-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .regulation-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .regulation-name {
+        font-weight: 600;
+    }
+
+    .regulation-status {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .regulation-status.compliant {
+        background: rgba(76, 175, 80, 0.15);
+        color: #4CAF50;
+    }
+
+    .regulation-status.partial {
+        background: rgba(255, 152, 0, 0.15);
+        color: #FF9800;
+    }
+
+    .regulation-status.non-compliant {
+        background: rgba(244, 67, 54, 0.15);
+        color: #f44336;
+    }
+
+    .regulation-progress {
+        margin-top: 0.5rem;
+    }
+
+    .progress-bar {
+        height: 6px;
+        background: var(--bg-secondary);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: var(--primary);
+        transition: width 0.3s ease;
+    }
+
+    .progress-label {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="compliance-header">
+    <div>
+        <h1>Compliance & Audit Trail</h1>
+        <p>FDA 21 CFR Part 11 Electronic Records & Signatures</p>
+    </div>
+    <div>
+        <button class="btn btn-primary" onclick="exportAuditReport()">Export Audit Report</button>
+    </div>
+</div>
+
+<div class="compliance-cards">
+    <div class="compliance-card">
+        <h3>Audit Entries (30 days)</h3>
+        <div class="compliance-value">1,247</div>
+        <div class="compliance-status passed">Fully Logged</div>
+    </div>
+    <div class="compliance-card">
+        <h3>E-Signatures</h3>
+        <div class="compliance-value">89</div>
+        <div class="compliance-status passed">All Verified</div>
+    </div>
+    <div class="compliance-card">
+        <h3>Access Violations</h3>
+        <div class="compliance-value">0</div>
+        <div class="compliance-status passed">None Detected</div>
+    </div>
+    <div class="compliance-card">
+        <h3>Pending Approvals</h3>
+        <div class="compliance-value">3</div>
+        <div class="compliance-status warning">Requires Action</div>
+    </div>
+</div>
+
+<div class="signature-section">
+    <h2>Pending Electronic Signatures</h2>
+    <div class="pending-signatures">
+        <div class="signature-item">
+            <div class="signature-info">
+                <div class="signature-doc">WO-2024-0847 - Batch Release</div>
+                <div class="signature-type">Quality Manager Approval Required</div>
+            </div>
+            <button class="btn-sign" onclick="signDocument('WO-2024-0847')">Sign & Approve</button>
+        </div>
+        <div class="signature-item">
+            <div class="signature-info">
+                <div class="signature-doc">SOP-PRD-001 Rev. 3 - Standard Operating Procedure</div>
+                <div class="signature-type">Engineering Approval Required</div>
+            </div>
+            <button class="btn-sign" onclick="signDocument('SOP-PRD-001')">Sign & Approve</button>
+        </div>
+        <div class="signature-item">
+            <div class="signature-info">
+                <div class="signature-doc">CAR-2024-015 - Corrective Action Report</div>
+                <div class="signature-type">Production Manager Review</div>
+            </div>
+            <button class="btn-sign" onclick="signDocument('CAR-2024-015')">Sign & Approve</button>
+        </div>
+    </div>
+</div>
+
+<div class="audit-table-container">
+    <h2>
+        <span>Audit Trail</span>
+        <div class="filter-controls">
+            <select id="actionFilter" onchange="filterAudit()">
+                <option value="">All Actions</option>
+                <option value="create">Create</option>
+                <option value="update">Update</option>
+                <option value="delete">Delete</option>
+                <option value="approve">Approve</option>
+                <option value="sign">Sign</option>
+            </select>
+            <input type="date" id="dateFilter" onchange="filterAudit()">
+        </div>
+    </h2>
+    <table class="audit-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>Resource</th>
+                <th>Details</th>
+                <th>IP Address</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>2024-01-15 14:32:15</td>
+                <td>jsmith@company.com</td>
+                <td><span class="action-badge approve">Approve</span></td>
+                <td>Work Order WO-2024-0846</td>
+                <td>Batch release approved for shipping</td>
+                <td>192.168.1.45</td>
+            </tr>
+            <tr>
+                <td>2024-01-15 14:28:42</td>
+                <td>mwilson@company.com</td>
+                <td><span class="action-badge sign">Sign</span></td>
+                <td>Inspection Report INS-847</td>
+                <td>E-signature: Quality inspection passed</td>
+                <td>192.168.1.52</td>
+            </tr>
+            <tr>
+                <td>2024-01-15 14:15:33</td>
+                <td>operator01@company.com</td>
+                <td><span class="action-badge create">Create</span></td>
+                <td>Operation OP-847-030</td>
+                <td>Started operation: Assembly</td>
+                <td>192.168.1.101</td>
+            </tr>
+            <tr>
+                <td>2024-01-15 13:58:21</td>
+                <td>mwilson@company.com</td>
+                <td><span class="action-badge update">Update</span></td>
+                <td>SPC Chart SPC-PRD-001</td>
+                <td>Control limits recalculated</td>
+                <td>192.168.1.52</td>
+            </tr>
+            <tr>
+                <td>2024-01-15 13:45:08</td>
+                <td>admin@company.com</td>
+                <td><span class="action-badge update">Update</span></td>
+                <td>User Role operator01</td>
+                <td>Access level changed: Operator → Senior Operator</td>
+                <td>192.168.1.10</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h2 style="margin-bottom: 1rem;">Regulatory Compliance Status</h2>
+<div class="regulations-grid">
+    <div class="regulation-card">
+        <div class="regulation-header">
+            <div class="regulation-name">FDA 21 CFR Part 11</div>
+            <span class="regulation-status compliant">Compliant</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Electronic records and signatures</p>
+        <div class="regulation-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 100%"></div>
+            </div>
+            <div class="progress-label">
+                <span>18/18 requirements</span>
+                <span>100%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="regulation-card">
+        <div class="regulation-header">
+            <div class="regulation-name">ISO 9001:2015</div>
+            <span class="regulation-status compliant">Compliant</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Quality management systems</p>
+        <div class="regulation-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 100%"></div>
+            </div>
+            <div class="progress-label">
+                <span>All clauses satisfied</span>
+                <span>100%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="regulation-card">
+        <div class="regulation-header">
+            <div class="regulation-name">ISA-95</div>
+            <span class="regulation-status compliant">Compliant</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Enterprise-control integration</p>
+        <div class="regulation-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 100%"></div>
+            </div>
+            <div class="progress-label">
+                <span>Level 3 fully implemented</span>
+                <span>100%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="regulation-card">
+        <div class="regulation-header">
+            <div class="regulation-name">GHG Protocol</div>
+            <span class="regulation-status partial">Partial</span>
+        </div>
+        <p style="font-size: 0.85rem; color: var(--text-muted);">Carbon emissions reporting</p>
+        <div class="regulation-progress">
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: 85%"></div>
+            </div>
+            <div class="progress-label">
+                <span>Scope 3 in progress</span>
+                <span>85%</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function exportAuditReport() {
+    fetch('/api/compliance/audit/export', {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            alert('Audit report exported: ' + data.filename);
+        });
+}
+
+function signDocument(docId) {
+    if (confirm('Are you sure you want to sign document ' + docId + '? This action is logged and legally binding.')) {
+        fetch('/api/compliance/sign', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({document_id: docId})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                alert('Document signed successfully with e-signature');
+                location.reload();
+            }
+        });
+    }
+}
+
+function filterAudit() {
+    const action = document.getElementById('actionFilter').value;
+    const date = document.getElementById('dateFilter').value;
+    // Would filter the audit table
+    console.log('Filtering:', {action, date});
+}
+</script>
+{% endblock %}

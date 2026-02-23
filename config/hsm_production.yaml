@@ -1,0 +1,226 @@
+# HSM Production Configuration
+# LEGO MCP Manufacturing System
+# IEC 62443 / FIPS 140-3 Level 2 Compliant
+
+# ==============================================================================
+# WARNING: This is a PRODUCTION configuration template.
+# Modify values according to your HSM hardware and security requirements.
+# ==============================================================================
+
+version: "1.0.0"
+
+# ------------------------------------------------------------------------------
+# HSM Provider Configuration
+# ------------------------------------------------------------------------------
+hsm:
+  # Provider: yubihsm | aws_cloudhsm | tpm2 | pkcs11
+  provider: yubihsm
+
+  # Connection settings (provider-specific)
+  connection:
+    # YubiHSM 2 settings
+    yubihsm:
+      connector_url: "http://localhost:12345"
+      auth_key_id: 1
+      # auth_password: <set via HSM_AUTH_PASSWORD env var>
+      # NEVER store passwords in config files
+
+    # AWS CloudHSM settings
+    aws_cloudhsm:
+      cluster_id: "cluster-xxxxxxxxx"
+      region: "us-east-1"
+      # credentials via IAM role or AWS_* env vars
+
+    # TPM 2.0 settings
+    tpm2:
+      device: "/dev/tpmrm0"
+      tcti: "device:/dev/tpmrm0"
+
+    # Generic PKCS#11 settings
+    pkcs11:
+      library_path: "/usr/lib/softhsm/libsofthsm2.so"
+      slot_id: 0
+      # pin: <set via PKCS11_PIN env var>
+
+  # Retry and timeout settings
+  timeouts:
+    connect_timeout_ms: 5000
+    operation_timeout_ms: 10000
+    max_retries: 3
+    retry_delay_ms: 1000
+
+# ------------------------------------------------------------------------------
+# Key Management Configuration
+# ------------------------------------------------------------------------------
+key_management:
+  # Key types and their purposes
+  keys:
+    # Audit seal signing key
+    audit_seal:
+      algorithm: HMAC-SHA256
+      key_size: 256
+      usage: [SIGN, VERIFY]
+      exportable: false
+      rotation_days: 365
+
+    # Certificate signing key
+    certificate_signing:
+      algorithm: RSA-4096
+      usage: [SIGN, VERIFY]
+      exportable: false
+      rotation_days: 730
+
+    # Data encryption key
+    data_encryption:
+      algorithm: AES-256-GCM
+      usage: [ENCRYPT, DECRYPT]
+      exportable: false
+      rotation_days: 90
+
+    # Post-quantum key (future-ready)
+    pq_signing:
+      algorithm: ML-DSA-65  # NIST FIPS 204
+      usage: [SIGN, VERIFY]
+      exportable: false
+      rotation_days: 365
+
+  # Key rotation settings
+  rotation:
+    auto_rotate: true
+    advance_notice_days: 30
+    retain_old_versions: 3
+
+  # Backup settings
+  backup:
+    enabled: true
+    encryption: AES-256-GCM
+    # backup_key_id: <HSM-stored backup key>
+    destinations:
+      - type: encrypted_file
+        path: "/secure/backups/hsm/"
+      - type: aws_s3
+        bucket: "lego-mcp-hsm-backups"
+        kms_key_arn: "arn:aws:kms:us-east-1:123456789:key/xxx"
+
+# ------------------------------------------------------------------------------
+# Audit Configuration
+# ------------------------------------------------------------------------------
+audit:
+  # Seal generation settings
+  sealing:
+    # Automatic daily seals
+    auto_seal:
+      enabled: true
+      schedule: "0 0 * * *"  # Daily at midnight
+      timezone: UTC
+
+    # Checkpoint seals
+    checkpoint:
+      enabled: true
+      every_n_events: 10000
+
+  # Verification settings
+  verification:
+    on_startup: true
+    periodic_check_hours: 24
+    verify_full_chain: false  # Set true for compliance audits
+
+  # Alert settings
+  alerts:
+    on_tamper_detected: true
+    on_seal_failure: true
+    on_key_expiry_warning: true
+    notification_channels:
+      - type: email
+        recipients: ["security@example.com"]
+      - type: siem
+        endpoint: "https://siem.example.com/api/alerts"
+
+# ------------------------------------------------------------------------------
+# Security Policies
+# ------------------------------------------------------------------------------
+security:
+  # Access control
+  access_control:
+    require_authentication: true
+    require_authorization: true
+    session_timeout_minutes: 30
+    max_failed_attempts: 3
+    lockout_duration_minutes: 30
+
+  # Cryptographic policies
+  crypto_policies:
+    # Minimum key sizes
+    min_rsa_bits: 2048
+    min_ec_bits: 256
+    min_symmetric_bits: 128
+
+    # Allowed algorithms
+    allowed_hash: [SHA-256, SHA-384, SHA-512, SHA3-256, SHA3-384, SHA3-512]
+    allowed_symmetric: [AES-128-GCM, AES-256-GCM, ChaCha20-Poly1305]
+    allowed_asymmetric: [RSA-2048, RSA-4096, ECDSA-P256, ECDSA-P384, Ed25519]
+
+    # Post-quantum readiness
+    pq_hybrid_mode: true  # Use classical + PQ for signatures
+
+  # Network security
+  network:
+    tls_min_version: "1.3"
+    require_client_cert: true
+    allowed_cipher_suites:
+      - TLS_AES_256_GCM_SHA384
+      - TLS_CHACHA20_POLY1305_SHA256
+
+# ------------------------------------------------------------------------------
+# Compliance Settings
+# ------------------------------------------------------------------------------
+compliance:
+  # FIPS 140-3 Mode
+  fips_mode: true
+
+  # Audit log retention
+  log_retention_days: 2555  # 7 years for compliance
+
+  # Required certifications
+  certifications:
+    - FIPS_140_3_LEVEL_2
+    - IEC_62443_SL3
+    - NIST_800_171
+
+# ------------------------------------------------------------------------------
+# Monitoring and Observability
+# ------------------------------------------------------------------------------
+monitoring:
+  # Health checks
+  health_check:
+    enabled: true
+    interval_seconds: 60
+    timeout_seconds: 10
+
+  # Metrics export
+  metrics:
+    enabled: true
+    exporter: prometheus
+    endpoint: "/metrics"
+    port: 9090
+
+  # Tracing
+  tracing:
+    enabled: true
+    exporter: otlp
+    endpoint: "http://otel-collector:4317"
+
+# ------------------------------------------------------------------------------
+# Environment Variable Mappings
+# ------------------------------------------------------------------------------
+# The following values should be set via environment variables:
+#
+# HSM_AUTH_PASSWORD     - HSM authentication password
+# PKCS11_PIN            - PKCS#11 PIN (if using PKCS#11 provider)
+# AWS_ACCESS_KEY_ID     - AWS credentials (if using CloudHSM)
+# AWS_SECRET_ACCESS_KEY - AWS credentials (if using CloudHSM)
+# BACKUP_ENCRYPTION_KEY - Key for backup encryption
+#
+# Example:
+#   export HSM_AUTH_PASSWORD="$(cat /run/secrets/hsm_password)"
+# ------------------------------------------------------------------------------

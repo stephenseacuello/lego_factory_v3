@@ -1,0 +1,1274 @@
+{% extends "base.html" %}
+
+{% block title %}WIP & Order Tracking - LEGO MCP{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .wip-card {
+        border-left: 4px solid;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .wip-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .wip-card.total { border-color: #007bff; }
+    .wip-card.in-progress { border-color: #28a745; }
+    .wip-card.queued { border-color: #ffc107; }
+    .wip-card.late { border-color: #dc3545; }
+    .wip-card.orders { border-color: #17a2b8; }
+    .wip-card.value { border-color: #6f42c1; }
+
+    .order-status-badge {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .wip-item {
+        border-left: 3px solid #007bff;
+        transition: all 0.2s;
+    }
+    .wip-item:hover {
+        background-color: rgba(0, 123, 255, 0.05);
+        border-left-width: 5px;
+    }
+    .wip-item.priority-high { border-left-color: #dc3545; }
+    .wip-item.priority-medium { border-left-color: #ffc107; }
+    .wip-item.priority-low { border-left-color: #28a745; }
+
+    .progress-stage {
+        position: relative;
+        padding: 1rem;
+        text-align: center;
+        flex: 1;
+    }
+    .progress-stage::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: 0;
+        transform: translateY(-50%);
+        border: 8px solid transparent;
+        border-left-color: #dee2e6;
+    }
+    .progress-stage:last-child::after {
+        display: none;
+    }
+    .progress-stage.active {
+        background-color: rgba(0, 123, 255, 0.1);
+        font-weight: bold;
+    }
+    .progress-stage.completed {
+        background-color: rgba(40, 167, 69, 0.1);
+    }
+
+    .kanban-column {
+        min-height: 300px;
+        background-color: #f8f9fa;
+        border-radius: 0.375rem;
+    }
+    .kanban-card {
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .kanban-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-left: 2rem;
+        padding-bottom: 1rem;
+        border-left: 2px solid #dee2e6;
+    }
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -5px;
+        top: 0;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background-color: #007bff;
+    }
+    .timeline-item.completed::before { background-color: #28a745; }
+    .timeline-item.in-progress::before { background-color: #ffc107; }
+    .timeline-item.failed::before { background-color: #dc3545; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="bi bi-boxes text-primary me-2"></i>
+                        WIP & Order Tracking
+                    </h2>
+                    <p class="text-muted mb-0">Work-in-progress monitoring and customer order fulfillment</p>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showNewOrderModal()">
+                        <i class="bi bi-plus-lg me-1"></i>New Order
+                    </button>
+                    <button class="btn btn-outline-primary" onclick="showNewWorkOrderModal()">
+                        <i class="bi bi-file-plus me-1"></i>Work Order
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="refreshDashboard()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card wip-card total h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Total WIP</p>
+                            <h3 class="mb-0" id="totalWIP">0</h3>
+                            <small class="text-muted">work orders</small>
+                        </div>
+                        <div class="text-primary opacity-50">
+                            <i class="bi bi-boxes fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card wip-card in-progress h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">In Progress</p>
+                            <h3 class="mb-0 text-success" id="inProgressCount">0</h3>
+                            <small class="text-muted">actively running</small>
+                        </div>
+                        <div class="text-success opacity-50">
+                            <i class="bi bi-gear-wide-connected fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card wip-card queued h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Queued</p>
+                            <h3 class="mb-0 text-warning" id="queuedCount">0</h3>
+                            <small class="text-muted">waiting</small>
+                        </div>
+                        <div class="text-warning opacity-50">
+                            <i class="bi bi-hourglass-split fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card wip-card late h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Late/At Risk</p>
+                            <h3 class="mb-0 text-danger" id="lateCount">0</h3>
+                            <small class="text-muted">need attention</small>
+                        </div>
+                        <div class="text-danger opacity-50">
+                            <i class="bi bi-exclamation-triangle fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card wip-card orders h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Open Orders</p>
+                            <h3 class="mb-0" id="openOrders">0</h3>
+                            <small class="text-muted">customer orders</small>
+                        </div>
+                        <div class="text-info opacity-50">
+                            <i class="bi bi-cart fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card wip-card value h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">WIP Value</p>
+                            <h3 class="mb-0" id="wipValue">$0</h3>
+                            <small class="text-muted">inventory</small>
+                        </div>
+                        <div class="text-purple opacity-50">
+                            <i class="bi bi-currency-dollar fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-pie-chart text-primary me-2"></i>
+                        WIP by Stage
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="wipByStageChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-bar-chart text-primary me-2"></i>
+                        Orders by Status
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="ordersByStatusChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-graph-up text-primary me-2"></i>
+                        WIP Trend (7 Days)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="wipTrendChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="row">
+        <!-- Left Panel - Work Orders -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#workOrders" role="tab">
+                                <i class="bi bi-list-task me-1"></i>Work Orders
+                                <span class="badge bg-primary ms-1" id="woCount">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#customerOrders" role="tab">
+                                <i class="bi bi-cart me-1"></i>Customer Orders
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#kanbanView" role="tab">
+                                <i class="bi bi-kanban me-1"></i>Kanban
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#materialBatches" role="tab">
+                                <i class="bi bi-box-seam me-1"></i>Material Batches
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <!-- Work Orders Tab -->
+                        <div class="tab-pane fade show active" id="workOrders" role="tabpanel">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="text" class="form-control" id="woSearch" placeholder="Search work orders...">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select form-select-sm" id="woStatusFilter">
+                                        <option value="">All Status</option>
+                                        <option value="queued">Queued</option>
+                                        <option value="in_progress">In Progress</option>
+                                        <option value="completed">Completed</option>
+                                        <option value="on_hold">On Hold</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select form-select-sm" id="woPriorityFilter">
+                                        <option value="">All Priority</option>
+                                        <option value="high">High</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="low">Low</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4 text-end">
+                                    <div class="btn-group btn-group-sm">
+                                        <button class="btn btn-outline-secondary active" onclick="setWOView('list')">
+                                            <i class="bi bi-list"></i>
+                                        </button>
+                                        <button class="btn btn-outline-secondary" onclick="setWOView('cards')">
+                                            <i class="bi bi-grid"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="workOrdersContent">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                    <span class="ms-2">Loading work orders...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Customer Orders Tab -->
+                        <div class="tab-pane fade" id="customerOrders" role="tabpanel">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="text" class="form-control" id="orderSearch" placeholder="Search orders...">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select form-select-sm" id="orderStatusFilter">
+                                        <option value="">All Status</option>
+                                        <option value="draft">Draft</option>
+                                        <option value="submitted">Submitted</option>
+                                        <option value="confirmed">Confirmed</option>
+                                        <option value="released">Released</option>
+                                        <option value="completed">Completed</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <button class="btn btn-sm btn-primary" onclick="showNewOrderModal()">
+                                        <i class="bi bi-plus-lg me-1"></i>New Order
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="customerOrdersContent">
+                                <div class="text-center py-4">
+                                    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Kanban View Tab -->
+                        <div class="tab-pane fade" id="kanbanView" role="tabpanel">
+                            <div class="row" id="kanbanBoard">
+                                <div class="col-md-3">
+                                    <div class="kanban-column p-2">
+                                        <h6 class="text-center mb-3">
+                                            <span class="badge bg-secondary">Queued</span>
+                                            <span class="badge bg-light text-dark ms-1" id="kanbanQueued">0</span>
+                                        </h6>
+                                        <div id="kanbanQueuedItems"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="kanban-column p-2">
+                                        <h6 class="text-center mb-3">
+                                            <span class="badge bg-warning">In Progress</span>
+                                            <span class="badge bg-light text-dark ms-1" id="kanbanInProgress">0</span>
+                                        </h6>
+                                        <div id="kanbanInProgressItems"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="kanban-column p-2">
+                                        <h6 class="text-center mb-3">
+                                            <span class="badge bg-info">QC</span>
+                                            <span class="badge bg-light text-dark ms-1" id="kanbanQC">0</span>
+                                        </h6>
+                                        <div id="kanbanQCItems"></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="kanban-column p-2">
+                                        <h6 class="text-center mb-3">
+                                            <span class="badge bg-success">Completed</span>
+                                            <span class="badge bg-light text-dark ms-1" id="kanbanCompleted">0</span>
+                                        </h6>
+                                        <div id="kanbanCompletedItems"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Material Batches Tab -->
+                        <div class="tab-pane fade" id="materialBatches" role="tabpanel">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                        <input type="text" class="form-control" id="batchSearch" placeholder="Search batches...">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <select class="form-select form-select-sm" id="batchMaterialFilter">
+                                        <option value="">All Materials</option>
+                                        <option value="pla">PLA</option>
+                                        <option value="abs">ABS</option>
+                                        <option value="petg">PETG</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6 text-end">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="showNewBatchModal()">
+                                        <i class="bi bi-plus-lg me-1"></i>New Batch
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="materialBatchesContent">
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Batch ID</th>
+                                                <th>Material</th>
+                                                <th>Color</th>
+                                                <th>Quantity</th>
+                                                <th>Status</th>
+                                                <th>Expiry</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="batchesTable">
+                                            <tr>
+                                                <td colspan="7" class="text-center py-4 text-muted">
+                                                    Loading material batches...
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Live Status -->
+        <div class="col-md-4">
+            <!-- Active Operations -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-activity text-success me-2"></i>
+                        Active Operations
+                    </h6>
+                    <span class="badge bg-success" id="activeOpsCount">0</span>
+                </div>
+                <div class="card-body p-0" style="max-height: 250px; overflow-y: auto;">
+                    <div id="activeOperations">
+                        <div class="text-center py-4 text-muted">
+                            <i class="bi bi-pause-circle fs-1 d-block mb-2"></i>
+                            No active operations
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Due Soon -->
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-clock text-warning me-2"></i>
+                        Due Soon (7 Days)
+                    </h6>
+                    <span class="badge bg-warning" id="dueSoonCount">0</span>
+                </div>
+                <div class="card-body p-0" style="max-height: 200px; overflow-y: auto;">
+                    <div id="dueSoonList">
+                        <div class="text-center py-4 text-muted">
+                            No orders due soon
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="bi bi-clock-history text-info me-2"></i>
+                        Recent Activity
+                    </h6>
+                </div>
+                <div class="card-body" style="max-height: 250px; overflow-y: auto;">
+                    <div id="recentActivity">
+                        <div class="timeline-item completed">
+                            <small class="text-muted">Loading...</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Order Modal -->
+<div class="modal fade" id="newOrderModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-cart-plus text-primary me-2"></i>Create Customer Order
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newOrderForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Customer ID *</label>
+                            <input type="text" class="form-control" id="orderCustomerId" required placeholder="CUST-001">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Customer Name *</label>
+                            <input type="text" class="form-control" id="orderCustomerName" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Requested Delivery</label>
+                            <input type="date" class="form-control" id="orderDeliveryDate">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select" id="orderPriority">
+                                <option value="C">C - Standard</option>
+                                <option value="B" selected>B - Normal</option>
+                                <option value="A">A - High</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Shipping Method</label>
+                            <select class="form-select" id="orderShipping">
+                                <option value="standard">Standard</option>
+                                <option value="express">Express</option>
+                                <option value="overnight">Overnight</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="orderNotes" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createOrder()">
+                    <i class="bi bi-check-lg me-1"></i>Create Order
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Work Order Detail Modal -->
+<div class="modal fade" id="woDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-file-text text-primary me-2"></i>
+                    Work Order <span id="woDetailNumber">-</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="woDetailContent">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning" id="woHoldBtn">
+                    <i class="bi bi-pause me-1"></i>Hold
+                </button>
+                <button type="button" class="btn btn-success" id="woCompleteBtn">
+                    <i class="bi bi-check-lg me-1"></i>Complete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global state
+let wipData = {
+    workOrders: [],
+    customerOrders: [],
+    materialBatches: [],
+    summary: {}
+};
+
+// Charts
+let wipByStageChart = null;
+let ordersByStatusChart = null;
+let wipTrendChart = null;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadWIPData();
+    setupEventListeners();
+    // Auto-refresh every 30 seconds
+    setInterval(loadWIPData, 30000);
+});
+
+async function loadWIPData() {
+    try {
+        // Load all data in parallel
+        const [workOrders, customerOrders, summary, dueSoon] = await Promise.all([
+            fetch('/api/mes/work-orders').then(r => r.json()).catch(() => ({ work_orders: [] })),
+            fetch('/api/erp/orders').then(r => r.json()).catch(() => ({ orders: [] })),
+            fetch('/api/erp/orders/summary').then(r => r.json()).catch(() => ({ summary: {} })),
+            fetch('/api/erp/orders/due-soon?days=7').then(r => r.json()).catch(() => ({ due_soon: [] }))
+        ]);
+
+        wipData = {
+            workOrders: workOrders.work_orders || [],
+            customerOrders: customerOrders.orders || [],
+            summary: summary.summary || {},
+            dueSoon: dueSoon.due_soon || []
+        };
+
+        updateKPIs();
+        updateCharts();
+        renderWorkOrders();
+        renderCustomerOrders();
+        renderKanban();
+        renderDueSoon();
+        renderActiveOperations();
+        renderRecentActivity();
+        loadMaterialBatches();
+
+    } catch (error) {
+        console.error('Error loading WIP data:', error);
+    }
+}
+
+function updateKPIs() {
+    const wo = wipData.workOrders;
+    const orders = wipData.customerOrders;
+
+    // Calculate WIP stats
+    const total = wo.length;
+    const inProgress = wo.filter(w => w.status === 'in_progress' || w.status === 'running').length;
+    const queued = wo.filter(w => w.status === 'queued' || w.status === 'pending').length;
+    const late = wo.filter(w => w.status === 'late' || w.is_late).length;
+    const openOrders = orders.filter(o => !['completed', 'cancelled'].includes(o.status)).length;
+
+    // Calculate WIP value (sum of estimated costs)
+    const wipValue = wo.reduce((sum, w) => sum + (w.estimated_cost || w.quantity * 0.50 || 0), 0);
+
+    document.getElementById('totalWIP').textContent = total;
+    document.getElementById('inProgressCount').textContent = inProgress;
+    document.getElementById('queuedCount').textContent = queued;
+    document.getElementById('lateCount').textContent = late;
+    document.getElementById('openOrders').textContent = openOrders;
+    document.getElementById('wipValue').textContent = formatCurrency(wipValue);
+    document.getElementById('woCount').textContent = total;
+}
+
+function updateCharts() {
+    updateWIPByStageChart();
+    updateOrdersByStatusChart();
+    updateWIPTrendChart();
+}
+
+function updateWIPByStageChart() {
+    const ctx = document.getElementById('wipByStageChart').getContext('2d');
+    const wo = wipData.workOrders;
+
+    // Group by stage/status
+    const stages = {
+        'Queued': wo.filter(w => w.status === 'queued' || w.status === 'pending').length,
+        'In Progress': wo.filter(w => w.status === 'in_progress' || w.status === 'running').length,
+        'QC': wo.filter(w => w.status === 'qc' || w.status === 'inspection').length,
+        'Completed': wo.filter(w => w.status === 'completed').length,
+        'On Hold': wo.filter(w => w.status === 'on_hold').length
+    };
+
+    if (wipByStageChart) {
+        wipByStageChart.destroy();
+    }
+
+    wipByStageChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(stages),
+            datasets: [{
+                data: Object.values(stages),
+                backgroundColor: [
+                    'rgba(108, 117, 125, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(23, 162, 184, 0.8)',
+                    'rgba(40, 167, 69, 0.8)',
+                    'rgba(220, 53, 69, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12, font: { size: 10 } }
+                }
+            }
+        }
+    });
+}
+
+function updateOrdersByStatusChart() {
+    const ctx = document.getElementById('ordersByStatusChart').getContext('2d');
+    const orders = wipData.customerOrders;
+
+    const statuses = {
+        'Draft': orders.filter(o => o.status === 'draft').length,
+        'Submitted': orders.filter(o => o.status === 'submitted').length,
+        'Confirmed': orders.filter(o => o.status === 'confirmed').length,
+        'Released': orders.filter(o => o.status === 'released').length,
+        'Completed': orders.filter(o => o.status === 'completed').length
+    };
+
+    if (ordersByStatusChart) {
+        ordersByStatusChart.destroy();
+    }
+
+    ordersByStatusChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(statuses),
+            datasets: [{
+                label: 'Orders',
+                data: Object.values(statuses),
+                backgroundColor: [
+                    'rgba(108, 117, 125, 0.8)',
+                    'rgba(0, 123, 255, 0.8)',
+                    'rgba(23, 162, 184, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(40, 167, 69, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+}
+
+function updateWIPTrendChart() {
+    const ctx = document.getElementById('wipTrendChart').getContext('2d');
+
+    // Generate demo trend data
+    const labels = [];
+    const data = [];
+    const today = new Date();
+
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+        // Deterministic trend based on day of week (higher mid-week)
+        const weekdayFactor = 10 + Math.sin((6 - i) * 0.5) * 10;
+        data.push(Math.floor(weekdayFactor) + 10 + wipData.workOrders.length);
+    }
+
+    if (wipTrendChart) {
+        wipTrendChart.destroy();
+    }
+
+    wipTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'WIP Count',
+                data: data,
+                borderColor: 'rgb(0, 123, 255)',
+                backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true } }
+        }
+    });
+}
+
+function renderWorkOrders() {
+    const container = document.getElementById('workOrdersContent');
+    const wo = wipData.workOrders;
+
+    if (wo.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                No work orders found
+                <button class="btn btn-primary btn-sm mt-3" onclick="showNewWorkOrderModal()">
+                    <i class="bi bi-plus-lg me-1"></i>Create Work Order
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="list-group">
+            ${wo.map((w, idx) => {
+                const priorityClass = getPriorityClass(w.priority);
+                const statusBadge = getStatusBadge(w.status);
+                // Deterministic fallback progress based on work order index
+                const progress = w.progress || (30 + (idx * 17) % 70);
+
+                return `
+                    <div class="list-group-item wip-item ${priorityClass}" onclick="viewWorkOrder('${w.work_order_id || w.id}')">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">
+                                    <strong>${w.work_order_number || w.id}</strong>
+                                    <span class="ms-2">${statusBadge}</span>
+                                </h6>
+                                <p class="mb-1 text-muted small">
+                                    ${w.part_name || w.product_name || 'LEGO Brick'} - Qty: ${w.quantity || 100}
+                                </p>
+                                <small class="text-muted">
+                                    Due: ${formatDate(w.due_date || w.scheduled_end)}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <div class="progress" style="width: 100px; height: 6px;">
+                                    <div class="progress-bar ${progress >= 100 ? 'bg-success' : ''}"
+                                         style="width: ${progress}%"></div>
+                                </div>
+                                <small class="text-muted">${progress}%</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `;
+}
+
+function renderCustomerOrders() {
+    const container = document.getElementById('customerOrdersContent');
+    const orders = wipData.customerOrders;
+
+    if (orders.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-cart fs-1 d-block mb-3"></i>
+                No customer orders found
+                <button class="btn btn-primary btn-sm mt-3" onclick="showNewOrderModal()">
+                    <i class="bi bi-plus-lg me-1"></i>Create Order
+                </button>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Order #</th>
+                        <th>Customer</th>
+                        <th>Requested Date</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Lines</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${orders.map(o => `
+                        <tr>
+                            <td><strong>${o.order_number || o.order_id}</strong></td>
+                            <td>${o.customer_name || 'Unknown'}</td>
+                            <td>${formatDate(o.requested_delivery_date)}</td>
+                            <td><span class="badge bg-${getPriorityColor(o.priority_class)}">${o.priority_class || 'B'}</span></td>
+                            <td>${getStatusBadge(o.status)}</td>
+                            <td>${(o.lines || []).length}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary" onclick="viewOrder('${o.order_id}')" title="View">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    ${o.status === 'draft' ? `
+                                        <button class="btn btn-outline-primary" onclick="submitOrder('${o.order_id}')" title="Submit">
+                                            <i class="bi bi-send"></i>
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderKanban() {
+    const wo = wipData.workOrders;
+
+    const queued = wo.filter(w => w.status === 'queued' || w.status === 'pending');
+    const inProgress = wo.filter(w => w.status === 'in_progress' || w.status === 'running');
+    const qc = wo.filter(w => w.status === 'qc' || w.status === 'inspection');
+    const completed = wo.filter(w => w.status === 'completed').slice(0, 5);
+
+    document.getElementById('kanbanQueued').textContent = queued.length;
+    document.getElementById('kanbanInProgress').textContent = inProgress.length;
+    document.getElementById('kanbanQC').textContent = qc.length;
+    document.getElementById('kanbanCompleted').textContent = completed.length;
+
+    renderKanbanColumn('kanbanQueuedItems', queued);
+    renderKanbanColumn('kanbanInProgressItems', inProgress);
+    renderKanbanColumn('kanbanQCItems', qc);
+    renderKanbanColumn('kanbanCompletedItems', completed);
+}
+
+function renderKanbanColumn(containerId, items) {
+    const container = document.getElementById(containerId);
+
+    if (items.length === 0) {
+        container.innerHTML = '<div class="text-center py-3 text-muted small">No items</div>';
+        return;
+    }
+
+    container.innerHTML = items.map(w => `
+        <div class="card kanban-card mb-2" onclick="viewWorkOrder('${w.work_order_id || w.id}')">
+            <div class="card-body p-2">
+                <h6 class="card-title mb-1 small">${w.work_order_number || w.id}</h6>
+                <p class="card-text small text-muted mb-1">${w.part_name || 'Brick'}</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <small>Qty: ${w.quantity || 100}</small>
+                    <span class="badge bg-${getPriorityColor(w.priority)}">${w.priority || 'M'}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderDueSoon() {
+    const container = document.getElementById('dueSoonList');
+    const dueSoon = wipData.dueSoon || [];
+
+    document.getElementById('dueSoonCount').textContent = dueSoon.length;
+
+    if (dueSoon.length === 0) {
+        container.innerHTML = '<div class="text-center py-3 text-muted">No orders due soon</div>';
+        return;
+    }
+
+    container.innerHTML = dueSoon.map(o => `
+        <div class="p-2 border-bottom">
+            <div class="d-flex justify-content-between">
+                <strong class="small">${o.order_number || o.order_id}</strong>
+                <span class="badge bg-warning">${formatDate(o.promised_delivery_date || o.requested_delivery_date)}</span>
+            </div>
+            <small class="text-muted">${o.customer_name || 'Customer'}</small>
+        </div>
+    `).join('');
+}
+
+function renderActiveOperations() {
+    const container = document.getElementById('activeOperations');
+    const active = wipData.workOrders.filter(w => w.status === 'in_progress' || w.status === 'running');
+
+    document.getElementById('activeOpsCount').textContent = active.length;
+
+    if (active.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-pause-circle fs-1 d-block mb-2"></i>
+                No active operations
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = active.map(w => `
+        <div class="p-3 border-bottom">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <strong>${w.work_order_number || w.id}</strong>
+                <span class="badge bg-success">Running</span>
+            </div>
+            <p class="mb-1 small">${w.part_name || 'LEGO Brick'}</p>
+            <div class="progress" style="height: 4px;">
+                <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                     style="width: ${w.progress || 50}%"></div>
+            </div>
+            <small class="text-muted">${w.progress || 50}% complete</small>
+        </div>
+    `).join('');
+}
+
+function renderRecentActivity() {
+    const container = document.getElementById('recentActivity');
+
+    // Generate demo activity
+    const activities = [
+        { type: 'completed', text: 'WO-2024-0123 completed', time: '5 min ago' },
+        { type: 'in-progress', text: 'WO-2024-0124 started printing', time: '15 min ago' },
+        { type: 'completed', text: 'Order SO-2024-0045 shipped', time: '1 hour ago' },
+        { type: 'in-progress', text: 'QC inspection started', time: '2 hours ago' }
+    ];
+
+    container.innerHTML = activities.map(a => `
+        <div class="timeline-item ${a.type}">
+            <p class="mb-0 small">${a.text}</p>
+            <small class="text-muted">${a.time}</small>
+        </div>
+    `).join('');
+}
+
+async function loadMaterialBatches() {
+    const tbody = document.getElementById('batchesTable');
+
+    // Demo batch data
+    const batches = [
+        { id: 'BATCH-2024-001', material: 'PLA', color: 'Red', quantity: '750g', status: 'active', expiry: '2025-06-15' },
+        { id: 'BATCH-2024-002', material: 'PLA', color: 'Blue', quantity: '1000g', status: 'active', expiry: '2025-07-20' },
+        { id: 'BATCH-2024-003', material: 'ABS', color: 'Black', quantity: '500g', status: 'low', expiry: '2025-05-10' },
+        { id: 'BATCH-2024-004', material: 'PETG', color: 'White', quantity: '900g', status: 'active', expiry: '2025-08-01' }
+    ];
+
+    tbody.innerHTML = batches.map(b => `
+        <tr>
+            <td><strong>${b.id}</strong></td>
+            <td>${b.material}</td>
+            <td>${b.color}</td>
+            <td>${b.quantity}</td>
+            <td>
+                <span class="badge bg-${b.status === 'active' ? 'success' : 'warning'}">
+                    ${b.status}
+                </span>
+            </td>
+            <td>${formatDate(b.expiry)}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-secondary" onclick="viewBatch('${b.id}')">
+                    <i class="bi bi-eye"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Modal functions
+function showNewOrderModal() {
+    document.getElementById('newOrderForm').reset();
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+    document.getElementById('orderDeliveryDate').value = nextWeek.toISOString().split('T')[0];
+    new bootstrap.Modal(document.getElementById('newOrderModal')).show();
+}
+
+async function createOrder() {
+    const data = {
+        customer_id: document.getElementById('orderCustomerId').value,
+        customer_name: document.getElementById('orderCustomerName').value,
+        requested_delivery_date: document.getElementById('orderDeliveryDate').value,
+        priority_class: document.getElementById('orderPriority').value,
+        shipping_method: document.getElementById('orderShipping').value,
+        notes: document.getElementById('orderNotes').value
+    };
+
+    if (!data.customer_id || !data.customer_name) {
+        showToast('Please fill in required fields', 'warning');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/erp/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('newOrderModal')).hide();
+            showToast('Order created successfully', 'success');
+            loadWIPData();
+        } else {
+            const error = await response.json();
+            showToast(error.error || 'Failed to create order', 'danger');
+        }
+    } catch (error) {
+        console.error('Error creating order:', error);
+        showToast('Error creating order', 'danger');
+    }
+}
+
+function viewWorkOrder(woId) {
+    console.log('View work order:', woId);
+    // Show detail modal
+    document.getElementById('woDetailNumber').textContent = woId;
+    document.getElementById('woDetailContent').innerHTML = `
+        <div class="text-center py-4">
+            <p>Work order details would be displayed here.</p>
+            <p class="text-muted">ID: ${woId}</p>
+        </div>
+    `;
+    new bootstrap.Modal(document.getElementById('woDetailModal')).show();
+}
+
+function viewOrder(orderId) {
+    console.log('View order:', orderId);
+}
+
+async function submitOrder(orderId) {
+    try {
+        const response = await fetch(`/api/erp/orders/${orderId}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'submit' })
+        });
+
+        if (response.ok) {
+            showToast('Order submitted', 'success');
+            loadWIPData();
+        }
+    } catch (error) {
+        console.error('Error submitting order:', error);
+    }
+}
+
+// Helper functions
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function getPriorityClass(priority) {
+    const classes = {
+        'high': 'priority-high',
+        'A': 'priority-high',
+        'medium': 'priority-medium',
+        'B': 'priority-medium',
+        'low': 'priority-low',
+        'C': 'priority-low'
+    };
+    return classes[priority] || '';
+}
+
+function getPriorityColor(priority) {
+    const colors = {
+        'high': 'danger',
+        'A': 'danger',
+        'medium': 'warning',
+        'B': 'warning',
+        'low': 'success',
+        'C': 'success'
+    };
+    return colors[priority] || 'secondary';
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'draft': '<span class="badge order-status-badge bg-secondary">Draft</span>',
+        'queued': '<span class="badge order-status-badge bg-secondary">Queued</span>',
+        'pending': '<span class="badge order-status-badge bg-secondary">Pending</span>',
+        'submitted': '<span class="badge order-status-badge bg-primary">Submitted</span>',
+        'confirmed': '<span class="badge order-status-badge bg-info">Confirmed</span>',
+        'in_progress': '<span class="badge order-status-badge bg-warning">In Progress</span>',
+        'running': '<span class="badge order-status-badge bg-warning">Running</span>',
+        'qc': '<span class="badge order-status-badge bg-info">QC</span>',
+        'inspection': '<span class="badge order-status-badge bg-info">Inspection</span>',
+        'released': '<span class="badge order-status-badge bg-primary">Released</span>',
+        'completed': '<span class="badge order-status-badge bg-success">Completed</span>',
+        'on_hold': '<span class="badge order-status-badge bg-danger">On Hold</span>',
+        'cancelled': '<span class="badge order-status-badge bg-dark">Cancelled</span>'
+    };
+    return badges[status] || `<span class="badge order-status-badge bg-secondary">${status}</span>`;
+}
+
+function setupEventListeners() {
+    // Search and filter listeners
+    document.getElementById('woSearch')?.addEventListener('input', filterWorkOrders);
+    document.getElementById('woStatusFilter')?.addEventListener('change', filterWorkOrders);
+    document.getElementById('woPriorityFilter')?.addEventListener('change', filterWorkOrders);
+}
+
+function filterWorkOrders() {
+    // Implement filtering logic
+    renderWorkOrders();
+}
+
+function refreshDashboard() {
+    loadWIPData();
+    showToast('Dashboard refreshed', 'info');
+}
+
+function setWOView(view) {
+    // Toggle between list and card views
+    console.log('Set view:', view);
+}
+
+function showNewWorkOrderModal() {
+    showToast('Work order creation coming soon', 'info');
+}
+
+function showNewBatchModal() {
+    showToast('Batch creation coming soon', 'info');
+}
+
+function viewBatch(batchId) {
+    console.log('View batch:', batchId);
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} position-fixed top-0 end-0 m-3`;
+    toast.style.zIndex = '9999';
+    toast.innerHTML = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+</script>
+{% endblock %}

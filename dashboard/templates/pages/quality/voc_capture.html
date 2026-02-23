@@ -1,0 +1,614 @@
+{% extends "base.html" %}
+
+{% block title %}Voice of Customer Capture{% endblock %}
+
+{% block head %}
+<style>
+    .voc-container {
+        padding: 1rem;
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .voc-header {
+        margin-bottom: 2rem;
+    }
+
+    .input-section {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    @media (max-width: 768px) {
+        .input-section {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .card {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+
+    .card h3 {
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .feedback-input {
+        width: 100%;
+        min-height: 150px;
+        padding: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: inherit;
+        resize: vertical;
+    }
+
+    .source-selector {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .source-btn {
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 20px;
+        background: var(--bg-primary);
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .source-btn:hover, .source-btn.active {
+        background: var(--accent-color);
+        color: white;
+        border-color: var(--accent-color);
+    }
+
+    .requirements-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .requirement-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+
+    .requirement-item .importance {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        flex-shrink: 0;
+    }
+
+    .importance.critical { background: #fee2e2; color: #991b1b; }
+    .importance.high { background: #fef3c7; color: #92400e; }
+    .importance.medium { background: #dbeafe; color: #1e40af; }
+    .importance.low { background: #d1fae5; color: #065f46; }
+
+    .requirement-content {
+        flex: 1;
+    }
+
+    .requirement-content .text {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+    }
+
+    .requirement-content .meta {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .kano-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .kano-must-be { background: #fee2e2; color: #991b1b; }
+    .kano-one-dimensional { background: #dbeafe; color: #1e40af; }
+    .kano-attractive { background: #d1fae5; color: #065f46; }
+
+    .analysis-section {
+        margin-top: 2rem;
+    }
+
+    .analysis-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1rem;
+    }
+
+    .theme-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .theme-card h4 {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .theme-count {
+        background: var(--accent-color);
+        color: white;
+        padding: 0.125rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.75rem;
+    }
+
+    .theme-items {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .theme-items li {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.875rem;
+    }
+
+    .theme-items li:last-child {
+        border-bottom: none;
+    }
+
+    .controls-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: var(--accent-color);
+        color: white;
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .stats-bar {
+        display: flex;
+        gap: 2rem;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-item .value {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+
+    .stat-item .label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .affinity-diagram {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .affinity-group {
+        background: var(--bg-primary);
+        border-radius: 8px;
+        padding: 1rem;
+        border-top: 4px solid var(--accent-color);
+    }
+
+    .affinity-group h5 {
+        margin-bottom: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .sticky-note {
+        background: #fef3c7;
+        color: #1f2937;
+        padding: 0.5rem;
+        margin: 0.25rem 0;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        box-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="voc-container">
+    <div class="voc-header">
+        <h1>Voice of Customer Capture</h1>
+        <p style="color: var(--text-secondary);">Capture and analyze customer requirements for LEGO brick quality</p>
+    </div>
+
+    <div class="controls-bar">
+        <button class="btn btn-primary" onclick="analyzeVOC()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            AI Analysis
+        </button>
+        <button class="btn btn-secondary" onclick="exportToQFD()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Export to QFD
+        </button>
+        <button class="btn btn-secondary" onclick="importFeedback()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            Import CSV
+        </button>
+        <button class="btn btn-secondary" onclick="generateReport()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            Generate Report
+        </button>
+    </div>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="value" id="totalFeedback">47</div>
+            <div class="label">Total Feedback</div>
+        </div>
+        <div class="stat-item">
+            <div class="value" id="extractedReqs">12</div>
+            <div class="label">Requirements</div>
+        </div>
+        <div class="stat-item">
+            <div class="value" id="themesFound">5</div>
+            <div class="label">Themes</div>
+        </div>
+        <div class="stat-item">
+            <div class="value" style="color: #dc2626;" id="criticalReqs">3</div>
+            <div class="label">Critical</div>
+        </div>
+        <div class="stat-item">
+            <div class="value" id="avgSentiment">78%</div>
+            <div class="label">Satisfaction</div>
+        </div>
+    </div>
+
+    <div class="input-section">
+        <!-- Feedback Input -->
+        <div class="card">
+            <h3>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                Add Customer Feedback
+            </h3>
+
+            <div class="source-selector">
+                <button class="source-btn active" onclick="setSource('survey')">Survey</button>
+                <button class="source-btn" onclick="setSource('interview')">Interview</button>
+                <button class="source-btn" onclick="setSource('review')">Review</button>
+                <button class="source-btn" onclick="setSource('support')">Support Ticket</button>
+                <button class="source-btn" onclick="setSource('social')">Social Media</button>
+            </div>
+
+            <textarea class="feedback-input" id="feedbackInput" placeholder="Enter customer feedback here...
+
+Example:
+'The bricks connect well but sometimes they're too tight and hard to separate. My kids love the colors though!'"></textarea>
+
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                <button class="btn btn-primary" onclick="addFeedback()">Add Feedback</button>
+                <button class="btn btn-secondary" onclick="clearInput()">Clear</button>
+            </div>
+        </div>
+
+        <!-- Extracted Requirements -->
+        <div class="card">
+            <h3>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="8" y1="6" x2="21" y2="6"></line>
+                    <line x1="8" y1="12" x2="21" y2="12"></line>
+                    <line x1="8" y1="18" x2="21" y2="18"></line>
+                    <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                    <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                    <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+                Extracted Requirements
+            </h3>
+
+            <ul class="requirements-list" id="requirementsList">
+                <li class="requirement-item">
+                    <div class="importance critical">10</div>
+                    <div class="requirement-content">
+                        <div class="text">Bricks must be compatible with official LEGO</div>
+                        <div class="meta">
+                            <span class="kano-badge kano-must-be">Must-Be</span>
+                            47 mentions
+                        </div>
+                    </div>
+                </li>
+                <li class="requirement-item">
+                    <div class="importance critical">9</div>
+                    <div class="requirement-content">
+                        <div class="text">Bricks should connect firmly</div>
+                        <div class="meta">
+                            <span class="kano-badge kano-must-be">Must-Be</span>
+                            35 mentions
+                        </div>
+                    </div>
+                </li>
+                <li class="requirement-item">
+                    <div class="importance high">8</div>
+                    <div class="requirement-content">
+                        <div class="text">Bricks should be easy to separate</div>
+                        <div class="meta">
+                            <span class="kano-badge kano-one-dimensional">One-Dimensional</span>
+                            28 mentions
+                        </div>
+                    </div>
+                </li>
+                <li class="requirement-item">
+                    <div class="importance medium">7</div>
+                    <div class="requirement-content">
+                        <div class="text">Colors should be accurate and consistent</div>
+                        <div class="meta">
+                            <span class="kano-badge kano-one-dimensional">One-Dimensional</span>
+                            22 mentions
+                        </div>
+                    </div>
+                </li>
+                <li class="requirement-item">
+                    <div class="importance low">6</div>
+                    <div class="requirement-content">
+                        <div class="text">Surface should be smooth and pleasant</div>
+                        <div class="meta">
+                            <span class="kano-badge kano-attractive">Attractive</span>
+                            15 mentions
+                        </div>
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Analysis Section -->
+    <div class="analysis-section">
+        <h2>Theme Analysis</h2>
+
+        <div class="affinity-diagram" id="affinityDiagram">
+            <div class="affinity-group">
+                <h5>Connection Quality</h5>
+                <div class="sticky-note">"Bricks snap together perfectly"</div>
+                <div class="sticky-note">"Sometimes too tight for kids"</div>
+                <div class="sticky-note">"Need better clutch power"</div>
+                <div class="sticky-note">"Works great with real LEGO"</div>
+            </div>
+
+            <div class="affinity-group">
+                <h5>Dimensional Accuracy</h5>
+                <div class="sticky-note">"Fits perfectly with official bricks"</div>
+                <div class="sticky-note">"Some variation in stud height"</div>
+                <div class="sticky-note">"Tolerances seem good"</div>
+            </div>
+
+            <div class="affinity-group">
+                <h5>Surface Finish</h5>
+                <div class="sticky-note">"Visible layer lines on some"</div>
+                <div class="sticky-note">"Smooth enough for kids"</div>
+                <div class="sticky-note">"Could be shinier"</div>
+            </div>
+
+            <div class="affinity-group">
+                <h5>Color Quality</h5>
+                <div class="sticky-note">"Colors match well"</div>
+                <div class="sticky-note">"Red seems a bit off"</div>
+                <div class="sticky-note">"Love the color options"</div>
+            </div>
+
+            <div class="affinity-group">
+                <h5>Durability</h5>
+                <div class="sticky-note">"Haven't broken any yet"</div>
+                <div class="sticky-note">"Concern about long-term use"</div>
+                <div class="sticky-note">"Kids play rough - still ok"</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kano Model Analysis -->
+    <div class="analysis-section">
+        <h2>Kano Model Classification</h2>
+
+        <div class="analysis-grid">
+            <div class="theme-card">
+                <h4>
+                    <span style="color: #dc2626;">●</span>
+                    Must-Be Requirements
+                    <span class="theme-count">3</span>
+                </h4>
+                <ul class="theme-items">
+                    <li>LEGO compatibility</li>
+                    <li>Connection strength</li>
+                    <li>Safe materials</li>
+                </ul>
+            </div>
+
+            <div class="theme-card">
+                <h4>
+                    <span style="color: #2563eb;">●</span>
+                    One-Dimensional Requirements
+                    <span class="theme-count">4</span>
+                </h4>
+                <ul class="theme-items">
+                    <li>Ease of separation</li>
+                    <li>Color accuracy</li>
+                    <li>Dimensional precision</li>
+                    <li>Durability</li>
+                </ul>
+            </div>
+
+            <div class="theme-card">
+                <h4>
+                    <span style="color: #059669;">●</span>
+                    Attractive Requirements
+                    <span class="theme-count">3</span>
+                </h4>
+                <ul class="theme-items">
+                    <li>Surface smoothness</li>
+                    <li>Custom colors</li>
+                    <li>Special effects (glow, metallic)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentSource = 'survey';
+let feedbackItems = [];
+
+function setSource(source) {
+    currentSource = source;
+    document.querySelectorAll('.source-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.toLowerCase() === source);
+    });
+}
+
+function addFeedback() {
+    const input = document.getElementById('feedbackInput');
+    const text = input.value.trim();
+
+    if (!text) {
+        alert('Please enter some feedback');
+        return;
+    }
+
+    feedbackItems.push({
+        text: text,
+        source: currentSource,
+        timestamp: new Date().toISOString()
+    });
+
+    // Trigger AI analysis
+    analyzeFeedback(text);
+
+    input.value = '';
+    updateStats();
+}
+
+function analyzeFeedback(text) {
+    fetch('/api/v6/quality/voc/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback: text, source: currentSource })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.requirements) {
+            // Add new requirements to list
+            console.log('Extracted requirements:', data.requirements);
+        }
+    })
+    .catch(() => {
+        console.log('Feedback stored locally');
+    });
+}
+
+function clearInput() {
+    document.getElementById('feedbackInput').value = '';
+}
+
+function updateStats() {
+    document.getElementById('totalFeedback').textContent = 47 + feedbackItems.length;
+}
+
+function analyzeVOC() {
+    fetch('/api/v6/quality/voc/full-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feedback_items: feedbackItems })
+    })
+    .then(r => r.json())
+    .then(data => {
+        alert('Analysis complete! Found ' + (data.themes?.length || 0) + ' themes.');
+    })
+    .catch(() => {
+        alert('Analysis would extract themes and classify requirements using NLP.');
+    });
+}
+
+function exportToQFD() {
+    window.location.href = '/quality/hoq?from=voc';
+}
+
+function importFeedback() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            alert('Would import ' + file.name);
+        }
+    };
+    input.click();
+}
+
+function generateReport() {
+    window.open('/api/v6/quality/voc/report', '_blank');
+}
+</script>
+{% endblock %}

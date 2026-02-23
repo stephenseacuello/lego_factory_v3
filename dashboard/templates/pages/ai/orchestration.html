@@ -1,0 +1,1809 @@
+{% extends "base.html" %}
+{% block title %}Agent Orchestration - LEGO MCP v6.0{% endblock %}
+
+{% block styles %}
+<style>
+    /* ============================================
+       Agent Orchestration Dashboard
+       World-Class Multi-Agent Manufacturing Intelligence
+       ============================================ */
+
+    .orchestration-dashboard {
+        padding: 1.5rem;
+        max-width: 1800px;
+        margin: 0 auto;
+    }
+
+    /* Dashboard Header */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .dashboard-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .dashboard-title h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .version-badge {
+        background: linear-gradient(135deg, var(--accent-primary) 0%, #c00 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .live-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: #22c55e;
+        background: rgba(34, 197, 94, 0.1);
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+    }
+
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background: #22c55e;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    .dashboard-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+        font-size: 0.875rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+    }
+
+    .btn-warning {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+    }
+
+    /* KPI Summary Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .kpi-card.agents::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .kpi-card.decisions::before { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .kpi-card.consensus::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+    .kpi-card.accuracy::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .kpi-card.latency::before { background: linear-gradient(90deg, #06b6d4, #22d3ee); }
+    .kpi-card.tasks::before { background: linear-gradient(90deg, #ec4899, #f472b6); }
+
+    .kpi-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 0.25rem;
+    }
+
+    .kpi-label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-trend {
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .kpi-trend.positive { color: #22c55e; }
+    .kpi-trend.negative { color: #ef4444; }
+    .kpi-trend.neutral { color: var(--text-secondary); }
+
+    /* Agent Cards Grid */
+    .agent-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .agent-card {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        transition: all 0.3s;
+        cursor: pointer;
+    }
+
+    .agent-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+
+    .agent-card.selected {
+        border-color: var(--accent-primary);
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    .agent-header {
+        padding: 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .agent-info {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .agent-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .agent-avatar.quality { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+    .agent-avatar.scheduling { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+    .agent-avatar.maintenance { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+    .agent-avatar.generative { background: linear-gradient(135deg, #ec4899, #f472b6); }
+
+    .agent-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .agent-role {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .agent-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .agent-status.active { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .agent-status.busy { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .agent-status.idle { background: rgba(156, 163, 175, 0.15); color: #9ca3af; }
+    .agent-status.error { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+    .agent-body {
+        padding: 1.25rem;
+    }
+
+    .agent-metrics {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .agent-metric {
+        text-align: center;
+        padding: 0.75rem 0.5rem;
+        background: var(--bg-secondary);
+        border-radius: 0.5rem;
+    }
+
+    .agent-metric-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .agent-metric-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .agent-current-task {
+        background: var(--bg-secondary);
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    .agent-current-task strong {
+        color: var(--accent-primary);
+    }
+
+    .agent-progress {
+        height: 4px;
+        background: var(--bg-tertiary);
+        border-radius: 2px;
+        margin-top: 0.5rem;
+        overflow: hidden;
+    }
+
+    .agent-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #60a5fa);
+        border-radius: 2px;
+        transition: width 0.5s ease;
+    }
+
+    /* Main Content Grid */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Panels */
+    .panel {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .panel-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .panel-badge {
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.65rem;
+        font-weight: 600;
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+    }
+
+    .panel-body {
+        padding: 1.25rem;
+    }
+
+    /* Message Bus */
+    .message-list {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .message-item {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        background: var(--bg-secondary);
+        margin-bottom: 0.75rem;
+        transition: all 0.2s;
+    }
+
+    .message-item:hover {
+        transform: translateX(4px);
+    }
+
+    .message-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .message-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.25rem;
+    }
+
+    .message-icon.quality { background: rgba(59, 130, 246, 0.15); }
+    .message-icon.scheduling { background: rgba(245, 158, 11, 0.15); }
+    .message-icon.maintenance { background: rgba(139, 92, 246, 0.15); }
+    .message-icon.system { background: rgba(34, 197, 94, 0.15); }
+    .message-icon.alert { background: rgba(239, 68, 68, 0.15); }
+
+    .message-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.25rem;
+    }
+
+    .message-title {
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .message-time {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+
+    .message-route {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .message-priority {
+        display: inline-block;
+        padding: 0.15rem 0.4rem;
+        border-radius: 0.25rem;
+        font-size: 0.6rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+    }
+
+    .message-priority.high { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .message-priority.medium { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .message-priority.low { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+
+    /* Agent Topology */
+    .topology-container {
+        height: 350px;
+        position: relative;
+        background: var(--bg-secondary);
+        border-radius: 0.75rem;
+    }
+
+    #agent-topology {
+        width: 100%;
+        height: 100%;
+    }
+
+    .topology-legend {
+        position: absolute;
+        bottom: 1rem;
+        left: 1rem;
+        display: flex;
+        gap: 1rem;
+        font-size: 0.75rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    /* Consensus Voting Panel */
+    .consensus-panel {
+        margin-bottom: 1.5rem;
+    }
+
+    .voting-container {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+        .voting-container { grid-template-columns: 1fr; }
+    }
+
+    .vote-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .vote-card {
+        background: var(--bg-secondary);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        text-align: center;
+        transition: all 0.3s;
+        border: 2px solid transparent;
+    }
+
+    .vote-card.voted { border-color: #22c55e; }
+    .vote-card.pending { border-color: #f59e0b; animation: pendingPulse 2s infinite; }
+    .vote-card.rejected { border-color: #ef4444; }
+
+    @keyframes pendingPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.3); }
+        50% { box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+    }
+
+    .vote-agent {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .vote-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .vote-icon.approve { color: #22c55e; }
+    .vote-icon.pending { color: #f59e0b; }
+    .vote-icon.reject { color: #ef4444; }
+
+    .vote-reason {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .vote-weight {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+    }
+
+    .decision-summary {
+        background: var(--bg-secondary);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+    }
+
+    .decision-proposal {
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .decision-proposal h4 {
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .decision-proposal p {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .decision-result {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .decision-result.approved { background: rgba(34, 197, 94, 0.1); }
+    .decision-result.pending { background: rgba(245, 158, 11, 0.1); }
+    .decision-result.rejected { background: rgba(239, 68, 68, 0.1); }
+
+    .decision-result-icon {
+        font-size: 1.5rem;
+    }
+
+    .decision-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .decision-stat {
+        text-align: center;
+        padding: 0.75rem;
+        background: var(--bg-primary);
+        border-radius: 0.5rem;
+    }
+
+    .decision-stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .decision-stat-label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    /* HTN Task Panel */
+    .htn-panel {
+        margin-bottom: 1.5rem;
+    }
+
+    .htn-goal {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+        border-radius: 0.75rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .htn-goal-info h4 {
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .htn-goal-info p {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .htn-goal-progress {
+        text-align: right;
+    }
+
+    .htn-goal-percent {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #3b82f6;
+    }
+
+    .timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 0.5rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border-color);
+    }
+
+    .timeline-item {
+        position: relative;
+        padding: 1rem 0;
+        padding-left: 1rem;
+    }
+
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -1.6rem;
+        top: 1.5rem;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        border: 3px solid;
+    }
+
+    .timeline-item.completed::before {
+        background: #22c55e;
+        border-color: #22c55e;
+    }
+
+    .timeline-item.in-progress::before {
+        background: white;
+        border-color: #3b82f6;
+        animation: taskPulse 1.5s infinite;
+    }
+
+    .timeline-item.pending::before {
+        background: white;
+        border-color: var(--border-color);
+    }
+
+    @keyframes taskPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+        50% { box-shadow: 0 0 0 6px rgba(59, 130, 246, 0); }
+    }
+
+    .timeline-content {
+        background: var(--bg-secondary);
+        border-radius: 0.75rem;
+        padding: 1rem;
+    }
+
+    .timeline-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.5rem;
+    }
+
+    .timeline-title {
+        font-weight: 600;
+    }
+
+    .timeline-agent {
+        font-size: 0.7rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: 0.25rem;
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+    }
+
+    .timeline-status {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .timeline-status.completed { color: #22c55e; }
+    .timeline-status.in-progress { color: #3b82f6; }
+
+    .timeline-subtasks {
+        margin-top: 0.75rem;
+        padding-left: 1rem;
+        border-left: 2px solid var(--border-color);
+        font-size: 0.85rem;
+    }
+
+    .subtask {
+        padding: 0.25rem 0;
+        color: var(--text-secondary);
+    }
+
+    .subtask.completed { color: #22c55e; }
+    .subtask.in-progress { color: #3b82f6; }
+
+    /* Conflict Resolution */
+    .conflict-panel {
+        background: rgba(239, 68, 68, 0.05);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+    }
+
+    .conflict-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .conflict-header h4 {
+        color: #ef4444;
+    }
+
+    .conflict-parties {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .conflict-party {
+        flex: 1;
+        background: var(--bg-primary);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .conflict-resolution {
+        background: rgba(59, 130, 246, 0.1);
+        border-radius: 0.5rem;
+        padding: 1rem;
+    }
+
+    .resolution-strategy {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        width: 90%;
+        max-width: 700px;
+        max-height: 85vh;
+        overflow: hidden;
+        transform: scale(0.95);
+        transition: transform 0.3s;
+    }
+
+    .modal-overlay.active .modal {
+        transform: scale(1);
+    }
+
+    .modal-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    .modal-close {
+        width: 32px;
+        height: 32px;
+        border-radius: 0.5rem;
+        border: none;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 1.25rem;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1100;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .toast {
+        padding: 0.875rem 1.25rem;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: white;
+        font-size: 0.875rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast.success { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .toast.error { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .toast.warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .toast.info { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .agent-metrics { grid-template-columns: repeat(2, 1fr); }
+        .vote-grid { grid-template-columns: 1fr; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="orchestration-dashboard">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <h1>Agent Orchestration</h1>
+            <span class="version-badge">v6.0</span>
+            <div class="live-indicator">
+                <span class="live-dot"></span>
+                <span>Real-time</span>
+            </div>
+        </div>
+        <div class="dashboard-actions">
+            <button class="btn btn-secondary" onclick="viewHistory()">View History</button>
+            <button class="btn btn-warning" onclick="openConflictModal()">Conflicts (1)</button>
+            <button class="btn btn-success" onclick="triggerConsensus()">Trigger Consensus</button>
+            <button class="btn btn-primary" onclick="newDecisionRequest()">+ New Decision</button>
+        </div>
+    </div>
+
+    <!-- KPI Summary -->
+    <div class="kpi-grid">
+        <div class="kpi-card agents">
+            <div class="kpi-icon">🤖</div>
+            <div class="kpi-value" id="kpiActiveAgents">4</div>
+            <div class="kpi-label">Active Agents</div>
+            <div class="kpi-trend positive">All systems operational</div>
+        </div>
+        <div class="kpi-card decisions">
+            <div class="kpi-icon">🎯</div>
+            <div class="kpi-value" id="kpiDecisions">279</div>
+            <div class="kpi-label">Decisions Today</div>
+            <div class="kpi-trend positive">+23% vs yesterday</div>
+        </div>
+        <div class="kpi-card consensus">
+            <div class="kpi-icon">🤝</div>
+            <div class="kpi-value" id="kpiConsensus">98.2%</div>
+            <div class="kpi-label">Consensus Rate</div>
+            <div class="kpi-trend positive">+1.5% this week</div>
+        </div>
+        <div class="kpi-card accuracy">
+            <div class="kpi-icon">🎪</div>
+            <div class="kpi-value" id="kpiAccuracy">96.8%</div>
+            <div class="kpi-label">Decision Accuracy</div>
+            <div class="kpi-trend positive">+2.3% improvement</div>
+        </div>
+        <div class="kpi-card latency">
+            <div class="kpi-icon">⚡</div>
+            <div class="kpi-value" id="kpiLatency">45ms</div>
+            <div class="kpi-label">Avg Response Time</div>
+            <div class="kpi-trend positive">-12ms faster</div>
+        </div>
+        <div class="kpi-card tasks">
+            <div class="kpi-icon">📋</div>
+            <div class="kpi-value" id="kpiTasks">7</div>
+            <div class="kpi-label">Active HTN Tasks</div>
+            <div class="kpi-trend neutral">3 in progress</div>
+        </div>
+    </div>
+
+    <!-- Agent Cards -->
+    <div class="agent-grid">
+        <!-- Quality Agent -->
+        <div class="agent-card" onclick="selectAgent('quality')">
+            <div class="agent-header">
+                <div class="agent-info">
+                    <div class="agent-avatar quality">🔍</div>
+                    <div>
+                        <div class="agent-name">Quality Agent</div>
+                        <div class="agent-role">Defect Detection & Quality Control</div>
+                    </div>
+                </div>
+                <span class="agent-status active">Active</span>
+            </div>
+            <div class="agent-body">
+                <div class="agent-metrics">
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">156</div>
+                        <div class="agent-metric-label">Decisions</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">98.2%</div>
+                        <div class="agent-metric-label">Accuracy</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">23ms</div>
+                        <div class="agent-metric-label">Latency</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">4</div>
+                        <div class="agent-metric-label">Tasks</div>
+                    </div>
+                </div>
+                <div class="agent-current-task">
+                    <strong>Current:</strong> Analyzing surface quality for Batch #1247
+                    <div class="agent-progress">
+                        <div class="agent-progress-fill" style="width: 67%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scheduling Agent -->
+        <div class="agent-card" onclick="selectAgent('scheduling')">
+            <div class="agent-header">
+                <div class="agent-info">
+                    <div class="agent-avatar scheduling">📅</div>
+                    <div>
+                        <div class="agent-name">Scheduling Agent</div>
+                        <div class="agent-role">QAOA Optimization & Resource Allocation</div>
+                    </div>
+                </div>
+                <span class="agent-status busy">Processing</span>
+            </div>
+            <div class="agent-body">
+                <div class="agent-metrics">
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">89</div>
+                        <div class="agent-metric-label">Decisions</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">94.5%</div>
+                        <div class="agent-metric-label">On-Time</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">1.2s</div>
+                        <div class="agent-metric-label">Latency</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">2</div>
+                        <div class="agent-metric-label">Tasks</div>
+                    </div>
+                </div>
+                <div class="agent-current-task">
+                    <strong>Current:</strong> Running QAOA for Job Shop scheduling (50 jobs, 8 machines)
+                    <div class="agent-progress">
+                        <div class="agent-progress-fill" style="width: 45%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Maintenance Agent -->
+        <div class="agent-card" onclick="selectAgent('maintenance')">
+            <div class="agent-header">
+                <div class="agent-info">
+                    <div class="agent-avatar maintenance">🔧</div>
+                    <div>
+                        <div class="agent-name">Maintenance Agent</div>
+                        <div class="agent-role">Predictive Maintenance & Equipment Health</div>
+                    </div>
+                </div>
+                <span class="agent-status active">Active</span>
+            </div>
+            <div class="agent-body">
+                <div class="agent-metrics">
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">34</div>
+                        <div class="agent-metric-label">Decisions</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">99.1%</div>
+                        <div class="agent-metric-label">Uptime</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">156ms</div>
+                        <div class="agent-metric-label">Latency</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">1</div>
+                        <div class="agent-metric-label">Tasks</div>
+                    </div>
+                </div>
+                <div class="agent-current-task">
+                    <strong>Current:</strong> Monitoring Prusa MK4 #2 extruder motor health
+                    <div class="agent-progress">
+                        <div class="agent-progress-fill" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generative Agent -->
+        <div class="agent-card" onclick="selectAgent('generative')">
+            <div class="agent-header">
+                <div class="agent-info">
+                    <div class="agent-avatar generative">✨</div>
+                    <div>
+                        <div class="agent-name">Generative Agent</div>
+                        <div class="agent-role">Design Optimization & Part Generation</div>
+                    </div>
+                </div>
+                <span class="agent-status idle">Idle</span>
+            </div>
+            <div class="agent-body">
+                <div class="agent-metrics">
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">12</div>
+                        <div class="agent-metric-label">Decisions</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">97.3%</div>
+                        <div class="agent-metric-label">Success</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">2.5s</div>
+                        <div class="agent-metric-label">Latency</div>
+                    </div>
+                    <div class="agent-metric">
+                        <div class="agent-metric-value">0</div>
+                        <div class="agent-metric-label">Tasks</div>
+                    </div>
+                </div>
+                <div class="agent-current-task">
+                    <strong>Idle:</strong> Awaiting design optimization requests
+                    <div class="agent-progress">
+                        <div class="agent-progress-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Bus & Topology -->
+    <div class="main-grid">
+        <!-- Message Bus -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span>💬 Inter-Agent Message Bus</span>
+                    <span class="panel-badge">Real-time</span>
+                </div>
+                <span style="font-size: 0.75rem; color: var(--text-secondary);" id="messageCount">24 messages/min</span>
+            </div>
+            <div class="panel-body">
+                <div class="message-list" id="messageList">
+                    <div class="message-item">
+                        <div class="message-icon quality">🔍</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-title">Quality Alert: Surface roughness exceeding threshold</span>
+                                <span class="message-time">2s ago</span>
+                            </div>
+                            <div class="message-route">
+                                Quality → Scheduling, Maintenance
+                                <span class="message-priority high">High</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="message-item">
+                        <div class="message-icon scheduling">📅</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-title">Schedule Update: Job #1234 rescheduled to 14:00</span>
+                                <span class="message-time">15s ago</span>
+                            </div>
+                            <div class="message-route">
+                                Scheduling → All Agents
+                                <span class="message-priority medium">Medium</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="message-item">
+                        <div class="message-icon maintenance">🔧</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-title">Maintenance Request: Printer 3 needs calibration</span>
+                                <span class="message-time">1m ago</span>
+                            </div>
+                            <div class="message-route">
+                                Maintenance → Scheduling
+                                <span class="message-priority medium">Medium</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="message-item">
+                        <div class="message-icon system">✅</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-title">Consensus Reached: Resource allocation approved</span>
+                                <span class="message-time">3m ago</span>
+                            </div>
+                            <div class="message-route">
+                                Orchestrator → All Agents
+                                <span class="message-priority low">Low</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="message-item">
+                        <div class="message-icon quality">🔍</div>
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-title">Quality Report: Batch #567 passed all checks</span>
+                                <span class="message-time">5m ago</span>
+                            </div>
+                            <div class="message-route">
+                                Quality → All Agents
+                                <span class="message-priority low">Low</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agent Topology -->
+        <div class="panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <span>🕸️ Agent Topology</span>
+                </div>
+                <button class="btn btn-secondary" style="padding: 0.375rem 0.75rem; font-size: 0.8rem;" onclick="refreshTopology()">
+                    Refresh
+                </button>
+            </div>
+            <div class="panel-body">
+                <div class="topology-container">
+                    <div id="agent-topology"></div>
+                    <div class="topology-legend">
+                        <div class="legend-item">
+                            <div class="legend-dot" style="background: #22c55e;"></div>
+                            <span>Active</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot" style="background: #f59e0b;"></div>
+                            <span>Busy</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot" style="background: #9ca3af;"></div>
+                            <span>Idle</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Consensus Voting Panel -->
+    <div class="panel consensus-panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <span>🗳️ Consensus Voting</span>
+                <span class="panel-badge">Contract Net Protocol</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">Decision ID: DEC-2026-0342</span>
+        </div>
+        <div class="panel-body">
+            <div class="voting-container">
+                <div>
+                    <div class="vote-grid" id="voteGrid">
+                        <div class="vote-card voted">
+                            <div class="vote-icon approve">✓</div>
+                            <div class="vote-agent">Quality Agent</div>
+                            <div class="vote-reason">"Quality requirements verified"</div>
+                            <div class="vote-weight">Weight: 0.35</div>
+                        </div>
+                        <div class="vote-card voted">
+                            <div class="vote-icon approve">✓</div>
+                            <div class="vote-agent">Scheduling Agent</div>
+                            <div class="vote-reason">"Schedule conflict resolved"</div>
+                            <div class="vote-weight">Weight: 0.40</div>
+                        </div>
+                        <div class="vote-card pending" id="maintenanceVote">
+                            <div class="vote-icon pending">⏳</div>
+                            <div class="vote-agent">Maintenance Agent</div>
+                            <div class="vote-reason">"Checking equipment status..."</div>
+                            <div class="vote-weight">Weight: 0.25</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="decision-summary">
+                    <div class="decision-proposal">
+                        <h4>📋 Current Proposal</h4>
+                        <p>Allocate Printer 2 to high-priority Job #1256 (50 units, 2x4 bricks, blue)</p>
+                    </div>
+                    <div class="decision-result pending" id="decisionResult">
+                        <div class="decision-result-icon">⏳</div>
+                        <div>
+                            <strong>Awaiting Consensus</strong>
+                            <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">2/3 agents have voted</p>
+                        </div>
+                    </div>
+                    <div class="decision-stats">
+                        <div class="decision-stat">
+                            <div class="decision-stat-value">2/3</div>
+                            <div class="decision-stat-label">Votes Cast</div>
+                        </div>
+                        <div class="decision-stat">
+                            <div class="decision-stat-value">0.75</div>
+                            <div class="decision-stat-label">Weighted Score</div>
+                        </div>
+                        <div class="decision-stat">
+                            <div class="decision-stat-value">0.67</div>
+                            <div class="decision-stat-label">Threshold</div>
+                        </div>
+                        <div class="decision-stat">
+                            <div class="decision-stat-value">12s</div>
+                            <div class="decision-stat-label">Time Elapsed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HTN Task Decomposition -->
+    <div class="panel htn-panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <span>🌳 HTN Task Decomposition</span>
+                <span class="panel-badge">Hierarchical Planning</span>
+            </div>
+            <button class="btn btn-secondary" style="padding: 0.375rem 0.75rem; font-size: 0.8rem;" onclick="openNewTaskModal()">
+                + New Task
+            </button>
+        </div>
+        <div class="panel-body">
+            <div class="htn-goal">
+                <div class="htn-goal-info">
+                    <h4>🎯 Current Goal: Complete Production Batch #890</h4>
+                    <p>50 units, 2x2 standard bricks, bright blue | ETA: 14:30 | Priority: High</p>
+                </div>
+                <div class="htn-goal-progress">
+                    <div class="htn-goal-percent">70%</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">35/50 complete</div>
+                </div>
+            </div>
+
+            <div class="timeline">
+                <div class="timeline-item completed">
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <span class="timeline-title">1. Prepare Materials</span>
+                            <span class="timeline-agent">Scheduling</span>
+                        </div>
+                        <div class="timeline-status completed">✓ Completed (10 min)</div>
+                        <div class="timeline-subtasks">
+                            <div class="subtask completed">✓ Verify filament availability</div>
+                            <div class="subtask completed">✓ Load blue PLA to printer</div>
+                            <div class="subtask completed">✓ Confirm color batch match</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item completed">
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <span class="timeline-title">2. Configure Printer</span>
+                            <span class="timeline-agent">Maintenance</span>
+                        </div>
+                        <div class="timeline-status completed">✓ Completed (5 min)</div>
+                        <div class="timeline-subtasks">
+                            <div class="subtask completed">✓ Set temperature profile (215°C/60°C)</div>
+                            <div class="subtask completed">✓ Calibrate bed leveling</div>
+                            <div class="subtask completed">✓ Verify nozzle condition</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item in-progress">
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <span class="timeline-title">3. Execute Print Jobs</span>
+                            <span class="timeline-agent">Scheduling + Quality</span>
+                        </div>
+                        <div class="timeline-status in-progress">⏳ In Progress (35/50 units)</div>
+                        <div class="timeline-subtasks">
+                            <div class="subtask completed">✓ Load G-code to printer</div>
+                            <div class="subtask completed">✓ Start batch production</div>
+                            <div class="subtask in-progress">⏳ Print units (35/50)</div>
+                            <div class="subtask">○ Continuous quality monitoring</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="timeline-item pending">
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <span class="timeline-title">4. Quality Inspection</span>
+                            <span class="timeline-agent">Quality</span>
+                        </div>
+                        <div class="timeline-status">Pending</div>
+                    </div>
+                </div>
+                <div class="timeline-item pending">
+                    <div class="timeline-content">
+                        <div class="timeline-header">
+                            <span class="timeline-title">5. Package & Ship</span>
+                            <span class="timeline-agent">Scheduling</span>
+                        </div>
+                        <div class="timeline-status">Pending</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- New Decision Modal -->
+<div class="modal-overlay" id="newDecisionModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">🗳️ New Decision Request</h2>
+            <button class="modal-close" onclick="closeModal('newDecisionModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Decision Type</label>
+                    <select style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary);">
+                        <option>Resource Allocation</option>
+                        <option>Schedule Change</option>
+                        <option>Quality Override</option>
+                        <option>Maintenance Priority</option>
+                        <option>Emergency Response</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Participating Agents</label>
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" checked> Quality Agent
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" checked> Scheduling Agent
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" checked> Maintenance Agent
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox"> Generative Agent
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Proposal Description</label>
+                    <textarea style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary); min-height: 100px;" placeholder="Describe the decision that needs consensus..."></textarea>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Consensus Threshold</label>
+                        <select style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary);">
+                            <option>Simple Majority (>50%)</option>
+                            <option selected>Weighted Majority (>67%)</option>
+                            <option>Unanimous (100%)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Timeout</label>
+                        <select style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary);">
+                            <option>30 seconds</option>
+                            <option selected>60 seconds</option>
+                            <option>120 seconds</option>
+                            <option>No timeout</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('newDecisionModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitDecision()">Request Consensus</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+// ============================================
+// Agent Orchestration Dashboard
+// ============================================
+
+// State
+let selectedAgent = null;
+let socket = null;
+
+// Toast notification system
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    const icons = { success: '✓', error: '✗', warning: '⚠', info: 'ℹ' };
+    toast.innerHTML = `<span>${icons[type] || 'ℹ'}</span> ${message}`;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.style.animation = 'slideIn 0.3s ease reverse';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+// Modal functions
+function openModal(modalId) {
+    document.getElementById(modalId).classList.add('active');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
+    document.body.style.overflow = '';
+}
+
+function newDecisionRequest() {
+    openModal('newDecisionModal');
+}
+
+function submitDecision() {
+    closeModal('newDecisionModal');
+    showToast('Decision request submitted - Awaiting agent votes', 'success');
+}
+
+// Agent selection
+function selectAgent(agentId) {
+    selectedAgent = agentId;
+    document.querySelectorAll('.agent-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+    event.currentTarget.classList.add('selected');
+    showToast(`Selected ${agentId} agent for detailed view`, 'info');
+}
+
+// Topology visualization
+function initTopology() {
+    const container = document.getElementById('agent-topology');
+    const width = container.clientWidth;
+    const height = 350;
+
+    const svg = d3.select('#agent-topology')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    // Add gradient definitions
+    const defs = svg.append('defs');
+
+    // Orchestrator gradient
+    const orchestratorGradient = defs.append('linearGradient')
+        .attr('id', 'orchestratorGradient')
+        .attr('x1', '0%').attr('y1', '0%')
+        .attr('x2', '100%').attr('y2', '100%');
+    orchestratorGradient.append('stop').attr('offset', '0%').attr('stop-color', '#22c55e');
+    orchestratorGradient.append('stop').attr('offset', '100%').attr('stop-color', '#16a34a');
+
+    const nodes = [
+        { id: 'orchestrator', label: 'Orchestrator', x: width/2, y: 60, color: 'url(#orchestratorGradient)', size: 35 },
+        { id: 'quality', label: 'Quality', x: width/5, y: 180, color: '#3b82f6', size: 28, status: 'active' },
+        { id: 'scheduling', label: 'Scheduling', x: 2*width/5, y: 180, color: '#f59e0b', size: 28, status: 'busy' },
+        { id: 'maintenance', label: 'Maintenance', x: 3*width/5, y: 180, color: '#8b5cf6', size: 28, status: 'active' },
+        { id: 'generative', label: 'Generative', x: 4*width/5, y: 180, color: '#ec4899', size: 28, status: 'idle' },
+        { id: 'message_bus', label: 'Message Bus', x: width/2, y: 300, color: '#64748b', size: 30 }
+    ];
+
+    const links = [
+        { source: 'orchestrator', target: 'quality' },
+        { source: 'orchestrator', target: 'scheduling' },
+        { source: 'orchestrator', target: 'maintenance' },
+        { source: 'orchestrator', target: 'generative' },
+        { source: 'quality', target: 'message_bus' },
+        { source: 'scheduling', target: 'message_bus' },
+        { source: 'maintenance', target: 'message_bus' },
+        { source: 'generative', target: 'message_bus' },
+        { source: 'quality', target: 'scheduling', dashed: true },
+        { source: 'scheduling', target: 'maintenance', dashed: true }
+    ];
+
+    // Draw links
+    svg.selectAll('line')
+        .data(links)
+        .enter()
+        .append('line')
+        .attr('x1', d => nodes.find(n => n.id === d.source).x)
+        .attr('y1', d => nodes.find(n => n.id === d.source).y)
+        .attr('x2', d => nodes.find(n => n.id === d.target).x)
+        .attr('y2', d => nodes.find(n => n.id === d.target).y)
+        .attr('stroke', d => d.dashed ? '#94a3b8' : '#cbd5e1')
+        .attr('stroke-width', d => d.dashed ? 1 : 2)
+        .attr('stroke-dasharray', d => d.dashed ? '4,4' : 'none');
+
+    // Draw nodes
+    const nodeGroups = svg.selectAll('g.node')
+        .data(nodes)
+        .enter()
+        .append('g')
+        .attr('class', 'node')
+        .attr('transform', d => `translate(${d.x},${d.y})`)
+        .style('cursor', 'pointer')
+        .on('click', (event, d) => {
+            if (d.id !== 'orchestrator' && d.id !== 'message_bus') {
+                selectAgent(d.id);
+            }
+        });
+
+    // Node circles
+    nodeGroups.append('circle')
+        .attr('r', d => d.size)
+        .attr('fill', d => d.color)
+        .attr('stroke', 'white')
+        .attr('stroke-width', 3);
+
+    // Status indicator
+    nodeGroups.filter(d => d.status)
+        .append('circle')
+        .attr('r', 6)
+        .attr('cx', d => d.size - 5)
+        .attr('cy', d => -d.size + 5)
+        .attr('fill', d => {
+            if (d.status === 'active') return '#22c55e';
+            if (d.status === 'busy') return '#f59e0b';
+            return '#9ca3af';
+        })
+        .attr('stroke', 'white')
+        .attr('stroke-width', 2);
+
+    // Labels
+    nodeGroups.append('text')
+        .attr('text-anchor', 'middle')
+        .attr('dy', d => d.size + 18)
+        .attr('font-size', 12)
+        .attr('font-weight', 500)
+        .attr('fill', 'var(--text-primary)')
+        .text(d => d.label);
+}
+
+function refreshTopology() {
+    document.getElementById('agent-topology').innerHTML = '';
+    initTopology();
+    showToast('Topology refreshed', 'info');
+}
+
+// Simulate message flow
+function simulateMessages() {
+    const messages = [
+        { icon: 'quality', title: 'Quality check completed for Part #4521', priority: 'low', route: 'Quality → All' },
+        { icon: 'scheduling', title: 'Schedule optimization: 15% efficiency gain', priority: 'medium', route: 'Scheduling → All' },
+        { icon: 'maintenance', title: 'Sensor reading: Vibration levels normal', priority: 'low', route: 'Maintenance → Quality' },
+        { icon: 'system', title: 'HTN Task #3 subtask completed', priority: 'medium', route: 'Orchestrator → All' },
+        { icon: 'alert', title: 'Temperature drift detected on Printer 2', priority: 'high', route: 'Maintenance → Scheduling' }
+    ];
+
+    let index = 0;
+    setInterval(() => {
+        const msg = messages[index % messages.length];
+        const msgList = document.getElementById('messageList');
+
+        const newMsg = document.createElement('div');
+        newMsg.className = 'message-item';
+        newMsg.style.opacity = '0';
+        newMsg.innerHTML = `
+            <div class="message-icon ${msg.icon}">💬</div>
+            <div class="message-content">
+                <div class="message-header">
+                    <span class="message-title">${msg.title}</span>
+                    <span class="message-time">Just now</span>
+                </div>
+                <div class="message-route">
+                    ${msg.route}
+                    <span class="message-priority ${msg.priority}">${msg.priority.charAt(0).toUpperCase() + msg.priority.slice(1)}</span>
+                </div>
+            </div>
+        `;
+
+        msgList.insertBefore(newMsg, msgList.firstChild);
+        setTimeout(() => newMsg.style.opacity = '1', 100);
+
+        if (msgList.children.length > 10) {
+            msgList.removeChild(msgList.lastChild);
+        }
+
+        index++;
+    }, 8000);
+}
+
+// Simulate voting completion
+function simulateVoting() {
+    setTimeout(() => {
+        const maintenanceVote = document.getElementById('maintenanceVote');
+        maintenanceVote.classList.remove('pending');
+        maintenanceVote.classList.add('voted');
+        maintenanceVote.innerHTML = `
+            <div class="vote-icon approve">✓</div>
+            <div class="vote-agent">Maintenance Agent</div>
+            <div class="vote-reason">"Equipment ready and available"</div>
+            <div class="vote-weight">Weight: 0.25</div>
+        `;
+
+        const decisionResult = document.getElementById('decisionResult');
+        decisionResult.classList.remove('pending');
+        decisionResult.classList.add('approved');
+        decisionResult.innerHTML = `
+            <div class="decision-result-icon">✅</div>
+            <div>
+                <strong>Consensus Reached</strong>
+                <p style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">3/3 agents approved - Executing decision</p>
+            </div>
+        `;
+
+        showToast('Consensus reached! Printer 2 allocated to Job #1256', 'success');
+    }, 5000);
+}
+
+// Update real-time metrics with pattern-based simulation
+function updateMetrics() {
+    let decisionIncrement = 0;
+    setInterval(() => {
+        const decisions = document.getElementById('kpiDecisions');
+        const currentValue = parseInt(decisions.textContent);
+        // Increment decisions by 0 or 1 in alternating pattern
+        decisions.textContent = currentValue + (decisionIncrement % 2);
+        decisionIncrement++;
+
+        // Latency varies by time - higher during peak processing hours
+        const hour = new Date().getHours();
+        const peakHours = (hour >= 9 && hour < 12) || (hour >= 14 && hour < 17);
+        const baseLatency = peakHours ? 48 : 42;
+        const variation = Math.sin(Date.now() / 30000) * 7; // Sinusoidal over ~30s
+        const latency = document.getElementById('kpiLatency');
+        latency.textContent = Math.round(baseLatency + variation) + 'ms';
+    }, 10000);
+}
+
+// Action handlers
+function viewHistory() {
+    showToast('Loading decision history...', 'info');
+}
+
+function openConflictModal() {
+    showToast('Opening conflict resolution panel...', 'warning');
+}
+
+function triggerConsensus() {
+    showToast('Triggering manual consensus round...', 'info');
+}
+
+function openNewTaskModal() {
+    showToast('Opening new HTN task wizard...', 'info');
+}
+
+// WebSocket initialization
+function initWebSocket() {
+    if (typeof io !== 'undefined') {
+        socket = io();
+
+        socket.on('connect', () => {
+            console.log('Connected to orchestration WebSocket');
+            showToast('Connected to real-time agent stream', 'success');
+        });
+
+        socket.on('agent_status', (data) => {
+            console.log('Agent status update:', data);
+        });
+
+        socket.on('message_bus', (data) => {
+            console.log('Message bus update:', data);
+        });
+
+        socket.on('consensus_update', (data) => {
+            console.log('Consensus update:', data);
+        });
+
+        socket.on('disconnect', () => {
+            showToast('Disconnected from real-time stream', 'warning');
+        });
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    initTopology();
+    simulateMessages();
+    simulateVoting();
+    updateMetrics();
+    initWebSocket();
+
+    setTimeout(() => {
+        showToast('Agent Orchestration Dashboard loaded - All agents online', 'success');
+    }, 500);
+});
+
+// Modal close handlers
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    });
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+            modal.classList.remove('active');
+        });
+        document.body.style.overflow = '';
+    }
+});
+
+// Responsive topology resize
+window.addEventListener('resize', function() {
+    document.getElementById('agent-topology').innerHTML = '';
+    initTopology();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Settings</h1>
+</div>
+
+<form id="settingsForm" class="settings-form">
+    <!-- Connection Settings -->
+    <section class="settings-section">
+        <h2>Connections</h2>
+        <div class="card">
+            <div class="form-group">
+                <label for="fusion_url">Fusion 360 API URL</label>
+                <div class="input-with-action">
+                    <input type="text" id="fusion_url" name="fusion_url" 
+                           value="{{ settings.fusion_url }}">
+                    <button type="button" class="btn btn-small test-url-btn" data-service="fusion360">Test</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="slicer_url">Slicer Service URL</label>
+                <div class="input-with-action">
+                    <input type="text" id="slicer_url" name="slicer_url" 
+                           value="{{ settings.slicer_url }}">
+                    <button type="button" class="btn btn-small test-url-btn" data-service="slicer">Test</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="connection_timeout">Connection Timeout (seconds)</label>
+                <input type="number" id="connection_timeout" name="connection_timeout" 
+                       value="{{ settings.connection_timeout }}" min="5" max="300">
+            </div>
+        </div>
+    </section>
+    
+    <!-- Export Settings -->
+    <section class="settings-section">
+        <h2>Default Export Settings</h2>
+        <div class="card">
+            <div class="form-group">
+                <label for="stl_refinement">STL Quality</label>
+                <select id="stl_refinement" name="stl_refinement">
+                    {% for quality in stl_qualities %}
+                    <option value="{{ quality }}" {{ 'selected' if settings.stl_refinement == quality else '' }}>
+                        {{ quality | title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="output_directory">Output Directory</label>
+                <input type="text" id="output_directory" name="output_directory" 
+                       value="{{ settings.output_directory }}">
+            </div>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="auto_export" name="auto_export" 
+                           {{ 'checked' if settings.auto_export else '' }}>
+                    Auto-export STL on brick creation
+                </label>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Print Settings -->
+    <section class="settings-section">
+        <h2>Default Print Settings</h2>
+        <div class="card">
+            <div class="form-group">
+                <label for="default_printer">Printer</label>
+                <select id="default_printer" name="default_printer">
+                    {% for printer in printers %}
+                    <option value="{{ printer.id | default(printer) }}" 
+                            {{ 'selected' if settings.default_printer == (printer.id | default(printer)) else '' }}>
+                        {{ printer.name | default(printer) }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="default_material">Material</label>
+                <select id="default_material" name="default_material">
+                    {% for material in materials %}
+                    <option value="{{ material.id | default(material) }}" 
+                            {{ 'selected' if settings.default_material == (material.id | default(material)) else '' }}>
+                        {{ material.name | default(material) }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="default_quality">Quality Preset</label>
+                <select id="default_quality" name="default_quality">
+                    {% for preset in quality_presets %}
+                    <option value="{{ preset }}" {{ 'selected' if settings.default_quality == preset else '' }}>
+                        {{ preset | title }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Appearance -->
+    <section class="settings-section">
+        <h2>Appearance</h2>
+        <div class="card">
+            <div class="form-group">
+                <label for="theme">Theme</label>
+                <div class="theme-selector">
+                    {% for t in themes %}
+                    <label class="theme-option {{ 'active' if settings.theme == t else '' }}">
+                        <input type="radio" name="theme" value="{{ t }}" 
+                               {{ 'checked' if settings.theme == t else '' }}>
+                        <span class="theme-preview theme-{{ t }}"></span>
+                        <span class="theme-name">{{ t | title }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="sidebar_collapsed" name="sidebar_collapsed" 
+                           {{ 'checked' if settings.sidebar_collapsed else '' }}>
+                    Collapse sidebar by default
+                </label>
+            </div>
+            
+            <div class="form-group">
+                <label for="catalog_view">Default Catalog View</label>
+                <select id="catalog_view" name="catalog_view">
+                    <option value="grid" {{ 'selected' if settings.catalog_view == 'grid' else '' }}>Grid</option>
+                    <option value="list" {{ 'selected' if settings.catalog_view == 'list' else '' }}>List</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="items_per_page">Items Per Page</label>
+                <select id="items_per_page" name="items_per_page">
+                    <option value="24" {{ 'selected' if settings.items_per_page == 24 else '' }}>24</option>
+                    <option value="48" {{ 'selected' if settings.items_per_page == 48 else '' }}>48</option>
+                    <option value="96" {{ 'selected' if settings.items_per_page == 96 else '' }}>96</option>
+                </select>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Actions -->
+    <div class="settings-actions">
+        <button type="submit" class="btn btn-primary">Save Settings</button>
+        <button type="button" class="btn btn-secondary" id="resetBtn">Reset to Defaults</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Save settings
+document.getElementById('settingsForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const settings = {};
+    
+    for (const [key, value] of formData.entries()) {
+        settings[key] = value;
+    }
+    
+    // Handle checkboxes
+    settings.auto_export = document.getElementById('auto_export').checked;
+    settings.sidebar_collapsed = document.getElementById('sidebar_collapsed').checked;
+    settings.items_per_page = parseInt(settings.items_per_page);
+    settings.connection_timeout = parseInt(settings.connection_timeout);
+    
+    fetch('/settings/save', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(settings)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            App.toast('Settings saved', 'success');
+            
+            // Apply theme immediately
+            document.documentElement.dataset.theme = settings.theme;
+        } else {
+            App.toast('Failed to save settings', 'error');
+        }
+    });
+});
+
+// Reset settings
+document.getElementById('resetBtn').addEventListener('click', function() {
+    if (confirm('Reset all settings to defaults?')) {
+        fetch('/settings/reset', {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    App.toast('Settings reset', 'success');
+                    window.location.reload();
+                }
+            });
+    }
+});
+
+// Test URL buttons
+document.querySelectorAll('.test-url-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const service = this.dataset.service;
+        this.disabled = true;
+        this.textContent = 'Testing...';
+        
+        fetch(`/status/check/${service}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'connected') {
+                    App.toast('Connection successful!', 'success');
+                } else {
+                    App.toast('Connection failed: ' + (data.error || data.status), 'error');
+                }
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.textContent = 'Test';
+            });
+    });
+});
+
+// Theme selector
+document.querySelectorAll('.theme-option input').forEach(input => {
+    input.addEventListener('change', function() {
+        document.querySelectorAll('.theme-option').forEach(opt => opt.classList.remove('active'));
+        this.closest('.theme-option').classList.add('active');
+        
+        // Preview theme
+        document.documentElement.dataset.theme = this.value;
+    });
+});
+</script>
+{% endblock %}

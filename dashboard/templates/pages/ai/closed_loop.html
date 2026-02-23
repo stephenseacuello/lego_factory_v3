@@ -1,0 +1,1794 @@
+{% extends "base.html" %}
+
+{% block title %}Closed-Loop Learning - LEGO MCP v6.0{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ═══════════════════════════════════════════════════════════════
+       LEGO MCP v6.0 - Closed-Loop Learning Dashboard
+       World-Class Production Feedback & Model Update System
+       ═══════════════════════════════════════════════════════════════ */
+
+    :root {
+        --cl-primary: #00d4ff;
+        --cl-secondary: #8b5cf6;
+        --cl-success: #10b981;
+        --cl-warning: #f59e0b;
+        --cl-danger: #ef4444;
+        --cl-dark: #0f172a;
+        --cl-darker: #020617;
+        --cl-card: #1e293b;
+        --cl-card-hover: #334155;
+        --cl-border: #334155;
+        --cl-text: #f8fafc;
+        --cl-text-muted: #94a3b8;
+        --cl-glow: rgba(0, 212, 255, 0.3);
+    }
+
+    body {
+        background: linear-gradient(135deg, var(--cl-darker) 0%, var(--cl-dark) 100%);
+        min-height: 100vh;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .page-title {
+        background: linear-gradient(135deg, var(--cl-primary), var(--cl-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    .page-subtitle {
+        color: var(--cl-text-muted);
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .system-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 20px;
+        font-size: 13px;
+        color: var(--cl-success);
+    }
+
+    .status-pulse {
+        width: 8px;
+        height: 8px;
+        background: var(--cl-success);
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(1.2); }
+    }
+
+    .btn-force-retrain {
+        background: linear-gradient(135deg, var(--cl-warning), #d97706);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .btn-force-retrain:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.4);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       KPI Summary Cards
+       ═══════════════════════════════════════════════════════════════ */
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .kpi-card {
+        background: var(--cl-card);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--cl-border);
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--cl-primary), var(--cl-secondary));
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 30px var(--cl-glow);
+    }
+
+    .kpi-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+    }
+
+    .kpi-icon.feedback { background: linear-gradient(135deg, #00d4ff, #0ea5e9); }
+    .kpi-icon.accuracy { background: linear-gradient(135deg, #10b981, #059669); }
+    .kpi-icon.drift { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .kpi-icon.samples { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+    .kpi-icon.healing { background: linear-gradient(135deg, #ec4899, #db2777); }
+    .kpi-icon.latency { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+
+    .kpi-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--cl-text);
+        margin-bottom: 4px;
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+    }
+
+    .kpi-value .unit {
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--cl-text-muted);
+    }
+
+    .kpi-label {
+        font-size: 12px;
+        color: var(--cl-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .kpi-trend {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 20px;
+        font-weight: 500;
+    }
+
+    .kpi-trend.up { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .kpi-trend.down { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .kpi-trend.neutral { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Feedback Loop Diagram
+       ═══════════════════════════════════════════════════════════════ */
+
+    .loop-container {
+        background: var(--cl-card);
+        border-radius: 16px;
+        padding: 24px;
+        border: 1px solid var(--cl-border);
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .loop-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--cl-text);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .loop-svg-container {
+        position: relative;
+        height: 280px;
+    }
+
+    .loop-svg {
+        width: 100%;
+        height: 100%;
+    }
+
+    .loop-node {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .loop-node:hover .node-bg {
+        filter: brightness(1.2);
+    }
+
+    .loop-node.active .node-bg {
+        animation: nodeGlow 2s ease-in-out infinite;
+    }
+
+    @keyframes nodeGlow {
+        0%, 100% { filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.4)); }
+        50% { filter: drop-shadow(0 0 20px rgba(0, 212, 255, 0.8)); }
+    }
+
+    .flow-path {
+        stroke: var(--cl-primary);
+        stroke-width: 2;
+        fill: none;
+        stroke-dasharray: 8 4;
+        animation: flowDash 1s linear infinite;
+    }
+
+    @keyframes flowDash {
+        0% { stroke-dashoffset: 0; }
+        100% { stroke-dashoffset: -12; }
+    }
+
+    .flow-arrow {
+        fill: var(--cl-primary);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Main Content Grid
+       ═══════════════════════════════════════════════════════════════ */
+
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+    }
+
+    .panel {
+        background: var(--cl-card);
+        border-radius: 16px;
+        border: 1px solid var(--cl-border);
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--cl-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .panel-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--cl-text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .panel-badge {
+        background: var(--cl-primary);
+        color: white;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+    }
+
+    .panel-content {
+        padding: 20px;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Feedback Stream
+       ═══════════════════════════════════════════════════════════════ */
+
+    .feedback-item {
+        display: flex;
+        gap: 16px;
+        padding: 16px;
+        background: var(--cl-card-hover);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        border-left: 4px solid;
+        transition: all 0.3s ease;
+    }
+
+    .feedback-item:hover {
+        transform: translateX(4px);
+    }
+
+    .feedback-item.quality { border-left-color: var(--cl-success); }
+    .feedback-item.timing { border-left-color: var(--cl-primary); }
+    .feedback-item.equipment { border-left-color: var(--cl-warning); }
+    .feedback-item.drift { border-left-color: var(--cl-danger); }
+
+    .feedback-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .feedback-icon.quality { background: rgba(16, 185, 129, 0.2); color: var(--cl-success); }
+    .feedback-icon.timing { background: rgba(0, 212, 255, 0.2); color: var(--cl-primary); }
+    .feedback-icon.equipment { background: rgba(245, 158, 11, 0.2); color: var(--cl-warning); }
+    .feedback-icon.drift { background: rgba(239, 68, 68, 0.2); color: var(--cl-danger); }
+
+    .feedback-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .feedback-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+
+    .feedback-title {
+        font-weight: 600;
+        color: var(--cl-text);
+        font-size: 14px;
+    }
+
+    .feedback-time {
+        font-size: 11px;
+        color: var(--cl-text-muted);
+        background: rgba(0, 0, 0, 0.3);
+        padding: 3px 8px;
+        border-radius: 10px;
+    }
+
+    .feedback-detail {
+        font-size: 13px;
+        color: var(--cl-text-muted);
+        margin-bottom: 4px;
+    }
+
+    .feedback-status {
+        font-size: 12px;
+        font-weight: 500;
+    }
+
+    .feedback-status.success { color: var(--cl-success); }
+    .feedback-status.warning { color: var(--cl-warning); }
+    .feedback-status.danger { color: var(--cl-danger); }
+    .feedback-status.info { color: var(--cl-primary); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Model Health Cards
+       ═══════════════════════════════════════════════════════════════ */
+
+    .model-health-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .health-card {
+        background: var(--cl-card-hover);
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid var(--cl-border);
+    }
+
+    .health-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .health-card-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--cl-text);
+    }
+
+    .health-status-badge {
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .health-status-badge.healthy { background: rgba(16, 185, 129, 0.2); color: var(--cl-success); }
+    .health-status-badge.warning { background: rgba(245, 158, 11, 0.2); color: var(--cl-warning); }
+    .health-status-badge.critical { background: rgba(239, 68, 68, 0.2); color: var(--cl-danger); }
+
+    .health-metric {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--cl-border);
+    }
+
+    .health-metric:last-child {
+        border-bottom: none;
+    }
+
+    .health-metric-label {
+        font-size: 12px;
+        color: var(--cl-text-muted);
+    }
+
+    .health-metric-value {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .health-bar {
+        width: 60px;
+        height: 6px;
+        background: var(--cl-dark);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .health-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    .health-fill.success { background: linear-gradient(90deg, var(--cl-success), #34d399); }
+    .health-fill.warning { background: linear-gradient(90deg, var(--cl-warning), #fbbf24); }
+    .health-fill.danger { background: linear-gradient(90deg, var(--cl-danger), #f87171); }
+
+    .health-value {
+        font-size: 12px;
+        font-weight: 600;
+        min-width: 40px;
+        text-align: right;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Drift Alert
+       ═══════════════════════════════════════════════════════════════ */
+
+    .drift-alert {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(239, 68, 68, 0.05));
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .drift-alert-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 16px;
+    }
+
+    .drift-alert-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--cl-danger);
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .drift-alert-description {
+        font-size: 13px;
+        color: var(--cl-text-muted);
+        margin-top: 8px;
+        line-height: 1.5;
+    }
+
+    .btn-acknowledge {
+        background: var(--cl-danger);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-acknowledge:hover {
+        background: #dc2626;
+    }
+
+    .drift-chart {
+        height: 120px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        margin-top: 16px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Active Learning Queue
+       ═══════════════════════════════════════════════════════════════ */
+
+    .sample-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        background: var(--cl-card-hover);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        transition: all 0.3s ease;
+    }
+
+    .sample-item:hover {
+        background: var(--cl-border);
+    }
+
+    .sample-thumbnail {
+        width: 64px;
+        height: 64px;
+        background: var(--cl-dark);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        border: 2px solid var(--cl-border);
+    }
+
+    .sample-thumbnail svg {
+        width: 28px;
+        height: 28px;
+        color: var(--cl-text-muted);
+    }
+
+    .sample-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .sample-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+
+    .sample-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: var(--cl-text);
+    }
+
+    .uncertainty-badge {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+    }
+
+    .uncertainty-badge.high {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--cl-danger);
+    }
+
+    .uncertainty-badge.medium {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--cl-warning);
+    }
+
+    .uncertainty-badge.low {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--cl-success);
+    }
+
+    .sample-reason {
+        font-size: 12px;
+        color: var(--cl-text-muted);
+    }
+
+    .btn-label {
+        background: linear-gradient(135deg, var(--cl-primary), var(--cl-secondary));
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-label:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px var(--cl-glow);
+    }
+
+    .queue-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 16px;
+        border-top: 1px solid var(--cl-border);
+        margin-top: 16px;
+    }
+
+    .queue-stats {
+        font-size: 12px;
+        color: var(--cl-text-muted);
+    }
+
+    .btn-view-all {
+        background: var(--cl-card-hover);
+        color: var(--cl-text);
+        border: 1px solid var(--cl-border);
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-view-all:hover {
+        background: var(--cl-border);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Self-Healing Actions
+       ═══════════════════════════════════════════════════════════════ */
+
+    .healing-action {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+    }
+
+    .healing-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+
+    .healing-title {
+        color: var(--cl-success);
+        font-weight: 600;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .healing-time {
+        font-size: 11px;
+        color: var(--cl-text-muted);
+        background: rgba(0, 0, 0, 0.3);
+        padding: 3px 8px;
+        border-radius: 10px;
+    }
+
+    .healing-description {
+        font-size: 13px;
+        color: var(--cl-text-muted);
+        margin-top: 8px;
+        line-height: 1.5;
+    }
+
+    .healing-impact {
+        display: flex;
+        gap: 16px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .impact-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+    }
+
+    .impact-item.positive { color: var(--cl-success); }
+    .impact-item.negative { color: var(--cl-danger); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Retraining Pipeline
+       ═══════════════════════════════════════════════════════════════ */
+
+    .retrain-pipeline {
+        margin-top: 20px;
+        padding: 20px;
+        background: var(--cl-card-hover);
+        border-radius: 12px;
+    }
+
+    .pipeline-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .pipeline-title {
+        font-weight: 600;
+        color: var(--cl-text);
+        font-size: 14px;
+    }
+
+    .pipeline-progress {
+        font-size: 12px;
+        color: var(--cl-primary);
+        font-weight: 600;
+    }
+
+    .pipeline-stages {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .pipeline-stage {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+    }
+
+    .stage-connector {
+        position: absolute;
+        top: 18px;
+        left: calc(50% + 20px);
+        right: calc(-50% + 20px);
+        height: 3px;
+        background: var(--cl-border);
+    }
+
+    .stage-connector.completed {
+        background: var(--cl-success);
+    }
+
+    .stage-connector.active {
+        background: linear-gradient(90deg, var(--cl-success), var(--cl-primary));
+    }
+
+    .stage-dot {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1;
+        transition: all 0.3s ease;
+    }
+
+    .stage-dot.completed {
+        background: var(--cl-success);
+        color: white;
+    }
+
+    .stage-dot.active {
+        background: var(--cl-primary);
+        color: white;
+        animation: stagePulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes stagePulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(0, 212, 255, 0.4); }
+        50% { box-shadow: 0 0 0 10px rgba(0, 212, 255, 0); }
+    }
+
+    .stage-dot.pending {
+        background: var(--cl-border);
+        color: var(--cl-text-muted);
+    }
+
+    .stage-label {
+        font-size: 11px;
+        color: var(--cl-text-muted);
+        margin-top: 8px;
+        text-align: center;
+    }
+
+    .stage-label.active {
+        color: var(--cl-primary);
+        font-weight: 600;
+    }
+
+    .stage-label.completed {
+        color: var(--cl-success);
+    }
+
+    .stage-detail {
+        font-size: 10px;
+        color: var(--cl-text-muted);
+        margin-top: 4px;
+        text-align: center;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Toast Notifications
+       ═══════════════════════════════════════════════════════════════ */
+
+    .toast-container {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .toast {
+        background: var(--cl-card);
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+        border-left: 4px solid;
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+    }
+
+    .toast.success { border-left-color: var(--cl-success); }
+    .toast.error { border-left-color: var(--cl-danger); }
+    .toast.warning { border-left-color: var(--cl-warning); }
+    .toast.info { border-left-color: var(--cl-primary); }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .toast.success .toast-icon { background: rgba(16, 185, 129, 0.2); color: var(--cl-success); }
+    .toast.error .toast-icon { background: rgba(239, 68, 68, 0.2); color: var(--cl-danger); }
+    .toast.warning .toast-icon { background: rgba(245, 158, 11, 0.2); color: var(--cl-warning); }
+    .toast.info .toast-icon { background: rgba(0, 212, 255, 0.2); color: var(--cl-primary); }
+
+    .toast-content { flex: 1; }
+    .toast-title { font-weight: 600; color: var(--cl-text); font-size: 14px; margin-bottom: 2px; }
+    .toast-message { font-size: 12px; color: var(--cl-text-muted); }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: var(--cl-text-muted);
+        cursor: pointer;
+        padding: 4px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Connection Status
+       ═══════════════════════════════════════════════════════════════ */
+
+    .connection-status {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: var(--cl-card);
+        border-radius: 20px;
+        font-size: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .connection-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .connection-dot.connected { background: var(--cl-success); animation: pulse 2s infinite; }
+    .connection-dot.disconnected { background: var(--cl-danger); }
+    .connection-dot.connecting { background: var(--cl-warning); animation: pulse 1s infinite; }
+
+    .connection-text { color: var(--cl-text-muted); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Responsive
+       ═══════════════════════════════════════════════════════════════ */
+
+    @media (max-width: 1400px) {
+        .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 1200px) {
+        .content-grid { grid-template-columns: 1fr; }
+        .model-health-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+        .page-header { flex-direction: column; align-items: flex-start; gap: 16px; }
+        .pipeline-stages { flex-wrap: wrap; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Page Header -->
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Closed-Loop Learning System</h1>
+        <p class="page-subtitle">Automatic feedback from production to models with drift detection and self-healing</p>
+    </div>
+    <div class="header-actions">
+        <div class="system-status">
+            <span class="status-pulse"></span>
+            System Active
+        </div>
+        <button class="btn-force-retrain" onclick="forceRetrain()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+            Force Retrain
+        </button>
+    </div>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-icon feedback">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend up" id="feedback-trend">+15%</span>
+        <div class="kpi-value"><span id="feedback-rate">1,247</span><span class="unit">/hr</span></div>
+        <div class="kpi-label">Feedback Rate</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon accuracy">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend up" id="accuracy-trend">+2.3%</span>
+        <div class="kpi-value"><span id="model-accuracy">97.2</span><span class="unit">%</span></div>
+        <div class="kpi-label">Model Accuracy</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon drift">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend down" id="drift-trend">-0.12</span>
+        <div class="kpi-value"><span id="drift-score">0.27</span></div>
+        <div class="kpi-label">Avg Drift Score</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon samples">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend neutral" id="samples-trend">Queue</span>
+        <div class="kpi-value"><span id="pending-samples">5</span></div>
+        <div class="kpi-label">Samples Pending</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon healing">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M17.73 12.02l3.98-3.98c.39-.39.39-1.02 0-1.41l-4.34-4.34a.9959.9959 0 00-1.41 0l-3.98 3.98L8 2.29C7.8 2.1 7.55 2 7.29 2c-.25 0-.51.1-.7.29L2.25 6.63c-.39.39-.39 1.02 0 1.41l3.98 3.98L2.25 16c-.39.39-.39 1.02 0 1.41l4.34 4.34c.39.39 1.02.39 1.41 0l3.98-3.98 3.98 3.98c.2.2.45.29.71.29.26 0 .51-.1.71-.29l4.34-4.34c.39-.39.39-1.02 0-1.41l-3.99-3.98zM12 9c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-4.71 1.96L3.66 7.34l3.63-3.63 3.62 3.62-3.62 3.63zM10 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm2 2c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm2-4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2.66 9.34l-3.63-3.62 3.63-3.63 3.62 3.62-3.62 3.63z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend up" id="healing-trend">Active</span>
+        <div class="kpi-value"><span id="healing-actions">2</span></div>
+        <div class="kpi-label">Healing Actions</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon latency">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend up" id="latency-trend">-12%</span>
+        <div class="kpi-value"><span id="update-latency">1.2</span><span class="unit">hr</span></div>
+        <div class="kpi-label">Update Latency</div>
+    </div>
+</div>
+
+<!-- Feedback Loop Diagram -->
+<div class="loop-container">
+    <div class="loop-title">
+        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+        </svg>
+        Feedback Loop Architecture
+    </div>
+    <div class="loop-svg-container">
+        <svg class="loop-svg" viewBox="0 0 1000 250" preserveAspectRatio="xMidYMid meet">
+            <!-- Flow paths -->
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#00d4ff"/>
+                </marker>
+            </defs>
+
+            <!-- Connection lines -->
+            <path class="flow-path" d="M 150 125 L 250 75" marker-end="url(#arrowhead)"/>
+            <path class="flow-path" d="M 150 125 L 250 175" marker-end="url(#arrowhead)"/>
+            <path class="flow-path" d="M 350 75 L 450 125" marker-end="url(#arrowhead)"/>
+            <path class="flow-path" d="M 350 175 L 450 125" marker-end="url(#arrowhead)"/>
+            <path class="flow-path" d="M 550 125 L 650 75" marker-end="url(#arrowhead)"/>
+            <path class="flow-path" d="M 550 125 L 650 175" marker-end="url(#arrowhead)"/>
+            <path class="flow-path" d="M 750 75 L 850 125" marker-end="url(#arrowhead)"/>
+            <path class="flow-path" d="M 750 175 L 850 125" marker-end="url(#arrowhead)"/>
+            <path class="flow-path" d="M 900 125 L 100 125" stroke-dasharray="4 4" opacity="0.3"/>
+
+            <!-- Production Node -->
+            <g class="loop-node active" transform="translate(50, 85)">
+                <rect class="node-bg" width="100" height="80" rx="12" fill="rgba(0, 212, 255, 0.1)" stroke="#00d4ff" stroke-width="2"/>
+                <text x="50" y="30" text-anchor="middle" fill="#00d4ff" font-size="20">
+                    <tspan>&#xf02ef;</tspan>
+                </text>
+                <text x="50" y="50" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">Production</text>
+                <text x="50" y="65" text-anchor="middle" fill="#94a3b8" font-size="9">3 printers active</text>
+            </g>
+
+            <!-- Data Collection Node -->
+            <g class="loop-node" transform="translate(250, 35)">
+                <rect class="node-bg" width="100" height="80" rx="12" fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" stroke-width="2"/>
+                <text x="50" y="30" text-anchor="middle" fill="#10b981" font-size="20">&#x1F4CA;</text>
+                <text x="50" y="50" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">Collection</text>
+                <text x="50" y="65" text-anchor="middle" fill="#94a3b8" font-size="9">1,247/hr</text>
+            </g>
+
+            <!-- Drift Detection Node -->
+            <g class="loop-node" transform="translate(250, 135)">
+                <rect class="node-bg" width="100" height="80" rx="12" fill="rgba(245, 158, 11, 0.1)" stroke="#f59e0b" stroke-width="2"/>
+                <text x="50" y="30" text-anchor="middle" fill="#f59e0b" font-size="20">&#x26A0;</text>
+                <text x="50" y="50" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">Drift Detect</text>
+                <text x="50" y="65" text-anchor="middle" fill="#10b981" font-size="9">No drift</text>
+            </g>
+
+            <!-- Model Update Node -->
+            <g class="loop-node active" transform="translate(450, 85)">
+                <rect class="node-bg" width="100" height="80" rx="12" fill="rgba(139, 92, 246, 0.1)" stroke="#8b5cf6" stroke-width="2"/>
+                <text x="50" y="30" text-anchor="middle" fill="#8b5cf6" font-size="20">&#x1F9E0;</text>
+                <text x="50" y="50" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">Model Update</text>
+                <text x="50" y="65" text-anchor="middle" fill="#00d4ff" font-size="9">Training 45%</text>
+            </g>
+
+            <!-- Active Learning Node -->
+            <g class="loop-node" transform="translate(650, 35)">
+                <rect class="node-bg" width="100" height="80" rx="12" fill="rgba(236, 72, 153, 0.1)" stroke="#ec4899" stroke-width="2"/>
+                <text x="50" y="30" text-anchor="middle" fill="#ec4899" font-size="20">&#x1F464;</text>
+                <text x="50" y="50" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">Active Learn</text>
+                <text x="50" y="65" text-anchor="middle" fill="#94a3b8" font-size="9">5 queued</text>
+            </g>
+
+            <!-- AI Agents Node -->
+            <g class="loop-node" transform="translate(650, 135)">
+                <rect class="node-bg" width="100" height="80" rx="12" fill="rgba(6, 182, 212, 0.1)" stroke="#06b6d4" stroke-width="2"/>
+                <text x="50" y="30" text-anchor="middle" fill="#06b6d4" font-size="20">&#x1F916;</text>
+                <text x="50" y="50" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">AI Agents</text>
+                <text x="50" y="65" text-anchor="middle" fill="#94a3b8" font-size="9">3 online</text>
+            </g>
+
+            <!-- Self-Healing Node -->
+            <g class="loop-node" transform="translate(850, 85)">
+                <rect class="node-bg" width="100" height="80" rx="12" fill="rgba(16, 185, 129, 0.1)" stroke="#10b981" stroke-width="2"/>
+                <text x="50" y="30" text-anchor="middle" fill="#10b981" font-size="20">&#x1FA79;</text>
+                <text x="50" y="50" text-anchor="middle" fill="#f8fafc" font-size="11" font-weight="600">Self-Healing</text>
+                <text x="50" y="65" text-anchor="middle" fill="#94a3b8" font-size="9">2 active</text>
+            </g>
+        </svg>
+    </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="content-grid">
+    <!-- Live Feedback Stream -->
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <svg width="18" height="18" fill="var(--cl-primary)" viewBox="0 0 24 24">
+                    <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+                </svg>
+                Live Feedback Stream
+                <span class="panel-badge" id="stream-count">4</span>
+            </div>
+        </div>
+        <div class="panel-content" id="feedback-stream">
+            <div class="feedback-item quality">
+                <div class="feedback-icon quality">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                </div>
+                <div class="feedback-content">
+                    <div class="feedback-header">
+                        <span class="feedback-title">Quality Inspection Passed</span>
+                        <span class="feedback-time">2s ago</span>
+                    </div>
+                    <div class="feedback-detail">LEGO-2x4-001 | Predicted: 98.2% | Actual: Pass</div>
+                    <div class="feedback-status success">Model prediction correct (+1 to accuracy)</div>
+                </div>
+            </div>
+
+            <div class="feedback-item timing">
+                <div class="feedback-icon timing">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+                    </svg>
+                </div>
+                <div class="feedback-content">
+                    <div class="feedback-header">
+                        <span class="feedback-title">Print Time Recorded</span>
+                        <span class="feedback-time">15s ago</span>
+                    </div>
+                    <div class="feedback-detail">Job #4521 | Predicted: 45m | Actual: 47m</div>
+                    <div class="feedback-status warning">Prediction error: +4.4% (within tolerance)</div>
+                </div>
+            </div>
+
+            <div class="feedback-item equipment">
+                <div class="feedback-icon equipment">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>
+                    </svg>
+                </div>
+                <div class="feedback-content">
+                    <div class="feedback-header">
+                        <span class="feedback-title">Maintenance Feedback</span>
+                        <span class="feedback-time">1m ago</span>
+                    </div>
+                    <div class="feedback-detail">Printer #003 | Predicted failure: 72h | Status: Healthy</div>
+                    <div class="feedback-status info">Updating RUL model with new observation</div>
+                </div>
+            </div>
+
+            <div class="feedback-item drift">
+                <div class="feedback-icon drift">
+                    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                </div>
+                <div class="feedback-content">
+                    <div class="feedback-header">
+                        <span class="feedback-title">Concept Drift Detected</span>
+                        <span class="feedback-time">5m ago</span>
+                    </div>
+                    <div class="feedback-detail">Surface Quality Model | Feature: ambient_humidity</div>
+                    <div class="feedback-status danger">Triggering model retraining...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Health Dashboard -->
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <svg width="18" height="18" fill="var(--cl-success)" viewBox="0 0 24 24">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                </svg>
+                Model Health
+            </div>
+        </div>
+        <div class="panel-content">
+            <div class="model-health-grid">
+                <div class="health-card">
+                    <div class="health-card-header">
+                        <span class="health-card-title">Quality Predictor</span>
+                        <span class="health-status-badge healthy">Healthy</span>
+                    </div>
+                    <div class="health-metric">
+                        <span class="health-metric-label">Accuracy</span>
+                        <div class="health-metric-value">
+                            <div class="health-bar"><div class="health-fill success" style="width: 97%;"></div></div>
+                            <span class="health-value" style="color: var(--cl-success);">97%</span>
+                        </div>
+                    </div>
+                    <div class="health-metric">
+                        <span class="health-metric-label">Drift Score</span>
+                        <div class="health-metric-value">
+                            <div class="health-bar"><div class="health-fill success" style="width: 15%;"></div></div>
+                            <span class="health-value" style="color: var(--cl-success);">0.15</span>
+                        </div>
+                    </div>
+                    <div class="health-metric">
+                        <span class="health-metric-label">Last Update</span>
+                        <span class="health-value" style="color: var(--cl-text-muted);">2h ago</span>
+                    </div>
+                </div>
+
+                <div class="health-card">
+                    <div class="health-card-header">
+                        <span class="health-card-title">Duration Predictor</span>
+                        <span class="health-status-badge warning">Warning</span>
+                    </div>
+                    <div class="health-metric">
+                        <span class="health-metric-label">MAE</span>
+                        <div class="health-metric-value">
+                            <div class="health-bar"><div class="health-fill success" style="width: 85%;"></div></div>
+                            <span class="health-value" style="color: var(--cl-primary);">2.3m</span>
+                        </div>
+                    </div>
+                    <div class="health-metric">
+                        <span class="health-metric-label">Drift Score</span>
+                        <div class="health-metric-value">
+                            <div class="health-bar"><div class="health-fill warning" style="width: 45%;"></div></div>
+                            <span class="health-value" style="color: var(--cl-warning);">0.45</span>
+                        </div>
+                    </div>
+                    <div class="health-metric">
+                        <span class="health-metric-label">Last Update</span>
+                        <span class="health-value" style="color: var(--cl-text-muted);">6h ago</span>
+                    </div>
+                </div>
+
+                <div class="health-card">
+                    <div class="health-card-header">
+                        <span class="health-card-title">Maintenance Predictor</span>
+                        <span class="health-status-badge healthy">Healthy</span>
+                    </div>
+                    <div class="health-metric">
+                        <span class="health-metric-label">Precision</span>
+                        <div class="health-metric-value">
+                            <div class="health-bar"><div class="health-fill success" style="width: 92%;"></div></div>
+                            <span class="health-value" style="color: var(--cl-success);">92%</span>
+                        </div>
+                    </div>
+                    <div class="health-metric">
+                        <span class="health-metric-label">Drift Score</span>
+                        <div class="health-metric-value">
+                            <div class="health-bar"><div class="health-fill success" style="width: 22%;"></div></div>
+                            <span class="health-value" style="color: var(--cl-success);">0.22</span>
+                        </div>
+                    </div>
+                    <div class="health-metric">
+                        <span class="health-metric-label">Last Update</span>
+                        <span class="health-value" style="color: var(--cl-text-muted);">1d ago</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drift Alert -->
+            <div class="drift-alert">
+                <div class="drift-alert-header">
+                    <div>
+                        <div class="drift-alert-title">
+                            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                            </svg>
+                            Drift Alert: Surface Quality Model
+                        </div>
+                        <div class="drift-alert-description">
+                            Detected concept drift in humidity-related features. Production environment humidity has shifted from 40-50% to 55-65% due to seasonal change.
+                        </div>
+                    </div>
+                    <button class="btn-acknowledge" onclick="acknowledgeDrift()">Acknowledge</button>
+                </div>
+                <div class="drift-chart" id="drift-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Second Content Row -->
+<div class="content-grid">
+    <!-- Active Learning Queue -->
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <svg width="18" height="18" fill="var(--cl-secondary)" viewBox="0 0 24 24">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+                Active Learning Queue
+                <span class="panel-badge">5</span>
+            </div>
+        </div>
+        <div class="panel-content">
+            <div class="sample-item">
+                <div class="sample-thumbnail">
+                    <svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                </div>
+                <div class="sample-content">
+                    <div class="sample-header">
+                        <span class="sample-title">Surface Inspection #4892</span>
+                        <span class="uncertainty-badge high">Uncertainty: 0.89</span>
+                    </div>
+                    <div class="sample-reason">Model disagrees: Defect vs Normal</div>
+                </div>
+                <button class="btn-label" onclick="labelSample('4892')">Label</button>
+            </div>
+
+            <div class="sample-item">
+                <div class="sample-thumbnail">
+                    <svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                </div>
+                <div class="sample-content">
+                    <div class="sample-header">
+                        <span class="sample-title">Dimensional Check #4893</span>
+                        <span class="uncertainty-badge high">Uncertainty: 0.82</span>
+                    </div>
+                    <div class="sample-reason">Edge case: Near tolerance boundary</div>
+                </div>
+                <button class="btn-label" onclick="labelSample('4893')">Label</button>
+            </div>
+
+            <div class="sample-item">
+                <div class="sample-thumbnail">
+                    <svg width="28" height="28" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                </div>
+                <div class="sample-content">
+                    <div class="sample-header">
+                        <span class="sample-title">Clutch Force Test #4894</span>
+                        <span class="uncertainty-badge medium">Uncertainty: 0.71</span>
+                    </div>
+                    <div class="sample-reason">New material type not in training data</div>
+                </div>
+                <button class="btn-label" onclick="labelSample('4894')">Label</button>
+            </div>
+
+            <div class="queue-footer">
+                <span class="queue-stats">5 samples pending | 127 labeled this week</span>
+                <button class="btn-view-all" onclick="viewAllSamples()">View All Samples</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Self-Healing Actions -->
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                <svg width="18" height="18" fill="var(--cl-success)" viewBox="0 0 24 24">
+                    <path d="M17.73 12.02l3.98-3.98c.39-.39.39-1.02 0-1.41l-4.34-4.34a.9959.9959 0 00-1.41 0l-3.98 3.98L8 2.29C7.8 2.1 7.55 2 7.29 2c-.25 0-.51.1-.7.29L2.25 6.63c-.39.39-.39 1.02 0 1.41l3.98 3.98L2.25 16c-.39.39-.39 1.02 0 1.41l4.34 4.34c.39.39 1.02.39 1.41 0l3.98-3.98 3.98 3.98c.2.2.45.29.71.29.26 0 .51-.1.71-.29l4.34-4.34c.39-.39.39-1.02 0-1.41l-3.99-3.98z"/>
+                </svg>
+                Self-Healing Actions
+            </div>
+        </div>
+        <div class="panel-content">
+            <div class="healing-action">
+                <div class="healing-header">
+                    <div class="healing-title">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46A7.93 7.93 0 0020 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74A7.93 7.93 0 004 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                        </svg>
+                        Parameter Auto-Adjustment
+                    </div>
+                    <span class="healing-time">Active</span>
+                </div>
+                <div class="healing-description">
+                    Increased flow rate compensation from 0.95 to 0.97 based on last 50 dimensional measurements showing consistent under-extrusion.
+                </div>
+                <div class="healing-impact">
+                    <span class="impact-item positive">
+                        <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg>
+                        Quality +3%
+                    </span>
+                    <span class="impact-item positive">
+                        <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg>
+                        Accuracy +1.2%
+                    </span>
+                </div>
+            </div>
+
+            <div class="healing-action">
+                <div class="healing-header">
+                    <div class="healing-title">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+                        </svg>
+                        Quality Threshold Adaptation
+                    </div>
+                    <span class="healing-time">2h ago</span>
+                </div>
+                <div class="healing-description">
+                    Tightened surface roughness threshold from Ra 1.2 to Ra 1.0 after detecting improved printer calibration.
+                </div>
+                <div class="healing-impact">
+                    <span class="impact-item positive">
+                        <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M7 14l5-5 5 5z"/></svg>
+                        Sensitivity +15%
+                    </span>
+                </div>
+            </div>
+
+            <!-- Retraining Pipeline -->
+            <div class="retrain-pipeline">
+                <div class="pipeline-header">
+                    <span class="pipeline-title">Model Retraining Pipeline</span>
+                    <span class="pipeline-progress">45% Complete</span>
+                </div>
+                <div class="pipeline-stages">
+                    <div class="pipeline-stage">
+                        <div class="stage-connector completed"></div>
+                        <div class="stage-dot completed">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                        <div class="stage-label completed">Collection</div>
+                        <div class="stage-detail">2,847 samples</div>
+                    </div>
+                    <div class="pipeline-stage">
+                        <div class="stage-connector completed"></div>
+                        <div class="stage-dot completed">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                        <div class="stage-label completed">Validation</div>
+                        <div class="stage-detail">Passed</div>
+                    </div>
+                    <div class="pipeline-stage">
+                        <div class="stage-connector active"></div>
+                        <div class="stage-dot active">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                            </svg>
+                        </div>
+                        <div class="stage-label active">Training</div>
+                        <div class="stage-detail">Epoch 45/100</div>
+                    </div>
+                    <div class="pipeline-stage">
+                        <div class="stage-connector"></div>
+                        <div class="stage-dot pending">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                        </div>
+                        <div class="stage-label">Testing</div>
+                        <div class="stage-detail">Pending</div>
+                    </div>
+                    <div class="pipeline-stage">
+                        <div class="stage-dot pending">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
+                            </svg>
+                        </div>
+                        <div class="stage-label">Deploy</div>
+                        <div class="stage-detail">Pending</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Connection Status -->
+<div class="connection-status">
+    <span class="connection-dot connecting" id="connection-dot"></span>
+    <span class="connection-text" id="connection-text">Connecting...</span>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════
+// State Management
+// ═══════════════════════════════════════════════════════════════
+
+let socket = null;
+
+// ═══════════════════════════════════════════════════════════════
+// WebSocket Connection
+// ═══════════════════════════════════════════════════════════════
+
+function initWebSocket() {
+    try {
+        socket = io({
+            path: '/socket.io',
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', () => {
+            updateConnectionStatus('connected');
+            socket.emit('join', { room: 'closed_loop' });
+        });
+
+        socket.on('disconnect', () => {
+            updateConnectionStatus('disconnected');
+        });
+
+        socket.on('connect_error', () => {
+            updateConnectionStatus('disconnected');
+        });
+
+        socket.on('feedback_event', (data) => {
+            addFeedbackItem(data);
+            updateKPIs(data);
+        });
+
+        socket.on('drift_detected', (data) => {
+            showToast('Drift Detected', `${data.model} drift score: ${data.score}`, 'warning');
+        });
+
+        socket.on('model_updated', (data) => {
+            showToast('Model Updated', `${data.model} successfully updated`, 'success');
+        });
+
+    } catch (error) {
+        console.log('WebSocket not available, using polling');
+        updateConnectionStatus('disconnected');
+    }
+}
+
+function updateConnectionStatus(status) {
+    const dot = document.getElementById('connection-dot');
+    const text = document.getElementById('connection-text');
+
+    dot.className = 'connection-dot ' + status;
+
+    switch(status) {
+        case 'connected':
+            text.textContent = 'Real-time Connected';
+            break;
+        case 'disconnected':
+            text.textContent = 'Disconnected';
+            break;
+        case 'connecting':
+            text.textContent = 'Connecting...';
+            break;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Feedback Stream
+// ═══════════════════════════════════════════════════════════════
+
+// Counter for deterministic cycling through feedback types
+let feedbackCounter = 0;
+
+function addFeedbackItem(data) {
+    const types = ['quality', 'timing', 'equipment'];
+    // Cycle through types deterministically instead of random selection
+    const type = data?.type || types[feedbackCounter % types.length];
+    feedbackCounter++;
+
+    const icons = {
+        quality: '<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+        timing: '<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>',
+        equipment: '<svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>'
+    };
+
+    // Use time-based deterministic IDs instead of random
+    const timeBase = Math.floor(Date.now() / 5000); // Changes every 5 seconds
+    const messages = {
+        quality: {
+            title: 'Quality Inspection Result',
+            detail: `LEGO-2x4-${100 + (timeBase % 900)} | Passed`,
+            status: 'Model prediction verified',
+            statusClass: 'success'
+        },
+        timing: {
+            title: 'Print Duration Recorded',
+            detail: `Job #${4500 + (timeBase % 100)} | 42m actual`,
+            status: 'Within prediction tolerance',
+            statusClass: 'success'
+        },
+        equipment: {
+            title: 'Sensor Data Collected',
+            detail: `Printer #00${1 + (timeBase % 5)} | All metrics nominal`,
+            status: 'Added to training buffer',
+            statusClass: 'info'
+        }
+    };
+
+    const msg = data || messages[type];
+    const html = `
+        <div class="feedback-item ${type}">
+            <div class="feedback-icon ${type}">${icons[type]}</div>
+            <div class="feedback-content">
+                <div class="feedback-header">
+                    <span class="feedback-title">${msg.title}</span>
+                    <span class="feedback-time">just now</span>
+                </div>
+                <div class="feedback-detail">${msg.detail}</div>
+                <div class="feedback-status ${msg.statusClass}">${msg.status}</div>
+            </div>
+        </div>
+    `;
+
+    const stream = document.getElementById('feedback-stream');
+    stream.insertAdjacentHTML('afterbegin', html);
+
+    // Keep only last 10 items
+    while (stream.children.length > 10) {
+        stream.removeChild(stream.lastChild);
+    }
+
+    // Update stream count
+    document.getElementById('stream-count').textContent = stream.children.length;
+}
+
+// Add new feedback every 5 seconds
+setInterval(() => {
+    if (!socket || !socket.connected) {
+        addFeedbackItem();
+    }
+}, 5000);
+
+// ═══════════════════════════════════════════════════════════════
+// Drift Chart
+// ═══════════════════════════════════════════════════════════════
+
+function initDriftChart() {
+    const x = Array.from({length: 30}, (_, i) => i);
+    const threshold = Array(30).fill(0.5);
+    // Pattern-based drift score: gradual drift after point 20, with sinusoidal micro-variation
+    const driftScore = x.map(i => 0.1 + (i > 20 ? (i - 20) * 0.08 : 0) + Math.sin(i * 0.7) * 0.025);
+
+    const data = [
+        {
+            x: x,
+            y: driftScore,
+            type: 'scatter',
+            mode: 'lines',
+            name: 'Drift Score',
+            line: { color: '#ef4444', width: 2 },
+            fill: 'tozeroy',
+            fillcolor: 'rgba(239, 68, 68, 0.1)'
+        },
+        {
+            x: x,
+            y: threshold,
+            type: 'scatter',
+            mode: 'lines',
+            name: 'Threshold',
+            line: { color: '#f59e0b', width: 2, dash: 'dash' }
+        }
+    ];
+
+    const layout = {
+        paper_bgcolor: 'transparent',
+        plot_bgcolor: 'transparent',
+        font: { color: '#94a3b8', size: 10 },
+        margin: { t: 10, b: 30, l: 40, r: 10 },
+        xaxis: { gridcolor: '#334155', title: 'Days', tickfont: { size: 9 } },
+        yaxis: { gridcolor: '#334155', title: 'Score', tickfont: { size: 9 }, range: [0, 1] },
+        showlegend: false
+    };
+
+    Plotly.newPlot('drift-chart', data, layout, { responsive: true, displayModeBar: false });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Actions
+// ═══════════════════════════════════════════════════════════════
+
+function forceRetrain() {
+    showToast('Retraining', 'Model retraining job queued', 'info');
+}
+
+function acknowledgeDrift() {
+    showToast('Acknowledged', 'Drift alert acknowledged', 'success');
+    document.querySelector('.drift-alert').style.opacity = '0.5';
+}
+
+function labelSample(id) {
+    showToast('Labeling', `Opening labeling interface for sample #${id}`, 'info');
+}
+
+function viewAllSamples() {
+    showToast('Loading', 'Opening sample queue...', 'info');
+}
+
+function updateKPIs(data) {
+    // Update KPI values based on feedback
+    const feedbackRate = document.getElementById('feedback-rate');
+    feedbackRate.textContent = parseInt(feedbackRate.textContent) + 1;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Toast Notifications
+// ═══════════════════════════════════════════════════════════════
+
+function showToast(title, message, type = 'info') {
+    const container = document.getElementById('toast-container');
+
+    const icons = {
+        success: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+        error: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+        warning: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+        info: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type]}</div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+        </button>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Initialization
+// ═══════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+    initWebSocket();
+    initDriftChart();
+});
+</script>
+{% endblock %}

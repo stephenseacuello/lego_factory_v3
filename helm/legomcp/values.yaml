@@ -1,0 +1,381 @@
+# Default values for LegoMCP Helm Chart
+# PhD-Level Manufacturing Platform
+
+# =============================================================================
+# GLOBAL CONFIGURATION
+# =============================================================================
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+# =============================================================================
+# DASHBOARD SERVICE
+# =============================================================================
+dashboard:
+  enabled: true
+  replicaCount: 3
+
+  image:
+    repository: legomcp/dashboard
+    tag: "5.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 5000
+
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+    hosts:
+      - host: legomcp.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls:
+      - secretName: legomcp-tls
+        hosts:
+          - legomcp.example.com
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+  env:
+    FLASK_ENV: production
+    SECRETS_BACKEND: vault
+
+  envFrom:
+    - secretRef:
+        name: legomcp-secrets
+
+# =============================================================================
+# WORKER SERVICE
+# =============================================================================
+worker:
+  enabled: true
+  replicaCount: 2
+
+  image:
+    repository: legomcp/worker
+    tag: "5.0.0"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 75
+
+  # Celery configuration
+  celery:
+    concurrency: 4
+    queues:
+      - default
+      - priority
+      - ml
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =============================================================================
+# ML WORKER (GPU-enabled)
+# =============================================================================
+mlWorker:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: legomcp/worker-ml
+    tag: "5.0.0"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: "1"
+      memory: 4Gi
+      nvidia.com/gpu: "1"
+    limits:
+      cpu: "4"
+      memory: 16Gi
+      nvidia.com/gpu: "1"
+
+  # Celery configuration for ML tasks
+  celery:
+    concurrency: 1
+    queues:
+      - ml
+      - vision
+      - inference
+
+  nodeSelector:
+    accelerator: nvidia-gpu
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+  affinity: {}
+
+# =============================================================================
+# SCHEDULER SERVICE
+# =============================================================================
+scheduler:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: legomcp/scheduler
+    tag: "5.0.0"
+    pullPolicy: IfNotPresent
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =============================================================================
+# SLICER SERVICE
+# =============================================================================
+slicer:
+  enabled: true
+  replicaCount: 1
+
+  image:
+    repository: legomcp/slicer
+    tag: "5.0.0"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# =============================================================================
+# POSTGRESQL
+# =============================================================================
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: ""
+    username: lego
+    password: ""
+    database: legomcp
+  primary:
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+  metrics:
+    enabled: true
+
+# External PostgreSQL (if postgresql.enabled = false)
+externalPostgresql:
+  host: ""
+  port: 5432
+  username: lego
+  password: ""
+  database: legomcp
+
+# =============================================================================
+# REDIS
+# =============================================================================
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: ""
+  master:
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  metrics:
+    enabled: true
+
+# External Redis (if redis.enabled = false)
+externalRedis:
+  host: ""
+  port: 6379
+  password: ""
+
+# =============================================================================
+# MONITORING STACK
+# =============================================================================
+prometheus:
+  enabled: true
+  alertmanager:
+    enabled: true
+  server:
+    persistentVolume:
+      enabled: true
+      size: 50Gi
+
+grafana:
+  enabled: true
+  adminPassword: ""
+  persistence:
+    enabled: true
+    size: 10Gi
+  ingress:
+    enabled: true
+    annotations:
+      nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    hosts:
+      - grafana.legomcp.example.com
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.legomcp.example.com
+
+# =============================================================================
+# SECRETS MANAGEMENT
+# =============================================================================
+secrets:
+  # Create secrets from values (for development)
+  create: true
+
+  # Flask secret key
+  flaskSecretKey: ""
+
+  # JWT secret
+  jwtSecret: ""
+
+  # External secrets configuration
+  externalSecrets:
+    enabled: false
+    secretStore:
+      kind: ClusterSecretStore
+      name: vault-backend
+
+# =============================================================================
+# PERSISTENCE
+# =============================================================================
+persistence:
+  # ML models storage
+  models:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 50Gi
+
+  # File uploads storage
+  uploads:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 20Gi
+
+  # STL/CAD files storage
+  exports:
+    enabled: true
+    storageClass: ""
+    accessMode: ReadWriteMany
+    size: 100Gi
+
+# =============================================================================
+# NETWORK POLICIES
+# =============================================================================
+networkPolicy:
+  enabled: true
+
+# =============================================================================
+# POD DISRUPTION BUDGET
+# =============================================================================
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# =============================================================================
+# SERVICE ACCOUNT
+# =============================================================================
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# =============================================================================
+# BACKUP CONFIGURATION
+# =============================================================================
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # 2 AM daily
+  retention:
+    days: 30
+  storage:
+    type: s3  # s3, gcs, azure
+    bucket: legomcp-backups
+    region: us-east-1
+    secretName: backup-credentials
+
+# =============================================================================
+# EXTRA ENVIRONMENT VARIABLES
+# =============================================================================
+extraEnv: []
+
+# =============================================================================
+# EXTRA VOLUMES
+# =============================================================================
+extraVolumes: []
+extraVolumeMounts: []

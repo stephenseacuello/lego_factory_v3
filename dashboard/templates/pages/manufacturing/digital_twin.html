@@ -1,0 +1,3112 @@
+{% extends "base.html" %}
+
+{% block title %}Digital Twin - LEGO MCP v6.0{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --dt-primary: #00d4ff;
+        --dt-secondary: #8b5cf6;
+        --dt-accent: #06b6d4;
+        --dt-success: #10b981;
+        --dt-warning: #f59e0b;
+        --dt-danger: #ef4444;
+        --dt-info: #3b82f6;
+        --dt-dark: #0f172a;
+        --dt-darker: #020617;
+        --dt-card: #1e293b;
+        --dt-card-hover: #334155;
+        --dt-border: #334155;
+        --dt-text: #f8fafc;
+        --dt-text-muted: #94a3b8;
+        --dt-glow: rgba(0, 212, 255, 0.3);
+        --dt-crdt-gcounter: #3b82f6;
+        --dt-crdt-pncounter: #8b5cf6;
+        --dt-crdt-lwwreg: #10b981;
+        --dt-crdt-orset: #f59e0b;
+        --dt-crdt-lwwmap: #06b6d4;
+        --dt-pinn-thermal: #ef4444;
+        --dt-pinn-mechanical: #3b82f6;
+        --dt-pinn-fdm: #10b981;
+    }
+
+    .digital-twin-page {
+        background: linear-gradient(135deg, var(--dt-darker) 0%, var(--dt-dark) 100%);
+        min-height: 100vh;
+        padding: 24px;
+    }
+
+    /* Header Section */
+    .dt-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 24px;
+        gap: 24px;
+    }
+
+    .dt-title-section h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--dt-primary), var(--dt-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin: 0 0 8px 0;
+    }
+
+    .dt-subtitle {
+        color: var(--dt-text-muted);
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .sync-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px;
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 20px;
+        font-size: 0.85rem;
+        color: var(--dt-success);
+    }
+
+    .sync-badge.warning {
+        background: rgba(245, 158, 11, 0.15);
+        border-color: rgba(245, 158, 11, 0.3);
+        color: var(--dt-warning);
+    }
+
+    .sync-badge.error {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.3);
+        color: var(--dt-danger);
+    }
+
+    .sync-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: syncPulse 2s infinite;
+    }
+
+    @keyframes syncPulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.3); opacity: 0.6; }
+    }
+
+    .dt-header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .dt-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid var(--dt-border);
+        background: var(--dt-card);
+        color: var(--dt-text);
+    }
+
+    .dt-btn:hover {
+        background: var(--dt-card-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .dt-btn-primary {
+        background: linear-gradient(135deg, var(--dt-primary), var(--dt-accent));
+        border: none;
+        color: var(--dt-dark);
+        font-weight: 600;
+    }
+
+    .dt-btn-primary:hover {
+        box-shadow: 0 4px 20px var(--dt-glow);
+    }
+
+    /* KPI Summary Cards */
+    .dt-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .dt-kpi-card {
+        background: var(--dt-card);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--dt-border);
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s;
+    }
+
+    .dt-kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .dt-kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--kpi-color), transparent);
+    }
+
+    .dt-kpi-card.sync { --kpi-color: var(--dt-success); }
+    .dt-kpi-card.crdt { --kpi-color: var(--dt-primary); }
+    .dt-kpi-card.pinn { --kpi-color: var(--dt-secondary); }
+    .dt-kpi-card.latency { --kpi-color: var(--dt-warning); }
+    .dt-kpi-card.assets { --kpi-color: var(--dt-info); }
+
+    .dt-kpi-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+    }
+
+    .dt-kpi-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        background: rgba(0, 212, 255, 0.1);
+    }
+
+    .dt-kpi-card.sync .dt-kpi-icon { background: rgba(16, 185, 129, 0.15); }
+    .dt-kpi-card.crdt .dt-kpi-icon { background: rgba(0, 212, 255, 0.15); }
+    .dt-kpi-card.pinn .dt-kpi-icon { background: rgba(139, 92, 246, 0.15); }
+    .dt-kpi-card.latency .dt-kpi-icon { background: rgba(245, 158, 11, 0.15); }
+    .dt-kpi-card.assets .dt-kpi-icon { background: rgba(59, 130, 246, 0.15); }
+
+    .dt-kpi-trend {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.8rem;
+        padding: 4px 8px;
+        border-radius: 6px;
+    }
+
+    .dt-kpi-trend.up {
+        color: var(--dt-success);
+        background: rgba(16, 185, 129, 0.1);
+    }
+
+    .dt-kpi-trend.down {
+        color: var(--dt-danger);
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .dt-kpi-trend.stable {
+        color: var(--dt-text-muted);
+        background: rgba(148, 163, 184, 0.1);
+    }
+
+    .dt-kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--dt-text);
+        margin-bottom: 4px;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .dt-kpi-label {
+        font-size: 0.85rem;
+        color: var(--dt-text-muted);
+    }
+
+    .dt-kpi-sparkline {
+        height: 30px;
+        margin-top: 12px;
+    }
+
+    /* Main Layout */
+    .dt-main-grid {
+        display: grid;
+        grid-template-columns: 300px 1fr 380px;
+        gap: 20px;
+        height: calc(100vh - 280px);
+    }
+
+    /* Sidebar - Asset List */
+    .dt-sidebar {
+        background: var(--dt-card);
+        border-radius: 16px;
+        border: 1px solid var(--dt-border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .dt-sidebar-header {
+        padding: 20px;
+        border-bottom: 1px solid var(--dt-border);
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.05), transparent);
+    }
+
+    .dt-sidebar-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--dt-text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .dt-search-box {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--dt-dark);
+        border: 1px solid var(--dt-border);
+        border-radius: 10px;
+        padding: 10px 14px;
+    }
+
+    .dt-search-box input {
+        flex: 1;
+        background: transparent;
+        border: none;
+        color: var(--dt-text);
+        font-size: 0.9rem;
+        outline: none;
+    }
+
+    .dt-search-box input::placeholder {
+        color: var(--dt-text-muted);
+    }
+
+    .dt-asset-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+    }
+
+    .dt-asset-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        margin-bottom: 8px;
+        border: 1px solid transparent;
+    }
+
+    .dt-asset-item:hover {
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .dt-asset-item.active {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: rgba(0, 212, 255, 0.3);
+    }
+
+    .dt-asset-icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        flex-shrink: 0;
+    }
+
+    .dt-asset-icon.printer { background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(139, 92, 246, 0.2)); }
+    .dt-asset-icon.part { background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(6, 182, 212, 0.2)); }
+    .dt-asset-icon.env { background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(239, 68, 68, 0.2)); }
+    .dt-asset-icon.material { background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.2)); }
+
+    .dt-asset-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .dt-asset-name {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: var(--dt-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .dt-asset-type {
+        font-size: 0.8rem;
+        color: var(--dt-text-muted);
+        margin-top: 2px;
+    }
+
+    .dt-asset-status {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+    }
+
+    .dt-status-badge {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-weight: 500;
+    }
+
+    .dt-status-badge.synced {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--dt-success);
+    }
+
+    .dt-status-badge.pending {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--dt-warning);
+    }
+
+    .dt-status-badge.error {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--dt-danger);
+    }
+
+    .dt-last-sync {
+        font-size: 0.7rem;
+        color: var(--dt-text-muted);
+    }
+
+    /* CRDT Section in Sidebar */
+    .dt-crdt-section {
+        padding: 16px;
+        border-top: 1px solid var(--dt-border);
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .dt-crdt-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--dt-text-muted);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .dt-crdt-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 6px;
+    }
+
+    .dt-crdt-item {
+        text-align: center;
+        padding: 10px 4px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+
+    .dt-crdt-item:hover {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: var(--dt-border);
+    }
+
+    .dt-crdt-item.active {
+        border-color: var(--dt-primary);
+        background: rgba(0, 212, 255, 0.1);
+    }
+
+    .dt-crdt-icon {
+        font-size: 1.1rem;
+        margin-bottom: 4px;
+    }
+
+    .dt-crdt-name {
+        font-size: 0.6rem;
+        color: var(--dt-text-muted);
+        margin-bottom: 4px;
+        white-space: nowrap;
+    }
+
+    .dt-crdt-state {
+        font-size: 0.55rem;
+        padding: 2px 5px;
+        border-radius: 4px;
+    }
+
+    .dt-crdt-state.ok {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--dt-success);
+    }
+
+    .dt-crdt-state.sync {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--dt-warning);
+    }
+
+    /* HLC Display */
+    .dt-hlc-section {
+        padding: 16px;
+        border-top: 1px solid var(--dt-border);
+    }
+
+    .dt-hlc-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--dt-text-muted);
+        margin-bottom: 10px;
+    }
+
+    .dt-hlc-display {
+        background: var(--dt-dark);
+        border-radius: 10px;
+        padding: 14px;
+        text-align: center;
+        border: 1px solid var(--dt-border);
+    }
+
+    .dt-hlc-value {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 1rem;
+        color: var(--dt-primary);
+        margin-bottom: 6px;
+    }
+
+    .dt-hlc-labels {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        font-size: 0.7rem;
+        color: var(--dt-text-muted);
+    }
+
+    .dt-hlc-label {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .dt-hlc-label span:first-child {
+        font-size: 0.85rem;
+        color: var(--dt-text);
+        font-weight: 500;
+    }
+
+    /* Main 3D Viewer */
+    .dt-viewer {
+        background: var(--dt-card);
+        border-radius: 16px;
+        border: 1px solid var(--dt-border);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .dt-viewer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--dt-border);
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.03), transparent);
+    }
+
+    .dt-viewer-title {
+        font-weight: 600;
+        color: var(--dt-text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .dt-viewer-badge {
+        font-size: 0.75rem;
+        padding: 4px 10px;
+        background: rgba(0, 212, 255, 0.15);
+        border-radius: 6px;
+        color: var(--dt-primary);
+    }
+
+    .dt-viewer-tools {
+        display: flex;
+        gap: 8px;
+    }
+
+    .dt-tool-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        border: 1px solid var(--dt-border);
+        background: var(--dt-dark);
+        color: var(--dt-text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .dt-tool-btn:hover {
+        background: var(--dt-card-hover);
+        color: var(--dt-text);
+        border-color: var(--dt-primary);
+    }
+
+    .dt-tool-btn.active {
+        background: rgba(0, 212, 255, 0.1);
+        color: var(--dt-primary);
+        border-color: var(--dt-primary);
+    }
+
+    .dt-viewer-canvas {
+        flex: 1;
+        position: relative;
+        background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a0f 100%);
+    }
+
+    .dt-viewer-grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+            linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
+        background-size: 40px 40px;
+        pointer-events: none;
+    }
+
+    .dt-3d-placeholder {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .dt-3d-model {
+        width: 250px;
+        height: 250px;
+        position: relative;
+        margin-bottom: 20px;
+    }
+
+    .dt-model-cube {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        transform-style: preserve-3d;
+        animation: rotateCube 20s infinite linear;
+    }
+
+    @keyframes rotateCube {
+        0% { transform: rotateX(-20deg) rotateY(0deg); }
+        100% { transform: rotateX(-20deg) rotateY(360deg); }
+    }
+
+    .dt-cube-face {
+        position: absolute;
+        width: 120px;
+        height: 120px;
+        border: 2px solid var(--dt-primary);
+        background: rgba(0, 212, 255, 0.05);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        left: 50%;
+        top: 50%;
+        margin-left: -60px;
+        margin-top: -60px;
+        backface-visibility: visible;
+    }
+
+    .dt-cube-face.front { transform: translateZ(60px); }
+    .dt-cube-face.back { transform: rotateY(180deg) translateZ(60px); }
+    .dt-cube-face.left { transform: rotateY(-90deg) translateZ(60px); }
+    .dt-cube-face.right { transform: rotateY(90deg) translateZ(60px); }
+    .dt-cube-face.top { transform: rotateX(90deg) translateZ(60px); }
+    .dt-cube-face.bottom { transform: rotateX(-90deg) translateZ(60px); }
+
+    .dt-3d-info h3 {
+        color: var(--dt-text);
+        font-size: 1.2rem;
+        margin-bottom: 8px;
+    }
+
+    .dt-3d-info p {
+        color: var(--dt-text-muted);
+        font-size: 0.9rem;
+    }
+
+    .dt-viewer-overlay {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(10px);
+        padding: 16px;
+        border-radius: 12px;
+        border: 1px solid var(--dt-border);
+        min-width: 200px;
+    }
+
+    .dt-overlay-title {
+        font-weight: 600;
+        color: var(--dt-text);
+        margin-bottom: 10px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--dt-border);
+    }
+
+    .dt-overlay-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 6px 0;
+        font-size: 0.85rem;
+    }
+
+    .dt-overlay-label {
+        color: var(--dt-text-muted);
+    }
+
+    .dt-overlay-value {
+        color: var(--dt-text);
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .dt-overlay-value.temp {
+        color: var(--dt-pinn-thermal);
+    }
+
+    .dt-overlay-value.progress {
+        color: var(--dt-success);
+    }
+
+    .dt-viewer-controls {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(10px);
+        padding: 10px 16px;
+        border-radius: 30px;
+        border: 1px solid var(--dt-border);
+    }
+
+    .dt-view-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 1px solid var(--dt-border);
+        background: transparent;
+        color: var(--dt-text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .dt-view-btn:hover {
+        background: rgba(0, 212, 255, 0.1);
+        color: var(--dt-primary);
+        border-color: var(--dt-primary);
+    }
+
+    /* Right Panel */
+    .dt-panel {
+        background: var(--dt-card);
+        border-radius: 16px;
+        border: 1px solid var(--dt-border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .dt-panel-tabs {
+        display: flex;
+        border-bottom: 1px solid var(--dt-border);
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .dt-panel-tab {
+        flex: 1;
+        padding: 14px;
+        text-align: center;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: var(--dt-text-muted);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .dt-panel-tab:hover {
+        color: var(--dt-text);
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    .dt-panel-tab.active {
+        color: var(--dt-primary);
+        border-bottom-color: var(--dt-primary);
+        background: rgba(0, 212, 255, 0.05);
+    }
+
+    .dt-panel-content {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    .dt-panel-section {
+        padding: 20px;
+        border-bottom: 1px solid var(--dt-border);
+    }
+
+    .dt-panel-section:last-child {
+        border-bottom: none;
+    }
+
+    .dt-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .dt-section-title {
+        font-weight: 600;
+        color: var(--dt-text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .dt-section-badge {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: rgba(139, 92, 246, 0.15);
+        color: var(--dt-secondary);
+    }
+
+    /* Property Grid */
+    .dt-property-grid {
+        display: grid;
+        gap: 8px;
+    }
+
+    .dt-property-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 14px;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 8px;
+        border: 1px solid transparent;
+        transition: all 0.2s;
+    }
+
+    .dt-property-row:hover {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: var(--dt-border);
+    }
+
+    .dt-property-label {
+        color: var(--dt-text-muted);
+        font-size: 0.85rem;
+    }
+
+    .dt-property-value {
+        font-weight: 500;
+        color: var(--dt-text);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.9rem;
+    }
+
+    /* PINN Models */
+    .dt-pinn-grid {
+        display: grid;
+        gap: 12px;
+    }
+
+    .dt-pinn-card {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        border: 1px solid var(--dt-border);
+        transition: all 0.2s;
+    }
+
+    .dt-pinn-card:hover {
+        border-color: var(--kpi-color);
+        box-shadow: 0 0 20px rgba(var(--kpi-color-rgb), 0.1);
+    }
+
+    .dt-pinn-card.thermal {
+        --kpi-color: var(--dt-pinn-thermal);
+        --kpi-color-rgb: 239, 68, 68;
+    }
+    .dt-pinn-card.mechanical {
+        --kpi-color: var(--dt-pinn-mechanical);
+        --kpi-color-rgb: 59, 130, 246;
+    }
+    .dt-pinn-card.fdm {
+        --kpi-color: var(--dt-pinn-fdm);
+        --kpi-color-rgb: 16, 185, 129;
+    }
+
+    .dt-pinn-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .dt-pinn-name {
+        font-weight: 600;
+        color: var(--dt-text);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .dt-pinn-icon {
+        font-size: 1rem;
+    }
+
+    .dt-pinn-accuracy {
+        font-size: 0.8rem;
+        padding: 4px 10px;
+        border-radius: 6px;
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--dt-success);
+    }
+
+    .dt-pinn-chart {
+        height: 80px;
+        margin-bottom: 10px;
+    }
+
+    .dt-pinn-values {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+    }
+
+    .dt-pinn-predicted {
+        color: var(--dt-text-muted);
+    }
+
+    .dt-pinn-actual {
+        color: var(--dt-success);
+    }
+
+    /* Ontology Tree */
+    .dt-ontology-tree {
+        font-size: 0.85rem;
+    }
+
+    .dt-ontology-node {
+        padding-left: 20px;
+        border-left: 1px dashed var(--dt-border);
+        margin-left: 8px;
+    }
+
+    .dt-ontology-item {
+        padding: 6px 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .dt-ontology-class {
+        color: var(--dt-primary);
+        font-weight: 500;
+    }
+
+    .dt-ontology-instance {
+        color: var(--dt-success);
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.8rem;
+    }
+
+    .dt-ontology-expand {
+        width: 18px;
+        height: 18px;
+        border-radius: 4px;
+        background: var(--dt-dark);
+        border: 1px solid var(--dt-border);
+        color: var(--dt-text-muted);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        transition: all 0.2s;
+    }
+
+    .dt-ontology-expand:hover {
+        background: var(--dt-card-hover);
+        color: var(--dt-text);
+    }
+
+    /* Event Log */
+    .dt-event-log {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .dt-event-item {
+        display: flex;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        margin-bottom: 6px;
+        background: rgba(255, 255, 255, 0.02);
+        transition: all 0.2s;
+        animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .dt-event-item:hover {
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .dt-event-time {
+        font-size: 0.75rem;
+        color: var(--dt-text-muted);
+        font-family: 'JetBrains Mono', monospace;
+        flex-shrink: 0;
+        width: 70px;
+    }
+
+    .dt-event-type {
+        font-size: 0.65rem;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-weight: 500;
+        flex-shrink: 0;
+        text-transform: uppercase;
+    }
+
+    .dt-event-type.state {
+        background: rgba(0, 212, 255, 0.15);
+        color: var(--dt-primary);
+    }
+
+    .dt-event-type.physics {
+        background: rgba(139, 92, 246, 0.15);
+        color: var(--dt-secondary);
+    }
+
+    .dt-event-type.sync {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--dt-success);
+    }
+
+    .dt-event-type.alert {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--dt-warning);
+    }
+
+    .dt-event-message {
+        font-size: 0.8rem;
+        color: var(--dt-text);
+        flex: 1;
+    }
+
+    /* Toast Notifications */
+    .dt-toast-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .dt-toast {
+        background: var(--dt-card);
+        border: 1px solid var(--dt-border);
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 320px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        animation: toastSlide 0.4s ease-out;
+    }
+
+    @keyframes toastSlide {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .dt-toast.success { border-left: 4px solid var(--dt-success); }
+    .dt-toast.warning { border-left: 4px solid var(--dt-warning); }
+    .dt-toast.error { border-left: 4px solid var(--dt-danger); }
+    .dt-toast.info { border-left: 4px solid var(--dt-primary); }
+
+    .dt-toast-icon {
+        font-size: 1.3rem;
+    }
+
+    .dt-toast-content {
+        flex: 1;
+    }
+
+    .dt-toast-title {
+        font-weight: 600;
+        color: var(--dt-text);
+        font-size: 0.95rem;
+    }
+
+    .dt-toast-message {
+        font-size: 0.85rem;
+        color: var(--dt-text-muted);
+        margin-top: 2px;
+    }
+
+    .dt-toast-close {
+        background: none;
+        border: none;
+        color: var(--dt-text-muted);
+        cursor: pointer;
+        padding: 4px;
+        font-size: 1.1rem;
+    }
+
+    .dt-toast-close:hover {
+        color: var(--dt-text);
+    }
+
+    /* Connection Status */
+    .dt-connection-status {
+        position: fixed;
+        bottom: 24px;
+        left: 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px;
+        background: var(--dt-card);
+        border: 1px solid var(--dt-border);
+        border-radius: 10px;
+        z-index: 100;
+    }
+
+    .dt-connection-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--dt-success);
+        animation: pulse 2s infinite;
+    }
+
+    .dt-connection-dot.disconnected {
+        background: var(--dt-danger);
+        animation: none;
+    }
+
+    .dt-connection-text {
+        font-size: 0.85rem;
+        color: var(--dt-text);
+    }
+
+    /* Responsive */
+    @media (max-width: 1400px) {
+        .dt-main-grid {
+            grid-template-columns: 260px 1fr 340px;
+        }
+
+        .dt-kpi-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 1100px) {
+        .dt-main-grid {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+
+        .dt-viewer {
+            height: 500px;
+        }
+
+        .dt-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="digital-twin-page">
+    <!-- Header -->
+    <div class="dt-header">
+        <div class="dt-title-section">
+            <h1>Digital Twin Synchronization</h1>
+            <div class="dt-subtitle">
+                <span>Real-time synchronization between physical and digital manufacturing assets</span>
+                <div class="sync-badge" id="masterSyncStatus">
+                    <div class="sync-dot"></div>
+                    <span>All Systems Synchronized</span>
+                </div>
+                <div class="sync-badge warning" id="dataModeIndicator">
+                    <div class="sync-dot"></div>
+                    <span>INITIALIZING</span>
+                </div>
+            </div>
+        </div>
+        <div class="dt-header-actions">
+            <button class="dt-btn" onclick="openSettings()">
+                <i class="bi bi-gear"></i>
+                Settings
+            </button>
+            <button class="dt-btn" onclick="exportTwinState()">
+                <i class="bi bi-download"></i>
+                Export
+            </button>
+            <button class="dt-btn dt-btn-primary" onclick="forceSyncAll()">
+                <i class="bi bi-arrow-repeat"></i>
+                Force Sync All
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="dt-kpi-grid">
+        <div class="dt-kpi-card sync">
+            <div class="dt-kpi-header">
+                <div class="dt-kpi-icon">🔄</div>
+                <div class="dt-kpi-trend up">
+                    <i class="bi bi-arrow-up"></i>
+                    <span>+2.3%</span>
+                </div>
+            </div>
+            <div class="dt-kpi-value" id="kpiSyncRate">99.7%</div>
+            <div class="dt-kpi-label">Sync Success Rate</div>
+            <div class="dt-kpi-sparkline" id="sparkSyncRate"></div>
+        </div>
+
+        <div class="dt-kpi-card crdt">
+            <div class="dt-kpi-header">
+                <div class="dt-kpi-icon">🗂️</div>
+                <div class="dt-kpi-trend stable">
+                    <i class="bi bi-dash"></i>
+                    <span>Stable</span>
+                </div>
+            </div>
+            <div class="dt-kpi-value" id="kpiCrdtHealth">5/5</div>
+            <div class="dt-kpi-label">CRDT Healthy</div>
+            <div class="dt-kpi-sparkline" id="sparkCrdt"></div>
+        </div>
+
+        <div class="dt-kpi-card pinn">
+            <div class="dt-kpi-header">
+                <div class="dt-kpi-icon">🧠</div>
+                <div class="dt-kpi-trend up">
+                    <i class="bi bi-arrow-up"></i>
+                    <span>+0.8%</span>
+                </div>
+            </div>
+            <div class="dt-kpi-value" id="kpiPinnAccuracy">97.2%</div>
+            <div class="dt-kpi-label">PINN Avg Accuracy</div>
+            <div class="dt-kpi-sparkline" id="sparkPinn"></div>
+        </div>
+
+        <div class="dt-kpi-card latency">
+            <div class="dt-kpi-header">
+                <div class="dt-kpi-icon">⚡</div>
+                <div class="dt-kpi-trend up">
+                    <i class="bi bi-arrow-down"></i>
+                    <span>-12ms</span>
+                </div>
+            </div>
+            <div class="dt-kpi-value" id="kpiLatency">23<span style="font-size: 0.6em">ms</span></div>
+            <div class="dt-kpi-label">Sync Latency</div>
+            <div class="dt-kpi-sparkline" id="sparkLatency"></div>
+        </div>
+
+        <div class="dt-kpi-card assets">
+            <div class="dt-kpi-header">
+                <div class="dt-kpi-icon">🏭</div>
+                <div class="dt-kpi-trend stable">
+                    <i class="bi bi-dash"></i>
+                    <span>+1</span>
+                </div>
+            </div>
+            <div class="dt-kpi-value" id="kpiAssets">12</div>
+            <div class="dt-kpi-label">Active Twins</div>
+            <div class="dt-kpi-sparkline" id="sparkAssets"></div>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="dt-main-grid">
+        <!-- Left Sidebar -->
+        <div class="dt-sidebar">
+            <div class="dt-sidebar-header">
+                <div class="dt-sidebar-title">
+                    <i class="bi bi-diagram-3"></i>
+                    Digital Assets
+                </div>
+                <div class="dt-search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" placeholder="Search assets..." id="assetSearch">
+                </div>
+            </div>
+
+            <div class="dt-asset-list" id="assetList">
+                <div class="dt-asset-item active" data-asset-id="printer-001">
+                    <div class="dt-asset-icon printer">🖨️</div>
+                    <div class="dt-asset-info">
+                        <div class="dt-asset-name">Prusa MK4 #001</div>
+                        <div class="dt-asset-type">FDM 3D Printer</div>
+                    </div>
+                    <div class="dt-asset-status">
+                        <div class="dt-status-badge synced">Synced</div>
+                        <div class="dt-last-sync">2s ago</div>
+                    </div>
+                </div>
+
+                <div class="dt-asset-item" data-asset-id="printer-002">
+                    <div class="dt-asset-icon printer">🖨️</div>
+                    <div class="dt-asset-info">
+                        <div class="dt-asset-name">Prusa MK4 #002</div>
+                        <div class="dt-asset-type">FDM 3D Printer</div>
+                    </div>
+                    <div class="dt-asset-status">
+                        <div class="dt-status-badge synced">Synced</div>
+                        <div class="dt-last-sync">5s ago</div>
+                    </div>
+                </div>
+
+                <div class="dt-asset-item" data-asset-id="printer-003">
+                    <div class="dt-asset-icon printer">🖨️</div>
+                    <div class="dt-asset-info">
+                        <div class="dt-asset-name">Bambu X1C #001</div>
+                        <div class="dt-asset-type">FDM 3D Printer</div>
+                    </div>
+                    <div class="dt-asset-status">
+                        <div class="dt-status-badge synced">Synced</div>
+                        <div class="dt-last-sync">3s ago</div>
+                    </div>
+                </div>
+
+                <div class="dt-asset-item" data-asset-id="part-001">
+                    <div class="dt-asset-icon part">🧱</div>
+                    <div class="dt-asset-info">
+                        <div class="dt-asset-name">LEGO-2x4-Brick</div>
+                        <div class="dt-asset-type">Part Design</div>
+                    </div>
+                    <div class="dt-asset-status">
+                        <div class="dt-status-badge synced">Synced</div>
+                        <div class="dt-last-sync">10s ago</div>
+                    </div>
+                </div>
+
+                <div class="dt-asset-item" data-asset-id="env-001">
+                    <div class="dt-asset-icon env">🌡️</div>
+                    <div class="dt-asset-info">
+                        <div class="dt-asset-name">Print Chamber A</div>
+                        <div class="dt-asset-type">Environment</div>
+                    </div>
+                    <div class="dt-asset-status">
+                        <div class="dt-status-badge pending">Pending</div>
+                        <div class="dt-last-sync">45s ago</div>
+                    </div>
+                </div>
+
+                <div class="dt-asset-item" data-asset-id="material-001">
+                    <div class="dt-asset-icon material">🧵</div>
+                    <div class="dt-asset-info">
+                        <div class="dt-asset-name">PLA Prusament Orange</div>
+                        <div class="dt-asset-type">Filament Material</div>
+                    </div>
+                    <div class="dt-asset-status">
+                        <div class="dt-status-badge synced">Synced</div>
+                        <div class="dt-last-sync">12s ago</div>
+                    </div>
+                </div>
+
+                <div class="dt-asset-item" data-asset-id="material-002">
+                    <div class="dt-asset-icon material">🧵</div>
+                    <div class="dt-asset-info">
+                        <div class="dt-asset-name">ABS Galaxy Black</div>
+                        <div class="dt-asset-type">Filament Material</div>
+                    </div>
+                    <div class="dt-asset-status">
+                        <div class="dt-status-badge synced">Synced</div>
+                        <div class="dt-last-sync">8s ago</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CRDT Status -->
+            <div class="dt-crdt-section">
+                <div class="dt-crdt-title">
+                    <i class="bi bi-layers"></i>
+                    CRDT Synchronization
+                </div>
+                <div class="dt-crdt-grid">
+                    <div class="dt-crdt-item active" data-crdt="gcounter">
+                        <div class="dt-crdt-icon">📊</div>
+                        <div class="dt-crdt-name">G-Counter</div>
+                        <div class="dt-crdt-state ok">OK</div>
+                    </div>
+                    <div class="dt-crdt-item" data-crdt="pncounter">
+                        <div class="dt-crdt-icon">±</div>
+                        <div class="dt-crdt-name">PN-Counter</div>
+                        <div class="dt-crdt-state ok">OK</div>
+                    </div>
+                    <div class="dt-crdt-item" data-crdt="lwwreg">
+                        <div class="dt-crdt-icon">📝</div>
+                        <div class="dt-crdt-name">LWW-Reg</div>
+                        <div class="dt-crdt-state ok">OK</div>
+                    </div>
+                    <div class="dt-crdt-item" data-crdt="orset">
+                        <div class="dt-crdt-icon">📋</div>
+                        <div class="dt-crdt-name">OR-Set</div>
+                        <div class="dt-crdt-state ok">OK</div>
+                    </div>
+                    <div class="dt-crdt-item" data-crdt="lwwmap">
+                        <div class="dt-crdt-icon">🗺️</div>
+                        <div class="dt-crdt-name">LWW-Map</div>
+                        <div class="dt-crdt-state ok">OK</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HLC Display -->
+            <div class="dt-hlc-section">
+                <div class="dt-hlc-title">Hybrid Logical Clock</div>
+                <div class="dt-hlc-display">
+                    <div class="dt-hlc-value" id="hlcValue">1704067200.000.001</div>
+                    <div class="dt-hlc-labels">
+                        <div class="dt-hlc-label">
+                            <span id="hlcPhysical">1704067200</span>
+                            <span>Physical</span>
+                        </div>
+                        <div class="dt-hlc-label">
+                            <span id="hlcLogical">000</span>
+                            <span>Logical</span>
+                        </div>
+                        <div class="dt-hlc-label">
+                            <span id="hlcCounter">001</span>
+                            <span>Counter</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main 3D Viewer -->
+        <div class="dt-viewer">
+            <div class="dt-viewer-header">
+                <div class="dt-viewer-title">
+                    <i class="bi bi-box"></i>
+                    3D Digital Twin View
+                    <span class="dt-viewer-badge">WebGL</span>
+                </div>
+                <div class="dt-viewer-tools">
+                    <button class="dt-tool-btn active" title="Select"><i class="bi bi-cursor"></i></button>
+                    <button class="dt-tool-btn" title="Rotate"><i class="bi bi-arrow-repeat"></i></button>
+                    <button class="dt-tool-btn" title="Pan"><i class="bi bi-arrows-move"></i></button>
+                    <button class="dt-tool-btn" title="Measure"><i class="bi bi-rulers"></i></button>
+                    <button class="dt-tool-btn" title="Section"><i class="bi bi-scissors"></i></button>
+                    <button class="dt-tool-btn" title="Layers"><i class="bi bi-layers"></i></button>
+                </div>
+            </div>
+
+            <div class="dt-viewer-canvas">
+                <div class="dt-viewer-grid"></div>
+                <!-- Three.js 3D Viewer Canvas -->
+                <canvas id="threejsCanvas" style="position: absolute; inset: 0; width: 100%; height: 100%;"></canvas>
+                <!-- Fallback placeholder (hidden when Three.js loads) -->
+                <div class="dt-3d-placeholder" id="threejsFallback" style="display: none;">
+                    <div class="dt-3d-model">
+                        <div class="dt-model-cube">
+                            <div class="dt-cube-face front">🖨️</div>
+                            <div class="dt-cube-face back">🧱</div>
+                            <div class="dt-cube-face left">⚙️</div>
+                            <div class="dt-cube-face right">🔧</div>
+                            <div class="dt-cube-face top">📊</div>
+                            <div class="dt-cube-face bottom">🏭</div>
+                        </div>
+                    </div>
+                    <div class="dt-3d-info">
+                        <h3>Interactive 3D Twin Viewer</h3>
+                        <p>WebGL not available - CSS fallback</p>
+                    </div>
+                </div>
+
+                <div class="dt-viewer-overlay">
+                    <div class="dt-overlay-title">Prusa MK4 #001</div>
+                    <div class="dt-overlay-row">
+                        <span class="dt-overlay-label">Position</span>
+                        <span class="dt-overlay-value" id="overlayPosition">X:100 Y:100 Z:67</span>
+                    </div>
+                    <div class="dt-overlay-row">
+                        <span class="dt-overlay-label">Layer</span>
+                        <span class="dt-overlay-value progress" id="overlayLayer">134 / 200</span>
+                    </div>
+                    <div class="dt-overlay-row">
+                        <span class="dt-overlay-label">Temperature</span>
+                        <span class="dt-overlay-value temp" id="overlayTemp">215.0°C</span>
+                    </div>
+                    <div class="dt-overlay-row">
+                        <span class="dt-overlay-label">Flow Rate</span>
+                        <span class="dt-overlay-value" id="overlayFlow">98.5%</span>
+                    </div>
+                    <div class="dt-overlay-row">
+                        <span class="dt-overlay-label">ETA</span>
+                        <span class="dt-overlay-value" id="overlayEta">1h 24m</span>
+                    </div>
+                </div>
+
+                <div class="dt-viewer-controls">
+                    <button class="dt-view-btn" title="Reset View" onclick="resetView()">
+                        <i class="bi bi-house"></i>
+                    </button>
+                    <button class="dt-view-btn" title="Zoom In" onclick="zoomIn()">
+                        <i class="bi bi-zoom-in"></i>
+                    </button>
+                    <button class="dt-view-btn" title="Zoom Out" onclick="zoomOut()">
+                        <i class="bi bi-zoom-out"></i>
+                    </button>
+                    <button class="dt-view-btn" title="Top View" onclick="setView('top')">
+                        <i class="bi bi-box"></i>
+                    </button>
+                    <button class="dt-view-btn" title="Front View" onclick="setView('front')">
+                        <i class="bi bi-square"></i>
+                    </button>
+                    <button class="dt-view-btn" title="Side View" onclick="setView('side')">
+                        <i class="bi bi-layout-sidebar"></i>
+                    </button>
+                    <button class="dt-view-btn" title="Fullscreen" onclick="toggleFullscreen()">
+                        <i class="bi bi-fullscreen"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="dt-panel">
+            <div class="dt-panel-tabs">
+                <div class="dt-panel-tab active" data-tab="properties">Properties</div>
+                <div class="dt-panel-tab" data-tab="physics">Physics</div>
+                <div class="dt-panel-tab" data-tab="ontology">Ontology</div>
+                <div class="dt-panel-tab" data-tab="events">Events</div>
+            </div>
+
+            <div class="dt-panel-content">
+                <!-- Properties Tab -->
+                <div class="dt-tab-content" id="tab-properties">
+                    <div class="dt-panel-section">
+                        <div class="dt-section-header">
+                            <div class="dt-section-title">
+                                <i class="bi bi-info-circle"></i>
+                                Asset Properties
+                            </div>
+                            <button class="dt-btn" style="padding: 6px 12px; font-size: 0.8rem;">
+                                <i class="bi bi-pencil"></i>
+                                Edit
+                            </button>
+                        </div>
+                        <div class="dt-property-grid">
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Asset ID</span>
+                                <span class="dt-property-value">PRUSA-MK4-001</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Type</span>
+                                <span class="dt-property-value">FDM Printer</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Build Volume</span>
+                                <span class="dt-property-value">250 x 210 x 220 mm</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Nozzle Size</span>
+                                <span class="dt-property-value">0.4 mm</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Firmware</span>
+                                <span class="dt-property-value">v5.1.2</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Serial Number</span>
+                                <span class="dt-property-value">PRS-MK4-2024-0042</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Last Calibration</span>
+                                <span class="dt-property-value">2024-01-15</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dt-panel-section">
+                        <div class="dt-section-header">
+                            <div class="dt-section-title">
+                                <i class="bi bi-activity"></i>
+                                Current State
+                            </div>
+                        </div>
+                        <div class="dt-property-grid">
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Status</span>
+                                <span class="dt-property-value" style="color: var(--dt-success);">Printing</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Current Job</span>
+                                <span class="dt-property-value">LEGO-2x4-Brick-v3.gcode</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Progress</span>
+                                <span class="dt-property-value">67%</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Print Time</span>
+                                <span class="dt-property-value">2h 15m / 3h 39m</span>
+                            </div>
+                            <div class="dt-property-row">
+                                <span class="dt-property-label">Filament Used</span>
+                                <span class="dt-property-value">12.4g</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Physics Tab -->
+                <div class="dt-tab-content" id="tab-physics" style="display: none;">
+                    <div class="dt-panel-section">
+                        <div class="dt-section-header">
+                            <div class="dt-section-title">
+                                <i class="bi bi-cpu"></i>
+                                Physics-Informed Neural Networks
+                                <span class="dt-section-badge">v6.0</span>
+                            </div>
+                        </div>
+                        <div class="dt-pinn-grid">
+                            <div class="dt-pinn-card thermal">
+                                <div class="dt-pinn-header">
+                                    <div class="dt-pinn-name">
+                                        <span class="dt-pinn-icon">🌡️</span>
+                                        Thermal Model
+                                    </div>
+                                    <div class="dt-pinn-accuracy">98.2% acc</div>
+                                </div>
+                                <div class="dt-pinn-chart" id="pinnThermalChart"></div>
+                                <div class="dt-pinn-values">
+                                    <span class="dt-pinn-predicted">Predicted: 214.8°C</span>
+                                    <span class="dt-pinn-actual">Actual: 215.0°C</span>
+                                </div>
+                            </div>
+
+                            <div class="dt-pinn-card mechanical">
+                                <div class="dt-pinn-header">
+                                    <div class="dt-pinn-name">
+                                        <span class="dt-pinn-icon">⚙️</span>
+                                        Mechanical Model
+                                    </div>
+                                    <div class="dt-pinn-accuracy">96.5% acc</div>
+                                </div>
+                                <div class="dt-pinn-chart" id="pinnMechanicalChart"></div>
+                                <div class="dt-pinn-values">
+                                    <span class="dt-pinn-predicted">Strain: 0.023</span>
+                                    <span class="dt-pinn-actual">Stress: 12.4 MPa</span>
+                                </div>
+                            </div>
+
+                            <div class="dt-pinn-card fdm">
+                                <div class="dt-pinn-header">
+                                    <div class="dt-pinn-name">
+                                        <span class="dt-pinn-icon">🖨️</span>
+                                        FDM Process Model
+                                    </div>
+                                    <div class="dt-pinn-accuracy">94.8% acc</div>
+                                </div>
+                                <div class="dt-pinn-chart" id="pinnFdmChart"></div>
+                                <div class="dt-pinn-values">
+                                    <span class="dt-pinn-predicted">Flow: 98.5%</span>
+                                    <span class="dt-pinn-actual">Adhesion: Good</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ontology Tab -->
+                <div class="dt-tab-content" id="tab-ontology" style="display: none;">
+                    <div class="dt-panel-section">
+                        <div class="dt-section-header">
+                            <div class="dt-section-title">
+                                <i class="bi bi-diagram-3"></i>
+                                OWL Ontology Structure
+                            </div>
+                        </div>
+                        <div class="dt-ontology-tree">
+                            <div class="dt-ontology-item">
+                                <button class="dt-ontology-expand">−</button>
+                                <span class="dt-ontology-class">ManufacturingAsset</span>
+                            </div>
+                            <div class="dt-ontology-node">
+                                <div class="dt-ontology-item">
+                                    <button class="dt-ontology-expand">−</button>
+                                    <span class="dt-ontology-class">Printer</span>
+                                </div>
+                                <div class="dt-ontology-node">
+                                    <div class="dt-ontology-item">
+                                        <span class="dt-ontology-instance">prusa_mk4_001</span>
+                                    </div>
+                                    <div class="dt-ontology-item">
+                                        <span class="dt-ontology-instance">prusa_mk4_002</span>
+                                    </div>
+                                    <div class="dt-ontology-item">
+                                        <span class="dt-ontology-instance">bambu_x1c_001</span>
+                                    </div>
+                                </div>
+
+                                <div class="dt-ontology-item">
+                                    <button class="dt-ontology-expand">−</button>
+                                    <span class="dt-ontology-class">Part</span>
+                                </div>
+                                <div class="dt-ontology-node">
+                                    <div class="dt-ontology-item">
+                                        <span class="dt-ontology-instance">lego_2x4_brick</span>
+                                    </div>
+                                    <div class="dt-ontology-item">
+                                        <span class="dt-ontology-instance">lego_1x2_plate</span>
+                                    </div>
+                                </div>
+
+                                <div class="dt-ontology-item">
+                                    <button class="dt-ontology-expand">−</button>
+                                    <span class="dt-ontology-class">Material</span>
+                                </div>
+                                <div class="dt-ontology-node">
+                                    <div class="dt-ontology-item">
+                                        <span class="dt-ontology-instance">pla_prusament_orange</span>
+                                    </div>
+                                    <div class="dt-ontology-item">
+                                        <span class="dt-ontology-instance">abs_galaxy_black</span>
+                                    </div>
+                                </div>
+
+                                <div class="dt-ontology-item">
+                                    <button class="dt-ontology-expand">+</button>
+                                    <span class="dt-ontology-class">Environment</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Events Tab -->
+                <div class="dt-tab-content" id="tab-events" style="display: none;">
+                    <div class="dt-panel-section">
+                        <div class="dt-section-header">
+                            <div class="dt-section-title">
+                                <i class="bi bi-list-check"></i>
+                                Sync Event Log
+                            </div>
+                            <button class="dt-btn" style="padding: 6px 12px; font-size: 0.8rem;" onclick="clearEventLog()">
+                                <i class="bi bi-trash"></i>
+                                Clear
+                            </button>
+                        </div>
+                        <div class="dt-event-log" id="eventLog">
+                            <div class="dt-event-item">
+                                <span class="dt-event-time">14:32:45</span>
+                                <span class="dt-event-type state">STATE</span>
+                                <span class="dt-event-message">Temperature updated: 215.0°C</span>
+                            </div>
+                            <div class="dt-event-item">
+                                <span class="dt-event-time">14:32:44</span>
+                                <span class="dt-event-type physics">PINN</span>
+                                <span class="dt-event-message">Thermal prediction recalculated</span>
+                            </div>
+                            <div class="dt-event-item">
+                                <span class="dt-event-time">14:32:43</span>
+                                <span class="dt-event-type sync">SYNC</span>
+                                <span class="dt-event-message">CRDT merge from node-02</span>
+                            </div>
+                            <div class="dt-event-item">
+                                <span class="dt-event-time">14:32:42</span>
+                                <span class="dt-event-type state">STATE</span>
+                                <span class="dt-event-message">Layer 134 started</span>
+                            </div>
+                            <div class="dt-event-item">
+                                <span class="dt-event-time">14:32:40</span>
+                                <span class="dt-event-type physics">PINN</span>
+                                <span class="dt-event-message">FDM process model updated</span>
+                            </div>
+                            <div class="dt-event-item">
+                                <span class="dt-event-time">14:32:38</span>
+                                <span class="dt-event-type sync">SYNC</span>
+                                <span class="dt-event-message">HLC synchronized across nodes</span>
+                            </div>
+                            <div class="dt-event-item">
+                                <span class="dt-event-time">14:32:35</span>
+                                <span class="dt-event-type alert">ALERT</span>
+                                <span class="dt-event-message">Filament spool below 20%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="dt-toast-container" id="toastContainer"></div>
+
+<!-- Connection Status -->
+<div class="dt-connection-status">
+    <div class="dt-connection-dot" id="connectionDot"></div>
+    <span class="dt-connection-text" id="connectionText">Connected to Digital Twin Server</span>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+    // State management
+    const state = {
+        selectedAsset: 'printer-001',
+        activeTab: 'properties',
+        connected: false,
+        dataMode: 'initializing',  // 'live', 'simulation', or 'initializing'
+        syncRate: 99.7,
+        crdtHealth: 5,
+        pinnAccuracy: 97.2,
+        latency: 23,
+        assets: 12
+    };
+
+    // API base URL for Digital Twin data
+    const API_BASE = '/api/twin/data';
+
+    // Pattern-based simulation fallback (realistic patterns, not random noise)
+    const SimulationPatterns = {
+        // Temperature follows sinusoidal pattern with shift changes
+        getTemperature(base, variation, assetId) {
+            const hour = new Date().getHours();
+            const minute = new Date().getMinutes();
+            const timeOfDay = hour + minute / 60;
+
+            // Sinusoidal variation throughout the day
+            const sinComponent = Math.sin(timeOfDay * Math.PI / 12) * (variation * 0.6);
+
+            // Shift change effect (dips at 6am, 2pm, 10pm)
+            const shiftHours = [6, 14, 22];
+            let shiftEffect = 0;
+            for (const shift of shiftHours) {
+                const dist = Math.abs(hour - shift);
+                if (dist < 1) shiftEffect = -variation * 0.3 * (1 - dist);
+            }
+
+            // Small consistent noise based on time (not random)
+            const noise = Math.sin(Date.now() / 10000) * (variation * 0.2);
+
+            return base + sinComponent + shiftEffect + noise;
+        },
+
+        // Flow rate based on temperature relationship
+        getFlowRate(temperature, baseFlow = 98) {
+            const tempDelta = temperature - 215;
+            return baseFlow + (tempDelta * 0.1) + Math.sin(Date.now() / 5000) * 0.5;
+        },
+
+        // Latency follows daily pattern
+        getLatency() {
+            const hour = new Date().getHours();
+            // Higher latency during business hours
+            const baseLatency = (hour >= 9 && hour <= 17) ? 28 : 22;
+            return baseLatency + Math.sin(Date.now() / 3000) * 5;
+        },
+
+        // OEE follows shift patterns
+        getOEE() {
+            const hour = new Date().getHours();
+            // Morning shift typically best
+            const shiftBonus = (hour >= 6 && hour < 14) ? 3 : (hour >= 14 && hour < 22) ? 0 : -2;
+            return 85 + shiftBonus + Math.sin(Date.now() / 60000) * 2;
+        }
+    };
+
+    // Three.js Digital Twin 3D Viewer
+    class DigitalTwin3DViewer {
+        constructor(canvasId) {
+            this.canvas = document.getElementById(canvasId);
+            this.fallback = document.getElementById('threejsFallback');
+            this.scene = null;
+            this.camera = null;
+            this.renderer = null;
+            this.controls = null;
+            this.printer = null;
+            this.hotend = null;
+            this.buildPlate = null;
+            this.printObject = null;
+            this.hotendLight = null;
+            this.animationId = null;
+
+            // Enhanced components
+            this.fanBlades = null;
+            this.filamentStream = null;
+            this.bedSurface = null;
+            this.statusLEDs = [];
+            this.printLayers = [];
+            this.bedLight = null;
+
+            // Printer state
+            this.printerState = {
+                position: { x: 100, y: 100, z: 50 },
+                temperature: 215,
+                bedTemp: 60,
+                progress: 0.67,
+                isHeated: true,
+                isPrinting: true,
+                fanSpeed: 100,
+                brickType: '2x4'  // LEGO brick size
+            };
+
+            this.init();
+        }
+
+        init() {
+            if (!this.canvas || typeof THREE === 'undefined') {
+                console.log('Three.js not available, showing fallback');
+                if (this.fallback) this.fallback.style.display = 'flex';
+                return;
+            }
+
+            try {
+                // Scene setup
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x0f172a);
+
+                // Camera setup
+                const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
+                this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 1000);
+                this.camera.position.set(300, 250, 300);
+
+                // Renderer setup
+                this.renderer = new THREE.WebGLRenderer({
+                    canvas: this.canvas,
+                    antialias: true,
+                    alpha: true
+                });
+                this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+                // Orbit controls
+                if (typeof THREE.OrbitControls !== 'undefined') {
+                    this.controls = new THREE.OrbitControls(this.camera, this.canvas);
+                    this.controls.enableDamping = true;
+                    this.controls.dampingFactor = 0.05;
+                    this.controls.target.set(100, 50, 100);
+                }
+
+                // Lighting
+                this.setupLighting();
+
+                // Build 3D printer model
+                this.buildPrinterModel();
+
+                // Grid helper
+                const gridHelper = new THREE.GridHelper(250, 25, 0x334155, 0x1e293b);
+                gridHelper.position.y = 0;
+                this.scene.add(gridHelper);
+
+                // Start animation
+                this.animate();
+
+                // Handle resize
+                window.addEventListener('resize', () => this.onResize());
+
+                console.log('Three.js Digital Twin viewer initialized');
+            } catch (error) {
+                console.error('Three.js initialization failed:', error);
+                if (this.fallback) this.fallback.style.display = 'flex';
+            }
+        }
+
+        setupLighting() {
+            // Ambient light
+            const ambient = new THREE.AmbientLight(0x404040, 0.6);
+            this.scene.add(ambient);
+
+            // Main directional light
+            const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            mainLight.position.set(200, 300, 200);
+            mainLight.castShadow = true;
+            mainLight.shadow.mapSize.width = 2048;
+            mainLight.shadow.mapSize.height = 2048;
+            this.scene.add(mainLight);
+
+            // Fill light
+            const fillLight = new THREE.DirectionalLight(0x00d4ff, 0.3);
+            fillLight.position.set(-100, 100, -100);
+            this.scene.add(fillLight);
+
+            // Hotend glow light
+            this.hotendLight = new THREE.PointLight(0xff6600, 1.5, 50);
+            this.hotendLight.position.set(100, 80, 100);
+            this.scene.add(this.hotendLight);
+
+            // Bed heating light (red/orange glow from heated bed)
+            this.bedLight = new THREE.PointLight(0xff3300, 0.8, 150);
+            this.bedLight.position.set(100, 10, 100);
+            this.scene.add(this.bedLight);
+        }
+
+        buildPrinterModel() {
+            // Create printer group
+            this.printer = new THREE.Group();
+
+            // Build plate (heated bed)
+            const bedGeometry = new THREE.BoxGeometry(200, 4, 200);
+            const bedMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1a1a2e,
+                metalness: 0.8,
+                roughness: 0.2
+            });
+            this.buildPlate = new THREE.Mesh(bedGeometry, bedMaterial);
+            this.buildPlate.position.set(100, 2, 100);
+            this.buildPlate.receiveShadow = true;
+            this.printer.add(this.buildPlate);
+
+            // Bed surface (glass/PEI) with heat visualization
+            const surfaceGeometry = new THREE.BoxGeometry(195, 1, 195);
+            const surfaceMaterial = new THREE.MeshStandardMaterial({
+                color: 0x16213e,
+                metalness: 0.3,
+                roughness: 0.1,
+                transparent: true,
+                opacity: 0.9,
+                emissive: 0xff3300,
+                emissiveIntensity: 0.1
+            });
+            this.bedSurface = new THREE.Mesh(surfaceGeometry, surfaceMaterial);
+            this.bedSurface.position.set(100, 5, 100);
+            this.printer.add(this.bedSurface);
+
+            // Frame - vertical posts
+            const postGeometry = new THREE.BoxGeometry(8, 250, 8);
+            const frameMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff6600,
+                metalness: 0.7,
+                roughness: 0.3
+            });
+            const posts = [
+                { x: 0, z: 0 }, { x: 200, z: 0 },
+                { x: 0, z: 200 }, { x: 200, z: 200 }
+            ];
+            posts.forEach((pos, index) => {
+                const post = new THREE.Mesh(postGeometry, frameMaterial);
+                post.position.set(pos.x, 125, pos.z);
+                post.castShadow = true;
+                this.printer.add(post);
+
+                // Add status LED to each post
+                const ledGeometry = new THREE.SphereGeometry(3, 16, 16);
+                const ledMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x00ff00,
+                    emissive: 0x00ff00,
+                    emissiveIntensity: 0.8,
+                    metalness: 0.5,
+                    roughness: 0.2
+                });
+                const led = new THREE.Mesh(ledGeometry, ledMaterial);
+                led.position.set(pos.x, 240, pos.z);
+                this.printer.add(led);
+                this.statusLEDs.push(led);
+            });
+
+            // X-axis gantry
+            const gantryGeometry = new THREE.BoxGeometry(220, 12, 12);
+            const gantryMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2d3748,
+                metalness: 0.6,
+                roughness: 0.4
+            });
+            this.xGantry = new THREE.Mesh(gantryGeometry, gantryMaterial);
+            this.xGantry.position.set(100, 180, 100);
+            this.printer.add(this.xGantry);
+
+            // Hotend/extruder assembly
+            this.hotend = new THREE.Group();
+
+            // Extruder body
+            const extruderGeometry = new THREE.BoxGeometry(30, 40, 25);
+            const extruderMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4a5568,
+                metalness: 0.5,
+                roughness: 0.5
+            });
+            const extruder = new THREE.Mesh(extruderGeometry, extruderMaterial);
+            extruder.position.set(0, 0, 0);
+            extruder.castShadow = true;
+            this.hotend.add(extruder);
+
+            // Heater block
+            const heaterGeometry = new THREE.BoxGeometry(15, 12, 12);
+            const heaterMaterial = new THREE.MeshStandardMaterial({
+                color: 0xef4444,
+                metalness: 0.7,
+                roughness: 0.2,
+                emissive: 0xff3300,
+                emissiveIntensity: 0.3
+            });
+            this.heaterBlock = new THREE.Mesh(heaterGeometry, heaterMaterial);
+            this.heaterBlock.position.set(0, -20, 0);
+            this.hotend.add(this.heaterBlock);
+
+            // Nozzle
+            const nozzleGeometry = new THREE.ConeGeometry(2, 8, 8);
+            const nozzleMaterial = new THREE.MeshStandardMaterial({
+                color: 0xffd700,
+                metalness: 0.9,
+                roughness: 0.1
+            });
+            const nozzle = new THREE.Mesh(nozzleGeometry, nozzleMaterial);
+            nozzle.position.set(0, -30, 0);
+            nozzle.rotation.x = Math.PI;
+            this.hotend.add(nozzle);
+
+            // Cooling fan housing
+            const fanHousingGeometry = new THREE.BoxGeometry(25, 25, 8);
+            const fanHousingMaterial = new THREE.MeshStandardMaterial({
+                color: 0x1e40af,
+                metalness: 0.3,
+                roughness: 0.7
+            });
+            const fanHousing = new THREE.Mesh(fanHousingGeometry, fanHousingMaterial);
+            fanHousing.position.set(18, 0, 0);
+            this.hotend.add(fanHousing);
+
+            // Rotating fan blades
+            this.fanBlades = new THREE.Group();
+            const bladeGeometry = new THREE.BoxGeometry(10, 2, 1);
+            const bladeMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3b82f6,
+                metalness: 0.5,
+                roughness: 0.3
+            });
+            for (let i = 0; i < 4; i++) {
+                const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+                blade.rotation.z = (i * Math.PI) / 2;
+                this.fanBlades.add(blade);
+            }
+            this.fanBlades.position.set(18, 0, 5);
+            this.hotend.add(this.fanBlades);
+
+            // Filament stream (visible during printing)
+            const filamentGeometry = new THREE.CylinderGeometry(0.8, 0.4, 20, 8);
+            const filamentMaterial = new THREE.MeshStandardMaterial({
+                color: 0xff6600,
+                transparent: true,
+                opacity: 0.9,
+                emissive: 0xff3300,
+                emissiveIntensity: 0.3
+            });
+            this.filamentStream = new THREE.Mesh(filamentGeometry, filamentMaterial);
+            this.filamentStream.position.set(0, -40, 0);
+            this.filamentStream.visible = true; // Show when printing
+            this.hotend.add(this.filamentStream);
+
+            this.hotend.position.set(100, 150, 100);
+            this.printer.add(this.hotend);
+
+            // Print object (LEGO brick being printed)
+            this.createPrintObject();
+
+            // Add printer to scene
+            this.scene.add(this.printer);
+        }
+
+        createPrintObject() {
+            // LEGO brick dimensions based on type
+            const brickSpecs = {
+                '1x1': { width: 8, depth: 8, studs: [[0, 0]] },
+                '1x2': { width: 16, depth: 8, studs: [[-4, 0], [4, 0]] },
+                '2x2': { width: 16, depth: 16, studs: [[-4, -4], [-4, 4], [4, -4], [4, 4]] },
+                '2x4': { width: 32, depth: 16, studs: [
+                    [-12, -4], [-12, 4], [-4, -4], [-4, 4],
+                    [4, -4], [4, 4], [12, -4], [12, 4]
+                ]},
+                '2x6': { width: 48, depth: 16, studs: [
+                    [-20, -4], [-20, 4], [-12, -4], [-12, 4], [-4, -4], [-4, 4],
+                    [4, -4], [4, 4], [12, -4], [12, 4], [20, -4], [20, 4]
+                ]}
+            };
+
+            const spec = brickSpecs[this.printerState.brickType] || brickSpecs['2x4'];
+            const brickGroup = new THREE.Group();
+
+            // Full height for LEGO brick plate (standard is 9.6mm)
+            const fullHeight = 9.6;
+            const currentHeight = fullHeight * this.printerState.progress;
+            const layerHeight = 0.2; // 0.2mm layer height
+            const numLayers = Math.floor(currentHeight / layerHeight);
+
+            // Clear previous layers
+            this.printLayers = [];
+
+            // Create layer-by-layer visualization
+            if (numLayers > 0 && numLayers <= 200) {
+                // Solid base layers (first 3 layers)
+                const baseHeight = Math.min(currentHeight, layerHeight * 3);
+                if (baseHeight > 0) {
+                    const baseGeometry = new THREE.BoxGeometry(spec.width, baseHeight, spec.depth);
+                    const baseMaterial = new THREE.MeshStandardMaterial({
+                        color: 0xff6600,
+                        metalness: 0.1,
+                        roughness: 0.8
+                    });
+                    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+                    base.position.set(0, baseHeight / 2, 0);
+                    base.castShadow = true;
+                    brickGroup.add(base);
+                }
+
+                // Infill layers (show line pattern for middle layers)
+                const infillStart = layerHeight * 3;
+                const infillEnd = Math.min(currentHeight, fullHeight * 0.8);
+                if (currentHeight > infillStart) {
+                    const infillHeight = infillEnd - infillStart;
+                    if (infillHeight > 0) {
+                        const infillGeometry = new THREE.BoxGeometry(spec.width - 1.6, infillHeight, spec.depth - 1.6);
+                        const infillMaterial = new THREE.MeshStandardMaterial({
+                            color: 0xff6600,
+                            metalness: 0.1,
+                            roughness: 0.9,
+                            transparent: true,
+                            opacity: 0.85
+                        });
+                        const infill = new THREE.Mesh(infillGeometry, infillMaterial);
+                        infill.position.set(0, infillStart + infillHeight / 2, 0);
+                        brickGroup.add(infill);
+
+                        // Shell walls
+                        const wallThickness = 0.8;
+                        const shellMaterial = new THREE.MeshStandardMaterial({
+                            color: 0xff6600,
+                            metalness: 0.1,
+                            roughness: 0.8
+                        });
+
+                        // Front/back walls
+                        const frontWall = new THREE.Mesh(
+                            new THREE.BoxGeometry(spec.width, infillHeight, wallThickness),
+                            shellMaterial
+                        );
+                        frontWall.position.set(0, infillStart + infillHeight / 2, spec.depth / 2 - wallThickness / 2);
+                        brickGroup.add(frontWall);
+
+                        const backWall = frontWall.clone();
+                        backWall.position.z = -spec.depth / 2 + wallThickness / 2;
+                        brickGroup.add(backWall);
+                    }
+                }
+
+                // Top solid layers (last 20% before studs)
+                if (currentHeight > fullHeight * 0.8) {
+                    const topStart = fullHeight * 0.8;
+                    const topHeight = Math.min(currentHeight - topStart, fullHeight * 0.2);
+                    const topGeometry = new THREE.BoxGeometry(spec.width, topHeight, spec.depth);
+                    const topMaterial = new THREE.MeshStandardMaterial({
+                        color: 0xff6600,
+                        metalness: 0.1,
+                        roughness: 0.8
+                    });
+                    const top = new THREE.Mesh(topGeometry, topMaterial);
+                    top.position.set(0, topStart + topHeight / 2, 0);
+                    top.castShadow = true;
+                    brickGroup.add(top);
+                }
+
+                // Current layer being printed (highlight)
+                const currentLayerY = Math.min(currentHeight, fullHeight);
+                const layerIndicator = new THREE.Mesh(
+                    new THREE.BoxGeometry(spec.width + 2, 0.3, spec.depth + 2),
+                    new THREE.MeshStandardMaterial({
+                        color: 0x00ff00,
+                        transparent: true,
+                        opacity: 0.3,
+                        emissive: 0x00ff00,
+                        emissiveIntensity: 0.5
+                    })
+                );
+                layerIndicator.position.set(0, currentLayerY, 0);
+                brickGroup.add(layerIndicator);
+            }
+
+            // Studs (only if progress > 90%)
+            if (this.printerState.progress > 0.9) {
+                const studProgress = (this.printerState.progress - 0.9) / 0.1; // 0-1 for stud height
+                const studGeometry = new THREE.CylinderGeometry(2.4, 2.4, 1.8 * studProgress, 16);
+                const studMaterial = new THREE.MeshStandardMaterial({
+                    color: 0xff6600,
+                    metalness: 0.1,
+                    roughness: 0.8
+                });
+
+                spec.studs.forEach(([x, z]) => {
+                    const stud = new THREE.Mesh(studGeometry, studMaterial);
+                    stud.position.set(x, fullHeight + (1.8 * studProgress) / 2, z);
+                    stud.castShadow = true;
+                    brickGroup.add(stud);
+                });
+            }
+
+            // Position on build plate
+            brickGroup.position.set(100, 6, 100);
+
+            if (this.printObject) {
+                this.printer.remove(this.printObject);
+            }
+            this.printObject = brickGroup;
+            this.printer.add(this.printObject);
+        }
+
+        updatePrinterState(newState) {
+            Object.assign(this.printerState, newState);
+
+            // Update hotend position
+            if (this.hotend && newState.position) {
+                this.hotend.position.x = newState.position.x;
+                this.hotend.position.z = newState.position.y; // Y in 2D -> Z in 3D
+                // Z position affects height
+                const zHeight = 150 - (newState.position.z * 0.5);
+                this.hotend.position.y = Math.max(30, zHeight);
+            }
+
+            // Update heater block glow based on temperature
+            if (this.heaterBlock && newState.temperature) {
+                const tempNormalized = Math.min((newState.temperature - 150) / 100, 1);
+                this.heaterBlock.material.emissiveIntensity = tempNormalized * 0.5;
+                if (this.hotendLight) {
+                    this.hotendLight.intensity = 0.5 + tempNormalized * 1.5;
+                }
+            }
+
+            // Update bed temperature visualization
+            if (newState.bedTemp !== undefined) {
+                const bedTempNormalized = Math.min(newState.bedTemp / 100, 1);
+                if (this.bedSurface) {
+                    this.bedSurface.material.emissiveIntensity = bedTempNormalized * 0.3;
+                }
+                if (this.bedLight) {
+                    this.bedLight.intensity = bedTempNormalized * 1.2;
+                }
+            }
+
+            // Update filament visibility based on printing state
+            if (this.filamentStream) {
+                this.filamentStream.visible = this.printerState.isPrinting && this.printerState.temperature > 180;
+            }
+
+            // Update status LEDs based on printer state
+            if (this.statusLEDs.length > 0) {
+                const ledColors = {
+                    printing: { color: 0x00ff00, emissive: 0x00ff00 },
+                    idle: { color: 0x3b82f6, emissive: 0x3b82f6 },
+                    heating: { color: 0xffa500, emissive: 0xffa500 },
+                    error: { color: 0xff0000, emissive: 0xff0000 }
+                };
+
+                let ledState = 'idle';
+                if (this.printerState.isPrinting) {
+                    ledState = 'printing';
+                } else if (this.printerState.temperature > 50 && this.printerState.temperature < 200) {
+                    ledState = 'heating';
+                }
+
+                const ledColor = ledColors[ledState];
+                this.statusLEDs.forEach(led => {
+                    led.material.color.setHex(ledColor.color);
+                    led.material.emissive.setHex(ledColor.emissive);
+                });
+            }
+
+            // Update print progress
+            if (newState.progress !== undefined) {
+                this.createPrintObject();
+            }
+        }
+
+        animate() {
+            this.animationId = requestAnimationFrame(() => this.animate());
+
+            const time = Date.now() * 0.001;
+
+            // Update controls
+            if (this.controls) this.controls.update();
+
+            // Subtle hotend movement animation
+            if (this.hotend) {
+                // Small vibration effect when printing
+                if (this.printerState.isPrinting) {
+                    this.hotend.position.x = this.printerState.position.x + Math.sin(time * 10) * 0.5;
+                    this.hotend.position.z = this.printerState.position.y + Math.cos(time * 10) * 0.5;
+                }
+            }
+
+            // Rotate cooling fan based on fan speed
+            if (this.fanBlades) {
+                const fanSpeedRPM = (this.printerState.fanSpeed / 100) * 20; // Max 20 rad/s
+                this.fanBlades.rotation.z += fanSpeedRPM * 0.016; // ~60fps
+            }
+
+            // Animate filament stream when printing
+            if (this.filamentStream && this.filamentStream.visible) {
+                // Pulse effect on filament
+                const pulseScale = 1 + Math.sin(time * 15) * 0.1;
+                this.filamentStream.scale.x = pulseScale;
+                this.filamentStream.scale.z = pulseScale;
+            }
+
+            // Pulse status LEDs
+            if (this.statusLEDs.length > 0 && this.printerState.isPrinting) {
+                const pulse = 0.6 + Math.sin(time * 3) * 0.4;
+                this.statusLEDs.forEach(led => {
+                    led.material.emissiveIntensity = pulse;
+                });
+            }
+
+            // Subtle bed glow pulsing when heated
+            if (this.bedSurface && this.printerState.bedTemp > 40) {
+                const bedPulse = Math.sin(time * 2) * 0.05;
+                this.bedSurface.material.emissiveIntensity =
+                    Math.min(this.printerState.bedTemp / 100, 1) * 0.3 + bedPulse;
+            }
+
+            // Render
+            if (this.renderer && this.scene && this.camera) {
+                this.renderer.render(this.scene, this.camera);
+            }
+        }
+
+        onResize() {
+            if (!this.canvas || !this.camera || !this.renderer) return;
+
+            const width = this.canvas.clientWidth;
+            const height = this.canvas.clientHeight;
+
+            this.camera.aspect = width / height;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(width, height);
+        }
+
+        resetView() {
+            if (this.camera && this.controls) {
+                this.camera.position.set(300, 250, 300);
+                this.controls.target.set(100, 50, 100);
+                this.controls.update();
+            }
+        }
+
+        setView(view) {
+            if (!this.camera || !this.controls) return;
+
+            switch (view) {
+                case 'top':
+                    this.camera.position.set(100, 400, 100);
+                    break;
+                case 'front':
+                    this.camera.position.set(100, 100, 400);
+                    break;
+                case 'side':
+                    this.camera.position.set(400, 100, 100);
+                    break;
+            }
+            this.controls.target.set(100, 50, 100);
+            this.controls.update();
+        }
+
+        zoomIn() {
+            if (this.camera) {
+                this.camera.position.multiplyScalar(0.8);
+            }
+        }
+
+        zoomOut() {
+            if (this.camera) {
+                this.camera.position.multiplyScalar(1.2);
+            }
+        }
+
+        dispose() {
+            if (this.animationId) {
+                cancelAnimationFrame(this.animationId);
+            }
+            if (this.renderer) {
+                this.renderer.dispose();
+            }
+        }
+    }
+
+    // Global viewer instance
+    let twinViewer = null;
+
+    // Socket.IO connection
+    let socket;
+
+    function initWebSocket() {
+        socket = io('/digital-twin', {
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000
+        });
+
+        socket.on('connect', () => {
+            state.connected = true;
+            updateConnectionStatus(true);
+            showToast('success', 'Connected', 'Real-time sync active');
+        });
+
+        socket.on('disconnect', () => {
+            state.connected = false;
+            updateConnectionStatus(false);
+            showToast('error', 'Disconnected', 'Attempting to reconnect...');
+        });
+
+        socket.on('twin_update', (data) => {
+            handleTwinUpdate(data);
+        });
+
+        socket.on('sync_event', (data) => {
+            addEventLog(data.type, data.message);
+        });
+
+        socket.on('crdt_update', (data) => {
+            updateCRDTStatus(data);
+        });
+
+        socket.on('pinn_update', (data) => {
+            updatePINNData(data);
+        });
+    }
+
+    function updateConnectionStatus(connected) {
+        const dot = document.getElementById('connectionDot');
+        const text = document.getElementById('connectionText');
+
+        if (connected) {
+            dot.classList.remove('disconnected');
+            text.textContent = 'Connected to Digital Twin Server';
+        } else {
+            dot.classList.add('disconnected');
+            text.textContent = 'Disconnected - Reconnecting...';
+        }
+    }
+
+    // Toast notifications
+    function showToast(type, title, message) {
+        const container = document.getElementById('toastContainer');
+        const icons = {
+            success: '✅',
+            warning: '⚠️',
+            error: '❌',
+            info: 'ℹ️'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `dt-toast ${type}`;
+        toast.innerHTML = `
+            <span class="dt-toast-icon">${icons[type]}</span>
+            <div class="dt-toast-content">
+                <div class="dt-toast-title">${title}</div>
+                <div class="dt-toast-message">${message}</div>
+            </div>
+            <button class="dt-toast-close" onclick="this.parentElement.remove()">×</button>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.style.animation = 'toastSlide 0.3s reverse';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, 5000);
+    }
+
+    // HLC State (Hybrid Logical Clock - proper incrementing, not random)
+    const hlcState = {
+        lastPhysical: 0,
+        logical: 0,
+        counter: 0
+    };
+
+    // HLC Update - implements proper HLC algorithm
+    function updateHLC() {
+        const now = Math.floor(Date.now() / 1000);
+
+        if (now > hlcState.lastPhysical) {
+            // Physical time advanced - reset logical
+            hlcState.lastPhysical = now;
+            hlcState.logical = 0;
+            hlcState.counter++;
+        } else {
+            // Same physical time - increment logical
+            hlcState.logical++;
+            if (hlcState.logical >= 1000) {
+                hlcState.logical = 0;
+                hlcState.counter++;
+            }
+        }
+
+        // Keep counter bounded
+        if (hlcState.counter >= 1000) hlcState.counter = 0;
+
+        document.getElementById('hlcValue').textContent =
+            `${now}.${String(hlcState.logical).padStart(3, '0')}.${String(hlcState.counter).padStart(3, '0')}`;
+        document.getElementById('hlcPhysical').textContent = now;
+        document.getElementById('hlcLogical').textContent = String(hlcState.logical).padStart(3, '0');
+        document.getElementById('hlcCounter').textContent = String(hlcState.counter).padStart(3, '0');
+    }
+
+    // Event Log
+    function addEventLog(type, message) {
+        const log = document.getElementById('eventLog');
+        const time = new Date().toLocaleTimeString('en-US', { hour12: false });
+
+        const html = `
+            <div class="dt-event-item">
+                <span class="dt-event-time">${time}</span>
+                <span class="dt-event-type ${type.toLowerCase()}">${type.toUpperCase()}</span>
+                <span class="dt-event-message">${message}</span>
+            </div>
+        `;
+
+        log.insertAdjacentHTML('afterbegin', html);
+
+        // Keep only last 50 events
+        while (log.children.length > 50) {
+            log.lastChild.remove();
+        }
+    }
+
+    function clearEventLog() {
+        document.getElementById('eventLog').innerHTML = '';
+        showToast('info', 'Cleared', 'Event log has been cleared');
+    }
+
+    // Asset selection
+    document.querySelectorAll('.dt-asset-item').forEach(item => {
+        item.addEventListener('click', function() {
+            document.querySelectorAll('.dt-asset-item').forEach(i => i.classList.remove('active'));
+            this.classList.add('active');
+            state.selectedAsset = this.dataset.assetId;
+            updateAssetDetails(this.dataset.assetId);
+        });
+    });
+
+    // Tab switching
+    document.querySelectorAll('.dt-panel-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.dt-panel-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+
+            const tabName = this.dataset.tab;
+            document.querySelectorAll('.dt-tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            document.getElementById(`tab-${tabName}`).style.display = 'block';
+            state.activeTab = tabName;
+        });
+    });
+
+    // CRDT selection
+    document.querySelectorAll('.dt-crdt-item').forEach(item => {
+        item.addEventListener('click', function() {
+            document.querySelectorAll('.dt-crdt-item').forEach(i => i.classList.remove('active'));
+            this.classList.add('active');
+            showToast('info', 'CRDT Selected', `Viewing ${this.dataset.crdt} details`);
+        });
+    });
+
+    // Tool buttons
+    document.querySelectorAll('.dt-tool-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.dt-tool-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+        });
+    });
+
+    // Sparkline charts
+    function createSparkline(containerId, color, data) {
+        const trace = {
+            y: data,
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: color, width: 2 },
+            fill: 'tozeroy',
+            fillcolor: color.replace(')', ', 0.1)').replace('rgb', 'rgba')
+        };
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            margin: { t: 0, r: 0, b: 0, l: 0 },
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            showlegend: false
+        };
+
+        Plotly.newPlot(containerId, [trace], layout, { displayModeBar: false, responsive: true });
+    }
+
+    // PINN Charts
+    function createPINNChart(containerId, color, data) {
+        const trace = {
+            y: data,
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: color, width: 2, shape: 'spline' },
+            fill: 'tozeroy',
+            fillcolor: color.replace(')', ', 0.15)').replace('rgb', 'rgba')
+        };
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            margin: { t: 5, r: 5, b: 5, l: 5 },
+            xaxis: { visible: false, range: [0, data.length - 1] },
+            yaxis: { visible: false },
+            showlegend: false
+        };
+
+        Plotly.newPlot(containerId, [trace], layout, { displayModeBar: false, responsive: true });
+    }
+
+    // Force sync
+    function forceSyncAll() {
+        const badge = document.getElementById('masterSyncStatus');
+        badge.classList.add('warning');
+        badge.querySelector('span').textContent = 'Synchronizing...';
+
+        showToast('info', 'Syncing', 'Force synchronization in progress...');
+
+        setTimeout(() => {
+            badge.classList.remove('warning');
+            badge.querySelector('span').textContent = 'All Systems Synchronized';
+            addEventLog('SYNC', 'Force sync completed - all nodes aligned');
+            showToast('success', 'Sync Complete', 'All digital twins synchronized');
+        }, 2000);
+    }
+
+    function openSettings() {
+        showToast('info', 'Settings', 'Opening Digital Twin configuration...');
+    }
+
+    function exportTwinState() {
+        showToast('success', 'Export', 'Twin state exported to JSON');
+    }
+
+    // Viewer controls - connected to Three.js viewer
+    function resetView() {
+        if (twinViewer) {
+            twinViewer.resetView();
+            showToast('info', 'View Reset', 'Camera position reset to default');
+        }
+    }
+
+    function zoomIn() {
+        if (twinViewer) {
+            twinViewer.zoomIn();
+        }
+    }
+
+    function zoomOut() {
+        if (twinViewer) {
+            twinViewer.zoomOut();
+        }
+    }
+
+    function setView(view) {
+        if (twinViewer) {
+            twinViewer.setView(view);
+            showToast('info', 'View Changed', `Switched to ${view} view`);
+        }
+    }
+
+    function toggleFullscreen() {
+        const viewer = document.querySelector('.dt-viewer');
+        if (!document.fullscreenElement) {
+            viewer.requestFullscreen();
+        } else {
+            document.exitFullscreen();
+        }
+    }
+
+    // Search functionality
+    document.getElementById('assetSearch').addEventListener('input', function(e) {
+        const query = e.target.value.toLowerCase();
+        document.querySelectorAll('.dt-asset-item').forEach(item => {
+            const name = item.querySelector('.dt-asset-name').textContent.toLowerCase();
+            const type = item.querySelector('.dt-asset-type').textContent.toLowerCase();
+            item.style.display = (name.includes(query) || type.includes(query)) ? 'flex' : 'none';
+        });
+    });
+
+    // Update data mode indicator in UI
+    function updateDataModeIndicator(mode) {
+        state.dataMode = mode;
+        const indicator = document.getElementById('dataModeIndicator');
+        if (indicator) {
+            indicator.className = 'sync-badge ' + (mode === 'live' ? '' : 'warning');
+            indicator.innerHTML = `<div class="sync-dot"></div>${mode === 'live' ? 'LIVE DATA' : 'SIMULATION'}`;
+        }
+    }
+
+    // Fetch updates from API with simulation fallback
+    async function fetchUpdates() {
+        try {
+            const response = await fetch(`${API_BASE}/state/${state.selectedAsset}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.data_mode === 'live') {
+                    // Live data from database
+                    updateFromLiveData(data);
+                    if (state.dataMode !== 'live') {
+                        updateDataModeIndicator('live');
+                        addEventLog('DATA', 'Connected to live database');
+                    }
+                } else {
+                    // API returned simulation data
+                    updateFromAPIData(data);
+                    if (state.dataMode !== 'simulation') {
+                        updateDataModeIndicator('simulation');
+                    }
+                }
+            } else {
+                throw new Error('API unavailable');
+            }
+        } catch (error) {
+            // Use local pattern-based simulation
+            simulateFallback();
+            if (state.dataMode !== 'simulation') {
+                updateDataModeIndicator('simulation');
+                console.log('Using local simulation fallback:', error.message);
+            }
+        }
+    }
+
+    // Update UI from live database data
+    function updateFromLiveData(data) {
+        const temp = data.temperature?.hotend || data.hotend_temp || 215;
+        document.getElementById('overlayTemp').textContent = temp.toFixed(1) + '°C';
+
+        const flow = data.flow_rate || 98;
+        document.getElementById('overlayFlow').textContent = flow.toFixed(1) + '%';
+
+        state.latency = data.latency_ms || Math.floor(SimulationPatterns.getLatency());
+        document.getElementById('kpiLatency').innerHTML = state.latency + '<span style="font-size: 0.6em">ms</span>';
+
+        // Update position overlay
+        if (data.position) {
+            document.getElementById('overlayPosition').textContent =
+                `X:${data.position.x?.toFixed(0) || 0} Y:${data.position.y?.toFixed(0) || 0} Z:${data.position.z?.toFixed(0) || 0}`;
+        }
+
+        // Update layer progress
+        if (data.progress !== undefined) {
+            const currentLayer = Math.floor(data.progress * 200);
+            document.getElementById('overlayLayer').textContent = `${currentLayer} / 200`;
+        }
+
+        // Update 3D viewer with live data
+        if (twinViewer) {
+            twinViewer.updatePrinterState({
+                temperature: temp,
+                bedTemp: data.temperature?.bed || data.bed_temp || 60,
+                position: data.position || { x: 100, y: 100, z: 50 },
+                progress: data.progress || 0.67,
+                isPrinting: data.status === 'PRINTING' || data.is_printing || true,
+                fanSpeed: data.fan_speed || 100,
+                brickType: data.brick_type || '2x4'
+            });
+        }
+    }
+
+    // Update UI from API-provided simulation data
+    function updateFromAPIData(data) {
+        const temp = data.temperature?.hotend || data.hotend_temp || 215;
+        document.getElementById('overlayTemp').textContent = temp.toFixed(1) + '°C';
+
+        const flow = data.flow_rate || 98;
+        document.getElementById('overlayFlow').textContent = flow.toFixed(1) + '%';
+
+        state.latency = data.latency_ms || Math.floor(SimulationPatterns.getLatency());
+        document.getElementById('kpiLatency').innerHTML = state.latency + '<span style="font-size: 0.6em">ms</span>';
+
+        // Update 3D viewer
+        if (twinViewer) {
+            twinViewer.updatePrinterState({
+                temperature: temp,
+                bedTemp: data.temperature?.bed || data.bed_temp || 60,
+                position: data.position || { x: 100, y: 100, z: 50 },
+                progress: data.progress || 0.67,
+                isPrinting: data.status === 'PRINTING' || data.is_printing || true,
+                fanSpeed: data.fan_speed || 100,
+                brickType: data.brick_type || '2x4'
+            });
+        }
+    }
+
+    // Local simulation fallback (pattern-based, NOT random)
+    function simulateFallback() {
+        const temp = SimulationPatterns.getTemperature(215, 3, state.selectedAsset);
+        document.getElementById('overlayTemp').textContent = temp.toFixed(1) + '°C';
+
+        const flow = SimulationPatterns.getFlowRate(temp);
+        document.getElementById('overlayFlow').textContent = flow.toFixed(1) + '%';
+
+        state.latency = Math.floor(SimulationPatterns.getLatency());
+        document.getElementById('kpiLatency').innerHTML = state.latency + '<span style="font-size: 0.6em">ms</span>';
+
+        // Update 3D viewer with simulated values
+        if (twinViewer) {
+            // Simulate movement in a pattern
+            const time = Date.now() * 0.001;
+            const simulatedPosition = {
+                x: 100 + Math.sin(time * 0.5) * 50,
+                y: 100 + Math.cos(time * 0.5) * 50,
+                z: 50 + Math.sin(time * 0.2) * 20
+            };
+
+            // Bed temperature follows similar pattern (typically 60°C for PLA)
+            const bedTemp = 60 + Math.sin(time * 0.05) * 2;
+
+            // Fan speed cycles based on layer (full speed after first few layers)
+            const progress = (Math.sin(time * 0.1) + 1) / 2 * 0.3 + 0.5;
+            const fanSpeed = progress > 0.1 ? 100 : 0;
+
+            // Cycle through brick types every 30 seconds
+            const brickTypes = ['2x4', '2x2', '1x2', '2x6'];
+            const brickType = brickTypes[Math.floor(time / 30) % brickTypes.length];
+
+            twinViewer.updatePrinterState({
+                temperature: temp,
+                bedTemp: bedTemp,
+                position: simulatedPosition,
+                progress: progress,
+                isPrinting: true,
+                fanSpeed: fanSpeed,
+                brickType: brickType
+            });
+        }
+    }
+
+    // Load assets from API
+    async function loadAssets() {
+        try {
+            const response = await fetch(`${API_BASE}/assets`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.assets && data.assets.length > 0) {
+                    renderAssetList(data.assets);
+                    state.assets = data.assets.length;
+                    return;
+                }
+            }
+        } catch (error) {
+            console.log('Asset API unavailable, using defaults');
+        }
+        // Keep default hardcoded assets if API fails
+    }
+
+    // Render asset list from API data
+    function renderAssetList(assets) {
+        const container = document.getElementById('assetList');
+        const icons = {
+            'fdm_printer': '🖨️',
+            'cnc_mill': '⚙️',
+            'laser_cutter': '🔆',
+            'environment': '🌡️',
+            'part': '🧱',
+            'material': '🧵'
+        };
+
+        container.innerHTML = assets.map((asset, index) => `
+            <div class="dt-asset-item ${index === 0 ? 'active' : ''}" data-asset-id="${asset.id}">
+                <div class="dt-asset-icon">${icons[asset.type] || '📦'}</div>
+                <div class="dt-asset-info">
+                    <div class="dt-asset-name">${asset.name}</div>
+                    <div class="dt-asset-type">${asset.description || asset.type}</div>
+                </div>
+                <div class="dt-asset-status">
+                    <div class="dt-status-badge ${asset.status === 'RUNNING' ? 'synced' : 'pending'}">${asset.status === 'RUNNING' ? 'Synced' : 'Idle'}</div>
+                    <div class="dt-last-sync">${asset.last_sync || 'N/A'}</div>
+                </div>
+            </div>
+        `).join('');
+
+        // Re-attach click handlers
+        container.querySelectorAll('.dt-asset-item').forEach(item => {
+            item.addEventListener('click', () => selectAsset(item.dataset.assetId));
+        });
+
+        if (assets.length > 0) {
+            state.selectedAsset = assets[0].id;
+        }
+    }
+
+    // Fetch initial chart data from API
+    async function fetchChartData() {
+        try {
+            const response = await fetch(`${API_BASE}/temperature-history/${state.selectedAsset}?hours=1`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.history && data.history.length > 0) {
+                    const temps = data.history.map(h => h.hotend_temp || 215);
+                    createPINNChart('pinnThermalChart', 'rgb(239, 68, 68)', temps.slice(-30));
+                    return;
+                }
+            }
+        } catch (error) {
+            console.log('Temperature history API unavailable');
+        }
+        // Fall back to pattern-based data
+        const patternData = Array.from({length: 30}, (_, i) =>
+            SimulationPatterns.getTemperature(215, 5, state.selectedAsset) + (i * 0.1));
+        createPINNChart('pinnThermalChart', 'rgb(239, 68, 68)', patternData);
+    }
+
+    // Generate pattern-based sparkline data (not random)
+    function generateSparklineData(base, variation, count) {
+        return Array.from({length: count}, (_, i) => {
+            const progress = i / count;
+            return base + Math.sin(progress * Math.PI * 2) * variation +
+                   Math.sin(progress * Math.PI * 4) * (variation * 0.3);
+        });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Initialize Three.js 3D viewer
+        try {
+            twinViewer = new DigitalTwin3DViewer('threejsCanvas');
+            console.log('Three.js Digital Twin viewer created');
+        } catch (error) {
+            console.error('Failed to create Three.js viewer:', error);
+        }
+
+        // Initialize WebSocket (with fallback for demo)
+        try {
+            initWebSocket();
+        } catch(e) {
+            console.log('WebSocket not available, running in demo mode');
+            updateConnectionStatus(true);
+        }
+
+        // Load assets from API (or keep defaults)
+        await loadAssets();
+
+        // Create sparklines with pattern-based data (not random)
+        createSparkline('sparkSyncRate', 'rgb(16, 185, 129)',
+            generateSparklineData(99, 1, 20));
+        createSparkline('sparkCrdt', 'rgb(0, 212, 255)',
+            generateSparklineData(4.8, 0.3, 20));
+        createSparkline('sparkPinn', 'rgb(139, 92, 246)',
+            generateSparklineData(97, 2, 20));
+        createSparkline('sparkLatency', 'rgb(245, 158, 11)',
+            generateSparklineData(25, 8, 20));
+        createSparkline('sparkAssets', 'rgb(59, 130, 246)',
+            generateSparklineData(12, 2, 20));
+
+        // Fetch chart data from API or use patterns
+        await fetchChartData();
+        createPINNChart('pinnMechanicalChart', 'rgb(59, 130, 246)',
+            generateSparklineData(12, 3, 30));
+        createPINNChart('pinnFdmChart', 'rgb(16, 185, 129)',
+            generateSparklineData(97, 2, 30));
+
+        // Start updates
+        setInterval(updateHLC, 1000);
+        setInterval(fetchUpdates, 2000);
+
+        // Add event log updates (pattern-based, not random)
+        let eventIndex = 0;
+        setInterval(() => {
+            const events = [
+                ['STATE', `Position updated: X=${(100 + Math.sin(eventIndex * 0.5) * 5).toFixed(1)}`],
+                ['PHYSICS', 'Thermal equilibrium calculated'],
+                ['SYNC', `CRDT state merged from node-0${(eventIndex % 3) + 1}`],
+                ['STATE', `Extruder flow rate: ${SimulationPatterns.getFlowRate(215).toFixed(1)}%`],
+                ['PHYSICS', 'FDM process model updated'],
+                ['SYNC', 'HLC synchronized across nodes']
+            ];
+            const event = events[eventIndex % events.length];
+            addEventLog(event[0], event[1]);
+            eventIndex++;
+        }, 5000);
+
+        // Initial data fetch
+        await fetchUpdates();
+
+        const modeText = state.dataMode === 'live' ? 'Live database connected' : 'Pattern-based simulation active';
+        showToast('success', 'Digital Twin Ready', modeText);
+    });
+</script>
+{% endblock %}

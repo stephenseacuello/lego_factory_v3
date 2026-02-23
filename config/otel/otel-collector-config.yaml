@@ -1,0 +1,287 @@
+# =============================================================================
+# LEGO MCP v8.0 OpenTelemetry Collector Configuration
+# DoD/ONR-Class Manufacturing System
+# =============================================================================
+#
+# Collects traces, metrics, and logs from all services.
+# Exports to Prometheus, Jaeger/Tempo, and Loki.
+# =============================================================================
+
+receivers:
+  # OTLP receiver for traces, metrics, and logs
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+        max_recv_msg_size_mib: 16
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "https://lego-mcp.example.com"
+            - "http://localhost:*"
+
+  # Prometheus receiver for scraping metrics
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['localhost:8888']
+
+        - job_name: 'dashboard'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['dashboard:5000']
+          metrics_path: '/metrics'
+
+        - job_name: 'mcp-server'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['mcp-server:3000']
+          metrics_path: '/metrics'
+
+        - job_name: 'slicer-service'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['slicer-service:8081']
+          metrics_path: '/metrics'
+
+  # Host metrics
+  hostmetrics:
+    collection_interval: 60s
+    scrapers:
+      cpu:
+        metrics:
+          system.cpu.utilization:
+            enabled: true
+      memory:
+        metrics:
+          system.memory.utilization:
+            enabled: true
+      disk:
+      filesystem:
+      network:
+
+  # Docker stats
+  docker_stats:
+    endpoint: unix:///var/run/docker.sock
+    collection_interval: 30s
+    timeout: 20s
+
+processors:
+  # Batch processor for efficiency
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 400
+    spike_limit_mib: 100
+
+  # Resource detection
+  resourcedetection:
+    detectors: [env, docker, system]
+    timeout: 5s
+    override: false
+
+  # Add custom attributes
+  attributes:
+    actions:
+      - key: environment
+        value: production
+        action: upsert
+      - key: service.namespace
+        value: lego-mcp
+        action: upsert
+      - key: deployment.environment
+        value: ${ENVIRONMENT:-production}
+        action: upsert
+
+  # Filter sensitive data
+  filter/traces:
+    traces:
+      span:
+        - 'attributes["http.target"] == "/health"'
+        - 'attributes["http.target"] == "/metrics"'
+
+  # Tail sampling for traces
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 100000
+    expected_new_traces_per_sec: 100
+    policies:
+      # Always sample errors
+      - name: errors
+        type: status_code
+        status_code:
+          status_codes: [ERROR]
+      # Always sample slow requests
+      - name: slow-requests
+        type: latency
+        latency:
+          threshold_ms: 1000
+      # Probabilistic sampling for everything else
+      - name: probabilistic
+        type: probabilistic
+        probabilistic:
+          sampling_percentage: 10
+
+  # Transform metrics
+  transform/metrics:
+    metric_statements:
+      - context: metric
+        statements:
+          - set(description, "") where description == nil
+
+exporters:
+  # Prometheus exporter for metrics
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: lego_mcp
+    resource_to_telemetry_conversion:
+      enabled: true
+    enable_open_metrics: true
+
+  # OTLP exporter for traces (to Jaeger/Tempo)
+  otlp/traces:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+
+  # Loki exporter for logs
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    labels:
+      attributes:
+        service.name: "service"
+        service.namespace: "namespace"
+      resource:
+        host.name: "host"
+
+  # Debug exporter (for development)
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+  # File exporter for audit
+  file/audit:
+    path: /var/log/otel/audit.json
+    rotation:
+      max_megabytes: 100
+      max_days: 30
+      max_backups: 10
+      localtime: true
+
+  # Splunk HEC exporter (for SIEM integration)
+  splunk_hec:
+    token: ${SPLUNK_HEC_TOKEN}
+    endpoint: ${SPLUNK_HEC_ENDPOINT}
+    source: lego-mcp-otel
+    sourcetype: otel
+    index: lego-mcp-production
+    tls:
+      insecure_skip_verify: false
+
+extensions:
+  # Health check
+  health_check:
+    endpoint: 0.0.0.0:13133
+    path: /health
+    check_collector_pipeline:
+      enabled: true
+      interval: 30s
+      exporter_failure_threshold: 5
+
+  # Performance profiler
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+  # zPages for debugging
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+  # Memory ballast
+  memory_ballast:
+    size_mib: 64
+
+service:
+  extensions:
+    - health_check
+    - pprof
+    - zpages
+    - memory_ballast
+
+  pipelines:
+    # Traces pipeline
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resourcedetection
+        - attributes
+        - filter/traces
+        - tail_sampling
+        - batch
+      exporters:
+        - otlp/traces
+
+    # Metrics pipeline
+    metrics:
+      receivers:
+        - otlp
+        - prometheus
+        - hostmetrics
+        - docker_stats
+      processors:
+        - memory_limiter
+        - resourcedetection
+        - attributes
+        - transform/metrics
+        - batch
+      exporters:
+        - prometheus
+
+    # Logs pipeline
+    logs:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resourcedetection
+        - attributes
+        - batch
+      exporters:
+        - loki
+        - file/audit
+
+    # Audit logs (to SIEM)
+    logs/audit:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - attributes
+        - batch
+      exporters:
+        - splunk_hec
+        - file/audit
+
+  telemetry:
+    logs:
+      level: info
+      encoding: json
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888

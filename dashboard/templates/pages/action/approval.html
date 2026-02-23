@@ -1,0 +1,2190 @@
+{% extends "base.html" %}
+
+{% block title %}Action Approval - LEGO MCP v6.0{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* ═══════════════════════════════════════════════════════════════
+       LEGO MCP v6.0 - Action Approval Dashboard
+       World-Class Algorithm-to-Action Human-in-the-Loop Interface
+       ═══════════════════════════════════════════════════════════════ */
+
+    :root {
+        --action-primary: #10b981;
+        --action-secondary: #3b82f6;
+        --action-accent: #8b5cf6;
+        --action-warning: #f59e0b;
+        --action-danger: #ef4444;
+        --action-dark: #0f172a;
+        --action-darker: #020617;
+        --action-card: #1e293b;
+        --action-card-hover: #334155;
+        --action-border: #334155;
+        --action-text: #f8fafc;
+        --action-text-muted: #94a3b8;
+        --action-glow: rgba(16, 185, 129, 0.3);
+    }
+
+    body {
+        background: linear-gradient(135deg, var(--action-darker) 0%, var(--action-dark) 100%);
+        min-height: 100vh;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, var(--action-primary), var(--action-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 24px;
+    }
+
+    .page-header h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    .page-header p {
+        color: var(--action-text-muted);
+        -webkit-text-fill-color: var(--action-text-muted);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       KPI Summary Cards
+       ═══════════════════════════════════════════════════════════════ */
+
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .kpi-card {
+        background: var(--action-card);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid var(--action-border);
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--action-primary), var(--action-secondary));
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 30px var(--action-glow);
+    }
+
+    .kpi-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 12px;
+        font-size: 20px;
+    }
+
+    .kpi-icon.pending { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .kpi-icon.approved { background: linear-gradient(135deg, #10b981, #059669); }
+    .kpi-icon.rejected { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .kpi-icon.auto { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .kpi-icon.high-risk { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+    .kpi-icon.response { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+
+    .kpi-value {
+        font-size: 28px;
+        font-weight: 700;
+        color: var(--action-text);
+        margin-bottom: 4px;
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+    }
+
+    .kpi-value .unit {
+        font-size: 14px;
+        font-weight: 400;
+        color: var(--action-text-muted);
+    }
+
+    .kpi-label {
+        font-size: 12px;
+        color: var(--action-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .kpi-trend {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        font-size: 12px;
+        padding: 4px 8px;
+        border-radius: 20px;
+        font-weight: 500;
+    }
+
+    .kpi-trend.up { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .kpi-trend.down { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .kpi-trend.neutral { background: rgba(148, 163, 184, 0.2); color: #94a3b8; }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Main Layout
+       ═══════════════════════════════════════════════════════════════ */
+
+    .approval-container {
+        display: grid;
+        grid-template-columns: 1fr 450px;
+        gap: 24px;
+        height: calc(100vh - 320px);
+    }
+
+    .panel {
+        background: var(--action-card);
+        border-radius: 16px;
+        border: 1px solid var(--action-border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--action-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .panel-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--action-text);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .panel-title .count {
+        background: var(--action-primary);
+        color: white;
+        padding: 2px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+    }
+
+    .panel-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Auto-Approve Toggle
+       ═══════════════════════════════════════════════════════════════ */
+
+    .auto-approve-section {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+
+    .toggle-container {
+        position: relative;
+    }
+
+    .toggle-switch {
+        width: 52px;
+        height: 28px;
+        background: var(--action-border);
+        border-radius: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+
+    .toggle-switch::after {
+        content: '';
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        background: white;
+        border-radius: 50%;
+        top: 3px;
+        left: 3px;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .toggle-switch.active {
+        background: linear-gradient(135deg, var(--action-primary), var(--action-secondary));
+    }
+
+    .toggle-switch.active::after {
+        left: 27px;
+    }
+
+    .toggle-info {
+        flex: 1;
+    }
+
+    .toggle-label {
+        font-weight: 600;
+        color: var(--action-text);
+        margin-bottom: 4px;
+    }
+
+    .toggle-description {
+        font-size: 12px;
+        color: var(--action-text-muted);
+    }
+
+    .threshold-badge {
+        background: var(--action-secondary);
+        color: white;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Action Cards
+       ═══════════════════════════════════════════════════════════════ */
+
+    .action-card {
+        background: var(--action-card-hover);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .action-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+    }
+
+    .action-card.high-risk::before { background: linear-gradient(180deg, #ef4444, #b91c1c); }
+    .action-card.medium-risk::before { background: linear-gradient(180deg, #f59e0b, #d97706); }
+    .action-card.low-risk::before { background: linear-gradient(180deg, #10b981, #059669); }
+
+    .action-card:hover {
+        border-color: var(--action-secondary);
+        transform: translateX(4px);
+    }
+
+    .action-card.selected {
+        border-color: var(--action-primary);
+        background: rgba(16, 185, 129, 0.1);
+        box-shadow: 0 0 20px var(--action-glow);
+    }
+
+    .action-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 10px;
+    }
+
+    .action-type {
+        font-weight: 600;
+        color: var(--action-text);
+        font-size: 15px;
+    }
+
+    .action-time {
+        font-size: 11px;
+        color: var(--action-text-muted);
+        background: rgba(0, 0, 0, 0.3);
+        padding: 4px 8px;
+        border-radius: 12px;
+    }
+
+    .action-meta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 10px;
+    }
+
+    .agent-badge {
+        background: linear-gradient(135deg, var(--action-secondary), var(--action-accent));
+        color: white;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .equipment-tag {
+        color: var(--action-text-muted);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .action-description {
+        color: var(--action-text-muted);
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .risk-score-badge {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 13px;
+        color: white;
+    }
+
+    .risk-score-badge.high { background: linear-gradient(135deg, #ef4444, #b91c1c); }
+    .risk-score-badge.medium { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .risk-score-badge.low { background: linear-gradient(135deg, #10b981, #059669); }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Action Details Panel
+       ═══════════════════════════════════════════════════════════════ */
+
+    .detail-section {
+        margin-bottom: 20px;
+    }
+
+    .detail-label {
+        font-size: 11px;
+        color: var(--action-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 6px;
+    }
+
+    .detail-value {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--action-text);
+    }
+
+    .detail-value.large {
+        font-size: 20px;
+    }
+
+    /* Risk Assessment */
+    .risk-assessment {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+
+    .risk-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .risk-title {
+        font-weight: 600;
+        color: var(--action-text);
+        font-size: 14px;
+    }
+
+    .risk-score-display {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .risk-indicator {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    .risk-indicator.high { background: #ef4444; }
+    .risk-indicator.medium { background: #f59e0b; }
+    .risk-indicator.low { background: #10b981; }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(1.1); }
+    }
+
+    .risk-score-value {
+        font-weight: 700;
+        font-size: 16px;
+    }
+
+    .risk-score-value.high { color: #ef4444; }
+    .risk-score-value.medium { color: #f59e0b; }
+    .risk-score-value.low { color: #10b981; }
+
+    .risk-factors {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .risk-factor {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--action-border);
+        font-size: 13px;
+        color: var(--action-text-muted);
+    }
+
+    .risk-factor:last-child {
+        border-bottom: none;
+    }
+
+    .risk-factor-icon {
+        width: 20px;
+        height: 20px;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+
+    .risk-factor-icon.warning { color: #f59e0b; }
+    .risk-factor-icon.success { color: #10b981; }
+    .risk-factor-icon.danger { color: #ef4444; }
+
+    /* Impact Preview */
+    .impact-preview {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+
+    .impact-title {
+        font-weight: 600;
+        color: var(--action-text);
+        margin-bottom: 16px;
+        font-size: 14px;
+    }
+
+    .impact-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+
+    .impact-item {
+        text-align: center;
+        padding: 12px;
+        background: var(--action-card);
+        border-radius: 8px;
+    }
+
+    .impact-value {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .impact-value.positive { color: #10b981; }
+    .impact-value.negative { color: #ef4444; }
+    .impact-value.neutral { color: #f59e0b; }
+
+    .impact-label {
+        font-size: 11px;
+        color: var(--action-text-muted);
+        text-transform: uppercase;
+    }
+
+    /* AI Reasoning */
+    .ai-reasoning {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.1));
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+        border: 1px solid rgba(139, 92, 246, 0.2);
+    }
+
+    .ai-reasoning-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .ai-icon {
+        width: 24px;
+        height: 24px;
+        background: linear-gradient(135deg, var(--action-accent), var(--action-secondary));
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .ai-reasoning-title {
+        font-weight: 600;
+        color: var(--action-text);
+        font-size: 14px;
+    }
+
+    .ai-reasoning-text {
+        font-size: 13px;
+        color: var(--action-text-muted);
+        line-height: 1.6;
+        font-style: italic;
+    }
+
+    .confidence-bar {
+        margin-top: 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .confidence-track {
+        flex: 1;
+        height: 6px;
+        background: var(--action-border);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .confidence-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--action-accent), var(--action-secondary));
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    .confidence-value {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--action-accent);
+    }
+
+    /* Approval Buttons */
+    .approval-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.2);
+        border-top: 1px solid var(--action-border);
+    }
+
+    .btn-action {
+        padding: 14px 20px;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .btn-approve {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        grid-column: 1;
+    }
+
+    .btn-approve:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-reject {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        color: white;
+        grid-column: 2;
+    }
+
+    .btn-reject:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-modify {
+        background: var(--action-card-hover);
+        color: var(--action-text);
+        border: 1px solid var(--action-border);
+        grid-column: span 2;
+    }
+
+    .btn-modify:hover {
+        background: var(--action-border);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       History Section
+       ═══════════════════════════════════════════════════════════════ */
+
+    .history-section {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--action-border);
+    }
+
+    .history-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .history-title {
+        font-weight: 600;
+        color: var(--action-text);
+        font-size: 14px;
+    }
+
+    .history-filters {
+        display: flex;
+        gap: 8px;
+    }
+
+    .history-filter {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--action-card-hover);
+        color: var(--action-text-muted);
+        border: 1px solid transparent;
+    }
+
+    .history-filter:hover,
+    .history-filter.active {
+        background: var(--action-secondary);
+        color: white;
+        border-color: var(--action-secondary);
+    }
+
+    .history-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--action-card-hover);
+        border-radius: 10px;
+        margin-bottom: 8px;
+        transition: all 0.2s;
+    }
+
+    .history-item:hover {
+        background: var(--action-border);
+    }
+
+    .history-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .history-icon.approved {
+        background: rgba(16, 185, 129, 0.2);
+        color: #10b981;
+    }
+    .history-icon.rejected {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+    }
+    .history-icon.auto {
+        background: rgba(59, 130, 246, 0.2);
+        color: #3b82f6;
+    }
+    .history-icon.modified {
+        background: rgba(245, 158, 11, 0.2);
+        color: #f59e0b;
+    }
+
+    .history-details {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .history-action {
+        font-weight: 500;
+        color: var(--action-text);
+        font-size: 13px;
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .history-meta {
+        font-size: 11px;
+        color: var(--action-text-muted);
+    }
+
+    .history-time {
+        font-size: 11px;
+        color: var(--action-text-muted);
+        white-space: nowrap;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Equipment Control Preview
+       ═══════════════════════════════════════════════════════════════ */
+
+    .equipment-preview {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+
+    .equipment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .equipment-title {
+        font-weight: 600;
+        color: var(--action-text);
+        font-size: 14px;
+    }
+
+    .equipment-status {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    .status-dot.online { background: #10b981; }
+    .status-dot.printing { background: #3b82f6; }
+    .status-dot.offline { background: #ef4444; }
+
+    .gcode-preview {
+        background: var(--action-darker);
+        border-radius: 8px;
+        padding: 12px;
+        font-family: 'Monaco', 'Menlo', monospace;
+        font-size: 12px;
+        color: var(--action-primary);
+        max-height: 80px;
+        overflow-y: auto;
+    }
+
+    .gcode-line {
+        margin-bottom: 4px;
+    }
+
+    .gcode-comment {
+        color: var(--action-text-muted);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Consensus Breakdown
+       ═══════════════════════════════════════════════════════════════ */
+
+    .consensus-section {
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+
+    .consensus-title {
+        font-weight: 600;
+        color: var(--action-text);
+        font-size: 14px;
+        margin-bottom: 16px;
+    }
+
+    .consensus-votes {
+        display: flex;
+        gap: 12px;
+    }
+
+    .vote-item {
+        flex: 1;
+        text-align: center;
+        padding: 12px;
+        background: var(--action-card);
+        border-radius: 8px;
+    }
+
+    .vote-agent {
+        font-size: 11px;
+        color: var(--action-text-muted);
+        margin-bottom: 8px;
+        text-transform: uppercase;
+    }
+
+    .vote-decision {
+        font-weight: 600;
+        font-size: 13px;
+        margin-bottom: 4px;
+    }
+
+    .vote-decision.approve { color: #10b981; }
+    .vote-decision.reject { color: #ef4444; }
+    .vote-decision.abstain { color: #94a3b8; }
+
+    .vote-confidence {
+        font-size: 11px;
+        color: var(--action-text-muted);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Toast Notifications
+       ═══════════════════════════════════════════════════════════════ */
+
+    .toast-container {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .toast {
+        background: var(--action-card);
+        border-radius: 12px;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+        border-left: 4px solid;
+        animation: slideIn 0.3s ease;
+        max-width: 400px;
+    }
+
+    .toast.success { border-left-color: #10b981; }
+    .toast.error { border-left-color: #ef4444; }
+    .toast.warning { border-left-color: #f59e0b; }
+    .toast.info { border-left-color: #3b82f6; }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .toast-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .toast.success .toast-icon { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .toast.error .toast-icon { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .toast.warning .toast-icon { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .toast.info .toast-icon { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+
+    .toast-content {
+        flex: 1;
+    }
+
+    .toast-title {
+        font-weight: 600;
+        color: var(--action-text);
+        font-size: 14px;
+        margin-bottom: 2px;
+    }
+
+    .toast-message {
+        font-size: 12px;
+        color: var(--action-text-muted);
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: var(--action-text-muted);
+        cursor: pointer;
+        padding: 4px;
+        transition: color 0.2s;
+    }
+
+    .toast-close:hover {
+        color: var(--action-text);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Modification Modal
+       ═══════════════════════════════════════════════════════════════ */
+
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal {
+        background: var(--action-card);
+        border-radius: 16px;
+        width: 500px;
+        max-height: 80vh;
+        overflow: hidden;
+        animation: modalIn 0.3s ease;
+    }
+
+    @keyframes modalIn {
+        from {
+            transform: scale(0.9);
+            opacity: 0;
+        }
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .modal-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--action-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--action-text);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--action-text-muted);
+        cursor: pointer;
+        font-size: 24px;
+        line-height: 1;
+    }
+
+    .modal-body {
+        padding: 24px;
+        overflow-y: auto;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--action-text);
+        margin-bottom: 8px;
+    }
+
+    .form-input,
+    .form-select,
+    .form-textarea {
+        width: 100%;
+        padding: 12px 16px;
+        background: var(--action-card-hover);
+        border: 1px solid var(--action-border);
+        border-radius: 8px;
+        color: var(--action-text);
+        font-size: 14px;
+        transition: border-color 0.2s;
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+        outline: none;
+        border-color: var(--action-primary);
+    }
+
+    .form-textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--action-border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    .btn-modal {
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-modal-cancel {
+        background: var(--action-card-hover);
+        border: 1px solid var(--action-border);
+        color: var(--action-text);
+    }
+
+    .btn-modal-submit {
+        background: var(--action-primary);
+        border: none;
+        color: white;
+    }
+
+    .btn-modal-submit:hover {
+        background: #059669;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Connection Status
+       ═══════════════════════════════════════════════════════════════ */
+
+    .connection-status {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        background: var(--action-card);
+        border-radius: 20px;
+        font-size: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .connection-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .connection-dot.connected { background: #10b981; animation: pulse 2s infinite; }
+    .connection-dot.disconnected { background: #ef4444; }
+    .connection-dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
+
+    .connection-text {
+        color: var(--action-text-muted);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Empty State
+       ═══════════════════════════════════════════════════════════════ */
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 40px;
+    }
+
+    .empty-icon {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        background: linear-gradient(135deg, var(--action-primary), var(--action-secondary));
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.5;
+    }
+
+    .empty-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--action-text);
+        margin-bottom: 8px;
+    }
+
+    .empty-description {
+        color: var(--action-text-muted);
+        font-size: 14px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       Responsive
+       ═══════════════════════════════════════════════════════════════ */
+
+    @media (max-width: 1400px) {
+        .kpi-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 1200px) {
+        .approval-container {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .approval-buttons {
+            grid-template-columns: 1fr;
+        }
+
+        .approval-buttons .btn-action {
+            grid-column: 1;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Action Approval Queue</h1>
+    <p>Human-in-the-Loop Control for AI-Generated Manufacturing Actions</p>
+</div>
+
+<!-- KPI Summary Cards -->
+<div class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-icon pending">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend neutral" id="pending-trend">Queue</span>
+        <div class="kpi-value"><span id="pending-count">3</span></div>
+        <div class="kpi-label">Pending Actions</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon approved">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend up" id="approved-trend">+12%</span>
+        <div class="kpi-value"><span id="approved-today">24</span></div>
+        <div class="kpi-label">Approved Today</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon rejected">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend down" id="rejected-trend">-5%</span>
+        <div class="kpi-value"><span id="rejected-today">2</span></div>
+        <div class="kpi-label">Rejected Today</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon auto">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M11 17h2v-1h1c.55 0 1-.45 1-1v-3c0-.55-.45-1-1-1h-3v-1h4V8h-2V7h-2v1h-1c-.55 0-1 .45-1 1v3c0 .55.45 1 1 1h3v1H9v2h2v1zm9-13H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend up" id="auto-trend">+18%</span>
+        <div class="kpi-value"><span id="auto-approved">156</span></div>
+        <div class="kpi-label">Auto-Approved</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon high-risk">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend down" id="risk-trend">-8%</span>
+        <div class="kpi-value"><span id="high-risk-count">1</span></div>
+        <div class="kpi-label">High Risk Pending</div>
+    </div>
+
+    <div class="kpi-card">
+        <div class="kpi-icon response">
+            <svg width="22" height="22" fill="white" viewBox="0 0 24 24">
+                <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
+            </svg>
+        </div>
+        <span class="kpi-trend up" id="response-trend">+5%</span>
+        <div class="kpi-value"><span id="avg-response">45</span><span class="unit">sec</span></div>
+        <div class="kpi-label">Avg Response Time</div>
+    </div>
+</div>
+
+<!-- Main Approval Interface -->
+<div class="approval-container">
+    <!-- Pending Queue Panel -->
+    <div class="panel">
+        <div class="panel-header">
+            <div class="panel-title">
+                Pending Actions
+                <span class="count" id="queue-count">3</span>
+            </div>
+            <div class="panel-actions">
+                <button class="btn-modal-cancel" style="padding: 6px 12px; font-size: 12px;" onclick="refreshQueue()">
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="panel-content">
+            <!-- Auto-Approve Toggle -->
+            <div class="auto-approve-section">
+                <div class="toggle-container">
+                    <div class="toggle-switch active" id="auto-approve-toggle" onclick="toggleAutoApprove()"></div>
+                </div>
+                <div class="toggle-info">
+                    <div class="toggle-label">Auto-Approve Low-Risk Actions</div>
+                    <div class="toggle-description">Actions with risk score &lt; 30 will be automatically approved</div>
+                </div>
+                <div class="threshold-badge">Threshold: 30</div>
+            </div>
+
+            <!-- Action Cards -->
+            <div id="action-cards-container">
+                <div class="action-card high-risk selected" data-action-id="action-1" onclick="selectAction(this)">
+                    <div class="risk-score-badge high">72</div>
+                    <div class="action-header">
+                        <span class="action-type">Temperature Adjustment</span>
+                        <span class="action-time">2 min ago</span>
+                    </div>
+                    <div class="action-meta">
+                        <span class="agent-badge">Quality Agent</span>
+                        <span class="equipment-tag">
+                            <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l4.59-4.58L18 11l-6 6z"/>
+                            </svg>
+                            WC-PRINT-01
+                        </span>
+                    </div>
+                    <div class="action-description">
+                        Reduce nozzle temperature from 215°C to 205°C to address surface defects detected in last 3 prints.
+                    </div>
+                </div>
+
+                <div class="action-card medium-risk" data-action-id="action-2" onclick="selectAction(this)">
+                    <div class="risk-score-badge medium">45</div>
+                    <div class="action-header">
+                        <span class="action-type">Speed Override</span>
+                        <span class="action-time">5 min ago</span>
+                    </div>
+                    <div class="action-meta">
+                        <span class="agent-badge">Scheduling Agent</span>
+                        <span class="equipment-tag">
+                            <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l4.59-4.58L18 11l-6 6z"/>
+                            </svg>
+                            WC-PRINT-02
+                        </span>
+                    </div>
+                    <div class="action-description">
+                        Increase print speed by 15% to meet production deadline for order WO-1042.
+                    </div>
+                </div>
+
+                <div class="action-card low-risk" data-action-id="action-3" onclick="selectAction(this)">
+                    <div class="risk-score-badge low">18</div>
+                    <div class="action-header">
+                        <span class="action-type">Maintenance Alert</span>
+                        <span class="action-time">12 min ago</span>
+                    </div>
+                    <div class="action-meta">
+                        <span class="agent-badge">Maintenance Agent</span>
+                        <span class="equipment-tag">
+                            <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.89 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l4.59-4.58L18 11l-6 6z"/>
+                            </svg>
+                            WC-PRINT-01
+                        </span>
+                    </div>
+                    <div class="action-description">
+                        Schedule nozzle replacement after current print completes. Estimated wear at 85%.
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Section -->
+            <div class="history-section">
+                <div class="history-header">
+                    <div class="history-title">Recent History</div>
+                    <div class="history-filters">
+                        <div class="history-filter active" data-filter="all">All</div>
+                        <div class="history-filter" data-filter="approved">Approved</div>
+                        <div class="history-filter" data-filter="rejected">Rejected</div>
+                        <div class="history-filter" data-filter="auto">Auto</div>
+                    </div>
+                </div>
+
+                <div id="history-container">
+                    <div class="history-item">
+                        <div class="history-icon approved">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                        <div class="history-details">
+                            <div class="history-action">Bed Temperature Adjustment</div>
+                            <div class="history-meta">Approved by operator</div>
+                        </div>
+                        <div class="history-time">15 min ago</div>
+                    </div>
+
+                    <div class="history-item">
+                        <div class="history-icon auto">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M11 17h2v-1h1c.55 0 1-.45 1-1v-3c0-.55-.45-1-1-1h-3v-1h4V8h-2V7h-2v1h-1c-.55 0-1 .45-1 1v3c0 .55.45 1 1 1h3v1H9v2h2v1z"/>
+                            </svg>
+                        </div>
+                        <div class="history-details">
+                            <div class="history-action">Fan Speed Adjustment</div>
+                            <div class="history-meta">Auto-approved (risk: 12)</div>
+                        </div>
+                        <div class="history-time">22 min ago</div>
+                    </div>
+
+                    <div class="history-item">
+                        <div class="history-icon rejected">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                        </div>
+                        <div class="history-details">
+                            <div class="history-action">Emergency Stop Request</div>
+                            <div class="history-meta">Rejected - false positive</div>
+                        </div>
+                        <div class="history-time">45 min ago</div>
+                    </div>
+
+                    <div class="history-item">
+                        <div class="history-icon modified">
+                            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                            </svg>
+                        </div>
+                        <div class="history-details">
+                            <div class="history-action">Flow Rate Compensation</div>
+                            <div class="history-meta">Modified: 0.95 → 0.92</div>
+                        </div>
+                        <div class="history-time">1 hr ago</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Details Panel -->
+    <div class="panel" id="details-panel">
+        <div class="panel-header">
+            <div class="panel-title">Action Details</div>
+        </div>
+
+        <div class="panel-content" id="action-details">
+            <div class="detail-section">
+                <div class="detail-label">Action Type</div>
+                <div class="detail-value large" id="detail-type">Temperature Adjustment</div>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-label">Source Agent</div>
+                <div class="detail-value" id="detail-source">Quality Agent via Multi-Agent Consensus</div>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-label">Target Equipment</div>
+                <div class="detail-value" id="detail-target">WC-PRINT-01 (Prusa MK4)</div>
+            </div>
+
+            <!-- Consensus Breakdown -->
+            <div class="consensus-section">
+                <div class="consensus-title">Agent Consensus</div>
+                <div class="consensus-votes">
+                    <div class="vote-item">
+                        <div class="vote-agent">Quality</div>
+                        <div class="vote-decision approve">Approve</div>
+                        <div class="vote-confidence">87% conf.</div>
+                    </div>
+                    <div class="vote-item">
+                        <div class="vote-agent">Scheduling</div>
+                        <div class="vote-decision approve">Approve</div>
+                        <div class="vote-confidence">72% conf.</div>
+                    </div>
+                    <div class="vote-item">
+                        <div class="vote-agent">Maintenance</div>
+                        <div class="vote-decision abstain">Abstain</div>
+                        <div class="vote-confidence">45% conf.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk Assessment -->
+            <div class="risk-assessment">
+                <div class="risk-header">
+                    <span class="risk-title">Risk Assessment</span>
+                    <div class="risk-score-display">
+                        <span class="risk-indicator high"></span>
+                        <span class="risk-score-value high" id="detail-risk-score">High Risk (72)</span>
+                    </div>
+                </div>
+                <ul class="risk-factors">
+                    <li class="risk-factor">
+                        <svg class="risk-factor-icon warning" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                        </svg>
+                        Temperature change &gt; 5°C during active print
+                    </li>
+                    <li class="risk-factor">
+                        <svg class="risk-factor-icon warning" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                        </svg>
+                        May affect layer adhesion on current print
+                    </li>
+                    <li class="risk-factor">
+                        <svg class="risk-factor-icon success" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        Within safe operating range for material (PLA)
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Equipment Control Preview -->
+            <div class="equipment-preview">
+                <div class="equipment-header">
+                    <span class="equipment-title">G-Code Preview</span>
+                    <div class="equipment-status">
+                        <span class="status-dot printing"></span>
+                        <span>Printing</span>
+                    </div>
+                </div>
+                <div class="gcode-preview">
+                    <div class="gcode-line"><span class="gcode-comment">; Temperature adjustment command</span></div>
+                    <div class="gcode-line">M104 S205 <span class="gcode-comment">; Set nozzle temp to 205°C</span></div>
+                    <div class="gcode-line">M109 S205 <span class="gcode-comment">; Wait for temperature</span></div>
+                </div>
+            </div>
+
+            <!-- Impact Preview -->
+            <div class="impact-preview">
+                <div class="impact-title">Expected Impact</div>
+                <div class="impact-grid">
+                    <div class="impact-item">
+                        <div class="impact-value positive">+15%</div>
+                        <div class="impact-label">Surface Quality</div>
+                    </div>
+                    <div class="impact-item">
+                        <div class="impact-value neutral">+2 min</div>
+                        <div class="impact-label">Print Time</div>
+                    </div>
+                    <div class="impact-item">
+                        <div class="impact-value positive">-40%</div>
+                        <div class="impact-label">Defect Rate</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Reasoning -->
+            <div class="ai-reasoning">
+                <div class="ai-reasoning-header">
+                    <div class="ai-icon">
+                        <svg width="14" height="14" fill="white" viewBox="0 0 24 24">
+                            <path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/>
+                        </svg>
+                    </div>
+                    <span class="ai-reasoning-title">AI Reasoning</span>
+                </div>
+                <div class="ai-reasoning-text" id="detail-reasoning">
+                    "Analysis of last 3 prints shows increased surface roughness (Ra: 1.2μm → 1.8μm) correlated with ambient temperature rise. Causal model indicates 87% probability that reducing nozzle temperature will restore surface quality within tolerance."
+                </div>
+                <div class="confidence-bar">
+                    <div class="confidence-track">
+                        <div class="confidence-fill" style="width: 87%"></div>
+                    </div>
+                    <span class="confidence-value" id="detail-confidence">87%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Approval Buttons -->
+        <div class="approval-buttons">
+            <button class="btn-action btn-approve" onclick="approveAction()">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+                Approve
+            </button>
+            <button class="btn-action btn-reject" onclick="rejectAction()">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+                Reject
+            </button>
+            <button class="btn-action btn-modify" onclick="openModifyModal()">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                </svg>
+                Modify Parameters
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Modification Modal -->
+<div class="modal-overlay" id="modify-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">Modify Action Parameters</span>
+            <button class="modal-close" onclick="closeModifyModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Target Temperature (°C)</label>
+                <input type="number" class="form-input" id="modify-temperature" value="205" min="150" max="280">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Execution Timing</label>
+                <select class="form-select" id="modify-timing">
+                    <option value="immediate">Immediate</option>
+                    <option value="after_layer">After Current Layer</option>
+                    <option value="after_print">After Current Print</option>
+                    <option value="scheduled">Schedule for Later</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reason for Modification</label>
+                <textarea class="form-textarea" id="modify-reason" placeholder="Explain why you're modifying this action..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-modal btn-modal-cancel" onclick="closeModifyModal()">Cancel</button>
+            <button class="btn-modal btn-modal-submit" onclick="submitModification()">Apply Changes</button>
+        </div>
+    </div>
+</div>
+
+<!-- Connection Status -->
+<div class="connection-status">
+    <span class="connection-dot connecting" id="connection-dot"></span>
+    <span class="connection-text" id="connection-text">Connecting...</span>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════
+// State Management
+// ═══════════════════════════════════════════════════════════════
+
+let selectedActionId = 'action-1';
+let autoApproveEnabled = true;
+let socket = null;
+
+const actionData = {
+    'action-1': {
+        type: 'Temperature Adjustment',
+        source: 'Quality Agent via Multi-Agent Consensus',
+        target: 'WC-PRINT-01 (Prusa MK4)',
+        risk: 'high',
+        riskScore: 72,
+        reasoning: 'Analysis of last 3 prints shows increased surface roughness (Ra: 1.2μm → 1.8μm) correlated with ambient temperature rise. Causal model indicates 87% probability that reducing nozzle temperature will restore surface quality within tolerance.',
+        confidence: 87,
+        gcode: ['M104 S205 ; Set nozzle temp to 205°C', 'M109 S205 ; Wait for temperature'],
+        consensus: {
+            quality: { vote: 'approve', confidence: 87 },
+            scheduling: { vote: 'approve', confidence: 72 },
+            maintenance: { vote: 'abstain', confidence: 45 }
+        },
+        impact: {
+            surface: '+15%',
+            time: '+2 min',
+            defect: '-40%'
+        }
+    },
+    'action-2': {
+        type: 'Speed Override',
+        source: 'Scheduling Agent',
+        target: 'WC-PRINT-02 (Bambu A1)',
+        risk: 'medium',
+        riskScore: 45,
+        reasoning: 'Production deadline for WO-1042 requires 15% speed increase. Historical data shows this speed is within acceptable quality parameters for simple geometries.',
+        confidence: 78,
+        gcode: ['M220 S115 ; Set speed to 115%'],
+        consensus: {
+            quality: { vote: 'abstain', confidence: 52 },
+            scheduling: { vote: 'approve', confidence: 95 },
+            maintenance: { vote: 'approve', confidence: 68 }
+        },
+        impact: {
+            surface: '-5%',
+            time: '-8 min',
+            defect: '+3%'
+        }
+    },
+    'action-3': {
+        type: 'Maintenance Alert',
+        source: 'Maintenance Agent',
+        target: 'WC-PRINT-01 (Prusa MK4)',
+        risk: 'low',
+        riskScore: 18,
+        reasoning: 'Nozzle wear detected at 85% of expected lifetime. Scheduling replacement during non-production hours minimizes downtime impact.',
+        confidence: 92,
+        gcode: ['; No immediate G-code execution', '; Maintenance ticket created'],
+        consensus: {
+            quality: { vote: 'approve', confidence: 88 },
+            scheduling: { vote: 'approve', confidence: 85 },
+            maintenance: { vote: 'approve', confidence: 96 }
+        },
+        impact: {
+            surface: 'N/A',
+            time: '+15 min (scheduled)',
+            defect: '-20% (preventive)'
+        }
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// WebSocket Connection
+// ═══════════════════════════════════════════════════════════════
+
+function initWebSocket() {
+    try {
+        socket = io({
+            path: '/socket.io',
+            transports: ['websocket', 'polling']
+        });
+
+        socket.on('connect', () => {
+            updateConnectionStatus('connected');
+            socket.emit('join', { room: 'action_approval' });
+        });
+
+        socket.on('disconnect', () => {
+            updateConnectionStatus('disconnected');
+        });
+
+        socket.on('connect_error', () => {
+            updateConnectionStatus('disconnected');
+        });
+
+        socket.on('new_action', (data) => {
+            addNewActionCard(data.action);
+            showToast('New Action', `${data.action.type} requires approval`, 'info');
+            updatePendingCount(1);
+        });
+
+        socket.on('action_auto_approved', (data) => {
+            showToast('Auto-Approved', `${data.type} was auto-approved (risk: ${data.risk})`, 'success');
+            updateAutoApprovedCount();
+        });
+
+        socket.on('action_executed', (data) => {
+            showToast('Executed', `${data.type} executed successfully`, 'success');
+        });
+
+    } catch (error) {
+        console.log('WebSocket not available, using polling');
+        updateConnectionStatus('disconnected');
+    }
+}
+
+function updateConnectionStatus(status) {
+    const dot = document.getElementById('connection-dot');
+    const text = document.getElementById('connection-text');
+
+    dot.className = 'connection-dot ' + status;
+
+    switch(status) {
+        case 'connected':
+            text.textContent = 'Real-time Connected';
+            break;
+        case 'disconnected':
+            text.textContent = 'Disconnected';
+            break;
+        case 'connecting':
+            text.textContent = 'Connecting...';
+            break;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Action Selection
+// ═══════════════════════════════════════════════════════════════
+
+function selectAction(element) {
+    // Remove selection from all cards
+    document.querySelectorAll('.action-card').forEach(card => {
+        card.classList.remove('selected');
+    });
+
+    // Add selection to clicked card
+    element.classList.add('selected');
+    selectedActionId = element.dataset.actionId;
+
+    // Update details panel
+    updateDetailsPanel(selectedActionId);
+}
+
+function updateDetailsPanel(actionId) {
+    const action = actionData[actionId];
+    if (!action) return;
+
+    document.getElementById('detail-type').textContent = action.type;
+    document.getElementById('detail-source').textContent = action.source;
+    document.getElementById('detail-target').textContent = action.target;
+    document.getElementById('detail-reasoning').textContent = `"${action.reasoning}"`;
+    document.getElementById('detail-confidence').textContent = action.confidence + '%';
+
+    // Update confidence bar
+    document.querySelector('.confidence-fill').style.width = action.confidence + '%';
+
+    // Update risk score
+    const riskValue = document.getElementById('detail-risk-score');
+    riskValue.className = `risk-score-value ${action.risk}`;
+    riskValue.textContent = `${action.risk.charAt(0).toUpperCase() + action.risk.slice(1)} Risk (${action.riskScore})`;
+
+    // Update risk indicator
+    document.querySelector('.risk-indicator').className = `risk-indicator ${action.risk}`;
+
+    // Update consensus votes
+    const voteItems = document.querySelectorAll('.vote-item');
+    const agents = ['quality', 'scheduling', 'maintenance'];
+    voteItems.forEach((item, index) => {
+        const agentVote = action.consensus[agents[index]];
+        item.querySelector('.vote-decision').className = `vote-decision ${agentVote.vote}`;
+        item.querySelector('.vote-decision').textContent = agentVote.vote.charAt(0).toUpperCase() + agentVote.vote.slice(1);
+        item.querySelector('.vote-confidence').textContent = agentVote.confidence + '% conf.';
+    });
+
+    // Update G-code preview
+    const gcodePreview = document.querySelector('.gcode-preview');
+    gcodePreview.innerHTML = action.gcode.map(line => {
+        const parts = line.split(';');
+        if (parts.length > 1) {
+            return `<div class="gcode-line">${parts[0]}<span class="gcode-comment">;${parts[1]}</span></div>`;
+        }
+        return `<div class="gcode-line">${line}</div>`;
+    }).join('');
+
+    // Update impact
+    const impactValues = document.querySelectorAll('.impact-value');
+    impactValues[0].textContent = action.impact.surface;
+    impactValues[1].textContent = action.impact.time;
+    impactValues[2].textContent = action.impact.defect;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Action Handlers
+// ═══════════════════════════════════════════════════════════════
+
+async function approveAction() {
+    if (!selectedActionId) return;
+
+    const action = actionData[selectedActionId];
+
+    try {
+        const response = await fetch('/api/action/approve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action_id: selectedActionId,
+                approved_by: 'operator'
+            })
+        });
+
+        showToast('Action Approved', `${action.type} is now executing`, 'success');
+        removeActionCard(selectedActionId);
+        addToHistory(action, 'approved');
+        updateStats('approved');
+
+    } catch (error) {
+        showToast('Approval Failed', error.message, 'error');
+    }
+}
+
+async function rejectAction() {
+    if (!selectedActionId) return;
+
+    const action = actionData[selectedActionId];
+
+    const reason = prompt('Rejection reason (optional):');
+
+    try {
+        const response = await fetch('/api/action/reject', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action_id: selectedActionId,
+                rejected_by: 'operator',
+                reason: reason
+            })
+        });
+
+        showToast('Action Rejected', `${action.type} was rejected`, 'warning');
+        removeActionCard(selectedActionId);
+        addToHistory(action, 'rejected');
+        updateStats('rejected');
+
+    } catch (error) {
+        showToast('Rejection Failed', error.message, 'error');
+    }
+}
+
+function openModifyModal() {
+    document.getElementById('modify-modal').classList.add('active');
+}
+
+function closeModifyModal() {
+    document.getElementById('modify-modal').classList.remove('active');
+}
+
+async function submitModification() {
+    const temperature = document.getElementById('modify-temperature').value;
+    const timing = document.getElementById('modify-timing').value;
+    const reason = document.getElementById('modify-reason').value;
+
+    const action = actionData[selectedActionId];
+
+    try {
+        const response = await fetch('/api/action/modify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action_id: selectedActionId,
+                modifications: { temperature, timing },
+                reason: reason
+            })
+        });
+
+        showToast('Action Modified', `${action.type} parameters updated and approved`, 'success');
+        closeModifyModal();
+        removeActionCard(selectedActionId);
+        addToHistory(action, 'modified');
+        updateStats('approved');
+
+    } catch (error) {
+        showToast('Modification Failed', error.message, 'error');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UI Updates
+// ═══════════════════════════════════════════════════════════════
+
+function removeActionCard(actionId) {
+    const card = document.querySelector(`[data-action-id="${actionId}"]`);
+    if (card) {
+        card.style.opacity = '0';
+        card.style.transform = 'translateX(-100%)';
+        setTimeout(() => {
+            card.remove();
+            updateQueueCount();
+            selectNextAction();
+        }, 300);
+    }
+}
+
+function selectNextAction() {
+    const nextCard = document.querySelector('.action-card');
+    if (nextCard) {
+        selectAction(nextCard);
+    } else {
+        showEmptyState();
+    }
+}
+
+function showEmptyState() {
+    const container = document.getElementById('action-cards-container');
+    container.innerHTML = `
+        <div class="empty-state">
+            <div class="empty-icon">
+                <svg width="40" height="40" fill="white" viewBox="0 0 24 24">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                </svg>
+            </div>
+            <div class="empty-title">All Caught Up!</div>
+            <div class="empty-description">No pending actions require approval</div>
+        </div>
+    `;
+
+    document.getElementById('action-details').innerHTML = `
+        <div class="empty-state">
+            <div class="empty-icon">
+                <svg width="40" height="40" fill="white" viewBox="0 0 24 24">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+            </div>
+            <div class="empty-title">Select an Action</div>
+            <div class="empty-description">Click on a pending action to view details</div>
+        </div>
+    `;
+}
+
+function updateQueueCount() {
+    const count = document.querySelectorAll('.action-card').length;
+    document.getElementById('queue-count').textContent = count;
+    document.getElementById('pending-count').textContent = count;
+}
+
+function updatePendingCount(delta) {
+    const el = document.getElementById('pending-count');
+    el.textContent = parseInt(el.textContent) + delta;
+    document.getElementById('queue-count').textContent = el.textContent;
+}
+
+function updateStats(type) {
+    if (type === 'approved') {
+        const el = document.getElementById('approved-today');
+        el.textContent = parseInt(el.textContent) + 1;
+    } else if (type === 'rejected') {
+        const el = document.getElementById('rejected-today');
+        el.textContent = parseInt(el.textContent) + 1;
+    }
+    updatePendingCount(-1);
+}
+
+function updateAutoApprovedCount() {
+    const el = document.getElementById('auto-approved');
+    el.textContent = parseInt(el.textContent) + 1;
+}
+
+function addToHistory(action, type) {
+    const container = document.getElementById('history-container');
+    const icons = {
+        approved: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+        rejected: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+        modified: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>'
+    };
+
+    const meta = {
+        approved: 'Approved by operator',
+        rejected: 'Rejected by operator',
+        modified: 'Modified and approved'
+    };
+
+    const html = `
+        <div class="history-item" style="animation: slideIn 0.3s ease;">
+            <div class="history-icon ${type}">
+                ${icons[type]}
+            </div>
+            <div class="history-details">
+                <div class="history-action">${action.type}</div>
+                <div class="history-meta">${meta[type]}</div>
+            </div>
+            <div class="history-time">Just now</div>
+        </div>
+    `;
+
+    container.insertAdjacentHTML('afterbegin', html);
+}
+
+function toggleAutoApprove() {
+    autoApproveEnabled = !autoApproveEnabled;
+    const toggle = document.getElementById('auto-approve-toggle');
+    toggle.classList.toggle('active', autoApproveEnabled);
+
+    showToast(
+        autoApproveEnabled ? 'Auto-Approve Enabled' : 'Auto-Approve Disabled',
+        autoApproveEnabled ? 'Low-risk actions will be auto-approved' : 'All actions require manual approval',
+        'info'
+    );
+}
+
+function refreshQueue() {
+    showToast('Refreshing', 'Fetching latest actions...', 'info');
+    // In production, fetch from API
+}
+
+// ═══════════════════════════════════════════════════════════════
+// History Filters
+// ═══════════════════════════════════════════════════════════════
+
+document.querySelectorAll('.history-filter').forEach(filter => {
+    filter.addEventListener('click', function() {
+        document.querySelectorAll('.history-filter').forEach(f => f.classList.remove('active'));
+        this.classList.add('active');
+
+        const filterType = this.dataset.filter;
+        filterHistory(filterType);
+    });
+});
+
+function filterHistory(type) {
+    const items = document.querySelectorAll('.history-item');
+    items.forEach(item => {
+        const icon = item.querySelector('.history-icon');
+        if (type === 'all') {
+            item.style.display = 'flex';
+        } else if (icon.classList.contains(type)) {
+            item.style.display = 'flex';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Toast Notifications
+// ═══════════════════════════════════════════════════════════════
+
+function showToast(title, message, type = 'info') {
+    const container = document.getElementById('toast-container');
+
+    const icons = {
+        success: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
+        error: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+        warning: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+        info: '<svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <div class="toast-icon">${icons[type]}</div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+        </button>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, 5000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Initialization
+// ═══════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+    initWebSocket();
+
+    // Initialize with first action selected
+    const firstCard = document.querySelector('.action-card');
+    if (firstCard) {
+        selectAction(firstCard);
+    }
+
+    // Simulate real-time updates
+    setInterval(() => {
+        if (socket && socket.connected) return;
+
+        // Update times
+        document.querySelectorAll('.action-time').forEach(el => {
+            const current = el.textContent;
+            const match = current.match(/(\d+)/);
+            if (match) {
+                const num = parseInt(match[1]) + 1;
+                el.textContent = current.replace(/\d+/, num);
+            }
+        });
+    }, 60000);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    switch(e.key) {
+        case 'a':
+        case 'A':
+            if (e.ctrlKey || e.metaKey) return;
+            approveAction();
+            break;
+        case 'r':
+        case 'R':
+            if (e.ctrlKey || e.metaKey) return;
+            rejectAction();
+            break;
+        case 'm':
+        case 'M':
+            openModifyModal();
+            break;
+        case 'Escape':
+            closeModifyModal();
+            break;
+    }
+});
+</script>
+{% endblock %}

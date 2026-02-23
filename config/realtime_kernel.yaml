@@ -1,0 +1,335 @@
+# Real-Time Kernel Configuration
+# LEGO MCP Manufacturing System
+# IEC 61508 SIL 2+ Deterministic Execution
+
+version: "1.0.0"
+
+# ==============================================================================
+# PREEMPT_RT Kernel Configuration
+# ==============================================================================
+kernel:
+  # Kernel version requirements
+  version_minimum: "5.15"
+  preempt_rt_patch: required
+  
+  # Boot parameters (add to GRUB_CMDLINE_LINUX)
+  boot_parameters:
+    - "isolcpus=2,3"           # Isolate CPUs for RT tasks
+    - "nohz_full=2,3"          # Full dynticks for isolated CPUs
+    - "rcu_nocbs=2,3"          # Offload RCU callbacks
+    - "irqaffinity=0,1"        # IRQ affinity to non-RT CPUs
+    - "processor.max_cstate=1" # Disable deep C-states
+    - "intel_idle.max_cstate=0"
+    - "idle=poll"              # Polling idle (for lowest latency)
+    - "nosoftlockup"           # Disable soft lockup detector
+    - "nowatchdog"             # Disable NMI watchdog
+    - "tsc=reliable"           # Trust TSC for timekeeping
+    - "clocksource=tsc"        # Use TSC as clock source
+
+# ==============================================================================
+# CPU Isolation and Affinity
+# ==============================================================================
+cpu_isolation:
+  # Isolated CPUs for real-time tasks
+  isolated_cpus: [2, 3]
+  
+  # System CPUs for non-RT work
+  system_cpus: [0, 1]
+  
+  # IRQ affinity
+  irq_cpus: [0]
+  
+  # Task assignments
+  task_affinity:
+    safety_node:
+      cpus: [2]
+      priority: 99  # SCHED_FIFO
+      policy: "fifo"
+    
+    control_loop:
+      cpus: [2]
+      priority: 98
+      policy: "fifo"
+    
+    sensor_processing:
+      cpus: [3]
+      priority: 90
+      policy: "fifo"
+    
+    communication:
+      cpus: [3]
+      priority: 80
+      policy: "fifo"
+
+# ==============================================================================
+# Memory Configuration
+# ==============================================================================
+memory:
+  # Memory locking
+  mlockall: true
+  
+  # Huge pages for deterministic memory access
+  hugepages:
+    enabled: true
+    size: "2M"
+    count: 512
+    
+  # Stack sizes
+  stack_sizes:
+    main_thread: 8192      # KB
+    rt_threads: 1024       # KB
+    worker_threads: 512    # KB
+  
+  # Memory pools (pre-allocated)
+  pools:
+    message_buffers:
+      size: "64K"
+      count: 1024
+    
+    sensor_data:
+      size: "4K"
+      count: 4096
+    
+    command_buffers:
+      size: "1K"
+      count: 2048
+
+# ==============================================================================
+# Scheduling Configuration
+# ==============================================================================
+scheduling:
+  # RT scheduling policies
+  policies:
+    - name: safety_critical
+      policy: SCHED_FIFO
+      priority_range: [95, 99]
+      
+    - name: hard_realtime
+      policy: SCHED_FIFO
+      priority_range: [80, 94]
+      
+    - name: soft_realtime
+      policy: SCHED_RR
+      priority_range: [50, 79]
+      time_slice_ms: 10
+      
+    - name: best_effort
+      policy: SCHED_OTHER
+      nice_range: [-20, 19]
+  
+  # Priority inheritance
+  priority_inheritance: true
+  
+  # Deadline scheduling (SCHED_DEADLINE)
+  deadline_tasks:
+    safety_check:
+      runtime_us: 1000
+      deadline_us: 10000
+      period_us: 10000
+    
+    control_cycle:
+      runtime_us: 500
+      deadline_us: 1000
+      period_us: 1000
+
+# ==============================================================================
+# Timing Configuration
+# ==============================================================================
+timing:
+  # Clock source
+  clock_source: "tsc"  # or "hpet" for older systems
+  
+  # Timer resolution
+  timer_resolution_ns: 1000  # 1us
+  
+  # Timing requirements
+  requirements:
+    estop_response_us: 10000      # 10ms max
+    control_loop_us: 1000         # 1ms period
+    sensor_sampling_us: 100       # 100us
+    communication_timeout_us: 5000 # 5ms
+  
+  # Jitter budgets
+  jitter_budgets:
+    safety_tasks_us: 100    # Max 100us jitter
+    control_tasks_us: 50    # Max 50us jitter
+    sensor_tasks_us: 10     # Max 10us jitter
+
+# ==============================================================================
+# IEEE 1588 PTP Configuration
+# ==============================================================================
+ptp:
+  enabled: true
+  
+  # PTP role
+  role: "slave"  # or "master" for grandmaster
+  
+  # PTP domain
+  domain: 0
+  
+  # Network interface
+  interface: "eth0"
+  
+  # Hardware timestamping
+  hardware_timestamping: true
+  
+  # Synchronization targets
+  sync_targets:
+    max_offset_ns: 1000      # 1us max offset
+    max_delay_ns: 100000     # 100us max delay
+    
+  # PTP profile
+  profile: "default"  # or "automotive", "telecom"
+  
+  # Servo parameters
+  servo:
+    kp: 0.7
+    ki: 0.3
+    step_threshold_ns: 10000
+
+# ==============================================================================
+# DDS/ROS2 QoS Configuration
+# ==============================================================================
+dds_qos:
+  # Safety-critical topics
+  safety_topics:
+    deadline:
+      period_ms: 10
+    liveliness:
+      kind: AUTOMATIC
+      lease_duration_ms: 100
+    reliability:
+      kind: RELIABLE
+      max_blocking_time_ms: 5
+    history:
+      kind: KEEP_LAST
+      depth: 1
+    durability:
+      kind: TRANSIENT_LOCAL
+  
+  # Control topics
+  control_topics:
+    deadline:
+      period_ms: 1
+    reliability:
+      kind: RELIABLE
+      max_blocking_time_ms: 1
+    history:
+      kind: KEEP_LAST
+      depth: 10
+  
+  # Sensor topics
+  sensor_topics:
+    deadline:
+      period_ms: 10
+    reliability:
+      kind: BEST_EFFORT
+    history:
+      kind: KEEP_LAST
+      depth: 100
+
+# ==============================================================================
+# Watchdog Configuration
+# ==============================================================================
+watchdog:
+  # Hardware watchdog
+  hardware:
+    enabled: true
+    device: "/dev/watchdog"
+    timeout_s: 10
+    pretimeout_s: 5
+    
+  # Software watchdogs
+  software:
+    safety_node:
+      timeout_ms: 100
+      action: "estop"
+    
+    control_loop:
+      timeout_ms: 10
+      action: "warn"
+    
+    communication:
+      timeout_ms: 1000
+      action: "reconnect"
+
+# ==============================================================================
+# Resource Limits
+# ==============================================================================
+resource_limits:
+  # RT process limits
+  rt_limits:
+    rtprio: 99
+    memlock: unlimited
+    nice: -20
+    
+  # File descriptors
+  nofile:
+    soft: 65536
+    hard: 65536
+    
+  # Message queues
+  msgqueue:
+    soft: 819200
+    hard: 819200
+
+# ==============================================================================
+# Verification Tests
+# ==============================================================================
+verification:
+  # Cyclictest parameters
+  cyclictest:
+    duration_s: 3600
+    interval_us: 1000
+    priority: 99
+    cpu: 2
+    max_latency_threshold_us: 50
+    
+  # Hwlatdetect parameters
+  hwlatdetect:
+    duration_s: 600
+    threshold_us: 10
+    
+  # rt-tests suite
+  rt_tests:
+    - cyclictest
+    - hwlatdetect
+    - hackbench
+    - signaltest
+
+# ==============================================================================
+# Setup Scripts
+# ==============================================================================
+setup_scripts:
+  # Run at boot
+  boot:
+    - "echo 0 > /proc/sys/kernel/watchdog"
+    - "echo 0 > /proc/sys/kernel/nmi_watchdog"
+    - "echo -1 > /proc/sys/kernel/sched_rt_runtime_us"
+    - "echo 1 > /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor"
+    
+  # CPU frequency
+  cpu_freq:
+    governor: "performance"
+    min_freq_khz: 2000000
+    max_freq_khz: 3500000
+
+# ==============================================================================
+# Monitoring
+# ==============================================================================
+monitoring:
+  # Latency monitoring
+  latency:
+    enabled: true
+    histogram_enabled: true
+    log_threshold_us: 100
+    
+  # CPU monitoring
+  cpu:
+    track_migrations: true
+    track_preemptions: true
+    
+  # Export metrics
+  metrics:
+    prometheus_enabled: true
+    port: 9100

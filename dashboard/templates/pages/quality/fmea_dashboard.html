@@ -1,0 +1,2051 @@
+{% extends "base.html" %}
+
+{% block title %}FMEA Analysis - LEGO MCP v5.0{% endblock %}
+
+{% block styles %}
+<style>
+    /* ============================================
+       FMEA Dashboard - World-Class Manufacturing
+       AIAG-VDA Compliant with Dynamic RPN
+       ============================================ */
+
+    .fmea-dashboard {
+        padding: 1.5rem;
+        max-width: 1800px;
+        margin: 0 auto;
+    }
+
+    /* Dashboard Header */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .dashboard-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .dashboard-title h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .version-badge {
+        background: linear-gradient(135deg, var(--accent-primary) 0%, #c00 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .aiag-badge {
+        background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .dashboard-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: var(--accent-primary);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #c00;
+        transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+        background: var(--bg-primary);
+    }
+
+    /* FMEA Selector */
+    .fmea-selector {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .fmea-selector label {
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .fmea-selector select {
+        flex: 1;
+        max-width: 400px;
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg-primary);
+        font-size: 0.9rem;
+    }
+
+    .fmea-meta {
+        display: flex;
+        gap: 1.5rem;
+        margin-left: auto;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .fmea-meta span {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    /* KPI Cards Grid */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+        background: var(--card-bg);
+        border-radius: 8px;
+        padding: 1.25rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .kpi-card.critical::before { background: #dc3545; }
+    .kpi-card.high::before { background: #fd7e14; }
+    .kpi-card.medium::before { background: #ffc107; }
+    .kpi-card.low::before { background: #28a745; }
+    .kpi-card.info::before { background: var(--accent-secondary); }
+
+    .kpi-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .kpi-value.critical { color: #dc3545; }
+    .kpi-value.high { color: #fd7e14; }
+    .kpi-value.medium { color: #ffc107; }
+    .kpi-value.low { color: #28a745; }
+
+    .kpi-trend {
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .kpi-trend.up { color: #dc3545; }
+    .kpi-trend.down { color: #28a745; }
+    .kpi-trend.stable { color: var(--text-secondary); }
+
+    /* Main Analysis Grid */
+    .analysis-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .analysis-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .analysis-panel {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .panel-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .panel-body {
+        padding: 1.25rem;
+    }
+
+    /* ============================================
+       Risk Matrix (Severity vs Occurrence)
+       ============================================ */
+    .risk-matrix-container {
+        position: relative;
+    }
+
+    .risk-matrix {
+        display: grid;
+        grid-template-columns: 40px repeat(10, 1fr);
+        grid-template-rows: repeat(10, 1fr) 40px;
+        gap: 2px;
+        aspect-ratio: 1.1;
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    .matrix-cell {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 3px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s;
+        position: relative;
+    }
+
+    .matrix-cell:hover {
+        transform: scale(1.15);
+        z-index: 10;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .matrix-cell.has-modes {
+        border: 2px solid white;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.3);
+    }
+
+    .matrix-cell .mode-count {
+        background: white;
+        color: #333;
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        font-size: 0.6rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+    }
+
+    /* Risk levels based on S×O product */
+    .risk-critical { background: #dc3545; color: white; }
+    .risk-high { background: #fd7e14; color: white; }
+    .risk-medium { background: #ffc107; color: #333; }
+    .risk-low { background: #28a745; color: white; }
+    .risk-very-low { background: #20c997; color: white; }
+
+    .matrix-axis-label {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+    }
+
+    .matrix-axis-label.y-axis {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+    }
+
+    .matrix-legend {
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.7rem;
+    }
+
+    .legend-color {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+    }
+
+    /* ============================================
+       Pareto Chart
+       ============================================ */
+    .pareto-container {
+        height: 350px;
+        position: relative;
+    }
+
+    .pareto-bars {
+        display: flex;
+        align-items: flex-end;
+        height: 280px;
+        gap: 4px;
+        padding: 0 10px;
+        border-bottom: 2px solid var(--border-color);
+        border-left: 2px solid var(--border-color);
+        position: relative;
+    }
+
+    .pareto-bar {
+        flex: 1;
+        max-width: 60px;
+        background: linear-gradient(180deg, var(--accent-primary) 0%, #c00 100%);
+        border-radius: 4px 4px 0 0;
+        position: relative;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+
+    .pareto-bar:hover {
+        opacity: 0.85;
+    }
+
+    .pareto-bar.highlighted {
+        background: linear-gradient(180deg, #fd7e14 0%, #dc3545 100%);
+    }
+
+    .pareto-bar-label {
+        position: absolute;
+        bottom: -25px;
+        left: 50%;
+        transform: translateX(-50%) rotate(-45deg);
+        font-size: 0.6rem;
+        white-space: nowrap;
+        transform-origin: top center;
+    }
+
+    .pareto-bar-value {
+        position: absolute;
+        top: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.65rem;
+        font-weight: 600;
+    }
+
+    .pareto-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+    }
+
+    .pareto-line svg {
+        width: 100%;
+        height: 100%;
+    }
+
+    .cumulative-line {
+        fill: none;
+        stroke: var(--accent-secondary);
+        stroke-width: 2.5;
+    }
+
+    .cumulative-dot {
+        fill: var(--accent-secondary);
+    }
+
+    .pareto-threshold {
+        position: absolute;
+        right: 0;
+        height: 2px;
+        background: var(--accent-secondary);
+        border-style: dashed;
+    }
+
+    .pareto-y-axis {
+        position: absolute;
+        left: -35px;
+        top: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    .pareto-secondary-axis {
+        position: absolute;
+        right: -35px;
+        top: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        font-size: 0.65rem;
+        color: var(--accent-secondary);
+    }
+
+    /* ============================================
+       Action Priority (AP) Matrix - AIAG-VDA
+       ============================================ */
+    .ap-matrix-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+        .ap-matrix-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .ap-distribution {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .ap-bar-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .ap-label {
+        width: 80px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .ap-label.ap-high { color: #dc3545; }
+    .ap-label.ap-medium { color: #fd7e14; }
+    .ap-label.ap-low { color: #28a745; }
+
+    .ap-bar-container {
+        flex: 1;
+        height: 28px;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .ap-bar {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .ap-bar.ap-high { background: linear-gradient(90deg, #dc3545, #e74c3c); }
+    .ap-bar.ap-medium { background: linear-gradient(90deg, #fd7e14, #f39c12); }
+    .ap-bar.ap-low { background: linear-gradient(90deg, #28a745, #2ecc71); }
+
+    .ap-count {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .ap-criteria-table {
+        font-size: 0.75rem;
+    }
+
+    .ap-criteria-table th,
+    .ap-criteria-table td {
+        padding: 0.4rem;
+        border: 1px solid var(--border-color);
+        text-align: center;
+    }
+
+    .ap-criteria-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+    }
+
+    .ap-cell-high { background: rgba(220, 53, 69, 0.2); }
+    .ap-cell-medium { background: rgba(253, 126, 20, 0.2); }
+    .ap-cell-low { background: rgba(40, 167, 69, 0.2); }
+
+    /* ============================================
+       Dynamic Factors Visualization
+       ============================================ */
+    .factors-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+    }
+
+    @media (max-width: 800px) {
+        .factors-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .factor-card {
+        text-align: center;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+    }
+
+    .factor-gauge {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 0.75rem;
+        position: relative;
+    }
+
+    .factor-gauge svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+    }
+
+    .factor-gauge-bg {
+        fill: none;
+        stroke: var(--border-color);
+        stroke-width: 8;
+    }
+
+    .factor-gauge-fill {
+        fill: none;
+        stroke-width: 8;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.5s ease;
+    }
+
+    .factor-gauge-fill.normal { stroke: #28a745; }
+    .factor-gauge-fill.warning { stroke: #ffc107; }
+    .factor-gauge-fill.danger { stroke: #dc3545; }
+
+    .factor-value {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .factor-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    /* ============================================
+       Failure Mode Table
+       ============================================ */
+    .fm-table-container {
+        overflow-x: auto;
+        margin-top: 1.5rem;
+    }
+
+    .fm-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+    }
+
+    .fm-table th,
+    .fm-table td {
+        padding: 0.75rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .fm-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+        white-space: nowrap;
+    }
+
+    .fm-table tbody tr {
+        transition: background 0.15s;
+    }
+
+    .fm-table tbody tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .fm-table tbody tr.critical-row {
+        background: rgba(220, 53, 69, 0.08);
+    }
+
+    .fm-table tbody tr.critical-row:hover {
+        background: rgba(220, 53, 69, 0.15);
+    }
+
+    /* SOD Rating Badges */
+    .sod-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 4px;
+        font-weight: 700;
+        font-size: 0.75rem;
+    }
+
+    .sod-badge.s-high, .sod-badge.o-high, .sod-badge.d-high {
+        background: #fecaca;
+        color: #991b1b;
+    }
+
+    .sod-badge.s-medium, .sod-badge.o-medium, .sod-badge.d-medium {
+        background: #fef08a;
+        color: #854d0e;
+    }
+
+    .sod-badge.s-low, .sod-badge.o-low, .sod-badge.d-low {
+        background: #bbf7d0;
+        color: #166534;
+    }
+
+    /* RPN Badge */
+    .rpn-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 50px;
+        padding: 0.35rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 700;
+        font-size: 0.8rem;
+    }
+
+    .rpn-badge.critical {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        color: white;
+    }
+
+    .rpn-badge.high {
+        background: linear-gradient(135deg, #fd7e14, #e76f00);
+        color: white;
+    }
+
+    .rpn-badge.medium {
+        background: linear-gradient(135deg, #ffc107, #e0a800);
+        color: #333;
+    }
+
+    .rpn-badge.low {
+        background: linear-gradient(135deg, #28a745, #1e7e34);
+        color: white;
+    }
+
+    /* Action Priority Badge */
+    .ap-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .ap-badge.ap-high {
+        background: #fecaca;
+        color: #991b1b;
+    }
+
+    .ap-badge.ap-medium {
+        background: #fed7aa;
+        color: #9a3412;
+    }
+
+    .ap-badge.ap-low {
+        background: #bbf7d0;
+        color: #166534;
+    }
+
+    /* Dynamic RPN indicator */
+    .dynamic-rpn {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .dynamic-indicator {
+        font-size: 0.65rem;
+    }
+
+    .dynamic-indicator.up { color: #dc3545; }
+    .dynamic-indicator.down { color: #28a745; }
+    .dynamic-indicator.stable { color: var(--text-secondary); }
+
+    /* Actions count */
+    .actions-count {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    .actions-count .pending { color: #ffc107; }
+    .actions-count .complete { color: #28a745; }
+
+    /* Critical Flags */
+    .critical-flags {
+        display: flex;
+        gap: 0.25rem;
+    }
+
+    .flag-badge {
+        font-size: 0.6rem;
+        padding: 0.15rem 0.35rem;
+        border-radius: 3px;
+        font-weight: 600;
+    }
+
+    .flag-badge.safety {
+        background: #dc3545;
+        color: white;
+    }
+
+    .flag-badge.regulatory {
+        background: #6f42c1;
+        color: white;
+    }
+
+    .flag-badge.customer {
+        background: #0dcaf0;
+        color: #333;
+    }
+
+    /* ============================================
+       Modal Styles
+       ============================================ */
+    .fmea-modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .fmea-modal-overlay.active {
+        display: flex;
+    }
+
+    .fmea-modal {
+        background: var(--card-bg);
+        border-radius: 12px;
+        max-width: 700px;
+        width: 90%;
+        max-height: 85vh;
+        overflow: hidden;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    .fmea-modal-header {
+        padding: 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .fmea-modal-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+
+    .fmea-modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--text-secondary);
+        line-height: 1;
+    }
+
+    .fmea-modal-body {
+        padding: 1.25rem;
+        overflow-y: auto;
+        max-height: calc(85vh - 140px);
+    }
+
+    .fmea-modal-footer {
+        padding: 1rem 1.25rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    /* Form Styles */
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 0.85rem;
+        background: var(--bg-primary);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .sod-slider-group {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .sod-slider-group input[type="range"] {
+        width: 100%;
+        margin: 0.5rem 0;
+    }
+
+    .sod-slider-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    /* Tooltip */
+    .tooltip {
+        position: relative;
+    }
+
+    .tooltip::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #333;
+        color: white;
+        padding: 0.35rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s;
+        z-index: 100;
+    }
+
+    .tooltip:hover::after {
+        opacity: 1;
+    }
+
+    /* Loading State */
+    .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255,255,255,0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+    }
+
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid var(--border-color);
+        border-top-color: var(--accent-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Print Styles */
+    @media print {
+        .dashboard-actions,
+        .fmea-modal-overlay {
+            display: none !important;
+        }
+
+        .analysis-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fmea-dashboard">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <h1>FMEA Analysis</h1>
+            <span class="version-badge">v5.0</span>
+            <span class="aiag-badge">AIAG-VDA</span>
+        </div>
+        <div class="dashboard-actions">
+            <button class="btn btn-secondary" onclick="exportFMEA('pdf')">
+                <span>Export PDF</span>
+            </button>
+            <button class="btn btn-secondary" onclick="exportFMEA('excel')">
+                <span>Export Excel</span>
+            </button>
+            <button class="btn btn-secondary" onclick="loadFMEAData()">
+                <span>Refresh</span>
+            </button>
+            <button class="btn btn-primary" onclick="openCreateModal()">
+                <span>+ New FMEA</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- FMEA Selector -->
+    <div class="fmea-selector">
+        <label for="fmeaSelect">Select FMEA:</label>
+        <select id="fmeaSelect" onchange="selectFMEA(this.value)">
+            <option value="">Loading...</option>
+        </select>
+        <div class="fmea-meta" id="fmeaMeta">
+            <span id="fmeaType"></span>
+            <span id="fmeaRevision"></span>
+            <span id="fmeaStatus"></span>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card info">
+            <div class="kpi-label">Total Failure Modes</div>
+            <div class="kpi-value" id="kpiTotalModes">-</div>
+            <div class="kpi-trend stable" id="kpiTotalTrend">
+                <span></span>
+            </div>
+        </div>
+        <div class="kpi-card critical">
+            <div class="kpi-label">Critical (RPN 200+)</div>
+            <div class="kpi-value critical" id="kpiCritical">-</div>
+            <div class="kpi-trend" id="kpiCriticalTrend"></div>
+        </div>
+        <div class="kpi-card high">
+            <div class="kpi-label">High Priority (AP-H)</div>
+            <div class="kpi-value high" id="kpiHighAP">-</div>
+            <div class="kpi-trend" id="kpiHighTrend"></div>
+        </div>
+        <div class="kpi-card medium">
+            <div class="kpi-label">Highest RPN</div>
+            <div class="kpi-value" id="kpiMaxRPN">-</div>
+            <div class="kpi-trend" id="kpiMaxTrend"></div>
+        </div>
+        <div class="kpi-card low">
+            <div class="kpi-label">Actions Complete</div>
+            <div class="kpi-value low" id="kpiActionsComplete">-</div>
+            <div class="kpi-trend" id="kpiActionsTrend"></div>
+        </div>
+        <div class="kpi-card info">
+            <div class="kpi-label">Avg Dynamic RPN</div>
+            <div class="kpi-value" id="kpiAvgDynamic">-</div>
+            <div class="kpi-trend" id="kpiDynamicTrend"></div>
+        </div>
+    </div>
+
+    <!-- Main Analysis Panels -->
+    <div class="analysis-grid">
+        <!-- Risk Matrix -->
+        <div class="analysis-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>Risk Matrix</span>
+                    <span style="font-weight: normal; font-size: 0.75rem; color: var(--text-secondary);">(Severity vs Occurrence)</span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="risk-matrix-container">
+                    <div class="risk-matrix" id="riskMatrix">
+                        <!-- Generated by JS -->
+                    </div>
+                    <div class="matrix-legend">
+                        <div class="legend-item">
+                            <div class="legend-color risk-critical"></div>
+                            <span>Critical (S×O 64+)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color risk-high"></div>
+                            <span>High (36-63)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color risk-medium"></div>
+                            <span>Medium (16-35)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color risk-low"></div>
+                            <span>Low (6-15)</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color risk-very-low"></div>
+                            <span>Very Low (1-5)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pareto Chart -->
+        <div class="analysis-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>RPN Pareto Analysis</span>
+                    <span style="font-weight: normal; font-size: 0.75rem; color: var(--text-secondary);">(80/20 Rule)</span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="pareto-container" id="paretoContainer">
+                    <div class="pareto-y-axis">
+                        <span>1000</span>
+                        <span>750</span>
+                        <span>500</span>
+                        <span>250</span>
+                        <span>0</span>
+                    </div>
+                    <div class="pareto-bars" id="paretoBars">
+                        <!-- Generated by JS -->
+                    </div>
+                    <div class="pareto-secondary-axis">
+                        <span>100%</span>
+                        <span>75%</span>
+                        <span>50%</span>
+                        <span>25%</span>
+                        <span>0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Priority & Dynamic Factors -->
+    <div class="analysis-grid">
+        <!-- Action Priority Distribution -->
+        <div class="analysis-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>Action Priority (AP) - AIAG-VDA</span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="ap-matrix-container">
+                    <div class="ap-distribution">
+                        <div class="ap-bar-row">
+                            <span class="ap-label ap-high">High (H)</span>
+                            <div class="ap-bar-container">
+                                <div class="ap-bar ap-high" id="apHighBar" style="width: 0%"></div>
+                                <span class="ap-count" id="apHighCount">0</span>
+                            </div>
+                        </div>
+                        <div class="ap-bar-row">
+                            <span class="ap-label ap-medium">Medium (M)</span>
+                            <div class="ap-bar-container">
+                                <div class="ap-bar ap-medium" id="apMediumBar" style="width: 0%"></div>
+                                <span class="ap-count" id="apMediumCount">0</span>
+                            </div>
+                        </div>
+                        <div class="ap-bar-row">
+                            <span class="ap-label ap-low">Low (L)</span>
+                            <div class="ap-bar-container">
+                                <div class="ap-bar ap-low" id="apLowBar" style="width: 0%"></div>
+                                <span class="ap-count" id="apLowCount">0</span>
+                            </div>
+                        </div>
+                        <p style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 1rem;">
+                            Action Priority (AP) replaces RPN thresholds per AIAG-VDA FMEA methodology.
+                            AP is determined by the combination of Severity, Occurrence, and Detection ratings.
+                        </p>
+                    </div>
+                    <div>
+                        <table class="ap-criteria-table">
+                            <thead>
+                                <tr>
+                                    <th>S</th>
+                                    <th>O</th>
+                                    <th>D</th>
+                                    <th>AP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="ap-cell-high">
+                                    <td>9-10</td>
+                                    <td>any</td>
+                                    <td>any</td>
+                                    <td><strong>H</strong></td>
+                                </tr>
+                                <tr class="ap-cell-high">
+                                    <td>7-8</td>
+                                    <td>4-10</td>
+                                    <td>any</td>
+                                    <td><strong>H</strong></td>
+                                </tr>
+                                <tr class="ap-cell-medium">
+                                    <td>7-8</td>
+                                    <td>2-3</td>
+                                    <td>any</td>
+                                    <td><strong>M</strong></td>
+                                </tr>
+                                <tr class="ap-cell-medium">
+                                    <td>5-6</td>
+                                    <td>4-10</td>
+                                    <td>4-10</td>
+                                    <td><strong>M</strong></td>
+                                </tr>
+                                <tr class="ap-cell-low">
+                                    <td>2-6</td>
+                                    <td>1-3</td>
+                                    <td>1-3</td>
+                                    <td><strong>L</strong></td>
+                                </tr>
+                                <tr class="ap-cell-low">
+                                    <td>1</td>
+                                    <td>any</td>
+                                    <td>any</td>
+                                    <td><strong>L</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Factors -->
+        <div class="analysis-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>Dynamic RPN Factors</span>
+                    <span style="font-weight: normal; font-size: 0.75rem; color: var(--text-secondary);">(Real-time Modifiers)</span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="factors-grid">
+                    <div class="factor-card">
+                        <div class="factor-gauge">
+                            <svg viewBox="0 0 36 36">
+                                <circle class="factor-gauge-bg" cx="18" cy="18" r="15.9"></circle>
+                                <circle class="factor-gauge-fill normal" cx="18" cy="18" r="15.9"
+                                        stroke-dasharray="100" stroke-dashoffset="0" id="factorMachineGauge"></circle>
+                            </svg>
+                            <span class="factor-value" id="factorMachineValue">1.0</span>
+                        </div>
+                        <div class="factor-label">Machine Health</div>
+                    </div>
+                    <div class="factor-card">
+                        <div class="factor-gauge">
+                            <svg viewBox="0 0 36 36">
+                                <circle class="factor-gauge-bg" cx="18" cy="18" r="15.9"></circle>
+                                <circle class="factor-gauge-fill normal" cx="18" cy="18" r="15.9"
+                                        stroke-dasharray="100" stroke-dashoffset="0" id="factorOperatorGauge"></circle>
+                            </svg>
+                            <span class="factor-value" id="factorOperatorValue">1.0</span>
+                        </div>
+                        <div class="factor-label">Operator Skill</div>
+                    </div>
+                    <div class="factor-card">
+                        <div class="factor-gauge">
+                            <svg viewBox="0 0 36 36">
+                                <circle class="factor-gauge-bg" cx="18" cy="18" r="15.9"></circle>
+                                <circle class="factor-gauge-fill normal" cx="18" cy="18" r="15.9"
+                                        stroke-dasharray="100" stroke-dashoffset="0" id="factorMaterialGauge"></circle>
+                            </svg>
+                            <span class="factor-value" id="factorMaterialValue">1.0</span>
+                        </div>
+                        <div class="factor-label">Material Quality</div>
+                    </div>
+                    <div class="factor-card">
+                        <div class="factor-gauge">
+                            <svg viewBox="0 0 36 36">
+                                <circle class="factor-gauge-bg" cx="18" cy="18" r="15.9"></circle>
+                                <circle class="factor-gauge-fill normal" cx="18" cy="18" r="15.9"
+                                        stroke-dasharray="100" stroke-dashoffset="0" id="factorSPCGauge"></circle>
+                            </svg>
+                            <span class="factor-value" id="factorSPCValue">1.0</span>
+                        </div>
+                        <div class="factor-label">SPC Trend</div>
+                    </div>
+                </div>
+                <p style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 1rem; text-align: center;">
+                    Dynamic RPN = Base RPN × Machine × Operator × Material × SPC factors. Values &gt;1.0 increase risk.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Failure Mode Table -->
+    <div class="analysis-panel">
+        <div class="panel-header">
+            <span class="panel-title">
+                <span>Failure Mode Details</span>
+            </span>
+            <div style="display: flex; gap: 0.5rem;">
+                <select id="filterPriority" onchange="filterFailureModes()" style="padding: 0.35rem 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.8rem;">
+                    <option value="all">All Priorities</option>
+                    <option value="H">High (H)</option>
+                    <option value="M">Medium (M)</option>
+                    <option value="L">Low (L)</option>
+                </select>
+                <input type="text" id="searchModes" placeholder="Search..." onkeyup="filterFailureModes()"
+                       style="padding: 0.35rem 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.8rem; width: 150px;">
+            </div>
+        </div>
+        <div class="panel-body">
+            <div class="fm-table-container" style="max-height: 500px; overflow-y: auto;">
+                <table class="fm-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">Failure Mode</th>
+                            <th>Effect</th>
+                            <th>Cause</th>
+                            <th>S</th>
+                            <th>O</th>
+                            <th>D</th>
+                            <th>RPN</th>
+                            <th>Dyn RPN</th>
+                            <th>AP</th>
+                            <th>Flags</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="failureModeTableBody">
+                        <tr><td colspan="11" style="text-align: center; padding: 2rem;">Select an FMEA to view failure modes</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create/Edit Modal -->
+<div class="fmea-modal-overlay" id="fmeaModal">
+    <div class="fmea-modal">
+        <div class="fmea-modal-header">
+            <h3 id="modalTitle">Add Failure Mode</h3>
+            <button class="fmea-modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="fmea-modal-body">
+            <form id="failureModeForm">
+                <input type="hidden" id="fmId" value="">
+
+                <div class="form-group">
+                    <label for="fmDescription">Failure Mode Description *</label>
+                    <input type="text" id="fmDescription" required placeholder="e.g., Stud diameter out of tolerance">
+                </div>
+
+                <div class="form-group">
+                    <label for="fmEffect">Potential Effect</label>
+                    <textarea id="fmEffect" rows="2" placeholder="What happens if this failure occurs?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="fmCause">Potential Cause</label>
+                    <textarea id="fmCause" rows="2" placeholder="Why might this failure occur?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="fmControls">Current Controls</label>
+                    <input type="text" id="fmControls" placeholder="Existing prevention/detection controls">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Severity (S)</label>
+                        <div class="sod-slider-group">
+                            <span class="sod-slider-value" id="severityValue">5</span>
+                            <input type="range" id="fmSeverity" min="1" max="10" value="5"
+                                   oninput="updateSliderValue('severity', this.value)">
+                            <span style="font-size: 0.7rem; color: var(--text-secondary);">1=None, 10=Hazardous</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Occurrence (O)</label>
+                        <div class="sod-slider-group">
+                            <span class="sod-slider-value" id="occurrenceValue">5</span>
+                            <input type="range" id="fmOccurrence" min="1" max="10" value="5"
+                                   oninput="updateSliderValue('occurrence', this.value)">
+                            <span style="font-size: 0.7rem; color: var(--text-secondary);">1=Remote, 10=Very High</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Detection (D)</label>
+                        <div class="sod-slider-group">
+                            <span class="sod-slider-value" id="detectionValue">5</span>
+                            <input type="range" id="fmDetection" min="1" max="10" value="5"
+                                   oninput="updateSliderValue('detection', this.value)">
+                            <span style="font-size: 0.7rem; color: var(--text-secondary);">1=Certain, 10=None</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem;">
+                        <input type="checkbox" id="fmSafety"> Safety Critical
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem;">
+                        <input type="checkbox" id="fmRegulatory"> Regulatory
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem;">
+                        <input type="checkbox" id="fmCustomer"> Customer Critical
+                    </label>
+                </div>
+
+                <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 6px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-size: 0.85rem; font-weight: 600;">Calculated RPN:</span>
+                        <span id="calculatedRPN" style="font-size: 1.25rem; font-weight: 700;">125</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                        <span style="font-size: 0.85rem; font-weight: 600;">Action Priority:</span>
+                        <span id="calculatedAP" class="ap-badge ap-medium">M</span>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div class="fmea-modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveFailureMode()">Save</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ============================================
+// FMEA Dashboard - Main Application Logic
+// ============================================
+
+// State management
+let currentFMEA = null;
+let failureModes = [];
+let allFMEAs = [];
+
+// Sample LEGO brick manufacturing FMEA data
+const sampleFMEAData = {
+    fmeas: [
+        {
+            fmea_id: 'FMEA-001',
+            name: 'LEGO Brick Injection Molding',
+            fmea_type: 'process',
+            part_id: 'BRICK-2x4',
+            part_name: '2x4 Standard Brick',
+            revision: '2.1',
+            status: 'active',
+            failure_modes: [
+                {
+                    failure_mode_id: 'FM-001',
+                    description: 'Stud diameter out of tolerance',
+                    potential_effect: 'Loose clutch power, bricks disconnect easily during play',
+                    potential_cause: 'Mold wear, injection pressure variation',
+                    current_controls: 'CMM inspection every 100 parts',
+                    severity: 8, occurrence: 4, detection: 3,
+                    rpn: 96, dynamic_rpn: 105.6,
+                    machine_health_factor: 1.1, operator_skill_factor: 1.0,
+                    material_quality_factor: 1.0, spc_trend_factor: 1.0,
+                    is_safety_critical: false, is_regulatory: false, is_customer_critical: true,
+                    actions_pending: 1, actions_complete: 2
+                },
+                {
+                    failure_mode_id: 'FM-002',
+                    description: 'Incomplete fill (short shot)',
+                    potential_effect: 'Missing studs, structural weakness',
+                    potential_cause: 'Low injection pressure, blocked runner',
+                    current_controls: 'Visual inspection, weight check',
+                    severity: 7, occurrence: 3, detection: 2,
+                    rpn: 42, dynamic_rpn: 42.0,
+                    machine_health_factor: 1.0, operator_skill_factor: 1.0,
+                    material_quality_factor: 1.0, spc_trend_factor: 1.0,
+                    is_safety_critical: false, is_regulatory: false, is_customer_critical: false,
+                    actions_pending: 0, actions_complete: 1
+                },
+                {
+                    failure_mode_id: 'FM-003',
+                    description: 'Flash/burrs on parting line',
+                    potential_effect: 'Poor aesthetics, finger injury risk',
+                    potential_cause: 'Excessive clamp force wear, mold misalignment',
+                    current_controls: 'Visual inspection station',
+                    severity: 6, occurrence: 5, detection: 4,
+                    rpn: 120, dynamic_rpn: 132.0,
+                    machine_health_factor: 1.0, operator_skill_factor: 1.1,
+                    material_quality_factor: 1.0, spc_trend_factor: 1.0,
+                    is_safety_critical: true, is_regulatory: false, is_customer_critical: false,
+                    actions_pending: 2, actions_complete: 1
+                },
+                {
+                    failure_mode_id: 'FM-004',
+                    description: 'Color inconsistency',
+                    potential_effect: 'Visible color variation in builds',
+                    potential_cause: 'Pigment batch variation, temperature drift',
+                    current_controls: 'Spectrophotometer check',
+                    severity: 5, occurrence: 4, detection: 3,
+                    rpn: 60, dynamic_rpn: 66.0,
+                    machine_health_factor: 1.0, operator_skill_factor: 1.0,
+                    material_quality_factor: 1.1, spc_trend_factor: 1.0,
+                    is_safety_critical: false, is_regulatory: false, is_customer_critical: true,
+                    actions_pending: 1, actions_complete: 0
+                },
+                {
+                    failure_mode_id: 'FM-005',
+                    description: 'Sink marks on brick face',
+                    potential_effect: 'Poor surface finish, visible defects',
+                    potential_cause: 'Insufficient packing pressure, cooling too fast',
+                    current_controls: 'Surface inspection',
+                    severity: 4, occurrence: 3, detection: 4,
+                    rpn: 48, dynamic_rpn: 48.0,
+                    machine_health_factor: 1.0, operator_skill_factor: 1.0,
+                    material_quality_factor: 1.0, spc_trend_factor: 1.0,
+                    is_safety_critical: false, is_regulatory: false, is_customer_critical: false,
+                    actions_pending: 0, actions_complete: 2
+                },
+                {
+                    failure_mode_id: 'FM-006',
+                    description: 'Warpage/distortion',
+                    potential_effect: 'Bricks do not stack flat, assembly issues',
+                    potential_cause: 'Uneven cooling, residual stress',
+                    current_controls: 'Flatness gauge check',
+                    severity: 7, occurrence: 4, detection: 5,
+                    rpn: 140, dynamic_rpn: 168.0,
+                    machine_health_factor: 1.2, operator_skill_factor: 1.0,
+                    material_quality_factor: 1.0, spc_trend_factor: 1.0,
+                    is_safety_critical: false, is_regulatory: false, is_customer_critical: true,
+                    actions_pending: 3, actions_complete: 0
+                },
+                {
+                    failure_mode_id: 'FM-007',
+                    description: 'Contamination (foreign material)',
+                    potential_effect: 'Visible inclusions, structural weakness',
+                    potential_cause: 'Unclean regrind, environmental contamination',
+                    current_controls: 'Material screening, cleanroom',
+                    severity: 8, occurrence: 2, detection: 6,
+                    rpn: 96, dynamic_rpn: 96.0,
+                    machine_health_factor: 1.0, operator_skill_factor: 1.0,
+                    material_quality_factor: 1.0, spc_trend_factor: 1.0,
+                    is_safety_critical: false, is_regulatory: true, is_customer_critical: false,
+                    actions_pending: 0, actions_complete: 3
+                },
+                {
+                    failure_mode_id: 'FM-008',
+                    description: 'Tube (anti-stud) crack',
+                    potential_effect: 'Brick breaks during assembly',
+                    potential_cause: 'Excessive ejection force, material brittleness',
+                    current_controls: 'Random pull test',
+                    severity: 9, occurrence: 2, detection: 7,
+                    rpn: 126, dynamic_rpn: 138.6,
+                    machine_health_factor: 1.0, operator_skill_factor: 1.0,
+                    material_quality_factor: 1.1, spc_trend_factor: 1.0,
+                    is_safety_critical: true, is_regulatory: false, is_customer_critical: true,
+                    actions_pending: 2, actions_complete: 1
+                },
+                {
+                    failure_mode_id: 'FM-009',
+                    description: 'Logo misprint/missing',
+                    potential_effect: 'Brand identification failure',
+                    potential_cause: 'Pad wear, ink viscosity, alignment drift',
+                    current_controls: 'Camera inspection',
+                    severity: 3, occurrence: 3, detection: 2,
+                    rpn: 18, dynamic_rpn: 18.0,
+                    machine_health_factor: 1.0, operator_skill_factor: 1.0,
+                    material_quality_factor: 1.0, spc_trend_factor: 1.0,
+                    is_safety_critical: false, is_regulatory: false, is_customer_critical: false,
+                    actions_pending: 0, actions_complete: 1
+                },
+                {
+                    failure_mode_id: 'FM-010',
+                    description: 'Excessive clutch force',
+                    potential_effect: 'Bricks too tight, difficult to separate',
+                    potential_cause: 'Stud over-size, tube under-size',
+                    current_controls: 'Force gauge testing',
+                    severity: 5, occurrence: 3, detection: 3,
+                    rpn: 45, dynamic_rpn: 49.5,
+                    machine_health_factor: 1.0, operator_skill_factor: 1.0,
+                    material_quality_factor: 1.0, spc_trend_factor: 1.1,
+                    is_safety_critical: false, is_regulatory: false, is_customer_critical: true,
+                    actions_pending: 1, actions_complete: 1
+                }
+            ]
+        },
+        {
+            fmea_id: 'FMEA-002',
+            name: 'LEGO Technic Pin Assembly',
+            fmea_type: 'design',
+            part_id: 'TECH-PIN-01',
+            part_name: 'Technic Friction Pin',
+            revision: '1.3',
+            status: 'review',
+            failure_modes: []
+        }
+    ]
+};
+
+// ============================================
+// Initialization
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    initRiskMatrix();
+    loadFMEAData();
+});
+
+function loadFMEAData() {
+    // In production, this would fetch from API
+    // For demo, using sample data
+    allFMEAs = sampleFMEAData.fmeas;
+
+    const select = document.getElementById('fmeaSelect');
+    select.innerHTML = '<option value="">Select FMEA...</option>' +
+        allFMEAs.map(f => `<option value="${f.fmea_id}">${f.name} (${f.fmea_type.toUpperCase()})</option>`).join('');
+
+    // Auto-select first FMEA
+    if (allFMEAs.length > 0) {
+        select.value = allFMEAs[0].fmea_id;
+        selectFMEA(allFMEAs[0].fmea_id);
+    }
+}
+
+function selectFMEA(fmeaId) {
+    if (!fmeaId) {
+        currentFMEA = null;
+        failureModes = [];
+        updateDashboard();
+        return;
+    }
+
+    currentFMEA = allFMEAs.find(f => f.fmea_id === fmeaId);
+    if (currentFMEA) {
+        failureModes = currentFMEA.failure_modes || [];
+        updateFMEAMeta();
+        updateDashboard();
+    }
+}
+
+function updateFMEAMeta() {
+    if (!currentFMEA) return;
+
+    document.getElementById('fmeaType').innerHTML = `Type: <strong>${currentFMEA.fmea_type.toUpperCase()}</strong>`;
+    document.getElementById('fmeaRevision').innerHTML = `Rev: <strong>${currentFMEA.revision}</strong>`;
+    document.getElementById('fmeaStatus').innerHTML = `Status: <strong style="text-transform: capitalize;">${currentFMEA.status}</strong>`;
+}
+
+// ============================================
+// Dashboard Updates
+// ============================================
+function updateDashboard() {
+    updateKPIs();
+    updateRiskMatrix();
+    updateParetoChart();
+    updateAPDistribution();
+    updateDynamicFactors();
+    updateFailureModeTable();
+}
+
+function updateKPIs() {
+    const total = failureModes.length;
+    const critical = failureModes.filter(fm => fm.rpn >= 200).length;
+    const highAP = failureModes.filter(fm => calculateAP(fm.severity, fm.occurrence, fm.detection) === 'H').length;
+    const maxRPN = total > 0 ? Math.max(...failureModes.map(fm => fm.rpn)) : 0;
+    const actionsComplete = failureModes.reduce((sum, fm) => sum + (fm.actions_complete || 0), 0);
+    const actionsTotal = failureModes.reduce((sum, fm) => sum + (fm.actions_complete || 0) + (fm.actions_pending || 0), 0);
+    const avgDynamic = total > 0 ? Math.round(failureModes.reduce((sum, fm) => sum + fm.dynamic_rpn, 0) / total) : 0;
+
+    document.getElementById('kpiTotalModes').textContent = total;
+    document.getElementById('kpiCritical').textContent = critical;
+    document.getElementById('kpiHighAP').textContent = highAP;
+    document.getElementById('kpiMaxRPN').textContent = maxRPN;
+    document.getElementById('kpiActionsComplete').textContent = actionsTotal > 0 ? `${actionsComplete}/${actionsTotal}` : '-';
+    document.getElementById('kpiAvgDynamic').textContent = avgDynamic;
+}
+
+// ============================================
+// Risk Matrix (Severity vs Occurrence)
+// ============================================
+function initRiskMatrix() {
+    const matrix = document.getElementById('riskMatrix');
+    matrix.innerHTML = '';
+
+    // Y-axis label
+    const yLabel = document.createElement('div');
+    yLabel.className = 'matrix-axis-label y-axis';
+    yLabel.style.gridRow = '1 / 11';
+    yLabel.textContent = 'Severity (S)';
+    matrix.appendChild(yLabel);
+
+    // Create cells (10x10)
+    for (let s = 10; s >= 1; s--) {
+        for (let o = 1; o <= 10; o++) {
+            const cell = document.createElement('div');
+            cell.className = `matrix-cell ${getRiskClass(s * o)}`;
+            cell.dataset.severity = s;
+            cell.dataset.occurrence = o;
+            cell.onclick = () => showCellModes(s, o);
+            matrix.appendChild(cell);
+        }
+    }
+
+    // Empty corner
+    const corner = document.createElement('div');
+    matrix.appendChild(corner);
+
+    // X-axis label
+    const xLabel = document.createElement('div');
+    xLabel.className = 'matrix-axis-label';
+    xLabel.style.gridColumn = '2 / 12';
+    xLabel.textContent = 'Occurrence (O)';
+    matrix.appendChild(xLabel);
+}
+
+function updateRiskMatrix() {
+    // Reset all cells
+    document.querySelectorAll('.matrix-cell').forEach(cell => {
+        cell.classList.remove('has-modes');
+        cell.innerHTML = '';
+    });
+
+    // Group failure modes by S,O coordinates
+    const modesByCell = {};
+    failureModes.forEach(fm => {
+        const key = `${fm.severity}-${fm.occurrence}`;
+        if (!modesByCell[key]) modesByCell[key] = [];
+        modesByCell[key].push(fm);
+    });
+
+    // Update cells with failure modes
+    Object.entries(modesByCell).forEach(([key, modes]) => {
+        const [s, o] = key.split('-').map(Number);
+        const cell = document.querySelector(`.matrix-cell[data-severity="${s}"][data-occurrence="${o}"]`);
+        if (cell) {
+            cell.classList.add('has-modes');
+            cell.innerHTML = `<span class="mode-count">${modes.length}</span>`;
+        }
+    });
+}
+
+function getRiskClass(product) {
+    if (product >= 64) return 'risk-critical';
+    if (product >= 36) return 'risk-high';
+    if (product >= 16) return 'risk-medium';
+    if (product >= 6) return 'risk-low';
+    return 'risk-very-low';
+}
+
+function showCellModes(severity, occurrence) {
+    const modes = failureModes.filter(fm => fm.severity === severity && fm.occurrence === occurrence);
+    if (modes.length === 0) {
+        alert(`No failure modes at S=${severity}, O=${occurrence}`);
+        return;
+    }
+
+    const modeList = modes.map(m => `- ${m.description} (RPN: ${m.rpn})`).join('\n');
+    alert(`Failure Modes at S=${severity}, O=${occurrence}:\n\n${modeList}`);
+}
+
+// ============================================
+// Pareto Chart
+// ============================================
+function updateParetoChart() {
+    const container = document.getElementById('paretoBars');
+
+    if (failureModes.length === 0) {
+        container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary);">No data available</div>';
+        return;
+    }
+
+    // Sort by RPN descending
+    const sorted = [...failureModes].sort((a, b) => b.rpn - a.rpn);
+    const maxRPN = Math.max(...sorted.map(fm => fm.rpn), 1);
+    const totalRPN = sorted.reduce((sum, fm) => sum + fm.rpn, 0);
+
+    let cumulativeSum = 0;
+    const cumulativePoints = [];
+
+    container.innerHTML = sorted.map((fm, i) => {
+        const heightPercent = (fm.rpn / maxRPN) * 100;
+        cumulativeSum += fm.rpn;
+        const cumulativePercent = (cumulativeSum / totalRPN) * 100;
+        cumulativePoints.push({ x: i, percent: cumulativePercent });
+
+        const is80 = cumulativePercent <= 80;
+
+        return `
+            <div class="pareto-bar ${is80 ? 'highlighted' : ''}"
+                 style="height: ${heightPercent}%;"
+                 title="${fm.description}: RPN ${fm.rpn}">
+                <span class="pareto-bar-value">${fm.rpn}</span>
+                <span class="pareto-bar-label">${fm.description.substring(0, 12)}...</span>
+            </div>
+        `;
+    }).join('');
+
+    // Draw cumulative line
+    const lineContainer = document.createElement('div');
+    lineContainer.className = 'pareto-line';
+
+    const barWidth = 100 / sorted.length;
+    const points = cumulativePoints.map(p => {
+        const x = (p.x + 0.5) * barWidth;
+        const y = 100 - p.percent;
+        return `${x},${y}`;
+    }).join(' ');
+
+    lineContainer.innerHTML = `
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polyline class="cumulative-line" points="${points}"/>
+            ${cumulativePoints.map(p => {
+                const x = (p.x + 0.5) * barWidth;
+                const y = 100 - p.percent;
+                return `<circle class="cumulative-dot" cx="${x}" cy="${y}" r="1.5"/>`;
+            }).join('')}
+            <line x1="0" y1="20" x2="100" y2="20" stroke="var(--accent-secondary)" stroke-dasharray="2,2" opacity="0.5"/>
+        </svg>
+    `;
+
+    container.appendChild(lineContainer);
+}
+
+// ============================================
+// Action Priority (AIAG-VDA)
+// ============================================
+function calculateAP(severity, occurrence, detection) {
+    // AIAG-VDA FMEA Action Priority Logic
+    if (severity >= 9) return 'H';
+    if (severity >= 7 && occurrence >= 4) return 'H';
+    if (severity >= 7 && occurrence >= 2) return 'M';
+    if (severity >= 5 && occurrence >= 4 && detection >= 4) return 'M';
+    if (severity >= 5 && occurrence >= 4 && detection >= 2) return 'M';
+    if (severity <= 6 && occurrence <= 3 && detection <= 3) return 'L';
+    if (severity === 1) return 'L';
+    return 'M'; // Default
+}
+
+function updateAPDistribution() {
+    const counts = { H: 0, M: 0, L: 0 };
+    failureModes.forEach(fm => {
+        const ap = calculateAP(fm.severity, fm.occurrence, fm.detection);
+        counts[ap]++;
+    });
+
+    const total = failureModes.length || 1;
+
+    document.getElementById('apHighBar').style.width = `${(counts.H / total) * 100}%`;
+    document.getElementById('apHighCount').textContent = counts.H;
+
+    document.getElementById('apMediumBar').style.width = `${(counts.M / total) * 100}%`;
+    document.getElementById('apMediumCount').textContent = counts.M;
+
+    document.getElementById('apLowBar').style.width = `${(counts.L / total) * 100}%`;
+    document.getElementById('apLowCount').textContent = counts.L;
+}
+
+// ============================================
+// Dynamic Factors
+// ============================================
+function updateDynamicFactors() {
+    if (failureModes.length === 0) {
+        updateFactorGauge('Machine', 1.0);
+        updateFactorGauge('Operator', 1.0);
+        updateFactorGauge('Material', 1.0);
+        updateFactorGauge('SPC', 1.0);
+        return;
+    }
+
+    // Calculate average factors
+    const avgMachine = failureModes.reduce((s, fm) => s + fm.machine_health_factor, 0) / failureModes.length;
+    const avgOperator = failureModes.reduce((s, fm) => s + fm.operator_skill_factor, 0) / failureModes.length;
+    const avgMaterial = failureModes.reduce((s, fm) => s + fm.material_quality_factor, 0) / failureModes.length;
+    const avgSPC = failureModes.reduce((s, fm) => s + fm.spc_trend_factor, 0) / failureModes.length;
+
+    updateFactorGauge('Machine', avgMachine);
+    updateFactorGauge('Operator', avgOperator);
+    updateFactorGauge('Material', avgMaterial);
+    updateFactorGauge('SPC', avgSPC);
+}
+
+function updateFactorGauge(name, value) {
+    const gauge = document.getElementById(`factor${name}Gauge`);
+    const valueEl = document.getElementById(`factor${name}Value`);
+
+    valueEl.textContent = value.toFixed(2);
+
+    // Calculate stroke-dashoffset (circumference = 2 * PI * r = 2 * 3.14159 * 15.9 ≈ 100)
+    const percent = Math.min((value - 0.5) / 1.5, 1) * 100; // Map 0.5-2.0 to 0-100%
+    gauge.style.strokeDashoffset = 100 - percent;
+
+    // Update color
+    gauge.classList.remove('normal', 'warning', 'danger');
+    if (value <= 1.0) {
+        gauge.classList.add('normal');
+    } else if (value <= 1.3) {
+        gauge.classList.add('warning');
+    } else {
+        gauge.classList.add('danger');
+    }
+}
+
+// ============================================
+// Failure Mode Table
+// ============================================
+function updateFailureModeTable() {
+    const tbody = document.getElementById('failureModeTableBody');
+
+    if (failureModes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 2rem;">No failure modes defined. Click "+ New FMEA" to add one.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = failureModes.map(fm => {
+        const ap = calculateAP(fm.severity, fm.occurrence, fm.detection);
+        const rpnClass = getRPNBadgeClass(fm.rpn);
+        const isCritical = fm.rpn >= 200 || fm.is_safety_critical;
+        const dynamicDiff = fm.dynamic_rpn - fm.rpn;
+        const dynamicClass = dynamicDiff > 0 ? 'up' : (dynamicDiff < 0 ? 'down' : 'stable');
+
+        return `
+            <tr class="${isCritical ? 'critical-row' : ''}" onclick="editFailureMode('${fm.failure_mode_id}')">
+                <td><strong>${fm.description}</strong></td>
+                <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${fm.potential_effect || '-'}</td>
+                <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">${fm.potential_cause || '-'}</td>
+                <td><span class="sod-badge ${getSODBadgeClass('s', fm.severity)}">${fm.severity}</span></td>
+                <td><span class="sod-badge ${getSODBadgeClass('o', fm.occurrence)}">${fm.occurrence}</span></td>
+                <td><span class="sod-badge ${getSODBadgeClass('d', fm.detection)}">${fm.detection}</span></td>
+                <td><span class="rpn-badge ${rpnClass}">${fm.rpn}</span></td>
+                <td>
+                    <div class="dynamic-rpn">
+                        <span>${Math.round(fm.dynamic_rpn)}</span>
+                        <span class="dynamic-indicator ${dynamicClass}">
+                            ${dynamicDiff > 0 ? '▲' : (dynamicDiff < 0 ? '▼' : '—')}
+                        </span>
+                    </div>
+                </td>
+                <td><span class="ap-badge ap-${ap.toLowerCase()}">${ap}</span></td>
+                <td>
+                    <div class="critical-flags">
+                        ${fm.is_safety_critical ? '<span class="flag-badge safety">S</span>' : ''}
+                        ${fm.is_regulatory ? '<span class="flag-badge regulatory">R</span>' : ''}
+                        ${fm.is_customer_critical ? '<span class="flag-badge customer">C</span>' : ''}
+                    </div>
+                </td>
+                <td>
+                    <div class="actions-count">
+                        <span class="complete">${fm.actions_complete || 0}</span>
+                        /
+                        <span class="pending">${(fm.actions_complete || 0) + (fm.actions_pending || 0)}</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function getSODBadgeClass(type, value) {
+    if (value >= 8) return `${type}-high`;
+    if (value >= 5) return `${type}-medium`;
+    return `${type}-low`;
+}
+
+function getRPNBadgeClass(rpn) {
+    if (rpn >= 200) return 'critical';
+    if (rpn >= 100) return 'high';
+    if (rpn >= 50) return 'medium';
+    return 'low';
+}
+
+function filterFailureModes() {
+    const priority = document.getElementById('filterPriority').value;
+    const search = document.getElementById('searchModes').value.toLowerCase();
+
+    const filtered = failureModes.filter(fm => {
+        const ap = calculateAP(fm.severity, fm.occurrence, fm.detection);
+        const matchesPriority = priority === 'all' || ap === priority;
+        const matchesSearch = !search ||
+            fm.description.toLowerCase().includes(search) ||
+            (fm.potential_effect || '').toLowerCase().includes(search) ||
+            (fm.potential_cause || '').toLowerCase().includes(search);
+        return matchesPriority && matchesSearch;
+    });
+
+    const tbody = document.getElementById('failureModeTableBody');
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; padding: 2rem;">No matching failure modes</td></tr>';
+        return;
+    }
+
+    // Re-render with filtered list
+    const original = failureModes;
+    failureModes = filtered;
+    updateFailureModeTable();
+    failureModes = original;
+}
+
+// ============================================
+// Modal Functions
+// ============================================
+function openCreateModal() {
+    document.getElementById('modalTitle').textContent = 'Add Failure Mode';
+    document.getElementById('fmId').value = '';
+    document.getElementById('failureModeForm').reset();
+    updateSliderValue('severity', 5);
+    updateSliderValue('occurrence', 5);
+    updateSliderValue('detection', 5);
+    document.getElementById('fmeaModal').classList.add('active');
+}
+
+function editFailureMode(fmId) {
+    const fm = failureModes.find(f => f.failure_mode_id === fmId);
+    if (!fm) return;
+
+    document.getElementById('modalTitle').textContent = 'Edit Failure Mode';
+    document.getElementById('fmId').value = fmId;
+    document.getElementById('fmDescription').value = fm.description;
+    document.getElementById('fmEffect').value = fm.potential_effect || '';
+    document.getElementById('fmCause').value = fm.potential_cause || '';
+    document.getElementById('fmControls').value = fm.current_controls || '';
+    document.getElementById('fmSeverity').value = fm.severity;
+    document.getElementById('fmOccurrence').value = fm.occurrence;
+    document.getElementById('fmDetection').value = fm.detection;
+    document.getElementById('fmSafety').checked = fm.is_safety_critical;
+    document.getElementById('fmRegulatory').checked = fm.is_regulatory;
+    document.getElementById('fmCustomer').checked = fm.is_customer_critical;
+
+    updateSliderValue('severity', fm.severity);
+    updateSliderValue('occurrence', fm.occurrence);
+    updateSliderValue('detection', fm.detection);
+
+    document.getElementById('fmeaModal').classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('fmeaModal').classList.remove('active');
+}
+
+function updateSliderValue(type, value) {
+    document.getElementById(`${type}Value`).textContent = value;
+
+    // Update calculated RPN
+    const s = parseInt(document.getElementById('fmSeverity').value);
+    const o = parseInt(document.getElementById('fmOccurrence').value);
+    const d = parseInt(document.getElementById('fmDetection').value);
+    const rpn = s * o * d;
+    const ap = calculateAP(s, o, d);
+
+    document.getElementById('calculatedRPN').textContent = rpn;
+    const apBadge = document.getElementById('calculatedAP');
+    apBadge.className = `ap-badge ap-${ap.toLowerCase()}`;
+    apBadge.textContent = ap;
+}
+
+function saveFailureMode() {
+    // In production, this would POST to API
+    const form = document.getElementById('failureModeForm');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    alert('Failure mode saved! (In production, this would save to the database)');
+    closeModal();
+}
+
+// ============================================
+// Export Functions
+// ============================================
+function exportFMEA(format) {
+    alert(`Export to ${format.toUpperCase()} - In production, this would generate a ${format} report`);
+}
+
+// Close modal on escape key
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeModal();
+});
+
+// Close modal on overlay click
+document.getElementById('fmeaModal').addEventListener('click', (e) => {
+    if (e.target.classList.contains('fmea-modal-overlay')) closeModal();
+});
+</script>
+{% endblock %}

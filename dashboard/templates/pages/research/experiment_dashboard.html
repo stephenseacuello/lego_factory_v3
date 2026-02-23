@@ -1,0 +1,2212 @@
+{% extends "base.html" %}
+
+{% block title %}Experiment Tracking - LEGO MCP v6.0 Research Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --rs-primary: #00d4ff;
+        --rs-secondary: #8b5cf6;
+        --rs-success: #10b981;
+        --rs-warning: #f59e0b;
+        --rs-danger: #ef4444;
+        --rs-info: #06b6d4;
+        --rs-dark: #0f172a;
+        --rs-darker: #020617;
+        --rs-card: #1e293b;
+        --rs-card-hover: #334155;
+        --rs-border: #334155;
+        --rs-text: #f8fafc;
+        --rs-text-muted: #94a3b8;
+        --rs-glow: rgba(0, 212, 255, 0.3);
+    }
+
+    .research-page {
+        background: linear-gradient(135deg, var(--rs-darker) 0%, var(--rs-dark) 100%);
+        min-height: 100vh;
+        padding: 1.5rem;
+    }
+
+    /* Connection Status */
+    .connection-status {
+        position: fixed;
+        top: 70px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 20px;
+        font-size: 0.85rem;
+        z-index: 1000;
+    }
+
+    .connection-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        animation: pulse-glow 2s infinite;
+    }
+
+    .connection-dot.connected { background: var(--rs-success); }
+    .connection-dot.disconnected { background: var(--rs-danger); animation: none; }
+
+    @keyframes pulse-glow {
+        0%, 100% { opacity: 1; box-shadow: 0 0 10px currentColor; }
+        50% { opacity: 0.6; box-shadow: 0 0 5px currentColor; }
+    }
+
+    /* Page Header */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--rs-primary), var(--rs-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.25rem;
+    }
+
+    .page-subtitle {
+        color: var(--rs-text-muted);
+        font-size: 0.9rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-primary-glow {
+        background: linear-gradient(135deg, var(--rs-primary), var(--rs-secondary));
+        border: none;
+        color: var(--rs-darker);
+        font-weight: 600;
+        padding: 0.6rem 1.25rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-primary-glow:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px var(--rs-glow);
+    }
+
+    .btn-outline-custom {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        color: var(--rs-text);
+        padding: 0.6rem 1rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-outline-custom:hover {
+        background: var(--rs-card-hover);
+        border-color: var(--rs-primary);
+    }
+
+    /* KPI Grid */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1400px) {
+        .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 768px) {
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .kpi-card {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--kpi-color), transparent);
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .kpi-icon {
+        width: 42px;
+        height: 42px;
+        background: rgba(var(--kpi-color-rgb), 0.15);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: var(--kpi-color);
+        margin-bottom: 0.75rem;
+    }
+
+    .kpi-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--rs-text);
+        margin-bottom: 0.25rem;
+    }
+
+    .kpi-label {
+        font-size: 0.8rem;
+        color: var(--rs-text-muted);
+    }
+
+    .kpi-trend {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .kpi-trend.up { color: var(--rs-success); }
+    .kpi-trend.down { color: var(--rs-danger); }
+
+    /* Tabs */
+    .tabs-container {
+        display: flex;
+        gap: 0.25rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid var(--rs-border);
+        padding-bottom: 0;
+        overflow-x: auto;
+    }
+
+    .tab-btn {
+        background: transparent;
+        border: none;
+        color: var(--rs-text-muted);
+        padding: 1rem 1.5rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+        white-space: nowrap;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .tab-btn:hover {
+        color: var(--rs-text);
+    }
+
+    .tab-btn.active {
+        color: var(--rs-primary);
+        border-bottom-color: var(--rs-primary);
+    }
+
+    .tab-btn .badge {
+        background: rgba(0, 212, 255, 0.2);
+        color: var(--rs-primary);
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.7rem;
+    }
+
+    .tab-content {
+        display: none;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Filter Bar */
+    .filter-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .filter-group label {
+        color: var(--rs-text-muted);
+        font-size: 0.85rem;
+        white-space: nowrap;
+    }
+
+    .filter-select, .filter-input {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        color: var(--rs-text);
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        min-width: 140px;
+    }
+
+    .filter-select:focus, .filter-input:focus {
+        outline: none;
+        border-color: var(--rs-primary);
+    }
+
+    .search-input {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        color: var(--rs-text);
+        padding: 0.5rem 1rem 0.5rem 2.5rem;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        width: 280px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: 0.75rem center;
+        background-size: 1rem;
+    }
+
+    .search-input:focus {
+        outline: none;
+        border-color: var(--rs-primary);
+    }
+
+    /* Experiment Card */
+    .experiment-card {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        transition: all 0.3s;
+    }
+
+    .experiment-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .experiment-card.running {
+        border-left: 4px solid var(--rs-success);
+    }
+
+    .experiment-card.completed {
+        border-left: 4px solid var(--rs-primary);
+    }
+
+    .experiment-card.failed {
+        border-left: 4px solid var(--rs-danger);
+    }
+
+    .experiment-card.queued {
+        border-left: 4px solid var(--rs-warning);
+    }
+
+    .experiment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .experiment-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .experiment-checkbox {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--rs-primary);
+    }
+
+    .experiment-id {
+        font-family: 'Fira Code', monospace;
+        color: var(--rs-primary);
+        font-size: 0.85rem;
+        background: rgba(0, 212, 255, 0.1);
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+
+    .experiment-name {
+        font-weight: 600;
+        font-size: 1rem;
+        color: var(--rs-text);
+    }
+
+    .experiment-type {
+        font-size: 0.75rem;
+        color: var(--rs-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .status-badge.running {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--rs-success);
+    }
+
+    .status-badge.completed {
+        background: rgba(0, 212, 255, 0.15);
+        color: var(--rs-primary);
+    }
+
+    .status-badge.failed {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--rs-danger);
+    }
+
+    .status-badge.queued {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--rs-warning);
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+    .status-badge.running .status-dot {
+        animation: pulse-status 1.5s infinite;
+    }
+
+    @keyframes pulse-status {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .experiment-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 992px) {
+        .experiment-body {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Params Table */
+    .params-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .param-item {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        padding: 0.75rem;
+    }
+
+    .param-label {
+        font-size: 0.7rem;
+        color: var(--rs-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+
+    .param-value {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--rs-text);
+        font-family: 'Fira Code', monospace;
+    }
+
+    /* Metrics Display */
+    .metrics-display {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .metric-item {
+        text-align: center;
+    }
+
+    .metric-label {
+        font-size: 0.75rem;
+        color: var(--rs-text-muted);
+        margin-bottom: 4px;
+    }
+
+    .metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .metric-value.success { color: var(--rs-success); }
+    .metric-value.warning { color: var(--rs-warning); }
+    .metric-value.danger { color: var(--rs-danger); }
+    .metric-value.primary { color: var(--rs-primary); }
+
+    /* Progress Bar */
+    .progress-container {
+        margin-top: 1rem;
+    }
+
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        margin-bottom: 6px;
+    }
+
+    .progress-bar-bg {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--rs-primary), var(--rs-success));
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .progress-bar-fill.running {
+        animation: progress-shimmer 2s infinite;
+    }
+
+    @keyframes progress-shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+
+    /* Action Buttons */
+    .experiment-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .action-btn {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--rs-border);
+        color: var(--rs-text);
+        padding: 0.4rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: var(--rs-primary);
+        color: var(--rs-primary);
+    }
+
+    .action-btn.warning:hover {
+        background: rgba(245, 158, 11, 0.1);
+        border-color: var(--rs-warning);
+        color: var(--rs-warning);
+    }
+
+    .action-btn.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+        border-color: var(--rs-danger);
+        color: var(--rs-danger);
+    }
+
+    .action-btn.success:hover {
+        background: rgba(16, 185, 129, 0.1);
+        border-color: var(--rs-success);
+        color: var(--rs-success);
+    }
+
+    /* Reproducibility Badge */
+    .reproducibility-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.75rem;
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 6px;
+        color: var(--rs-success);
+        font-size: 0.8rem;
+        margin-left: auto;
+    }
+
+    /* Model Registry */
+    .model-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1.25rem;
+    }
+
+    .model-card {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: all 0.3s;
+    }
+
+    .model-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .model-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 1.25rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--rs-border);
+    }
+
+    .model-name {
+        font-weight: 600;
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .model-version {
+        font-family: 'Fira Code', monospace;
+        font-size: 0.8rem;
+        background: rgba(0, 212, 255, 0.1);
+        color: var(--rs-primary);
+        padding: 2px 8px;
+        border-radius: 4px;
+    }
+
+    .model-stage {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .model-stage.production {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--rs-success);
+    }
+
+    .model-stage.staging {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--rs-warning);
+    }
+
+    .model-stage.archived {
+        background: rgba(148, 163, 184, 0.2);
+        color: var(--rs-text-muted);
+    }
+
+    .model-body {
+        padding: 1.25rem;
+    }
+
+    .model-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .model-metric {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        padding: 0.75rem;
+        text-align: center;
+    }
+
+    .model-metric-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--rs-primary);
+    }
+
+    .model-metric-label {
+        font-size: 0.7rem;
+        color: var(--rs-text-muted);
+        text-transform: uppercase;
+    }
+
+    .model-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .model-action-btn {
+        flex: 1;
+        padding: 0.5rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.2s;
+    }
+
+    /* Artifacts */
+    .artifact-list {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .artifact-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--rs-border);
+        transition: background 0.2s;
+    }
+
+    .artifact-item:last-child {
+        border-bottom: none;
+    }
+
+    .artifact-item:hover {
+        background: rgba(0, 212, 255, 0.05);
+    }
+
+    .artifact-icon {
+        width: 44px;
+        height: 44px;
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(139, 92, 246, 0.1));
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: var(--rs-primary);
+        flex-shrink: 0;
+    }
+
+    .artifact-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .artifact-name {
+        font-weight: 500;
+        color: var(--rs-text);
+        margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .artifact-meta {
+        font-size: 0.75rem;
+        color: var(--rs-text-muted);
+    }
+
+    .artifact-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    /* Storage Card */
+    .storage-card {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .storage-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .storage-title {
+        font-weight: 600;
+    }
+
+    .storage-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--rs-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .storage-bar {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 0.5rem;
+    }
+
+    .storage-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--rs-primary), var(--rs-secondary));
+        border-radius: 4px;
+    }
+
+    /* Comparison */
+    .comparison-chart-container {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        height: 350px;
+        margin-bottom: 1.5rem;
+    }
+
+    .comparison-table {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .comparison-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+        padding: 1rem 1.25rem;
+        text-align: left;
+        border-bottom: 1px solid var(--rs-border);
+    }
+
+    .comparison-table th {
+        background: rgba(0, 0, 0, 0.2);
+        color: var(--rs-text-muted);
+        font-weight: 500;
+        font-size: 0.85rem;
+    }
+
+    .comparison-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .comparison-table .best {
+        color: var(--rs-success);
+        font-weight: 600;
+    }
+
+    /* Live Training Chart */
+    .live-chart-container {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-top: 1rem;
+    }
+
+    .live-chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .live-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--rs-success);
+        font-size: 0.85rem;
+    }
+
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background: var(--rs-success);
+        border-radius: 50%;
+        animation: pulse-status 1.5s infinite;
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .stat-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat-card-icon {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(139, 92, 246, 0.1));
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--rs-primary);
+    }
+
+    .stat-card-title {
+        font-weight: 600;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 350px;
+    }
+
+    .toast {
+        background: var(--rs-card);
+        border: 1px solid var(--rs-border);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        animation: toast-in 0.3s ease;
+    }
+
+    @keyframes toast-in {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .toast.removing {
+        animation: toast-out 0.3s ease forwards;
+    }
+
+    @keyframes toast-out {
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+
+    .toast-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .toast.success .toast-icon { background: rgba(16, 185, 129, 0.2); color: var(--rs-success); }
+    .toast.warning .toast-icon { background: rgba(245, 158, 11, 0.2); color: var(--rs-warning); }
+    .toast.danger .toast-icon { background: rgba(239, 68, 68, 0.2); color: var(--rs-danger); }
+    .toast.info .toast-icon { background: rgba(0, 212, 255, 0.2); color: var(--rs-primary); }
+
+    .toast-content {
+        flex: 1;
+    }
+
+    .toast-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 2px;
+    }
+
+    .toast-message {
+        font-size: 0.8rem;
+        color: var(--rs-text-muted);
+    }
+
+    .toast-close {
+        background: transparent;
+        border: none;
+        color: var(--rs-text-muted);
+        cursor: pointer;
+        padding: 4px;
+        margin: -4px;
+    }
+
+    /* Error Alert */
+    .error-alert {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        color: var(--rs-danger);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: var(--rs-darker);
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--rs-border);
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--rs-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="research-page">
+    <!-- Connection Status -->
+    <div class="connection-status" id="connectionStatus">
+        <div class="connection-dot connected"></div>
+        <span>Connected</span>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Experiment Tracking</h1>
+            <p class="page-subtitle">MLflow-style research tracking for manufacturing AI experiments</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn-primary-glow" onclick="newExperiment()">
+                <i class="bi bi-plus-lg"></i> New Experiment
+            </button>
+            <button class="btn-outline-custom" onclick="compareSelected()">
+                <i class="bi bi-bar-chart-line"></i> Compare
+            </button>
+            <button class="btn-outline-custom" onclick="exportResults()">
+                <i class="bi bi-download"></i> Export
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Grid -->
+    <div class="kpi-grid">
+        <div class="kpi-card" style="--kpi-color: var(--rs-primary); --kpi-color-rgb: 0, 212, 255;">
+            <div class="kpi-icon"><i class="bi bi-beaker"></i></div>
+            <div class="kpi-value" id="kpiTotalExperiments">156</div>
+            <div class="kpi-label">Total Experiments</div>
+            <div class="kpi-trend up"><i class="bi bi-arrow-up"></i> 12 this week</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color: var(--rs-success); --kpi-color-rgb: 16, 185, 129;">
+            <div class="kpi-icon"><i class="bi bi-play-circle-fill"></i></div>
+            <div class="kpi-value" id="kpiRunning">3</div>
+            <div class="kpi-label">Currently Running</div>
+            <div class="kpi-trend">~2.5 hrs remaining</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color: var(--rs-secondary); --kpi-color-rgb: 139, 92, 246;">
+            <div class="kpi-icon"><i class="bi bi-trophy-fill"></i></div>
+            <div class="kpi-value" id="kpiSuccessRate">94.2%</div>
+            <div class="kpi-label">Success Rate</div>
+            <div class="kpi-trend up"><i class="bi bi-arrow-up"></i> 2.1%</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color: var(--rs-info); --kpi-color-rgb: 6, 182, 212;">
+            <div class="kpi-icon"><i class="bi bi-bullseye"></i></div>
+            <div class="kpi-value" id="kpiBestAccuracy">98.7%</div>
+            <div class="kpi-label">Best Model Accuracy</div>
+            <div class="kpi-trend">Quality Predictor v2.3</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color: var(--rs-warning); --kpi-color-rgb: 245, 158, 11;">
+            <div class="kpi-icon"><i class="bi bi-box-seam-fill"></i></div>
+            <div class="kpi-value" id="kpiModels">12</div>
+            <div class="kpi-label">Registered Models</div>
+            <div class="kpi-trend">5 in production</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-container">
+        <button class="tab-btn active" data-tab="experiments">
+            <i class="bi bi-journal-code"></i>
+            Experiments
+            <span class="badge">156</span>
+        </button>
+        <button class="tab-btn" data-tab="models">
+            <i class="bi bi-box"></i>
+            Model Registry
+            <span class="badge">12</span>
+        </button>
+        <button class="tab-btn" data-tab="artifacts">
+            <i class="bi bi-folder2-open"></i>
+            Artifacts
+        </button>
+        <button class="tab-btn" data-tab="compare">
+            <i class="bi bi-bar-chart-line"></i>
+            Comparison
+        </button>
+        <button class="tab-btn" data-tab="statistics">
+            <i class="bi bi-graph-up-arrow"></i>
+            Statistics
+        </button>
+    </div>
+
+    <!-- Experiments Tab -->
+    <div id="experiments-tab" class="tab-content active">
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label>Status:</label>
+                <select class="filter-select" id="statusFilter">
+                    <option value="all">All</option>
+                    <option value="running">Running</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="queued">Queued</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Type:</label>
+                <select class="filter-select" id="typeFilter">
+                    <option value="all">All Types</option>
+                    <option value="quality">Quality Prediction</option>
+                    <option value="scheduling">Scheduling</option>
+                    <option value="generative">Generative Design</option>
+                    <option value="maintenance">Maintenance</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Date:</label>
+                <input type="date" class="filter-input" id="dateFilter">
+            </div>
+            <div class="filter-group" style="margin-left: auto;">
+                <input type="text" class="search-input" placeholder="Search experiments..." id="searchInput">
+            </div>
+        </div>
+
+        <!-- Experiment List -->
+        <div id="experimentList">
+            <!-- Running Experiment -->
+            <div class="experiment-card running" data-id="EXP-2024-0156" data-status="running">
+                <div class="experiment-header">
+                    <div class="experiment-info">
+                        <input type="checkbox" class="experiment-checkbox">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+                                <span class="experiment-id">EXP-2024-0156</span>
+                                <span class="experiment-name">Quality Prediction - ResNet50 Fine-tuning</span>
+                            </div>
+                            <span class="experiment-type">Quality Prediction</span>
+                        </div>
+                    </div>
+                    <div class="status-badge running">
+                        <span class="status-dot"></span>
+                        Running
+                    </div>
+                </div>
+                <div class="experiment-body">
+                    <div class="params-grid">
+                        <div class="param-item">
+                            <div class="param-label">Learning Rate</div>
+                            <div class="param-value">0.001</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Batch Size</div>
+                            <div class="param-value">32</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Epochs</div>
+                            <div class="param-value">50 / 100</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Optimizer</div>
+                            <div class="param-value">AdamW</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Data Aug</div>
+                            <div class="param-value">Heavy</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Dropout</div>
+                            <div class="param-value">0.3</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="metrics-display">
+                            <div class="metric-item">
+                                <div class="metric-label">Current Loss</div>
+                                <div class="metric-value warning">0.0234</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">Val Accuracy</div>
+                                <div class="metric-value success">97.8%</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">ETA</div>
+                                <div class="metric-value primary">1h 23m</div>
+                            </div>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-header">
+                                <span>Epoch 50 of 100</span>
+                                <span>50%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill running" style="width: 50%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="experiment-actions">
+                    <button class="action-btn warning" onclick="pauseExperiment('EXP-2024-0156')">
+                        <i class="bi bi-pause"></i> Pause
+                    </button>
+                    <button class="action-btn danger" onclick="stopExperiment('EXP-2024-0156')">
+                        <i class="bi bi-stop"></i> Stop
+                    </button>
+                    <button class="action-btn" onclick="viewLiveMetrics('EXP-2024-0156')">
+                        <i class="bi bi-graph-up"></i> Live Metrics
+                    </button>
+                    <button class="action-btn" onclick="viewLogs('EXP-2024-0156')">
+                        <i class="bi bi-terminal"></i> Logs
+                    </button>
+                </div>
+
+                <!-- Live Training Chart -->
+                <div class="live-chart-container">
+                    <div class="live-chart-header">
+                        <h6 style="margin: 0;">Training Progress</h6>
+                        <div class="live-indicator">
+                            <span class="live-dot"></span>
+                            Live
+                        </div>
+                    </div>
+                    <div id="liveTrainingChart" style="height: 150px;"></div>
+                </div>
+            </div>
+
+            <!-- Completed Experiment -->
+            <div class="experiment-card completed" data-id="EXP-2024-0155" data-status="completed">
+                <div class="experiment-header">
+                    <div class="experiment-info">
+                        <input type="checkbox" class="experiment-checkbox">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+                                <span class="experiment-id">EXP-2024-0155</span>
+                                <span class="experiment-name">Scheduling Optimization - QAOA vs Classical</span>
+                            </div>
+                            <span class="experiment-type">Scheduling Optimization</span>
+                        </div>
+                    </div>
+                    <div class="status-badge completed">
+                        <span class="status-dot"></span>
+                        Completed
+                    </div>
+                </div>
+                <div class="experiment-body">
+                    <div class="params-grid">
+                        <div class="param-item">
+                            <div class="param-label">Algorithm</div>
+                            <div class="param-value">QAOA + NSGA-II</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Qubits</div>
+                            <div class="param-value">12</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Jobs</div>
+                            <div class="param-value">50</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Machines</div>
+                            <div class="param-value">8</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Objective</div>
+                            <div class="param-value">Multi</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Duration</div>
+                            <div class="param-value">4h 32m</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="metrics-display">
+                            <div class="metric-item">
+                                <div class="metric-label">Makespan Improvement</div>
+                                <div class="metric-value success">+12.3%</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">Energy Savings</div>
+                                <div class="metric-value success">+8.7%</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">Pareto Solutions</div>
+                                <div class="metric-value primary">24</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="experiment-actions">
+                    <button class="action-btn" onclick="viewDetails('EXP-2024-0155')">
+                        <i class="bi bi-eye"></i> View Details
+                    </button>
+                    <button class="action-btn success" onclick="reproduceExperiment('EXP-2024-0155')">
+                        <i class="bi bi-arrow-repeat"></i> Reproduce
+                    </button>
+                    <button class="action-btn" onclick="registerModel('EXP-2024-0155')">
+                        <i class="bi bi-cloud-upload"></i> Register Model
+                    </button>
+                    <button class="action-btn" onclick="downloadArtifacts('EXP-2024-0155')">
+                        <i class="bi bi-download"></i> Artifacts
+                    </button>
+                    <div class="reproducibility-badge">
+                        <i class="bi bi-check-circle-fill"></i>
+                        100% Reproducible
+                    </div>
+                </div>
+            </div>
+
+            <!-- Failed Experiment -->
+            <div class="experiment-card failed" data-id="EXP-2024-0154" data-status="failed">
+                <div class="experiment-header">
+                    <div class="experiment-info">
+                        <input type="checkbox" class="experiment-checkbox">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+                                <span class="experiment-id">EXP-2024-0154</span>
+                                <span class="experiment-name">Generative Design - Topology Optimization</span>
+                            </div>
+                            <span class="experiment-type">Generative Design</span>
+                        </div>
+                    </div>
+                    <div class="status-badge failed">
+                        <span class="status-dot"></span>
+                        Failed
+                    </div>
+                </div>
+                <div class="experiment-body">
+                    <div style="grid-column: 1 / -1;">
+                        <div class="error-alert">
+                            <i class="bi bi-exclamation-triangle-fill"></i>
+                            <strong>Error:</strong> CUDA out of memory. Required: 24GB, Available: 16GB
+                        </div>
+                    </div>
+                </div>
+                <div class="experiment-actions">
+                    <button class="action-btn warning" onclick="retryExperiment('EXP-2024-0154')">
+                        <i class="bi bi-arrow-clockwise"></i> Retry with Lower Batch
+                    </button>
+                    <button class="action-btn" onclick="viewLogs('EXP-2024-0154')">
+                        <i class="bi bi-terminal"></i> View Logs
+                    </button>
+                    <button class="action-btn danger" onclick="deleteExperiment('EXP-2024-0154')">
+                        <i class="bi bi-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+
+            <!-- Queued Experiment -->
+            <div class="experiment-card queued" data-id="EXP-2024-0157" data-status="queued">
+                <div class="experiment-header">
+                    <div class="experiment-info">
+                        <input type="checkbox" class="experiment-checkbox">
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem;">
+                                <span class="experiment-id">EXP-2024-0157</span>
+                                <span class="experiment-name">Defect Classification - Vision Transformer</span>
+                            </div>
+                            <span class="experiment-type">Quality Prediction</span>
+                        </div>
+                    </div>
+                    <div class="status-badge queued">
+                        <span class="status-dot"></span>
+                        Queued
+                    </div>
+                </div>
+                <div class="experiment-body">
+                    <div class="params-grid">
+                        <div class="param-item">
+                            <div class="param-label">Model</div>
+                            <div class="param-value">ViT-B/16</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Pretrained</div>
+                            <div class="param-value">ImageNet-21k</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Classes</div>
+                            <div class="param-value">12</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Est. Time</div>
+                            <div class="param-value">~3h 15m</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="metrics-display">
+                            <div class="metric-item">
+                                <div class="metric-label">Position in Queue</div>
+                                <div class="metric-value primary">#2</div>
+                            </div>
+                            <div class="metric-item">
+                                <div class="metric-label">GPU Required</div>
+                                <div class="metric-value">RTX 4090</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="experiment-actions">
+                    <button class="action-btn success" onclick="startNow('EXP-2024-0157')">
+                        <i class="bi bi-play-fill"></i> Start Now
+                    </button>
+                    <button class="action-btn" onclick="editExperiment('EXP-2024-0157')">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    <button class="action-btn danger" onclick="cancelExperiment('EXP-2024-0157')">
+                        <i class="bi bi-x-lg"></i> Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Models Tab -->
+    <div id="models-tab" class="tab-content">
+        <div class="model-grid">
+            <!-- Quality Predictor -->
+            <div class="model-card">
+                <div class="model-header">
+                    <div>
+                        <div class="model-name">Quality Predictor</div>
+                        <span class="model-version">v2.3.1</span>
+                    </div>
+                    <span class="model-stage production">Production</span>
+                </div>
+                <div class="model-body">
+                    <div class="model-metrics">
+                        <div class="model-metric">
+                            <div class="model-metric-value">98.7%</div>
+                            <div class="model-metric-label">Accuracy</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">12ms</div>
+                            <div class="model-metric-label">Latency</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">156 MB</div>
+                            <div class="model-metric-label">Size</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">12</div>
+                            <div class="model-metric-label">Versions</div>
+                        </div>
+                    </div>
+                    <div class="model-actions">
+                        <button class="action-btn" onclick="downloadModel('quality_predictor')">
+                            <i class="bi bi-download"></i> Download
+                        </button>
+                        <button class="action-btn" onclick="viewVersions('quality_predictor')">
+                            <i class="bi bi-clock-history"></i> Versions
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Defect Classifier -->
+            <div class="model-card">
+                <div class="model-header">
+                    <div>
+                        <div class="model-name">Defect Classifier</div>
+                        <span class="model-version">v1.8.0</span>
+                    </div>
+                    <span class="model-stage staging">Staging</span>
+                </div>
+                <div class="model-body">
+                    <div class="model-metrics">
+                        <div class="model-metric">
+                            <div class="model-metric-value">0.956</div>
+                            <div class="model-metric-label">F1 Score</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">15ms</div>
+                            <div class="model-metric-label">Latency</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">89 MB</div>
+                            <div class="model-metric-label">Size</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">8</div>
+                            <div class="model-metric-label">Versions</div>
+                        </div>
+                    </div>
+                    <div class="model-actions">
+                        <button class="action-btn success" onclick="promoteModel('defect_classifier')">
+                            <i class="bi bi-arrow-up-circle"></i> Promote
+                        </button>
+                        <button class="action-btn" onclick="viewVersions('defect_classifier')">
+                            <i class="bi bi-clock-history"></i> Versions
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance Predictor -->
+            <div class="model-card">
+                <div class="model-header">
+                    <div>
+                        <div class="model-name">Maintenance Predictor</div>
+                        <span class="model-version">v3.1.2</span>
+                    </div>
+                    <span class="model-stage production">Production</span>
+                </div>
+                <div class="model-body">
+                    <div class="model-metrics">
+                        <div class="model-metric">
+                            <div class="model-metric-value">2.3 hrs</div>
+                            <div class="model-metric-label">RMSE</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">7 days</div>
+                            <div class="model-metric-label">Horizon</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">45 MB</div>
+                            <div class="model-metric-label">Size</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">15</div>
+                            <div class="model-metric-label">Versions</div>
+                        </div>
+                    </div>
+                    <div class="model-actions">
+                        <button class="action-btn" onclick="downloadModel('maintenance_predictor')">
+                            <i class="bi bi-download"></i> Download
+                        </button>
+                        <button class="action-btn" onclick="viewVersions('maintenance_predictor')">
+                            <i class="bi bi-clock-history"></i> Versions
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scheduling Optimizer -->
+            <div class="model-card">
+                <div class="model-header">
+                    <div>
+                        <div class="model-name">Scheduling Optimizer</div>
+                        <span class="model-version">v2.0.5</span>
+                    </div>
+                    <span class="model-stage production">Production</span>
+                </div>
+                <div class="model-body">
+                    <div class="model-metrics">
+                        <div class="model-metric">
+                            <div class="model-metric-value">+12.3%</div>
+                            <div class="model-metric-label">Improvement</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">450ms</div>
+                            <div class="model-metric-label">Solve Time</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">23 MB</div>
+                            <div class="model-metric-label">Size</div>
+                        </div>
+                        <div class="model-metric">
+                            <div class="model-metric-value">9</div>
+                            <div class="model-metric-label">Versions</div>
+                        </div>
+                    </div>
+                    <div class="model-actions">
+                        <button class="action-btn" onclick="downloadModel('scheduling_optimizer')">
+                            <i class="bi bi-download"></i> Download
+                        </button>
+                        <button class="action-btn" onclick="viewVersions('scheduling_optimizer')">
+                            <i class="bi bi-clock-history"></i> Versions
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Artifacts Tab -->
+    <div id="artifacts-tab" class="tab-content">
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <h5 style="margin-bottom: 1rem;">Recent Artifacts</h5>
+                <div class="artifact-list">
+                    <div class="artifact-item">
+                        <div class="artifact-icon"><i class="bi bi-file-earmark-bar-graph"></i></div>
+                        <div class="artifact-info">
+                            <div class="artifact-name">quality_predictions_2024_01.parquet</div>
+                            <div class="artifact-meta">Dataset - 2.3 GB - EXP-2024-0155 - 2 days ago</div>
+                        </div>
+                        <div class="artifact-actions">
+                            <button class="action-btn"><i class="bi bi-eye"></i></button>
+                            <button class="action-btn"><i class="bi bi-download"></i></button>
+                        </div>
+                    </div>
+                    <div class="artifact-item">
+                        <div class="artifact-icon"><i class="bi bi-diagram-3"></i></div>
+                        <div class="artifact-info">
+                            <div class="artifact-name">scheduling_model_qaoa.onnx</div>
+                            <div class="artifact-meta">Model - 156 MB - EXP-2024-0155 - 2 days ago</div>
+                        </div>
+                        <div class="artifact-actions">
+                            <button class="action-btn"><i class="bi bi-eye"></i></button>
+                            <button class="action-btn"><i class="bi bi-download"></i></button>
+                        </div>
+                    </div>
+                    <div class="artifact-item">
+                        <div class="artifact-icon"><i class="bi bi-image"></i></div>
+                        <div class="artifact-info">
+                            <div class="artifact-name">confusion_matrix_v2.png</div>
+                            <div class="artifact-meta">Figure - 234 KB - EXP-2024-0153 - 4 days ago</div>
+                        </div>
+                        <div class="artifact-actions">
+                            <button class="action-btn"><i class="bi bi-eye"></i></button>
+                            <button class="action-btn"><i class="bi bi-download"></i></button>
+                        </div>
+                    </div>
+                    <div class="artifact-item">
+                        <div class="artifact-icon"><i class="bi bi-file-earmark-code"></i></div>
+                        <div class="artifact-info">
+                            <div class="artifact-name">hyperparameters.yaml</div>
+                            <div class="artifact-meta">Config - 4 KB - EXP-2024-0156 - Today</div>
+                        </div>
+                        <div class="artifact-actions">
+                            <button class="action-btn"><i class="bi bi-eye"></i></button>
+                            <button class="action-btn"><i class="bi bi-download"></i></button>
+                        </div>
+                    </div>
+                    <div class="artifact-item">
+                        <div class="artifact-icon"><i class="bi bi-filetype-csv"></i></div>
+                        <div class="artifact-info">
+                            <div class="artifact-name">training_metrics_log.csv</div>
+                            <div class="artifact-meta">Log - 12 MB - EXP-2024-0156 - Today</div>
+                        </div>
+                        <div class="artifact-actions">
+                            <button class="action-btn"><i class="bi bi-eye"></i></button>
+                            <button class="action-btn"><i class="bi bi-download"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="storage-card">
+                    <div class="storage-header">
+                        <span class="storage-title">Storage Usage</span>
+                        <i class="bi bi-hdd" style="color: var(--rs-primary);"></i>
+                    </div>
+                    <div class="storage-value">247.3 GB</div>
+                    <div class="storage-bar">
+                        <div class="storage-bar-fill" style="width: 49%;"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--rs-text-muted);">
+                        <span>49% used</span>
+                        <span>500 GB quota</span>
+                    </div>
+                </div>
+
+                <div class="storage-card" style="margin-top: 1rem;">
+                    <div class="storage-header">
+                        <span class="storage-title">By Type</span>
+                    </div>
+                    <div style="margin-top: 1rem;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <span>Models</span>
+                            <span style="color: var(--rs-primary);">45.2 GB</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <span>Datasets</span>
+                            <span style="color: var(--rs-secondary);">156.8 GB</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                            <span>Checkpoints</span>
+                            <span style="color: var(--rs-success);">32.4 GB</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Logs & Figures</span>
+                            <span style="color: var(--rs-warning);">12.9 GB</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison Tab -->
+    <div id="compare-tab" class="tab-content">
+        <div class="comparison-chart-container">
+            <div id="comparisonChart" style="width: 100%; height: 100%;"></div>
+        </div>
+
+        <div class="comparison-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Parameter</th>
+                        <th>EXP-0155 (Best)</th>
+                        <th>EXP-0152</th>
+                        <th>EXP-0148</th>
+                        <th>EXP-0145</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Learning Rate</td>
+                        <td class="best">0.001</td>
+                        <td>0.01</td>
+                        <td>0.0001</td>
+                        <td>0.005</td>
+                    </tr>
+                    <tr>
+                        <td>Batch Size</td>
+                        <td class="best">32</td>
+                        <td>64</td>
+                        <td>16</td>
+                        <td>32</td>
+                    </tr>
+                    <tr>
+                        <td>Accuracy</td>
+                        <td class="best">98.7%</td>
+                        <td>96.2%</td>
+                        <td>94.8%</td>
+                        <td>93.1%</td>
+                    </tr>
+                    <tr>
+                        <td>Training Time</td>
+                        <td>4h 32m</td>
+                        <td class="best">2h 15m</td>
+                        <td>8h 45m</td>
+                        <td>3h 20m</td>
+                    </tr>
+                    <tr>
+                        <td>Final Loss</td>
+                        <td class="best">0.0234</td>
+                        <td>0.0456</td>
+                        <td>0.0612</td>
+                        <td>0.0789</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Statistics Tab -->
+    <div id="statistics-tab" class="tab-content">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-icon"><i class="bi bi-calculator"></i></div>
+                    <div class="stat-card-title">Power Analysis</div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--rs-text-muted); margin-bottom: 1rem;">
+                    Calculate required sample size for experiments
+                </p>
+                <div class="params-grid">
+                    <div class="param-item">
+                        <div class="param-label">Effect Size</div>
+                        <input type="number" value="0.5" step="0.1" class="filter-input" style="width: 100%;">
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Alpha</div>
+                        <input type="number" value="0.05" step="0.01" class="filter-input" style="width: 100%;">
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Power</div>
+                        <input type="number" value="0.8" step="0.05" class="filter-input" style="width: 100%;">
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Required N</div>
+                        <div class="param-value" style="color: var(--rs-primary);">64</div>
+                    </div>
+                </div>
+                <button class="action-btn" style="width: 100%; margin-top: 1rem; justify-content: center;">
+                    <i class="bi bi-calculator"></i> Calculate
+                </button>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-icon"><i class="bi bi-shuffle"></i></div>
+                    <div class="stat-card-title">A/B Test Analysis</div>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--rs-text-muted); margin-bottom: 1rem;">
+                    Analyze experiment results with statistical significance
+                </p>
+                <div class="params-grid">
+                    <div class="param-item">
+                        <div class="param-label">Control Mean</div>
+                        <div class="param-value">0.45</div>
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Treatment Mean</div>
+                        <div class="param-value">0.52</div>
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">Lift</div>
+                        <div class="param-value" style="color: var(--rs-success);">+15.5%</div>
+                    </div>
+                    <div class="param-item">
+                        <div class="param-label">p-value</div>
+                        <div class="param-value" style="color: var(--rs-success);">0.012</div>
+                    </div>
+                </div>
+                <div class="reproducibility-badge" style="margin-top: 1rem; margin-left: 0;">
+                    <i class="bi bi-check-circle-fill"></i>
+                    Statistically Significant (p < 0.05)
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison-chart-container" style="height: 300px;">
+            <h6 style="margin-bottom: 1rem;">Experiment Success Rate Over Time</h6>
+            <div id="successRateChart" style="width: 100%; height: calc(100% - 40px);"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+    // State
+    const state = {
+        connected: false,
+        selectedExperiments: [],
+        currentTab: 'experiments'
+    };
+
+    // WebSocket
+    let socket;
+
+    function initWebSocket() {
+        socket = io('/research', {
+            transports: ['websocket'],
+            reconnection: true
+        });
+
+        socket.on('connect', () => {
+            state.connected = true;
+            updateConnectionStatus(true);
+        });
+
+        socket.on('disconnect', () => {
+            state.connected = false;
+            updateConnectionStatus(false);
+        });
+
+        socket.on('experiment_update', (data) => {
+            updateExperimentCard(data);
+        });
+
+        socket.on('training_metrics', (data) => {
+            updateLiveChart(data);
+        });
+    }
+
+    function updateConnectionStatus(connected) {
+        const statusEl = document.getElementById('connectionStatus');
+        const dot = statusEl.querySelector('.connection-dot');
+        const text = statusEl.querySelector('span');
+
+        if (connected) {
+            dot.className = 'connection-dot connected';
+            text.textContent = 'Connected';
+        } else {
+            dot.className = 'connection-dot disconnected';
+            text.textContent = 'Disconnected';
+        }
+    }
+
+    // Tab handling
+    document.querySelectorAll('.tab-btn').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            this.classList.add('active');
+            document.getElementById(this.dataset.tab + '-tab').classList.add('active');
+
+            state.currentTab = this.dataset.tab;
+
+            // Initialize charts when tab is shown
+            if (this.dataset.tab === 'compare') {
+                initComparisonChart();
+            } else if (this.dataset.tab === 'statistics') {
+                initSuccessRateChart();
+            }
+        });
+    });
+
+    // Filter handling
+    document.getElementById('statusFilter').addEventListener('change', filterExperiments);
+    document.getElementById('typeFilter').addEventListener('change', filterExperiments);
+    document.getElementById('searchInput').addEventListener('input', filterExperiments);
+
+    function filterExperiments() {
+        const status = document.getElementById('statusFilter').value;
+        const type = document.getElementById('typeFilter').value;
+        const search = document.getElementById('searchInput').value.toLowerCase();
+
+        document.querySelectorAll('.experiment-card').forEach(card => {
+            const cardStatus = card.dataset.status;
+            const cardType = card.querySelector('.experiment-type').textContent.toLowerCase();
+            const cardName = card.querySelector('.experiment-name').textContent.toLowerCase();
+            const cardId = card.dataset.id.toLowerCase();
+
+            let show = true;
+            if (status !== 'all' && cardStatus !== status) show = false;
+            if (type !== 'all' && !cardType.includes(type)) show = false;
+            if (search && !cardName.includes(search) && !cardId.includes(search)) show = false;
+
+            card.style.display = show ? '' : 'none';
+        });
+    }
+
+    // Experiment actions
+    function newExperiment() {
+        showToast('info', 'New Experiment', 'Opening experiment creation wizard...');
+    }
+
+    function compareSelected() {
+        const selected = document.querySelectorAll('.experiment-checkbox:checked');
+        if (selected.length < 2) {
+            showToast('warning', 'Selection Required', 'Select at least 2 experiments to compare');
+            return;
+        }
+        document.querySelector('[data-tab="compare"]').click();
+    }
+
+    function exportResults() {
+        showToast('success', 'Export Started', 'Preparing experiment results for download...');
+    }
+
+    function pauseExperiment(id) {
+        showToast('info', 'Pausing', `Pausing experiment ${id}...`);
+    }
+
+    function stopExperiment(id) {
+        if (confirm(`Stop experiment ${id}? This cannot be undone.`)) {
+            showToast('warning', 'Stopping', `Stopping experiment ${id}...`);
+        }
+    }
+
+    function viewLiveMetrics(id) {
+        showToast('info', 'Live Metrics', `Opening live metrics for ${id}...`);
+    }
+
+    function viewLogs(id) {
+        showToast('info', 'Logs', `Opening logs for ${id}...`);
+    }
+
+    function viewDetails(id) {
+        showToast('info', 'Details', `Opening details for ${id}...`);
+    }
+
+    function reproduceExperiment(id) {
+        showToast('success', 'Reproduce', `Creating new experiment based on ${id}...`);
+    }
+
+    function registerModel(id) {
+        showToast('success', 'Register Model', `Registering model from ${id}...`);
+    }
+
+    function downloadArtifacts(id) {
+        showToast('info', 'Download', `Preparing artifacts from ${id} for download...`);
+    }
+
+    function retryExperiment(id) {
+        showToast('info', 'Retry', `Retrying ${id} with modified parameters...`);
+    }
+
+    function deleteExperiment(id) {
+        if (confirm(`Delete experiment ${id}? This cannot be undone.`)) {
+            showToast('danger', 'Deleted', `Experiment ${id} has been deleted`);
+        }
+    }
+
+    function startNow(id) {
+        showToast('success', 'Starting', `Starting experiment ${id}...`);
+    }
+
+    function editExperiment(id) {
+        showToast('info', 'Edit', `Opening editor for ${id}...`);
+    }
+
+    function cancelExperiment(id) {
+        if (confirm(`Cancel queued experiment ${id}?`)) {
+            showToast('warning', 'Cancelled', `Experiment ${id} has been cancelled`);
+        }
+    }
+
+    // Model actions
+    function downloadModel(name) {
+        showToast('info', 'Download', `Preparing ${name} for download...`);
+    }
+
+    function viewVersions(name) {
+        showToast('info', 'Versions', `Opening version history for ${name}...`);
+    }
+
+    function promoteModel(name) {
+        if (confirm(`Promote ${name} to Production?`)) {
+            showToast('success', 'Promoted', `${name} has been promoted to Production`);
+        }
+    }
+
+    // Charts
+    function initComparisonChart() {
+        const data = [{
+            x: ['EXP-0155', 'EXP-0152', 'EXP-0148', 'EXP-0145'],
+            y: [98.7, 96.2, 94.8, 93.1],
+            type: 'bar',
+            marker: {
+                color: ['#00d4ff', '#8b5cf6', '#8b5cf6', '#8b5cf6']
+            },
+            name: 'Accuracy'
+        }];
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            font: { color: '#94a3b8' },
+            xaxis: {
+                gridcolor: '#334155',
+                title: 'Experiment'
+            },
+            yaxis: {
+                gridcolor: '#334155',
+                title: 'Accuracy (%)',
+                range: [90, 100]
+            },
+            margin: { t: 30, b: 60, l: 60, r: 30 }
+        };
+
+        Plotly.newPlot('comparisonChart', data, layout, { responsive: true });
+    }
+
+    function initSuccessRateChart() {
+        const data = [{
+            x: ['Week 1', 'Week 2', 'Week 3', 'Week 4', 'Week 5', 'Week 6'],
+            y: [88, 90, 91, 93, 94, 94.2],
+            type: 'scatter',
+            mode: 'lines+markers',
+            line: { color: '#00d4ff', width: 3 },
+            marker: { size: 8 },
+            fill: 'tozeroy',
+            fillcolor: 'rgba(0, 212, 255, 0.1)'
+        }];
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            font: { color: '#94a3b8' },
+            xaxis: { gridcolor: '#334155' },
+            yaxis: {
+                gridcolor: '#334155',
+                title: 'Success Rate (%)',
+                range: [85, 100]
+            },
+            margin: { t: 10, b: 40, l: 60, r: 30 }
+        };
+
+        Plotly.newPlot('successRateChart', data, layout, { responsive: true });
+    }
+
+    function initLiveTrainingChart() {
+        const epochs = Array.from({length: 50}, (_, i) => i + 1);
+        // Deterministic sinusoidal noise for training curves
+        const loss = epochs.map(e => 0.5 * Math.exp(-e/20) + 0.02 + Math.sin(e * 0.5) * 0.005);
+        const accuracy = epochs.map(e => 100 * (1 - Math.exp(-e/15)) * 0.98 + Math.sin(e * 0.4) * 0.25);
+
+        const data = [
+            {
+                x: epochs,
+                y: loss,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Loss',
+                line: { color: '#f59e0b', width: 2 },
+                yaxis: 'y'
+            },
+            {
+                x: epochs,
+                y: accuracy,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Accuracy',
+                line: { color: '#10b981', width: 2 },
+                yaxis: 'y2'
+            }
+        ];
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            font: { color: '#94a3b8', size: 10 },
+            xaxis: {
+                gridcolor: '#334155',
+                title: 'Epoch'
+            },
+            yaxis: {
+                gridcolor: '#334155',
+                title: 'Loss',
+                titlefont: { color: '#f59e0b' },
+                tickfont: { color: '#f59e0b' }
+            },
+            yaxis2: {
+                title: 'Accuracy (%)',
+                titlefont: { color: '#10b981' },
+                tickfont: { color: '#10b981' },
+                overlaying: 'y',
+                side: 'right'
+            },
+            legend: {
+                x: 0.5,
+                y: 1.1,
+                xanchor: 'center',
+                orientation: 'h'
+            },
+            margin: { t: 30, b: 50, l: 50, r: 50 }
+        };
+
+        Plotly.newPlot('liveTrainingChart', data, layout, { responsive: true });
+    }
+
+    // Toast notifications
+    function showToast(type, title, message) {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const icons = {
+            success: 'bi-check-circle',
+            warning: 'bi-exclamation-triangle',
+            danger: 'bi-x-circle',
+            info: 'bi-info-circle'
+        };
+
+        toast.innerHTML = `
+            <div class="toast-icon">
+                <i class="bi ${icons[type]}"></i>
+            </div>
+            <div class="toast-content">
+                <div class="toast-title">${title}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close" onclick="this.parentElement.remove()">
+                <i class="bi bi-x"></i>
+            </button>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('removing');
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        initWebSocket();
+        initLiveTrainingChart();
+
+        // Simulate live updates
+        setInterval(() => {
+            if (state.connected) {
+                // Update progress for running experiments
+                const runningCard = document.querySelector('.experiment-card.running');
+                if (runningCard) {
+                    const progressFill = runningCard.querySelector('.progress-bar-fill');
+                    const currentWidth = parseFloat(progressFill.style.width) || 50;
+                    if (currentWidth < 100) {
+                        progressFill.style.width = `${Math.min(currentWidth + 0.2, 100)}%`;
+                    }
+                }
+            }
+        }, 3000);
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,95 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: legomcp-app-of-apps
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: legomcp
+    app.kubernetes.io/component: app-of-apps
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: legomcp
+
+  source:
+    repoURL: https://github.com/your-org/lego_factory.git
+    targetRevision: main
+    path: argocd/applications
+
+    directory:
+      recurse: false
+      include: 'legomcp-*.yaml'
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: legomcp-environments
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - environment: dev
+            targetRevision: develop
+            namespace: legomcp-dev
+            autoSync: true
+            values: values-dev.yaml
+          - environment: staging
+            targetRevision: release
+            namespace: legomcp-staging
+            autoSync: true
+            values: values-staging.yaml
+          - environment: prod
+            targetRevision: main
+            namespace: legomcp-prod
+            autoSync: false
+            values: values-prod.yaml
+
+  template:
+    metadata:
+      name: 'legomcp-{{environment}}'
+      namespace: argocd
+      labels:
+        app.kubernetes.io/name: legomcp
+        environment: '{{environment}}'
+    spec:
+      project: legomcp
+
+      source:
+        repoURL: https://github.com/your-org/lego_factory.git
+        targetRevision: '{{targetRevision}}'
+        path: helm/legomcp
+        helm:
+          releaseName: 'legomcp-{{environment}}'
+          valueFiles:
+            - values.yaml
+            - '{{values}}'
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          prune: '{{autoSync}}'
+          selfHeal: '{{autoSync}}'
+        syncOptions:
+          - CreateNamespace=true

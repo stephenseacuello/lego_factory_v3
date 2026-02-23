@@ -1,0 +1,606 @@
+{% extends "base.html" %}
+
+{% block title %}FMEA Management - LEGO MCP v5.0{% endblock %}
+
+{% block styles %}
+<style>
+    .fmea-container {
+        padding: 1rem;
+    }
+
+    .fmea-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+
+    .fmea-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: background 0.2s;
+    }
+
+    .btn-primary {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        opacity: 0.9;
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+        background: var(--bg-primary);
+    }
+
+    /* FMEA Cards */
+    .fmea-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .fmea-card {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .fmea-card-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .fmea-card-title {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    .fmea-type-badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        text-transform: uppercase;
+    }
+
+    .fmea-type-badge.process {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+
+    .fmea-type-badge.design {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .fmea-card-body {
+        padding: 1rem;
+    }
+
+    .fmea-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .fmea-stat {
+        text-align: center;
+        padding: 0.5rem;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+    }
+
+    .fmea-stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .fmea-stat-value.high-risk {
+        color: #ef4444;
+    }
+
+    .fmea-stat-value.medium-risk {
+        color: #eab308;
+    }
+
+    .fmea-stat-value.low-risk {
+        color: #22c55e;
+    }
+
+    .fmea-stat-label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .fmea-progress {
+        margin-top: 0.75rem;
+    }
+
+    .fmea-progress-label {
+        font-size: 0.8rem;
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.25rem;
+    }
+
+    .fmea-progress-bar {
+        height: 6px;
+        background: var(--bg-primary);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .fmea-progress-fill {
+        height: 100%;
+        background: var(--primary-color);
+        transition: width 0.3s;
+    }
+
+    /* Failure Mode Table */
+    .failure-mode-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+
+    .failure-mode-table th,
+    .failure-mode-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .failure-mode-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+    }
+
+    .failure-mode-table tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    /* RPN Cell Styling */
+    .rpn-cell {
+        font-weight: 700;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        text-align: center;
+    }
+
+    .rpn-cell.critical {
+        background: #fecaca;
+        color: #991b1b;
+    }
+
+    .rpn-cell.high {
+        background: #fed7aa;
+        color: #9a3412;
+    }
+
+    .rpn-cell.medium {
+        background: #fef08a;
+        color: #854d0e;
+    }
+
+    .rpn-cell.low {
+        background: #bbf7d0;
+        color: #166534;
+    }
+
+    /* SOD ratings */
+    .sod-rating {
+        display: inline-block;
+        width: 28px;
+        text-align: center;
+        padding: 0.2rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .sod-rating.high {
+        background: #fecaca;
+        color: #991b1b;
+    }
+
+    .sod-rating.medium {
+        background: #fef08a;
+        color: #854d0e;
+    }
+
+    .sod-rating.low {
+        background: #bbf7d0;
+        color: #166534;
+    }
+
+    /* Detail Panel */
+    .detail-panel {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        padding: 1.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .detail-panel h3 {
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .table-container {
+        overflow-x: auto;
+        max-height: 500px;
+        overflow-y: auto;
+    }
+
+    /* Action Items */
+    .action-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        margin-bottom: 0.5rem;
+    }
+
+    .action-item-status {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .action-item-status.pending {
+        background: #fef08a;
+    }
+
+    .action-item-status.in-progress {
+        background: #93c5fd;
+    }
+
+    .action-item-status.complete {
+        background: #86efac;
+    }
+
+    .action-item-content {
+        flex: 1;
+    }
+
+    .action-item-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .action-item-meta {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    /* Legend */
+    .rpn-legend {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.75rem;
+        margin-top: 1rem;
+        justify-content: flex-end;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fmea-container">
+    <div class="fmea-header">
+        <div>
+            <h1>FMEA Management</h1>
+            <p class="subtitle">Failure Mode and Effects Analysis - Phase 10 Quality Risk Management</p>
+        </div>
+        <div class="fmea-actions">
+            <button class="btn btn-secondary" onclick="loadFMEAs()">
+                <span>Refresh</span>
+            </button>
+            <button class="btn btn-primary" onclick="openCreateModal()">
+                <span>+ New FMEA</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- FMEA Summary Cards -->
+    <div class="fmea-grid" id="fmeaGrid">
+        <!-- Cards loaded dynamically -->
+        <div class="loading">Loading FMEA records...</div>
+    </div>
+
+    <!-- Failure Mode Detail Table -->
+    <div class="detail-panel">
+        <h3>
+            <span>Failure Mode Analysis</span>
+            <select id="fmeaSelect" onchange="loadFailureModes(this.value)" style="margin-left: auto; padding: 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">
+                <option value="">Select FMEA...</option>
+            </select>
+        </h3>
+
+        <div class="table-container">
+            <table class="failure-mode-table">
+                <thead>
+                    <tr>
+                        <th>Failure Mode</th>
+                        <th>Effect</th>
+                        <th>Cause</th>
+                        <th>S</th>
+                        <th>O</th>
+                        <th>D</th>
+                        <th>RPN</th>
+                        <th>Priority</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="failureModeTable">
+                    <tr><td colspan="9">Select an FMEA to view failure modes</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="rpn-legend">
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #fecaca;"></div>
+                <span>Critical (200+)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #fed7aa;"></div>
+                <span>High (100-199)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #fef08a;"></div>
+                <span>Medium (50-99)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #bbf7d0;"></div>
+                <span>Low (&lt;50)</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Risk Actions Panel -->
+    <div class="detail-panel" id="actionsPanel" style="display: none;">
+        <h3>Recommended Actions</h3>
+        <div id="actionsList">
+            <!-- Actions loaded dynamically -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load all FMEAs
+async function loadFMEAs() {
+    try {
+        const response = await fetch('/api/quality/fmea');
+        const data = await response.json();
+
+        const fmeas = data.fmeas || [];
+        const grid = document.getElementById('fmeaGrid');
+        const select = document.getElementById('fmeaSelect');
+
+        if (fmeas.length === 0) {
+            grid.innerHTML = '<div class="empty">No FMEA records found. Create one to get started.</div>';
+            return;
+        }
+
+        // Populate grid
+        grid.innerHTML = fmeas.map(fmea => {
+            const highRiskCount = fmea.failure_modes?.filter(fm => fm.rpn >= 100).length || 0;
+            const totalModes = fmea.failure_modes?.length || 0;
+            const actionsComplete = fmea.actions_complete || 0;
+            const actionsTotal = fmea.actions_total || 0;
+            const progressPercent = actionsTotal > 0 ? (actionsComplete / actionsTotal * 100) : 0;
+
+            return `
+                <div class="fmea-card">
+                    <div class="fmea-card-header">
+                        <span class="fmea-card-title">${fmea.name || fmea.fmea_id}</span>
+                        <span class="fmea-type-badge ${fmea.fmea_type || 'process'}">${fmea.fmea_type || 'Process'}</span>
+                    </div>
+                    <div class="fmea-card-body">
+                        <div class="fmea-stats">
+                            <div class="fmea-stat">
+                                <div class="fmea-stat-value">${totalModes}</div>
+                                <div class="fmea-stat-label">Failure Modes</div>
+                            </div>
+                            <div class="fmea-stat">
+                                <div class="fmea-stat-value ${highRiskCount > 0 ? 'high-risk' : 'low-risk'}">${highRiskCount}</div>
+                                <div class="fmea-stat-label">High Risk</div>
+                            </div>
+                            <div class="fmea-stat">
+                                <div class="fmea-stat-value">${fmea.max_rpn || 0}</div>
+                                <div class="fmea-stat-label">Max RPN</div>
+                            </div>
+                        </div>
+                        <div class="fmea-progress">
+                            <div class="fmea-progress-label">
+                                <span>Actions Progress</span>
+                                <span>${actionsComplete}/${actionsTotal}</span>
+                            </div>
+                            <div class="fmea-progress-bar">
+                                <div class="fmea-progress-fill" style="width: ${progressPercent}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Populate select
+        select.innerHTML = '<option value="">Select FMEA...</option>' +
+            fmeas.map(fmea => `<option value="${fmea.fmea_id}">${fmea.name || fmea.fmea_id}</option>`).join('');
+
+        // Auto-select first if available
+        if (fmeas.length > 0) {
+            select.value = fmeas[0].fmea_id;
+            loadFailureModes(fmeas[0].fmea_id);
+        }
+
+    } catch (error) {
+        console.error('Error loading FMEAs:', error);
+        document.getElementById('fmeaGrid').innerHTML = '<div class="error">Error loading FMEA data</div>';
+    }
+}
+
+async function loadFailureModes(fmeaId) {
+    if (!fmeaId) {
+        document.getElementById('failureModeTable').innerHTML = '<tr><td colspan="9">Select an FMEA to view failure modes</td></tr>';
+        document.getElementById('actionsPanel').style.display = 'none';
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/quality/fmea/${fmeaId}`);
+        const data = await response.json();
+
+        const modes = data.failure_modes || [];
+        const tbody = document.getElementById('failureModeTable');
+
+        if (modes.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9">No failure modes defined</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = modes.map(mode => {
+            const rpn = mode.rpn || (mode.severity * mode.occurrence * mode.detection);
+            const rpnClass = getRPNClass(rpn);
+            const priorityLabel = getPriorityLabel(rpn);
+
+            return `
+                <tr>
+                    <td><strong>${mode.mode}</strong></td>
+                    <td>${mode.effect || '-'}</td>
+                    <td>${mode.cause || '-'}</td>
+                    <td><span class="sod-rating ${getSODClass(mode.severity)}">${mode.severity}</span></td>
+                    <td><span class="sod-rating ${getSODClass(mode.occurrence)}">${mode.occurrence}</span></td>
+                    <td><span class="sod-rating ${getSODClass(mode.detection)}">${mode.detection}</span></td>
+                    <td><span class="rpn-cell ${rpnClass}">${rpn}</span></td>
+                    <td>${priorityLabel}</td>
+                    <td>${mode.actions_count || 0} actions</td>
+                </tr>
+            `;
+        }).join('');
+
+        // Load actions
+        loadActions(fmeaId);
+
+    } catch (error) {
+        console.error('Error loading failure modes:', error);
+    }
+}
+
+async function loadActions(fmeaId) {
+    try {
+        const response = await fetch(`/api/quality/fmea/${fmeaId}/actions`);
+        const data = await response.json();
+
+        const actions = data.actions || [];
+        const panel = document.getElementById('actionsPanel');
+        const list = document.getElementById('actionsList');
+
+        if (actions.length === 0) {
+            panel.style.display = 'none';
+            return;
+        }
+
+        panel.style.display = 'block';
+        list.innerHTML = actions.map(action => {
+            const statusClass = action.status?.toLowerCase() || 'pending';
+
+            return `
+                <div class="action-item">
+                    <div class="action-item-status ${statusClass}"></div>
+                    <div class="action-item-content">
+                        <div class="action-item-title">${action.description || action.action}</div>
+                        <div class="action-item-meta">
+                            Type: ${action.action_type} |
+                            Owner: ${action.owner || 'Unassigned'} |
+                            Due: ${action.due_date || 'No date'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Error loading actions:', error);
+    }
+}
+
+function getRPNClass(rpn) {
+    if (rpn >= 200) return 'critical';
+    if (rpn >= 100) return 'high';
+    if (rpn >= 50) return 'medium';
+    return 'low';
+}
+
+function getSODClass(value) {
+    if (value >= 8) return 'high';
+    if (value >= 5) return 'medium';
+    return 'low';
+}
+
+function getPriorityLabel(rpn) {
+    if (rpn >= 200) return 'Critical';
+    if (rpn >= 100) return 'High';
+    if (rpn >= 50) return 'Medium';
+    return 'Low';
+}
+
+function openCreateModal() {
+    // In a full implementation, this would open a modal form
+    alert('Create FMEA functionality - would open modal form');
+}
+
+// Initial load
+document.addEventListener('DOMContentLoaded', () => {
+    loadFMEAs();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,1903 @@
+{% extends "base.html" %}
+
+{% block title %}SPC Dashboard - LEGO MCP v5.0{% endblock %}
+
+{% block styles %}
+<style>
+    /* ============================================
+       SPC Dashboard - Statistical Process Control
+       World-Class Manufacturing Quality System
+       ============================================ */
+
+    .spc-dashboard {
+        padding: 1.5rem;
+        max-width: 1800px;
+        margin: 0 auto;
+    }
+
+    /* Dashboard Header */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .dashboard-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .dashboard-title h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .badge-version {
+        background: linear-gradient(135deg, var(--accent-primary) 0%, #c00 100%);
+        color: white;
+    }
+
+    .badge-western {
+        background: linear-gradient(135deg, #6f42c1 0%, #9851e6 100%);
+        color: white;
+    }
+
+    .dashboard-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: var(--accent-primary);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #c00;
+        transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+        background: var(--bg-primary);
+    }
+
+    /* Metric Selector Bar */
+    .metric-selector {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        flex-wrap: wrap;
+    }
+
+    .metric-selector label {
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .metric-selector select,
+    .metric-selector input {
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg-primary);
+        font-size: 0.9rem;
+    }
+
+    .metric-selector select {
+        min-width: 200px;
+    }
+
+    .process-status {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .process-status.in-control {
+        background: rgba(40, 167, 69, 0.15);
+        color: #28a745;
+    }
+
+    .process-status.out-of-control {
+        background: rgba(220, 53, 69, 0.15);
+        color: #dc3545;
+    }
+
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    .status-dot.green { background: #28a745; }
+    .status-dot.red { background: #dc3545; }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+        background: var(--card-bg);
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .kpi-card.excellent::before { background: #28a745; }
+    .kpi-card.good::before { background: #20c997; }
+    .kpi-card.acceptable::before { background: #ffc107; }
+    .kpi-card.poor::before { background: #fd7e14; }
+    .kpi-card.bad::before { background: #dc3545; }
+    .kpi-card.info::before { background: var(--accent-secondary); }
+
+    .kpi-label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .kpi-value.excellent { color: #28a745; }
+    .kpi-value.good { color: #20c997; }
+    .kpi-value.acceptable { color: #ffc107; }
+    .kpi-value.poor { color: #fd7e14; }
+    .kpi-value.bad { color: #dc3545; }
+
+    .kpi-subtitle {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.35rem;
+    }
+
+    /* Chart Panels */
+    .chart-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .chart-panel {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .panel-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .panel-body {
+        padding: 1.25rem;
+    }
+
+    /* Control Chart Container */
+    .control-chart-container {
+        position: relative;
+    }
+
+    .control-chart {
+        position: relative;
+        height: 250px;
+        margin: 0 40px;
+        border-left: 2px solid var(--border-color);
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .chart-title {
+        text-align: center;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Control Lines */
+    .control-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 2px;
+    }
+
+    .control-line.ucl {
+        border-top: 2px dashed #dc3545;
+    }
+
+    .control-line.lcl {
+        border-top: 2px dashed #dc3545;
+    }
+
+    .control-line.center {
+        border-top: 2px solid var(--accent-secondary);
+    }
+
+    .control-line.usl {
+        border-top: 2px dotted #6f42c1;
+    }
+
+    .control-line.lsl {
+        border-top: 2px dotted #6f42c1;
+    }
+
+    .control-line-label {
+        position: absolute;
+        left: -40px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        transform: translateY(-50%);
+        white-space: nowrap;
+    }
+
+    .control-line-value {
+        position: absolute;
+        right: -40px;
+        font-size: 0.65rem;
+        transform: translateY(-50%);
+    }
+
+    /* Zone Bands (1-sigma, 2-sigma, 3-sigma) */
+    .zone-band {
+        position: absolute;
+        left: 0;
+        right: 0;
+        opacity: 0.1;
+    }
+
+    .zone-band.zone-a { background: #dc3545; }
+    .zone-band.zone-b { background: #ffc107; }
+    .zone-band.zone-c { background: #28a745; }
+
+    /* Data Points */
+    .data-points-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    .data-point {
+        position: absolute;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--accent-secondary);
+        transform: translate(-50%, -50%);
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s;
+        z-index: 5;
+    }
+
+    .data-point:hover {
+        transform: translate(-50%, -50%) scale(1.5);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 10;
+    }
+
+    .data-point.out-of-control {
+        background: #dc3545;
+        animation: pointPulse 1s infinite;
+    }
+
+    .data-point.warning {
+        background: #ffc107;
+    }
+
+    @keyframes pointPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+        50% { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0); }
+    }
+
+    /* Data Point Lines */
+    .data-line {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+    }
+
+    .data-line svg {
+        width: 100%;
+        height: 100%;
+    }
+
+    .data-line polyline {
+        fill: none;
+        stroke: var(--accent-secondary);
+        stroke-width: 2;
+        stroke-linejoin: round;
+    }
+
+    /* Chart Y-Axis */
+    .y-axis {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 40px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 5px 0;
+        text-align: right;
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Chart X-Axis */
+    .x-axis {
+        position: absolute;
+        bottom: -25px;
+        left: 40px;
+        right: 40px;
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.6rem;
+        color: var(--text-secondary);
+    }
+
+    /* Dual Chart Layout */
+    .dual-chart-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .dual-chart-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* ============================================
+       Histogram with Normal Distribution
+       ============================================ */
+    .histogram-container {
+        display: flex;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1000px) {
+        .histogram-container {
+            flex-direction: column;
+        }
+    }
+
+    .histogram-chart {
+        flex: 2;
+        position: relative;
+        height: 280px;
+        margin: 0 50px 30px 50px;
+        border-left: 2px solid var(--border-color);
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .histogram-bar {
+        position: absolute;
+        bottom: 0;
+        background: linear-gradient(180deg, var(--accent-secondary) 0%, #004a94 100%);
+        border-radius: 3px 3px 0 0;
+        transition: opacity 0.2s;
+    }
+
+    .histogram-bar:hover {
+        opacity: 0.8;
+    }
+
+    .histogram-bar.out-of-spec {
+        background: linear-gradient(180deg, #dc3545 0%, #a71d2a 100%);
+    }
+
+    .normal-curve {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+    }
+
+    .normal-curve svg {
+        width: 100%;
+        height: 100%;
+    }
+
+    .normal-curve path {
+        fill: none;
+        stroke: var(--accent-primary);
+        stroke-width: 2.5;
+    }
+
+    .spec-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #6f42c1;
+    }
+
+    .spec-line::before {
+        content: attr(data-label);
+        position: absolute;
+        top: -20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: #6f42c1;
+        white-space: nowrap;
+    }
+
+    .histogram-stats {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.85rem;
+    }
+
+    .stat-row:last-child {
+        border-bottom: none;
+    }
+
+    .stat-label {
+        color: var(--text-secondary);
+    }
+
+    .stat-value {
+        font-weight: 600;
+    }
+
+    /* ============================================
+       Capability Gauges
+       ============================================ */
+    .capability-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1000px) {
+        .capability-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 600px) {
+        .capability-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .capability-gauge {
+        text-align: center;
+    }
+
+    .gauge-container {
+        position: relative;
+        width: 140px;
+        height: 80px;
+        margin: 0 auto;
+        overflow: hidden;
+    }
+
+    .gauge-bg {
+        position: absolute;
+        width: 140px;
+        height: 140px;
+        border-radius: 50%;
+        background: conic-gradient(
+            #dc3545 0deg 60deg,
+            #fd7e14 60deg 90deg,
+            #ffc107 90deg 120deg,
+            #20c997 120deg 150deg,
+            #28a745 150deg 180deg,
+            var(--bg-secondary) 180deg 360deg
+        );
+    }
+
+    .gauge-mask {
+        position: absolute;
+        width: 100px;
+        height: 100px;
+        top: 20px;
+        left: 20px;
+        border-radius: 50%;
+        background: var(--card-bg);
+    }
+
+    .gauge-needle {
+        position: absolute;
+        width: 4px;
+        height: 60px;
+        background: var(--text-primary);
+        left: 68px;
+        top: 10px;
+        transform-origin: bottom center;
+        border-radius: 2px;
+        transition: transform 0.5s ease;
+    }
+
+    .gauge-center {
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        background: var(--text-primary);
+        border-radius: 50%;
+        left: 62px;
+        top: 62px;
+    }
+
+    .gauge-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-top: 0.5rem;
+    }
+
+    .gauge-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .gauge-interpretation {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    /* ============================================
+       Western Electric Rules Panel
+       ============================================ */
+    .rules-panel {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .rule-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        background: var(--card-bg);
+        border-radius: 6px;
+        border-left: 4px solid var(--border-color);
+    }
+
+    .rule-item.violated {
+        border-left-color: #dc3545;
+        background: rgba(220, 53, 69, 0.05);
+    }
+
+    .rule-item.passed {
+        border-left-color: #28a745;
+    }
+
+    .rule-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+    }
+
+    .rule-icon.pass {
+        background: rgba(40, 167, 69, 0.15);
+        color: #28a745;
+    }
+
+    .rule-icon.fail {
+        background: rgba(220, 53, 69, 0.15);
+        color: #dc3545;
+    }
+
+    .rule-content {
+        flex: 1;
+    }
+
+    .rule-name {
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .rule-description {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .rule-violations {
+        font-size: 0.75rem;
+        color: #dc3545;
+        margin-top: 0.25rem;
+    }
+
+    /* ============================================
+       Data Table
+       ============================================ */
+    .data-table-container {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+    }
+
+    .data-table th,
+    .data-table td {
+        padding: 0.6rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .data-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+
+    .data-table tbody tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .data-table tbody tr.out-of-control {
+        background: rgba(220, 53, 69, 0.1);
+    }
+
+    .subgroup-values {
+        display: flex;
+        gap: 0.25rem;
+        flex-wrap: wrap;
+    }
+
+    .subgroup-value {
+        background: var(--bg-secondary);
+        padding: 0.15rem 0.35rem;
+        border-radius: 3px;
+        font-size: 0.7rem;
+    }
+
+    /* Status Badge */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .status-badge.in-control {
+        background: rgba(40, 167, 69, 0.15);
+        color: #28a745;
+    }
+
+    .status-badge.out-of-control {
+        background: rgba(220, 53, 69, 0.15);
+        color: #dc3545;
+    }
+
+    /* Legend */
+    .chart-legend {
+        display: flex;
+        justify-content: center;
+        gap: 1.5rem;
+        margin-top: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.75rem;
+    }
+
+    .legend-line {
+        width: 20px;
+        height: 0;
+    }
+
+    .legend-line.ucl-lcl {
+        border-top: 2px dashed #dc3545;
+    }
+
+    .legend-line.center {
+        border-top: 2px solid var(--accent-secondary);
+    }
+
+    .legend-line.spec {
+        border-top: 2px dotted #6f42c1;
+    }
+
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .legend-dot.normal { background: var(--accent-secondary); }
+    .legend-dot.ooc { background: #dc3545; }
+
+    /* Tooltip */
+    .chart-tooltip {
+        position: fixed;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 0.75rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        font-size: 0.8rem;
+        z-index: 1000;
+        pointer-events: none;
+        display: none;
+    }
+
+    .chart-tooltip.visible {
+        display: block;
+    }
+
+    .tooltip-title {
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+    }
+
+    .tooltip-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .tooltip-label {
+        color: var(--text-secondary);
+    }
+
+    /* Print styles */
+    @media print {
+        .dashboard-actions,
+        .metric-selector select,
+        .metric-selector input {
+            display: none !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="spc-dashboard">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <h1>SPC Dashboard</h1>
+            <span class="badge badge-version">v5.0</span>
+            <span class="badge badge-western">Western Electric Rules</span>
+        </div>
+        <div class="dashboard-actions">
+            <button class="btn btn-secondary" onclick="exportReport('pdf')">
+                <span>Export PDF</span>
+            </button>
+            <button class="btn btn-secondary" onclick="exportReport('excel')">
+                <span>Export Excel</span>
+            </button>
+            <button class="btn btn-secondary" onclick="loadSPCData()">
+                <span>Refresh</span>
+            </button>
+            <button class="btn btn-primary" onclick="openDataEntry()">
+                <span>+ Enter Data</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Metric Selector -->
+    <div class="metric-selector">
+        <label for="metricSelect">Metric:</label>
+        <select id="metricSelect" onchange="selectMetric(this.value)">
+            <option value="stud_diameter">Stud Diameter (mm)</option>
+            <option value="clutch_force">Clutch Force (N)</option>
+            <option value="wall_thickness">Wall Thickness (mm)</option>
+            <option value="color_delta_e">Color Delta E</option>
+            <option value="weight">Part Weight (g)</option>
+        </select>
+
+        <label for="subgroupSize">Subgroup Size:</label>
+        <select id="subgroupSize" onchange="updateSubgroupSize(this.value)">
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5" selected>5</option>
+            <option value="6">6</option>
+        </select>
+
+        <label for="numSubgroups">Subgroups:</label>
+        <input type="number" id="numSubgroups" value="25" min="10" max="100" style="width: 70px;" onchange="updateNumSubgroups(this.value)">
+
+        <div class="process-status" id="processStatus">
+            <span class="status-dot green"></span>
+            <span>In Control</span>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card info" id="kpiCp">
+            <div class="kpi-label">Cp (Capability)</div>
+            <div class="kpi-value" id="cpValue">-</div>
+            <div class="kpi-subtitle" id="cpInterpretation">-</div>
+        </div>
+        <div class="kpi-card info" id="kpiCpk">
+            <div class="kpi-label">Cpk (Capability Index)</div>
+            <div class="kpi-value" id="cpkValue">-</div>
+            <div class="kpi-subtitle" id="cpkInterpretation">-</div>
+        </div>
+        <div class="kpi-card info" id="kpiPp">
+            <div class="kpi-label">Pp (Performance)</div>
+            <div class="kpi-value" id="ppValue">-</div>
+            <div class="kpi-subtitle" id="ppInterpretation">-</div>
+        </div>
+        <div class="kpi-card info" id="kpiPpk">
+            <div class="kpi-label">Ppk (Performance Index)</div>
+            <div class="kpi-value" id="ppkValue">-</div>
+            <div class="kpi-subtitle" id="ppkInterpretation">-</div>
+        </div>
+        <div class="kpi-card info">
+            <div class="kpi-label">Sigma Level</div>
+            <div class="kpi-value" id="sigmaLevel">-</div>
+            <div class="kpi-subtitle" id="sigmaInterpretation">-</div>
+        </div>
+        <div class="kpi-card info">
+            <div class="kpi-label">OOC Points</div>
+            <div class="kpi-value" id="oocCount">0</div>
+            <div class="kpi-subtitle" id="oocPercent">of 0 subgroups</div>
+        </div>
+    </div>
+
+    <!-- X-bar Chart -->
+    <div class="chart-panel">
+        <div class="panel-header">
+            <span class="panel-title">
+                <span>X-bar Control Chart</span>
+                <span style="font-weight: normal; font-size: 0.75rem; color: var(--text-secondary);">(Subgroup Averages)</span>
+            </span>
+        </div>
+        <div class="panel-body">
+            <div class="control-chart-container">
+                <div class="y-axis" id="xbarYAxis"></div>
+                <div class="control-chart" id="xbarChart">
+                    <!-- Control lines and data points rendered by JS -->
+                </div>
+                <div class="x-axis" id="xbarXAxis"></div>
+            </div>
+            <div class="chart-legend">
+                <div class="legend-item">
+                    <div class="legend-line ucl-lcl"></div>
+                    <span>UCL/LCL (3σ)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line center"></div>
+                    <span>Center Line (X̄̄)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line spec"></div>
+                    <span>Spec Limits</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot normal"></div>
+                    <span>In Control</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot ooc"></div>
+                    <span>Out of Control</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- R Chart -->
+    <div class="chart-panel">
+        <div class="panel-header">
+            <span class="panel-title">
+                <span>R Control Chart</span>
+                <span style="font-weight: normal; font-size: 0.75rem; color: var(--text-secondary);">(Subgroup Ranges)</span>
+            </span>
+        </div>
+        <div class="panel-body">
+            <div class="control-chart-container">
+                <div class="y-axis" id="rYAxis"></div>
+                <div class="control-chart" id="rChart">
+                    <!-- Control lines and data points rendered by JS -->
+                </div>
+                <div class="x-axis" id="rXAxis"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Histogram and Capability -->
+    <div class="chart-panel">
+        <div class="panel-header">
+            <span class="panel-title">
+                <span>Process Distribution & Capability</span>
+            </span>
+        </div>
+        <div class="panel-body">
+            <div class="histogram-container">
+                <div style="flex: 2;">
+                    <div class="histogram-chart" id="histogramChart">
+                        <!-- Histogram bars and normal curve rendered by JS -->
+                    </div>
+                </div>
+                <div class="histogram-stats">
+                    <div class="stat-row">
+                        <span class="stat-label">Sample Size (n)</span>
+                        <span class="stat-value" id="statN">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Mean (X̄)</span>
+                        <span class="stat-value" id="statMean">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Std Dev (σ)</span>
+                        <span class="stat-value" id="statStdDev">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Range</span>
+                        <span class="stat-value" id="statRange">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Target</span>
+                        <span class="stat-value" id="statTarget">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">USL</span>
+                        <span class="stat-value" id="statUSL">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">LSL</span>
+                        <span class="stat-value" id="statLSL">-</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">% Out of Spec</span>
+                        <span class="stat-value" id="statOOS">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Capability Gauges -->
+    <div class="chart-panel">
+        <div class="panel-header">
+            <span class="panel-title">
+                <span>Capability Index Visualization</span>
+            </span>
+        </div>
+        <div class="panel-body">
+            <div class="capability-grid">
+                <div class="capability-gauge">
+                    <div class="gauge-label">Cp</div>
+                    <div class="gauge-container">
+                        <div class="gauge-bg"></div>
+                        <div class="gauge-mask"></div>
+                        <div class="gauge-needle" id="cpNeedle"></div>
+                        <div class="gauge-center"></div>
+                    </div>
+                    <div class="gauge-value" id="cpGaugeValue">-</div>
+                    <div class="gauge-interpretation" id="cpGaugeInterp">-</div>
+                </div>
+                <div class="capability-gauge">
+                    <div class="gauge-label">Cpk</div>
+                    <div class="gauge-container">
+                        <div class="gauge-bg"></div>
+                        <div class="gauge-mask"></div>
+                        <div class="gauge-needle" id="cpkNeedle"></div>
+                        <div class="gauge-center"></div>
+                    </div>
+                    <div class="gauge-value" id="cpkGaugeValue">-</div>
+                    <div class="gauge-interpretation" id="cpkGaugeInterp">-</div>
+                </div>
+                <div class="capability-gauge">
+                    <div class="gauge-label">Pp</div>
+                    <div class="gauge-container">
+                        <div class="gauge-bg"></div>
+                        <div class="gauge-mask"></div>
+                        <div class="gauge-needle" id="ppNeedle"></div>
+                        <div class="gauge-center"></div>
+                    </div>
+                    <div class="gauge-value" id="ppGaugeValue">-</div>
+                    <div class="gauge-interpretation" id="ppGaugeInterp">-</div>
+                </div>
+                <div class="capability-gauge">
+                    <div class="gauge-label">Ppk</div>
+                    <div class="gauge-container">
+                        <div class="gauge-bg"></div>
+                        <div class="gauge-mask"></div>
+                        <div class="gauge-needle" id="ppkNeedle"></div>
+                        <div class="gauge-center"></div>
+                    </div>
+                    <div class="gauge-value" id="ppkGaugeValue">-</div>
+                    <div class="gauge-interpretation" id="ppkGaugeInterp">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Western Electric Rules -->
+    <div class="dual-chart-grid">
+        <div class="chart-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>Western Electric Rules</span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="rules-panel" id="rulesPanel">
+                    <!-- Rules rendered by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Subgroup Data Table -->
+        <div class="chart-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>Subgroup Data</span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="data-table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Time</th>
+                                <th>X̄</th>
+                                <th>R</th>
+                                <th>Values</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subgroupTableBody">
+                            <tr><td colspan="6" style="text-align: center; padding: 2rem;">Loading data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tooltip -->
+<div class="chart-tooltip" id="chartTooltip">
+    <div class="tooltip-title" id="tooltipTitle"></div>
+    <div class="tooltip-row">
+        <span class="tooltip-label">Value:</span>
+        <span id="tooltipValue"></span>
+    </div>
+    <div class="tooltip-row">
+        <span class="tooltip-label">Status:</span>
+        <span id="tooltipStatus"></span>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ============================================
+// SPC Dashboard - Statistical Process Control
+// ============================================
+
+// Configuration
+let currentMetric = 'stud_diameter';
+let subgroupSize = 5;
+let numSubgroups = 25;
+
+// Control chart constants (A2, D3, D4 factors)
+const A2_FACTORS = { 2: 1.880, 3: 1.023, 4: 0.729, 5: 0.577, 6: 0.483, 7: 0.419, 8: 0.373, 9: 0.337, 10: 0.308 };
+const D3_FACTORS = { 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0.076, 8: 0.136, 9: 0.184, 10: 0.223 };
+const D4_FACTORS = { 2: 3.267, 3: 2.574, 4: 2.282, 5: 2.114, 6: 2.004, 7: 1.924, 8: 1.864, 9: 1.816, 10: 1.777 };
+
+// Sample LEGO brick measurement data
+const sampleMetrics = {
+    stud_diameter: {
+        name: 'Stud Diameter',
+        unit: 'mm',
+        target: 4.800,
+        usl: 4.820,
+        lsl: 4.780,
+        // Generate realistic sample data with some variation
+        data: generateSampleData(4.800, 0.008, 125, [
+            { index: 45, shift: 0.015 },  // Simulate a shift
+            { index: 90, spike: 0.025 }   // Simulate a spike
+        ])
+    },
+    clutch_force: {
+        name: 'Clutch Force',
+        unit: 'N',
+        target: 9.0,
+        usl: 11.0,
+        lsl: 7.0,
+        data: generateSampleData(9.0, 0.5, 125, [])
+    },
+    wall_thickness: {
+        name: 'Wall Thickness',
+        unit: 'mm',
+        target: 1.600,
+        usl: 1.650,
+        lsl: 1.550,
+        data: generateSampleData(1.600, 0.015, 125, [])
+    },
+    color_delta_e: {
+        name: 'Color Delta E',
+        unit: '',
+        target: 0,
+        usl: 2.0,
+        lsl: 0,
+        data: generateSampleData(0.8, 0.3, 125, []).map(v => Math.abs(v))
+    },
+    weight: {
+        name: 'Part Weight',
+        unit: 'g',
+        target: 2.30,
+        usl: 2.40,
+        lsl: 2.20,
+        data: generateSampleData(2.30, 0.03, 125, [])
+    }
+};
+
+// Seeded pseudo-random number generator for reproducible SPC data
+// Uses time-based seed that changes every 5 minutes for stable display
+function seededRandom(seed) {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+}
+
+// Generate sample data with optional anomalies (deterministic)
+function generateSampleData(mean, stdDev, count, anomalies) {
+    const data = [];
+    // Seed based on current 5-minute window for stability
+    const timeSeed = Math.floor(Date.now() / 300000);
+
+    for (let i = 0; i < count; i++) {
+        // Box-Muller transform using seeded random for reproducibility
+        const seed1 = timeSeed + i * 2 + mean * 1000;
+        const seed2 = timeSeed + i * 2 + 1 + mean * 1000;
+        const u1 = seededRandom(seed1);
+        const u2 = seededRandom(seed2);
+        const z = Math.sqrt(-2 * Math.log(Math.max(0.0001, u1))) * Math.cos(2 * Math.PI * u2);
+        let value = mean + z * stdDev;
+
+        // Apply anomalies
+        anomalies.forEach(a => {
+            if (a.index === i && a.shift) value += a.shift;
+            if (a.index === i && a.spike) value += a.spike;
+        });
+
+        data.push(value);
+    }
+    return data;
+}
+
+// State
+let chartData = {
+    subgroups: [],
+    xbarLimits: { ucl: 0, cl: 0, lcl: 0 },
+    rLimits: { ucl: 0, cl: 0, lcl: 0 },
+    violations: []
+};
+
+// ============================================
+// Initialization
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    loadSPCData();
+});
+
+function loadSPCData() {
+    const metric = sampleMetrics[currentMetric];
+    if (!metric) return;
+
+    // Calculate subgroups
+    const subgroups = calculateSubgroups(metric.data, subgroupSize);
+
+    // Calculate control limits
+    const limits = calculateControlLimits(subgroups, subgroupSize);
+
+    // Check for violations
+    const violations = checkWesternElectricRules(subgroups, limits.xbar);
+
+    // Update state
+    chartData = {
+        subgroups,
+        xbarLimits: limits.xbar,
+        rLimits: limits.range,
+        violations,
+        metric
+    };
+
+    // Update all visualizations
+    updateKPIs();
+    renderXbarChart();
+    renderRChart();
+    renderHistogram();
+    updateCapabilityGauges();
+    renderRulesPanel();
+    renderSubgroupTable();
+    updateProcessStatus();
+}
+
+function calculateSubgroups(data, size) {
+    const subgroups = [];
+    for (let i = 0; i + size <= data.length; i += size) {
+        const values = data.slice(i, i + size);
+        const xbar = values.reduce((a, b) => a + b, 0) / values.length;
+        const range = Math.max(...values) - Math.min(...values);
+        subgroups.push({
+            index: subgroups.length,
+            values,
+            xbar,
+            range,
+            timestamp: new Date(Date.now() - (subgroups.length * 3600000))
+        });
+    }
+    return subgroups.slice(0, numSubgroups);
+}
+
+function calculateControlLimits(subgroups, size) {
+    const xbars = subgroups.map(s => s.xbar);
+    const ranges = subgroups.map(s => s.range);
+
+    const xDoubleBar = xbars.reduce((a, b) => a + b, 0) / xbars.length;
+    const rBar = ranges.reduce((a, b) => a + b, 0) / ranges.length;
+
+    const A2 = A2_FACTORS[size] || 0.577;
+    const D3 = D3_FACTORS[size] || 0;
+    const D4 = D4_FACTORS[size] || 2.114;
+
+    return {
+        xbar: {
+            ucl: xDoubleBar + A2 * rBar,
+            cl: xDoubleBar,
+            lcl: xDoubleBar - A2 * rBar
+        },
+        range: {
+            ucl: D4 * rBar,
+            cl: rBar,
+            lcl: D3 * rBar
+        }
+    };
+}
+
+function checkWesternElectricRules(subgroups, limits) {
+    const violations = [];
+    const sigma = (limits.ucl - limits.cl) / 3;
+
+    subgroups.forEach((sg, i) => {
+        const x = sg.xbar;
+
+        // Rule 1: Beyond 3 sigma
+        if (x > limits.ucl || x < limits.lcl) {
+            violations.push({ rule: 1, index: i, value: x, description: 'Point beyond 3σ' });
+            sg.ooc = true;
+        }
+
+        // Rule 2: 2 of 3 beyond 2 sigma
+        if (i >= 2) {
+            const recent = subgroups.slice(i - 2, i + 1).map(s => s.xbar);
+            const above2 = recent.filter(v => v > limits.cl + 2 * sigma).length;
+            const below2 = recent.filter(v => v < limits.cl - 2 * sigma).length;
+            if (above2 >= 2 || below2 >= 2) {
+                violations.push({ rule: 2, index: i, value: x, description: '2 of 3 beyond 2σ' });
+                sg.warning = true;
+            }
+        }
+
+        // Rule 3: 4 of 5 beyond 1 sigma
+        if (i >= 4) {
+            const recent = subgroups.slice(i - 4, i + 1).map(s => s.xbar);
+            const above1 = recent.filter(v => v > limits.cl + sigma).length;
+            const below1 = recent.filter(v => v < limits.cl - sigma).length;
+            if (above1 >= 4 || below1 >= 4) {
+                violations.push({ rule: 3, index: i, value: x, description: '4 of 5 beyond 1σ' });
+                sg.warning = true;
+            }
+        }
+
+        // Rule 4: 8 consecutive on same side
+        if (i >= 7) {
+            const recent = subgroups.slice(i - 7, i + 1).map(s => s.xbar);
+            const allAbove = recent.every(v => v > limits.cl);
+            const allBelow = recent.every(v => v < limits.cl);
+            if (allAbove || allBelow) {
+                violations.push({ rule: 4, index: i, value: x, description: '8 consecutive on one side' });
+                sg.warning = true;
+            }
+        }
+    });
+
+    return violations;
+}
+
+// ============================================
+// Visualization Functions
+// ============================================
+function updateKPIs() {
+    const metric = chartData.metric;
+    const allValues = chartData.subgroups.flatMap(s => s.values);
+
+    if (allValues.length === 0) return;
+
+    const mean = allValues.reduce((a, b) => a + b, 0) / allValues.length;
+    const variance = allValues.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / (allValues.length - 1);
+    const stdDev = Math.sqrt(variance);
+
+    // Within-subgroup std dev (from R-bar)
+    const rBar = chartData.rLimits.cl;
+    const d2 = { 2: 1.128, 3: 1.693, 4: 2.059, 5: 2.326, 6: 2.534 }[subgroupSize] || 2.326;
+    const sigmaWithin = rBar / d2;
+
+    // Capability indices
+    const cp = (metric.usl - metric.lsl) / (6 * sigmaWithin);
+    const cpk = Math.min(
+        (metric.usl - mean) / (3 * sigmaWithin),
+        (mean - metric.lsl) / (3 * sigmaWithin)
+    );
+
+    // Performance indices (overall variation)
+    const pp = (metric.usl - metric.lsl) / (6 * stdDev);
+    const ppk = Math.min(
+        (metric.usl - mean) / (3 * stdDev),
+        (mean - metric.lsl) / (3 * stdDev)
+    );
+
+    // Sigma level
+    const sigmaLevel = Math.min(
+        (metric.usl - mean) / stdDev,
+        (mean - metric.lsl) / stdDev
+    );
+
+    // OOC count
+    const oocCount = chartData.subgroups.filter(s => s.ooc).length;
+
+    // Update KPI cards
+    updateKPICard('cp', cp);
+    updateKPICard('cpk', cpk);
+    updateKPICard('pp', pp);
+    updateKPICard('ppk', ppk);
+
+    document.getElementById('cpValue').textContent = cp.toFixed(2);
+    document.getElementById('cpkValue').textContent = cpk.toFixed(2);
+    document.getElementById('ppValue').textContent = pp.toFixed(2);
+    document.getElementById('ppkValue').textContent = ppk.toFixed(2);
+    document.getElementById('sigmaLevel').textContent = sigmaLevel.toFixed(1) + 'σ';
+    document.getElementById('oocCount').textContent = oocCount;
+    document.getElementById('oocPercent').textContent = `of ${chartData.subgroups.length} subgroups`;
+
+    // Interpretations
+    document.getElementById('cpInterpretation').textContent = interpretCapability(cp);
+    document.getElementById('cpkInterpretation').textContent = interpretCapability(cpk);
+    document.getElementById('ppInterpretation').textContent = interpretCapability(pp);
+    document.getElementById('ppkInterpretation').textContent = interpretCapability(ppk);
+    document.getElementById('sigmaInterpretation').textContent = interpretSigma(sigmaLevel);
+
+    // Store for gauge updates
+    chartData.capability = { cp, cpk, pp, ppk, sigmaLevel, mean, stdDev };
+}
+
+function updateKPICard(type, value) {
+    const card = document.getElementById(`kpi${type.charAt(0).toUpperCase() + type.slice(1)}`);
+    const valueEl = document.getElementById(`${type}Value`);
+
+    card.className = 'kpi-card ' + getCapabilityClass(value);
+    valueEl.className = 'kpi-value ' + getCapabilityClass(value);
+}
+
+function getCapabilityClass(value) {
+    if (value >= 2.0) return 'excellent';
+    if (value >= 1.67) return 'good';
+    if (value >= 1.33) return 'acceptable';
+    if (value >= 1.0) return 'poor';
+    return 'bad';
+}
+
+function interpretCapability(value) {
+    if (value >= 2.0) return '6σ World Class';
+    if (value >= 1.67) return '5σ Excellent';
+    if (value >= 1.33) return '4σ Good';
+    if (value >= 1.0) return '3σ Minimum';
+    return 'Not Capable';
+}
+
+function interpretSigma(level) {
+    if (level >= 6) return 'World Class';
+    if (level >= 5) return 'Excellent';
+    if (level >= 4) return 'Good';
+    if (level >= 3) return 'Acceptable';
+    return 'Poor';
+}
+
+function renderXbarChart() {
+    const chart = document.getElementById('xbarChart');
+    const metric = chartData.metric;
+    const limits = chartData.xbarLimits;
+    const subgroups = chartData.subgroups;
+
+    if (subgroups.length === 0) {
+        chart.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-secondary);">No data</div>';
+        return;
+    }
+
+    // Calculate scale
+    const allXbars = subgroups.map(s => s.xbar);
+    const minVal = Math.min(limits.lcl, metric.lsl, ...allXbars) - (limits.ucl - limits.lcl) * 0.1;
+    const maxVal = Math.max(limits.ucl, metric.usl, ...allXbars) + (limits.ucl - limits.lcl) * 0.1;
+    const range = maxVal - minVal;
+
+    // Calculate sigma bands
+    const sigma = (limits.ucl - limits.cl) / 3;
+
+    // Build chart HTML
+    let html = '';
+
+    // Zone bands (1σ, 2σ, 3σ)
+    const zones = [
+        { top: limits.cl + 3 * sigma, bottom: limits.cl + 2 * sigma, class: 'zone-a' },
+        { top: limits.cl + 2 * sigma, bottom: limits.cl + sigma, class: 'zone-b' },
+        { top: limits.cl + sigma, bottom: limits.cl - sigma, class: 'zone-c' },
+        { top: limits.cl - sigma, bottom: limits.cl - 2 * sigma, class: 'zone-b' },
+        { top: limits.cl - 2 * sigma, bottom: limits.cl - 3 * sigma, class: 'zone-a' }
+    ];
+
+    zones.forEach(zone => {
+        const topPct = ((maxVal - zone.top) / range) * 100;
+        const heightPct = ((zone.top - zone.bottom) / range) * 100;
+        html += `<div class="zone-band ${zone.class}" style="top:${topPct}%;height:${heightPct}%"></div>`;
+    });
+
+    // Control lines
+    html += renderControlLine('UCL', limits.ucl, maxVal, range, 'ucl');
+    html += renderControlLine('CL', limits.cl, maxVal, range, 'center');
+    html += renderControlLine('LCL', limits.lcl, maxVal, range, 'lcl');
+
+    // Spec limits if within range
+    if (metric.usl <= maxVal && metric.usl >= minVal) {
+        html += renderControlLine('USL', metric.usl, maxVal, range, 'usl');
+    }
+    if (metric.lsl <= maxVal && metric.lsl >= minVal) {
+        html += renderControlLine('LSL', metric.lsl, maxVal, range, 'lsl');
+    }
+
+    // Data line
+    const linePoints = subgroups.map((s, i) => {
+        const x = (i / (subgroups.length - 1)) * 100;
+        const y = ((maxVal - s.xbar) / range) * 100;
+        return `${x},${y}`;
+    }).join(' ');
+
+    html += `<div class="data-line"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points="${linePoints}"/></svg></div>`;
+
+    // Data points
+    html += '<div class="data-points-container">';
+    subgroups.forEach((s, i) => {
+        const x = (i / (subgroups.length - 1)) * 100;
+        const y = ((maxVal - s.xbar) / range) * 100;
+        const pointClass = s.ooc ? 'out-of-control' : (s.warning ? 'warning' : '');
+        html += `<div class="data-point ${pointClass}" style="left:${x}%;top:${y}%"
+                     data-index="${i}" data-value="${s.xbar.toFixed(4)}"
+                     onmouseenter="showTooltip(event, ${i}, 'xbar')"
+                     onmouseleave="hideTooltip()"></div>`;
+    });
+    html += '</div>';
+
+    chart.innerHTML = html;
+
+    // Update Y-axis
+    updateYAxis('xbarYAxis', minVal, maxVal);
+    updateXAxis('xbarXAxis', subgroups);
+}
+
+function renderRChart() {
+    const chart = document.getElementById('rChart');
+    const limits = chartData.rLimits;
+    const subgroups = chartData.subgroups;
+
+    if (subgroups.length === 0) {
+        chart.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-secondary);">No data</div>';
+        return;
+    }
+
+    // Calculate scale
+    const allRanges = subgroups.map(s => s.range);
+    const minVal = 0;
+    const maxVal = Math.max(limits.ucl, ...allRanges) * 1.1;
+    const range = maxVal - minVal;
+
+    let html = '';
+
+    // Control lines
+    html += renderControlLine('UCL', limits.ucl, maxVal, range, 'ucl');
+    html += renderControlLine('R̄', limits.cl, maxVal, range, 'center');
+    if (limits.lcl > 0) {
+        html += renderControlLine('LCL', limits.lcl, maxVal, range, 'lcl');
+    }
+
+    // Data line
+    const linePoints = subgroups.map((s, i) => {
+        const x = (i / (subgroups.length - 1)) * 100;
+        const y = ((maxVal - s.range) / range) * 100;
+        return `${x},${y}`;
+    }).join(' ');
+
+    html += `<div class="data-line"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline points="${linePoints}"/></svg></div>`;
+
+    // Data points
+    html += '<div class="data-points-container">';
+    subgroups.forEach((s, i) => {
+        const x = (i / (subgroups.length - 1)) * 100;
+        const y = ((maxVal - s.range) / range) * 100;
+        const ooc = s.range > limits.ucl || s.range < limits.lcl;
+        html += `<div class="data-point ${ooc ? 'out-of-control' : ''}" style="left:${x}%;top:${y}%"
+                     data-index="${i}" data-value="${s.range.toFixed(4)}"
+                     onmouseenter="showTooltip(event, ${i}, 'range')"
+                     onmouseleave="hideTooltip()"></div>`;
+    });
+    html += '</div>';
+
+    chart.innerHTML = html;
+
+    // Update Y-axis
+    updateYAxis('rYAxis', minVal, maxVal);
+    updateXAxis('rXAxis', subgroups);
+}
+
+function renderControlLine(label, value, maxVal, range, type) {
+    const y = ((maxVal - value) / range) * 100;
+    return `
+        <div class="control-line ${type}" style="top:${y}%">
+            <span class="control-line-label">${label}</span>
+            <span class="control-line-value">${value.toFixed(3)}</span>
+        </div>
+    `;
+}
+
+function updateYAxis(elementId, min, max) {
+    const el = document.getElementById(elementId);
+    const steps = 5;
+    const range = max - min;
+    let html = '';
+    for (let i = 0; i <= steps; i++) {
+        const val = max - (i / steps) * range;
+        html += `<span>${val.toFixed(3)}</span>`;
+    }
+    el.innerHTML = html;
+}
+
+function updateXAxis(elementId, subgroups) {
+    const el = document.getElementById(elementId);
+    const labels = subgroups.filter((_, i) => i % 5 === 0).map((s, i) => i * 5 + 1);
+    el.innerHTML = labels.map(l => `<span>${l}</span>`).join('');
+}
+
+function renderHistogram() {
+    const chart = document.getElementById('histogramChart');
+    const metric = chartData.metric;
+    const allValues = chartData.subgroups.flatMap(s => s.values);
+
+    if (allValues.length === 0) {
+        chart.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-secondary);">No data</div>';
+        return;
+    }
+
+    // Calculate histogram bins
+    const min = Math.min(...allValues, metric.lsl);
+    const max = Math.max(...allValues, metric.usl);
+    const numBins = 15;
+    const binWidth = (max - min) / numBins;
+
+    const bins = Array(numBins).fill(0);
+    allValues.forEach(v => {
+        const binIndex = Math.min(Math.floor((v - min) / binWidth), numBins - 1);
+        bins[binIndex]++;
+    });
+
+    const maxBin = Math.max(...bins);
+
+    // Render bars
+    let html = '';
+    bins.forEach((count, i) => {
+        const left = (i / numBins) * 100;
+        const width = (1 / numBins) * 100 - 0.5;
+        const height = (count / maxBin) * 100;
+        const binStart = min + i * binWidth;
+        const binEnd = binStart + binWidth;
+        const isOOS = binEnd < metric.lsl || binStart > metric.usl;
+
+        html += `<div class="histogram-bar ${isOOS ? 'out-of-spec' : ''}"
+                     style="left:${left}%;width:${width}%;height:${height}%"
+                     title="${binStart.toFixed(3)} - ${binEnd.toFixed(3)}: ${count}"></div>`;
+    });
+
+    // Spec lines
+    const lslPos = ((metric.lsl - min) / (max - min)) * 100;
+    const uslPos = ((metric.usl - min) / (max - min)) * 100;
+
+    html += `<div class="spec-line" style="left:${lslPos}%" data-label="LSL"></div>`;
+    html += `<div class="spec-line" style="left:${uslPos}%" data-label="USL"></div>`;
+
+    // Normal distribution curve
+    const mean = allValues.reduce((a, b) => a + b, 0) / allValues.length;
+    const variance = allValues.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / (allValues.length - 1);
+    const stdDev = Math.sqrt(variance);
+
+    const curvePoints = [];
+    for (let i = 0; i <= 100; i++) {
+        const x = min + (i / 100) * (max - min);
+        const z = (x - mean) / stdDev;
+        const y = Math.exp(-0.5 * z * z) / (stdDev * Math.sqrt(2 * Math.PI));
+        const yNorm = y * binWidth * allValues.length;
+        curvePoints.push({ x: i, y: Math.min((yNorm / maxBin) * 100, 100) });
+    }
+
+    const pathD = curvePoints.map((p, i) =>
+        `${i === 0 ? 'M' : 'L'} ${p.x} ${100 - p.y}`
+    ).join(' ');
+
+    html += `<div class="normal-curve"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><path d="${pathD}"/></svg></div>`;
+
+    chart.innerHTML = html;
+
+    // Update stats
+    const oos = allValues.filter(v => v < metric.lsl || v > metric.usl).length;
+    document.getElementById('statN').textContent = allValues.length;
+    document.getElementById('statMean').textContent = mean.toFixed(4);
+    document.getElementById('statStdDev').textContent = stdDev.toFixed(4);
+    document.getElementById('statRange').textContent = `${Math.min(...allValues).toFixed(3)} - ${Math.max(...allValues).toFixed(3)}`;
+    document.getElementById('statTarget').textContent = metric.target.toFixed(3);
+    document.getElementById('statUSL').textContent = metric.usl.toFixed(3);
+    document.getElementById('statLSL').textContent = metric.lsl.toFixed(3);
+    document.getElementById('statOOS').textContent = `${((oos / allValues.length) * 100).toFixed(2)}%`;
+}
+
+function updateCapabilityGauges() {
+    if (!chartData.capability) return;
+
+    const { cp, cpk, pp, ppk } = chartData.capability;
+
+    updateGauge('cp', cp);
+    updateGauge('cpk', cpk);
+    updateGauge('pp', pp);
+    updateGauge('ppk', ppk);
+}
+
+function updateGauge(type, value) {
+    // Convert value to angle (0-180 degrees)
+    // Map 0 to 2.5 onto 180 to 0 degrees
+    const clampedValue = Math.min(Math.max(value, 0), 2.5);
+    const angle = 180 - (clampedValue / 2.5) * 180;
+
+    const needle = document.getElementById(`${type}Needle`);
+    const gaugeValue = document.getElementById(`${type}GaugeValue`);
+    const gaugeInterp = document.getElementById(`${type}GaugeInterp`);
+
+    if (needle) needle.style.transform = `rotate(${angle}deg)`;
+    if (gaugeValue) {
+        gaugeValue.textContent = value.toFixed(2);
+        gaugeValue.className = 'gauge-value ' + getCapabilityClass(value);
+    }
+    if (gaugeInterp) gaugeInterp.textContent = interpretCapability(value);
+}
+
+function renderRulesPanel() {
+    const panel = document.getElementById('rulesPanel');
+    const violations = chartData.violations;
+
+    const rules = [
+        { num: 1, name: 'Rule 1: Beyond 3σ', desc: 'One point beyond 3 standard deviations from center line' },
+        { num: 2, name: 'Rule 2: 2 of 3 beyond 2σ', desc: 'Two of three consecutive points beyond 2σ on same side' },
+        { num: 3, name: 'Rule 3: 4 of 5 beyond 1σ', desc: 'Four of five consecutive points beyond 1σ on same side' },
+        { num: 4, name: 'Rule 4: 8 consecutive', desc: 'Eight consecutive points on one side of center line' }
+    ];
+
+    panel.innerHTML = rules.map(rule => {
+        const ruleViolations = violations.filter(v => v.rule === rule.num);
+        const violated = ruleViolations.length > 0;
+
+        return `
+            <div class="rule-item ${violated ? 'violated' : 'passed'}">
+                <div class="rule-icon ${violated ? 'fail' : 'pass'}">
+                    ${violated ? '!' : '✓'}
+                </div>
+                <div class="rule-content">
+                    <div class="rule-name">${rule.name}</div>
+                    <div class="rule-description">${rule.desc}</div>
+                    ${violated ? `<div class="rule-violations">${ruleViolations.length} violation(s) at subgroup(s): ${ruleViolations.map(v => v.index + 1).join(', ')}</div>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderSubgroupTable() {
+    const tbody = document.getElementById('subgroupTableBody');
+    const subgroups = chartData.subgroups;
+
+    if (subgroups.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No data</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = subgroups.map((sg, i) => {
+        const isOOC = sg.ooc || sg.warning;
+        return `
+            <tr class="${sg.ooc ? 'out-of-control' : ''}">
+                <td>${i + 1}</td>
+                <td>${sg.timestamp.toLocaleTimeString()}</td>
+                <td><strong>${sg.xbar.toFixed(4)}</strong></td>
+                <td>${sg.range.toFixed(4)}</td>
+                <td>
+                    <div class="subgroup-values">
+                        ${sg.values.map(v => `<span class="subgroup-value">${v.toFixed(3)}</span>`).join('')}
+                    </div>
+                </td>
+                <td>
+                    <span class="status-badge ${isOOC ? 'out-of-control' : 'in-control'}">
+                        ${sg.ooc ? 'OOC' : (sg.warning ? 'Warning' : 'OK')}
+                    </span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function updateProcessStatus() {
+    const statusEl = document.getElementById('processStatus');
+    const hasOOC = chartData.subgroups.some(s => s.ooc);
+
+    statusEl.className = `process-status ${hasOOC ? 'out-of-control' : 'in-control'}`;
+    statusEl.innerHTML = `
+        <span class="status-dot ${hasOOC ? 'red' : 'green'}"></span>
+        <span>${hasOOC ? 'Out of Control' : 'In Control'}</span>
+    `;
+}
+
+// ============================================
+// Event Handlers
+// ============================================
+function selectMetric(metric) {
+    currentMetric = metric;
+    loadSPCData();
+}
+
+function updateSubgroupSize(size) {
+    subgroupSize = parseInt(size);
+    loadSPCData();
+}
+
+function updateNumSubgroups(num) {
+    numSubgroups = parseInt(num);
+    loadSPCData();
+}
+
+function showTooltip(event, index, type) {
+    const tooltip = document.getElementById('chartTooltip');
+    const sg = chartData.subgroups[index];
+
+    document.getElementById('tooltipTitle').textContent = `Subgroup ${index + 1}`;
+    document.getElementById('tooltipValue').textContent = type === 'xbar' ?
+        sg.xbar.toFixed(4) : sg.range.toFixed(4);
+    document.getElementById('tooltipStatus').textContent = sg.ooc ? 'Out of Control' :
+        (sg.warning ? 'Warning' : 'In Control');
+
+    tooltip.style.left = (event.clientX + 15) + 'px';
+    tooltip.style.top = (event.clientY - 10) + 'px';
+    tooltip.classList.add('visible');
+}
+
+function hideTooltip() {
+    document.getElementById('chartTooltip').classList.remove('visible');
+}
+
+function exportReport(format) {
+    alert(`Export to ${format.toUpperCase()} - In production, this would generate a ${format} report`);
+}
+
+function openDataEntry() {
+    alert('Data Entry - In production, this would open a data entry form');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,1450 @@
+{% extends "base.html" %}
+
+{% block title %}House of Quality - QFD Dashboard{% endblock %}
+
+{% block styles %}
+<style>
+/* ============================================================================
+   HOUSE OF QUALITY (QFD) DASHBOARD STYLES
+   PhD-Level Manufacturing Quality Tool Visualization
+   ============================================================================ */
+
+/* Page Layout */
+.hoq-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+/* Dashboard Header */
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
+
+.dashboard-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.dashboard-title h1 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.dashboard-title .version-badge {
+    background: var(--accent-secondary);
+    color: white;
+}
+
+.dashboard-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+/* KPI Summary Cards */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.kpi-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: var(--spacing-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    transition: all 0.2s ease;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.kpi-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+
+.kpi-icon.primary { background: rgba(0, 87, 168, 0.1); color: var(--accent-secondary); }
+.kpi-icon.success { background: rgba(40, 167, 69, 0.1); color: var(--success); }
+.kpi-icon.warning { background: rgba(255, 193, 7, 0.1); color: var(--warning); }
+.kpi-icon.danger { background: rgba(220, 53, 69, 0.1); color: var(--error); }
+
+.kpi-content {
+    flex: 1;
+}
+
+.kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.kpi-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.kpi-trend {
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.kpi-trend.up { color: var(--success); }
+.kpi-trend.down { color: var(--error); }
+
+/* Main HOQ Container */
+.hoq-container {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.hoq-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.hoq-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.hoq-controls {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+/* HOQ Matrix */
+.hoq-wrapper {
+    overflow: auto;
+    padding: var(--spacing-lg);
+}
+
+.hoq-matrix {
+    display: flex;
+    flex-direction: column;
+    min-width: 900px;
+}
+
+/* Roof (Correlation Matrix) */
+.hoq-roof {
+    display: flex;
+    justify-content: center;
+    margin-bottom: var(--spacing-md);
+    position: relative;
+}
+
+.roof-container {
+    position: relative;
+    height: 150px;
+    width: 100%;
+    max-width: 600px;
+}
+
+.roof-cell {
+    position: absolute;
+    width: 30px;
+    height: 30px;
+    transform: rotate(45deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.roof-cell:hover {
+    transform: rotate(45deg) scale(1.1);
+    z-index: 10;
+    box-shadow: var(--shadow-md);
+}
+
+/* Correlation colors */
+.roof-cell.strong-positive { background: #1a9850; color: white; }
+.roof-cell.positive { background: #91cf60; color: #1a4d26; }
+.roof-cell.neutral { background: white; color: var(--text-muted); }
+.roof-cell.negative { background: #fdae61; color: #7a4d00; }
+.roof-cell.strong-negative { background: #d73027; color: white; }
+
+/* Main Matrix Area */
+.hoq-main {
+    display: grid;
+    grid-template-columns: 200px 1fr 150px;
+    gap: 0;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+/* Customer Requirements (WHATs) */
+.hoq-whats {
+    background: var(--bg-secondary);
+    border-right: 2px solid var(--border-color);
+}
+
+.whats-header {
+    padding: var(--spacing-md);
+    font-weight: 600;
+    text-align: center;
+    background: var(--accent-secondary);
+    color: white;
+    font-size: 14px;
+}
+
+.what-row {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-bottom: 1px solid var(--border-light);
+    min-height: 50px;
+}
+
+.what-row:last-child {
+    border-bottom: none;
+}
+
+.what-importance {
+    width: 30px;
+    height: 30px;
+    background: var(--bg-tertiary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 12px;
+    margin-right: var(--spacing-sm);
+    flex-shrink: 0;
+}
+
+.what-importance.high { background: var(--error); color: white; }
+.what-importance.medium { background: var(--warning); color: #333; }
+.what-importance.low { background: var(--success); color: white; }
+
+.what-text {
+    flex: 1;
+    font-size: 13px;
+}
+
+.what-kano {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: var(--spacing-xs);
+}
+
+.what-kano.must-be { background: #fee2e2; color: #991b1b; }
+.what-kano.performance { background: #dbeafe; color: #1e40af; }
+.what-kano.delighter { background: #dcfce7; color: #166534; }
+
+/* Relationship Matrix */
+.hoq-relationships {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Technical Requirements (HOWs) Header */
+.hows-header {
+    display: flex;
+    background: var(--accent-secondary);
+    color: white;
+}
+
+.how-cell-header {
+    flex: 1;
+    min-width: 60px;
+    padding: var(--spacing-sm);
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    border-right: 1px solid rgba(255,255,255,0.2);
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    height: 120px;
+}
+
+.how-cell-header:last-child {
+    border-right: none;
+}
+
+/* Direction indicators */
+.direction-row {
+    display: flex;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.direction-cell {
+    flex: 1;
+    min-width: 60px;
+    padding: var(--spacing-xs);
+    text-align: center;
+    font-size: 16px;
+}
+
+.direction-cell.maximize { color: var(--success); }
+.direction-cell.minimize { color: var(--accent-secondary); }
+.direction-cell.target { color: var(--warning); }
+
+/* Relationship Cells */
+.relationship-row {
+    display: flex;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.relationship-row:last-child {
+    border-bottom: none;
+}
+
+.relationship-cell {
+    flex: 1;
+    min-width: 60px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid var(--border-light);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 18px;
+}
+
+.relationship-cell:last-child {
+    border-right: none;
+}
+
+.relationship-cell:hover {
+    background: var(--bg-secondary);
+    transform: scale(1.05);
+}
+
+/* Relationship strength colors and symbols */
+.relationship-cell.strong { background: #1a9850; color: white; }
+.relationship-cell.moderate { background: #91cf60; color: #1a4d26; }
+.relationship-cell.weak { background: #d9ef8b; color: #5a7a2a; }
+.relationship-cell.none { background: white; color: var(--text-muted); }
+
+/* Competitive Analysis (Right Side) */
+.hoq-competitive {
+    background: var(--bg-secondary);
+    border-left: 2px solid var(--border-color);
+}
+
+.competitive-header {
+    padding: var(--spacing-md);
+    font-weight: 600;
+    text-align: center;
+    background: #6b21a8;
+    color: white;
+    font-size: 14px;
+}
+
+.competitive-row {
+    display: flex;
+    align-items: center;
+    padding: var(--spacing-sm);
+    border-bottom: 1px solid var(--border-light);
+    min-height: 50px;
+    gap: var(--spacing-xs);
+}
+
+.competitive-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.competitive-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.competitive-fill.ours { background: var(--accent-secondary); }
+.competitive-fill.comp-a { background: #f97316; }
+.competitive-fill.comp-b { background: #8b5cf6; }
+
+.competitive-score {
+    width: 25px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Target Values (Bottom) */
+.hoq-targets {
+    display: flex;
+    border-top: 2px solid var(--border-color);
+    background: var(--bg-tertiary);
+}
+
+.target-label {
+    width: 200px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-weight: 600;
+    font-size: 12px;
+    border-right: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+}
+
+.target-values {
+    flex: 1;
+    display: flex;
+}
+
+.target-cell {
+    flex: 1;
+    min-width: 60px;
+    padding: var(--spacing-sm);
+    text-align: center;
+    font-size: 11px;
+    border-right: 1px solid var(--border-light);
+}
+
+.target-cell:last-child {
+    border-right: none;
+}
+
+.target-value {
+    font-weight: 600;
+    color: var(--accent-secondary);
+}
+
+.target-unit {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+/* Priority Scores */
+.priority-row {
+    display: flex;
+    border-top: 1px solid var(--border-color);
+    background: linear-gradient(135deg, var(--accent-secondary) 0%, #004494 100%);
+    color: white;
+}
+
+.priority-label {
+    width: 200px;
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-weight: 600;
+    font-size: 12px;
+    border-right: 2px solid rgba(255,255,255,0.2);
+}
+
+.priority-values {
+    flex: 1;
+    display: flex;
+}
+
+.priority-cell {
+    flex: 1;
+    min-width: 60px;
+    padding: var(--spacing-sm);
+    text-align: center;
+    font-weight: 700;
+    font-size: 14px;
+    border-right: 1px solid rgba(255,255,255,0.2);
+}
+
+.priority-bar {
+    height: 4px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    margin-top: 4px;
+    overflow: hidden;
+}
+
+.priority-bar-fill {
+    height: 100%;
+    background: white;
+    border-radius: 2px;
+}
+
+/* Legend */
+.hoq-legend {
+    display: flex;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    flex-wrap: wrap;
+}
+
+.legend-section {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.legend-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.legend-items {
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+}
+
+.legend-symbol {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+}
+
+/* Side Panels */
+.hoq-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--spacing-lg);
+}
+
+.panel {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.panel-header h3 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.panel-body {
+    padding: var(--spacing-lg);
+}
+
+/* Priority Chart */
+.priority-chart {
+    height: 250px;
+}
+
+.priority-bar-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    height: 200px;
+    padding: var(--spacing-md);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.chart-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.bar {
+    width: 40px;
+    background: linear-gradient(180deg, var(--accent-secondary) 0%, #004494 100%);
+    border-radius: 4px 4px 0 0;
+    transition: height 0.5s ease;
+    position: relative;
+}
+
+.bar:hover {
+    opacity: 0.8;
+}
+
+.bar-value {
+    position: absolute;
+    top: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.bar-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-align: center;
+    max-width: 50px;
+    word-wrap: break-word;
+}
+
+/* Unmet Requirements */
+.unmet-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.unmet-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border-left: 3px solid var(--error);
+}
+
+.unmet-score {
+    width: 40px;
+    height: 40px;
+    background: rgba(220, 53, 69, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--error);
+}
+
+.unmet-details {
+    flex: 1;
+}
+
+.unmet-name {
+    font-weight: 500;
+}
+
+.unmet-gap {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Modal for editing */
+.hoq-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.hoq-modal.active {
+    display: flex;
+}
+
+.hoq-modal-content {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow: hidden;
+}
+
+.hoq-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.hoq-modal-body {
+    padding: var(--spacing-lg);
+    overflow-y: auto;
+}
+
+.hoq-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .hoq-main {
+        grid-template-columns: 180px 1fr 120px;
+    }
+}
+
+@media (max-width: 768px) {
+    .hoq-panels {
+        grid-template-columns: 1fr;
+    }
+
+    .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="hoq-dashboard">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <h1>House of Quality</h1>
+            <span class="version-badge">QFD v2.0</span>
+        </div>
+        <div class="dashboard-actions">
+            <button class="btn btn-secondary" onclick="exportHOQ()">
+                <span>Export</span>
+            </button>
+            <button class="btn btn-secondary" onclick="showTemplates()">
+                <span>Templates</span>
+            </button>
+            <button class="btn btn-primary" onclick="newHOQ()">
+                <span>+ New HOQ</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon primary">
+                <span>📋</span>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-value" id="totalRequirements">12</div>
+                <div class="kpi-label">Customer Requirements</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon success">
+                <span>🔧</span>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-value" id="totalTechnical">8</div>
+                <div class="kpi-label">Technical Requirements</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon warning">
+                <span>⚠️</span>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-value" id="unmetCount">3</div>
+                <div class="kpi-label">Unmet Requirements</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon danger">
+                <span>🎯</span>
+            </div>
+            <div class="kpi-content">
+                <div class="kpi-value" id="coveragePercent">87%</div>
+                <div class="kpi-label">Requirements Coverage</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main HOQ Matrix -->
+    <div class="hoq-container">
+        <div class="hoq-header">
+            <h2>
+                <span>🏠</span>
+                LEGO Brick Quality Matrix
+            </h2>
+            <div class="hoq-controls">
+                <select id="hoqVersion" class="btn btn-secondary">
+                    <option value="current">Current Version</option>
+                    <option value="v1">v1.0 - Initial</option>
+                </select>
+                <button class="btn btn-secondary" onclick="recalculate()">
+                    <span>Recalculate</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="hoq-wrapper">
+            <div class="hoq-matrix">
+                <!-- Roof (Correlation Matrix) -->
+                <div class="hoq-roof">
+                    <svg id="roofSvg" width="600" height="150"></svg>
+                </div>
+
+                <!-- Main Matrix Grid -->
+                <div class="hoq-main">
+                    <!-- Customer Requirements (WHATs) -->
+                    <div class="hoq-whats">
+                        <div class="whats-header">Customer Requirements (WHATs)</div>
+                        <div id="whatsList">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Relationship Matrix -->
+                    <div class="hoq-relationships">
+                        <div class="hows-header" id="howsHeader">
+                            <!-- Technical requirements headers -->
+                        </div>
+                        <div class="direction-row" id="directionRow">
+                            <!-- Direction indicators -->
+                        </div>
+                        <div id="relationshipMatrix">
+                            <!-- Relationship cells -->
+                        </div>
+                    </div>
+
+                    <!-- Competitive Analysis -->
+                    <div class="hoq-competitive">
+                        <div class="competitive-header">Competitive Analysis</div>
+                        <div id="competitiveList">
+                            <!-- Competitive ratings -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Target Values Row -->
+                <div class="hoq-targets">
+                    <div class="target-label">Target Values</div>
+                    <div class="target-values" id="targetValues">
+                        <!-- Target value cells -->
+                    </div>
+                    <div style="width: 150px;"></div>
+                </div>
+
+                <!-- Priority Scores Row -->
+                <div class="priority-row">
+                    <div class="priority-label">Priority Score (%)</div>
+                    <div class="priority-values" id="priorityValues">
+                        <!-- Priority score cells -->
+                    </div>
+                    <div style="width: 150px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="hoq-legend">
+            <div class="legend-section">
+                <span class="legend-title">Relationships:</span>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: #1a9850; color: white;">●</span>
+                        <span>Strong (9)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: #91cf60;">○</span>
+                        <span>Moderate (3)</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: #d9ef8b;">△</span>
+                        <span>Weak (1)</span>
+                    </div>
+                </div>
+            </div>
+            <div class="legend-section">
+                <span class="legend-title">Correlations:</span>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: #1a9850; color: white;">++</span>
+                        <span>Strong +</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: #91cf60;">+</span>
+                        <span>Positive</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: #fdae61;">-</span>
+                        <span>Negative</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol" style="background: #d73027; color: white;">--</span>
+                        <span>Strong -</span>
+                    </div>
+                </div>
+            </div>
+            <div class="legend-section">
+                <span class="legend-title">Direction:</span>
+                <div class="legend-items">
+                    <div class="legend-item">
+                        <span style="color: var(--success);">↑</span>
+                        <span>Maximize</span>
+                    </div>
+                    <div class="legend-item">
+                        <span style="color: var(--accent-secondary);">↓</span>
+                        <span>Minimize</span>
+                    </div>
+                    <div class="legend-item">
+                        <span style="color: var(--warning);">○</span>
+                        <span>Target</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Panels -->
+    <div class="hoq-panels">
+        <!-- Priority Chart -->
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Technical Priority Ranking</h3>
+                <button class="btn btn-small btn-secondary">Details</button>
+            </div>
+            <div class="panel-body">
+                <div class="priority-chart">
+                    <div class="priority-bar-chart" id="priorityChart">
+                        <!-- Bar chart populated by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unmet Requirements -->
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Unmet Requirements</h3>
+                <span class="badge badge-danger">3 Critical</span>
+            </div>
+            <div class="panel-body">
+                <div class="unmet-list" id="unmetList">
+                    <!-- Unmet requirements populated by JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Kano Analysis -->
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Kano Model Distribution</h3>
+            </div>
+            <div class="panel-body">
+                <canvas id="kanoChart" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Competitive Position -->
+        <div class="panel">
+            <div class="panel-header">
+                <h3>Competitive Position</h3>
+            </div>
+            <div class="panel-body">
+                <canvas id="competitiveChart" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="hoq-modal" id="editModal">
+    <div class="hoq-modal-content">
+        <div class="hoq-modal-header">
+            <h3 id="modalTitle">Edit Relationship</h3>
+            <button class="btn btn-secondary" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="hoq-modal-body" id="modalBody">
+            <!-- Modal content -->
+        </div>
+        <div class="hoq-modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveChanges()">Save</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// ============================================================================
+// HOUSE OF QUALITY DASHBOARD - Interactive QFD Visualization
+// ============================================================================
+
+// Sample LEGO brick quality data
+const hoqData = {
+    customerRequirements: [
+        { id: 1, name: "Tight fit/clutch power", importance: 10, kano: "must-be", ourRating: 4, compA: 5, compB: 3 },
+        { id: 2, name: "Consistent color", importance: 9, kano: "must-be", ourRating: 5, compA: 4, compB: 3 },
+        { id: 3, name: "Smooth surface finish", importance: 8, kano: "performance", ourRating: 4, compA: 4, compB: 3 },
+        { id: 4, name: "Durability over time", importance: 9, kano: "must-be", ourRating: 4, compA: 5, compB: 4 },
+        { id: 5, name: "Easy to separate", importance: 7, kano: "performance", ourRating: 3, compA: 4, compB: 3 },
+        { id: 6, name: "Accurate dimensions", importance: 10, kano: "must-be", ourRating: 5, compA: 5, compB: 3 },
+        { id: 7, name: "No visible layer lines", importance: 6, kano: "delighter", ourRating: 3, compA: 4, compB: 2 },
+        { id: 8, name: "Material safety", importance: 10, kano: "must-be", ourRating: 5, compA: 5, compB: 4 }
+    ],
+    technicalRequirements: [
+        { id: 1, name: "Stud Diameter", unit: "mm", target: 4.8, direction: "target", current: 4.79 },
+        { id: 2, name: "Wall Thickness", unit: "mm", target: 1.6, direction: "target", current: 1.58 },
+        { id: 3, name: "Surface Roughness", unit: "Ra μm", target: 0.8, direction: "minimize", current: 0.95 },
+        { id: 4, name: "Color Delta E", unit: "ΔE", target: 2.0, direction: "minimize", current: 1.8 },
+        { id: 5, name: "Clutch Force", unit: "gf", target: 30, direction: "target", current: 28 },
+        { id: 6, name: "Material Density", unit: "g/cm³", target: 1.05, direction: "target", current: 1.04 },
+        { id: 7, name: "Layer Height", unit: "mm", target: 0.1, direction: "minimize", current: 0.12 },
+        { id: 8, name: "Print Temperature", unit: "°C", target: 215, direction: "target", current: 215 }
+    ],
+    // Relationship matrix: [customer_req_index][tech_req_index] = strength (0, 1, 3, 9)
+    relationships: [
+        [9, 3, 1, 0, 9, 3, 0, 1],  // Tight fit
+        [0, 1, 3, 9, 0, 1, 1, 3],  // Consistent color
+        [0, 1, 9, 1, 0, 0, 9, 3],  // Smooth surface
+        [3, 9, 1, 0, 3, 9, 1, 3],  // Durability
+        [9, 3, 0, 0, 9, 1, 0, 0],  // Easy to separate
+        [9, 9, 0, 0, 3, 3, 3, 0],  // Accurate dimensions
+        [0, 0, 9, 0, 0, 0, 9, 1],  // No layer lines
+        [0, 0, 0, 0, 0, 9, 0, 9]   // Material safety
+    ],
+    // Roof correlations: [tech1][tech2] = correlation (-9, -3, 0, 3, 9)
+    roofCorrelations: [
+        [0, 3, 0, 0, 9, 3, 0, 0],
+        [3, 0, 0, 0, 3, 9, 0, 0],
+        [0, 0, 0, 3, 0, 0, 9, 3],
+        [0, 0, 3, 0, 0, 0, -3, 9],
+        [9, 3, 0, 0, 0, 3, 0, 0],
+        [3, 9, 0, 0, 3, 0, 0, 0],
+        [0, 0, 9, -3, 0, 0, 0, 3],
+        [0, 0, 3, 9, 0, 0, 3, 0]
+    ]
+};
+
+// Relationship symbols
+const RELATIONSHIP_SYMBOLS = {
+    9: '●',
+    3: '○',
+    1: '△',
+    0: ''
+};
+
+const CORRELATION_SYMBOLS = {
+    9: '++',
+    3: '+',
+    0: '',
+    '-3': '-',
+    '-9': '--'
+};
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    renderHOQMatrix();
+    renderPriorityChart();
+    renderUnmetRequirements();
+    renderKanoChart();
+    renderCompetitiveChart();
+    updateKPIs();
+});
+
+function renderHOQMatrix() {
+    renderWhats();
+    renderHowsHeader();
+    renderDirectionRow();
+    renderRelationshipMatrix();
+    renderCompetitiveAnalysis();
+    renderTargetValues();
+    calculateAndRenderPriorities();
+    renderRoof();
+}
+
+function renderWhats() {
+    const container = document.getElementById('whatsList');
+    container.innerHTML = hoqData.customerRequirements.map(req => {
+        const impClass = req.importance >= 9 ? 'high' : req.importance >= 6 ? 'medium' : 'low';
+        return `
+            <div class="what-row" data-id="${req.id}">
+                <div class="what-importance ${impClass}">${req.importance}</div>
+                <div class="what-text">
+                    ${req.name}
+                    <span class="what-kano ${req.kano}">${req.kano.replace('-', ' ')}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderHowsHeader() {
+    const container = document.getElementById('howsHeader');
+    container.innerHTML = hoqData.technicalRequirements.map(req => `
+        <div class="how-cell-header" title="${req.name} (${req.target} ${req.unit})">
+            ${req.name}
+        </div>
+    `).join('');
+}
+
+function renderDirectionRow() {
+    const container = document.getElementById('directionRow');
+    container.innerHTML = hoqData.technicalRequirements.map(req => {
+        const symbol = req.direction === 'maximize' ? '↑' :
+                       req.direction === 'minimize' ? '↓' : '○';
+        return `<div class="direction-cell ${req.direction}">${symbol}</div>`;
+    }).join('');
+}
+
+function renderRelationshipMatrix() {
+    const container = document.getElementById('relationshipMatrix');
+    container.innerHTML = hoqData.relationships.map((row, rowIdx) => `
+        <div class="relationship-row">
+            ${row.map((cell, colIdx) => {
+                const strength = cell === 9 ? 'strong' :
+                                cell === 3 ? 'moderate' :
+                                cell === 1 ? 'weak' : 'none';
+                return `
+                    <div class="relationship-cell ${strength}"
+                         data-row="${rowIdx}" data-col="${colIdx}"
+                         onclick="editRelationship(${rowIdx}, ${colIdx})"
+                         title="${hoqData.customerRequirements[rowIdx].name} ↔ ${hoqData.technicalRequirements[colIdx].name}">
+                        ${RELATIONSHIP_SYMBOLS[cell]}
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `).join('');
+}
+
+function renderCompetitiveAnalysis() {
+    const container = document.getElementById('competitiveList');
+    // Add header row for competitive
+    container.innerHTML = `
+        <div class="competitive-row" style="height: 120px; align-items: flex-start; padding-top: 8px;">
+            <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <div style="width: 10px; height: 10px; background: var(--accent-secondary); border-radius: 2px;"></div>
+                    <span style="font-size: 10px;">Us</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <div style="width: 10px; height: 10px; background: #f97316; border-radius: 2px;"></div>
+                    <span style="font-size: 10px;">Comp A</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <div style="width: 10px; height: 10px; background: #8b5cf6; border-radius: 2px;"></div>
+                    <span style="font-size: 10px;">Comp B</span>
+                </div>
+            </div>
+        </div>
+    ` + hoqData.customerRequirements.map(req => `
+        <div class="competitive-row">
+            <div class="competitive-bar">
+                <div class="competitive-fill ours" style="width: ${req.ourRating * 20}%;"></div>
+            </div>
+            <span class="competitive-score">${req.ourRating}</span>
+        </div>
+    `).join('');
+}
+
+function renderTargetValues() {
+    const container = document.getElementById('targetValues');
+    container.innerHTML = hoqData.technicalRequirements.map(req => `
+        <div class="target-cell">
+            <div class="target-value">${req.target}</div>
+            <div class="target-unit">${req.unit}</div>
+        </div>
+    `).join('');
+}
+
+function calculateAndRenderPriorities() {
+    // Calculate priority scores
+    const priorities = hoqData.technicalRequirements.map((tech, techIdx) => {
+        let score = 0;
+        hoqData.customerRequirements.forEach((cust, custIdx) => {
+            score += hoqData.relationships[custIdx][techIdx] * cust.importance;
+        });
+        return { ...tech, score };
+    });
+
+    const maxScore = Math.max(...priorities.map(p => p.score));
+
+    const container = document.getElementById('priorityValues');
+    container.innerHTML = priorities.map(p => {
+        const percent = Math.round((p.score / maxScore) * 100);
+        return `
+            <div class="priority-cell">
+                ${percent}
+                <div class="priority-bar">
+                    <div class="priority-bar-fill" style="width: ${percent}%;"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Store for chart
+    window.priorityData = priorities;
+}
+
+function renderRoof() {
+    const svg = document.getElementById('roofSvg');
+    const n = hoqData.technicalRequirements.length;
+    const cellSize = 35;
+    const startX = 300 - (n * cellSize / 2);
+    const startY = 140;
+
+    let html = '';
+
+    for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+            const x = startX + ((i + j) * cellSize / 2);
+            const y = startY - ((j - i) * cellSize / 2);
+            const corr = hoqData.roofCorrelations[i][j];
+
+            let color = '#ffffff';
+            let textColor = '#666';
+            let symbol = '';
+
+            if (corr === 9) { color = '#1a9850'; textColor = '#fff'; symbol = '++'; }
+            else if (corr === 3) { color = '#91cf60'; textColor = '#1a4d26'; symbol = '+'; }
+            else if (corr === -3) { color = '#fdae61'; textColor = '#7a4d00'; symbol = '-'; }
+            else if (corr === -9) { color = '#d73027'; textColor = '#fff'; symbol = '--'; }
+
+            html += `
+                <g transform="translate(${x}, ${y}) rotate(45)">
+                    <rect x="-12" y="-12" width="24" height="24" fill="${color}" stroke="#ccc" rx="2"/>
+                    <text x="0" y="4" text-anchor="middle" fill="${textColor}" font-size="10" font-weight="600">${symbol}</text>
+                </g>
+            `;
+        }
+    }
+
+    svg.innerHTML = html;
+}
+
+function renderPriorityChart() {
+    setTimeout(() => {
+        if (!window.priorityData) return;
+
+        const container = document.getElementById('priorityChart');
+        const maxScore = Math.max(...window.priorityData.map(p => p.score));
+
+        container.innerHTML = window.priorityData.map(p => {
+            const height = (p.score / maxScore) * 180;
+            return `
+                <div class="chart-bar">
+                    <div class="bar" style="height: ${height}px;">
+                        <span class="bar-value">${p.score}</span>
+                    </div>
+                    <span class="bar-label">${p.name.split(' ')[0]}</span>
+                </div>
+            `;
+        }).join('');
+    }, 100);
+}
+
+function renderUnmetRequirements() {
+    const container = document.getElementById('unmetList');
+    const unmet = hoqData.customerRequirements.filter(r => r.ourRating < r.compA);
+
+    container.innerHTML = unmet.map(req => `
+        <div class="unmet-item">
+            <div class="unmet-score">${req.ourRating}</div>
+            <div class="unmet-details">
+                <div class="unmet-name">${req.name}</div>
+                <div class="unmet-gap">Gap: ${req.compA - req.ourRating} points behind Competitor A</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function renderKanoChart() {
+    const ctx = document.getElementById('kanoChart');
+    if (!ctx) return;
+
+    const kanoCounts = {
+        'must-be': hoqData.customerRequirements.filter(r => r.kano === 'must-be').length,
+        'performance': hoqData.customerRequirements.filter(r => r.kano === 'performance').length,
+        'delighter': hoqData.customerRequirements.filter(r => r.kano === 'delighter').length
+    };
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Must-Be', 'Performance', 'Delighter'],
+            datasets: [{
+                data: [kanoCounts['must-be'], kanoCounts['performance'], kanoCounts['delighter']],
+                backgroundColor: ['#ef4444', '#3b82f6', '#22c55e'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12, padding: 15 }
+                }
+            }
+        }
+    });
+}
+
+function renderCompetitiveChart() {
+    const ctx = document.getElementById('competitiveChart');
+    if (!ctx) return;
+
+    const avgOurs = hoqData.customerRequirements.reduce((a, b) => a + b.ourRating, 0) / hoqData.customerRequirements.length;
+    const avgCompA = hoqData.customerRequirements.reduce((a, b) => a + b.compA, 0) / hoqData.customerRequirements.length;
+    const avgCompB = hoqData.customerRequirements.reduce((a, b) => a + b.compB, 0) / hoqData.customerRequirements.length;
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Overall Rating'],
+            datasets: [
+                { label: 'Us', data: [avgOurs.toFixed(1)], backgroundColor: '#0057a8' },
+                { label: 'Competitor A', data: [avgCompA.toFixed(1)], backgroundColor: '#f97316' },
+                { label: 'Competitor B', data: [avgCompB.toFixed(1)], backgroundColor: '#8b5cf6' }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, max: 5 }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { boxWidth: 12, padding: 15 }
+                }
+            }
+        }
+    });
+}
+
+function updateKPIs() {
+    document.getElementById('totalRequirements').textContent = hoqData.customerRequirements.length;
+    document.getElementById('totalTechnical').textContent = hoqData.technicalRequirements.length;
+
+    const unmet = hoqData.customerRequirements.filter(r => r.ourRating < r.compA).length;
+    document.getElementById('unmetCount').textContent = unmet;
+
+    const coverage = Math.round(((hoqData.customerRequirements.length - unmet) / hoqData.customerRequirements.length) * 100);
+    document.getElementById('coveragePercent').textContent = coverage + '%';
+}
+
+function editRelationship(row, col) {
+    const modal = document.getElementById('editModal');
+    const body = document.getElementById('modalBody');
+    const current = hoqData.relationships[row][col];
+
+    document.getElementById('modalTitle').textContent = 'Edit Relationship';
+    body.innerHTML = `
+        <div class="form-group">
+            <label>${hoqData.customerRequirements[row].name}</label>
+            <p style="color: var(--text-muted); font-size: 13px;">↔ ${hoqData.technicalRequirements[col].name}</p>
+        </div>
+        <div class="form-group">
+            <label>Relationship Strength</label>
+            <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-sm);">
+                <label class="radio-option" style="flex: 1; padding: var(--spacing-md); background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                    <input type="radio" name="strength" value="9" ${current === 9 ? 'checked' : ''}>
+                    <span style="font-weight: 600;">● Strong (9)</span>
+                </label>
+                <label class="radio-option" style="flex: 1; padding: var(--spacing-md); background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                    <input type="radio" name="strength" value="3" ${current === 3 ? 'checked' : ''}>
+                    <span style="font-weight: 600;">○ Moderate (3)</span>
+                </label>
+            </div>
+            <div style="display: flex; gap: var(--spacing-md); margin-top: var(--spacing-sm);">
+                <label class="radio-option" style="flex: 1; padding: var(--spacing-md); background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                    <input type="radio" name="strength" value="1" ${current === 1 ? 'checked' : ''}>
+                    <span style="font-weight: 600;">△ Weak (1)</span>
+                </label>
+                <label class="radio-option" style="flex: 1; padding: var(--spacing-md); background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                    <input type="radio" name="strength" value="0" ${current === 0 ? 'checked' : ''}>
+                    <span style="font-weight: 600;">None (0)</span>
+                </label>
+            </div>
+        </div>
+    `;
+
+    modal.classList.add('active');
+    modal.dataset.row = row;
+    modal.dataset.col = col;
+}
+
+function closeModal() {
+    document.getElementById('editModal').classList.remove('active');
+}
+
+function saveChanges() {
+    const modal = document.getElementById('editModal');
+    const row = parseInt(modal.dataset.row);
+    const col = parseInt(modal.dataset.col);
+    const strength = parseInt(document.querySelector('input[name="strength"]:checked').value);
+
+    hoqData.relationships[row][col] = strength;
+    renderRelationshipMatrix();
+    calculateAndRenderPriorities();
+    renderPriorityChart();
+    closeModal();
+}
+
+function recalculate() {
+    calculateAndRenderPriorities();
+    renderPriorityChart();
+    updateKPIs();
+    showToast('Priorities recalculated', 'success');
+}
+
+function exportHOQ() {
+    showToast('Exporting to Excel...', 'info');
+    // Would integrate with actual export functionality
+}
+
+function showTemplates() {
+    showToast('Loading templates...', 'info');
+}
+
+function newHOQ() {
+    showToast('Creating new HOQ matrix...', 'info');
+}
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer') || document.body;
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+</script>
+{% endblock %}

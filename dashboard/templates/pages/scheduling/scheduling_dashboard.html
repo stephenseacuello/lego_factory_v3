@@ -1,0 +1,1991 @@
+{% extends "base.html" %}
+
+{% block title %}Production Scheduling - LegoMCP Manufacturing{% endblock %}
+
+{% block extra_css %}
+<style>
+    .scheduling-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-title h1 {
+        font-size: 1.75rem;
+        margin: 0 0 0.25rem 0;
+        color: var(--text-primary);
+    }
+
+    .header-subtitle {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .header-controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .view-selector {
+        display: flex;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .view-selector button {
+        padding: 0.5rem 1rem;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 0.875rem;
+        transition: all 0.2s;
+    }
+
+    .view-selector button.active {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .date-navigator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.25rem;
+    }
+
+    .date-nav-btn {
+        width: 32px;
+        height: 32px;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .date-nav-btn:hover {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .date-display {
+        padding: 0 0.75rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        min-width: 180px;
+        text-align: center;
+    }
+
+    /* Schedule Overview Cards */
+    .schedule-overview {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .overview-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        text-align: center;
+    }
+
+    .overview-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.75rem;
+        font-size: 1.5rem;
+    }
+
+    .overview-icon.jobs { background: rgba(59, 130, 246, 0.15); }
+    .overview-icon.running { background: rgba(16, 185, 129, 0.15); }
+    .overview-icon.pending { background: rgba(245, 158, 11, 0.15); }
+    .overview-icon.completed { background: rgba(139, 92, 246, 0.15); }
+    .overview-icon.late { background: rgba(239, 68, 68, 0.15); }
+
+    .overview-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .overview-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Gantt Chart Section */
+    .gantt-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        overflow-x: auto;
+    }
+
+    .gantt-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .gantt-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .gantt-legend {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+    }
+
+    .legend-color.running { background: #10b981; }
+    .legend-color.scheduled { background: #3b82f6; }
+    .legend-color.pending { background: #f59e0b; }
+    .legend-color.completed { background: #8b5cf6; }
+    .legend-color.delayed { background: #ef4444; }
+
+    .gantt-container {
+        min-width: 1200px;
+    }
+
+    .gantt-timeline {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+        margin-left: 200px;
+    }
+
+    .timeline-hour {
+        flex: 1;
+        text-align: center;
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        padding: 0.5rem 0;
+        border-left: 1px solid var(--border-color);
+        min-width: 60px;
+    }
+
+    .timeline-hour:first-child {
+        border-left: none;
+    }
+
+    .gantt-body {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .gantt-row {
+        display: flex;
+        align-items: center;
+        border-bottom: 1px solid var(--border-color);
+        min-height: 50px;
+    }
+
+    .gantt-row:last-child {
+        border-bottom: none;
+    }
+
+    .gantt-row-label {
+        width: 200px;
+        padding: 0.75rem;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .row-status {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .row-status.online { background: #10b981; }
+    .row-status.offline { background: #ef4444; }
+    .row-status.maintenance { background: #f59e0b; }
+
+    .row-name {
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .gantt-bars {
+        flex: 1;
+        position: relative;
+        height: 40px;
+        background: repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 59px,
+            var(--border-color) 59px,
+            var(--border-color) 60px
+        );
+    }
+
+    .gantt-bar {
+        position: absolute;
+        height: 28px;
+        top: 6px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        padding: 0 0.5rem;
+        font-size: 0.7rem;
+        color: white;
+        font-weight: 500;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .gantt-bar:hover {
+        transform: scaleY(1.1);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 10;
+    }
+
+    .gantt-bar.running {
+        background: linear-gradient(90deg, #10b981, #34d399);
+    }
+
+    .gantt-bar.scheduled {
+        background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    }
+
+    .gantt-bar.pending {
+        background: linear-gradient(90deg, #f59e0b, #fbbf24);
+    }
+
+    .gantt-bar.completed {
+        background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+    }
+
+    .gantt-bar.delayed {
+        background: linear-gradient(90deg, #ef4444, #f87171);
+    }
+
+    .current-time-line {
+        position: absolute;
+        width: 2px;
+        background: #ef4444;
+        top: 0;
+        bottom: 0;
+        z-index: 5;
+    }
+
+    .current-time-line::before {
+        content: 'NOW';
+        position: absolute;
+        top: -20px;
+        left: -15px;
+        font-size: 0.6rem;
+        color: #ef4444;
+        font-weight: 600;
+    }
+
+    /* Optimization Panel */
+    .bottom-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .optimization-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .optimization-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .optimization-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .optimizer-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+    }
+
+    .optimization-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .opt-metric {
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .opt-metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .opt-metric-label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    .opt-metric-change {
+        font-size: 0.7rem;
+        margin-top: 0.25rem;
+    }
+
+    .opt-metric-change.positive { color: #10b981; }
+    .opt-metric-change.negative { color: #ef4444; }
+
+    .optimization-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .opt-action-btn {
+        flex: 1;
+        padding: 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--card-bg);
+        color: var(--text-primary);
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .opt-action-btn:hover {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .opt-action-btn.primary {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    /* Job Queue */
+    .queue-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .queue-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .queue-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .queue-filters {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .queue-filter {
+        padding: 0.35rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    .queue-filter.active {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .job-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .job-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .job-item:hover {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .job-priority {
+        width: 4px;
+        height: 40px;
+        border-radius: 2px;
+    }
+
+    .job-priority.high { background: #ef4444; }
+    .job-priority.medium { background: #f59e0b; }
+    .job-priority.low { background: #10b981; }
+
+    .job-info {
+        flex: 1;
+    }
+
+    .job-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .job-details {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    .job-status {
+        text-align: right;
+    }
+
+    .job-status-badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.65rem;
+        font-weight: 600;
+    }
+
+    .job-status-badge.ready {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .job-status-badge.waiting {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+
+    .job-status-badge.blocked {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+    }
+
+    .job-due {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Algorithm Selection */
+    .algorithm-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .algorithm-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+    }
+
+    .algorithm-card {
+        border: 2px solid var(--border-color);
+        border-radius: 10px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .algorithm-card:hover {
+        border-color: var(--primary-color);
+    }
+
+    .algorithm-card.selected {
+        border-color: var(--primary-color);
+        background: rgba(59, 130, 246, 0.05);
+    }
+
+    .algorithm-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .algorithm-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .algorithm-desc {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .algorithm-badge {
+        margin-top: 0.5rem;
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.6rem;
+        font-weight: 600;
+        background: rgba(139, 92, 246, 0.15);
+        color: #8b5cf6;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal {
+        background: var(--card-bg);
+        border-radius: 16px;
+        width: 90%;
+        max-width: 900px;
+        max-height: 85vh;
+        overflow: hidden;
+        transform: scale(0.9) translateY(20px);
+        transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal {
+        transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        max-height: 60vh;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    /* Toast Container */
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1100;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .toast {
+        padding: 12px 20px;
+        border-radius: 10px;
+        color: white;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slideInRight 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .toast.success { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .toast.error { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .toast.warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .toast.info { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+
+    @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Form Styles */
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--card-bg);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .form-textarea {
+        resize: vertical;
+        min-height: 80px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    /* Comparison Table */
+    .comparison-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+        padding: 0.75rem;
+        text-align: center;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .comparison-table th {
+        background: rgba(0, 0, 0, 0.03);
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 0.8rem;
+    }
+
+    .comparison-table td {
+        font-size: 0.875rem;
+    }
+
+    .comparison-table .better {
+        color: #22c55e;
+        font-weight: 600;
+    }
+
+    .comparison-table .worse {
+        color: #ef4444;
+    }
+
+    /* Algorithm Cards Enhanced */
+    .algorithm-card.running {
+        border-color: #22c55e;
+        animation: pulse-border 2s infinite;
+    }
+
+    @keyframes pulse-border {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+        50% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+    }
+
+    .algorithm-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border-color);
+        font-size: 0.7rem;
+    }
+
+    .algo-stat {
+        text-align: center;
+    }
+
+    .algo-stat-value {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .algo-stat-label {
+        color: var(--text-secondary);
+    }
+
+    /* Drag and Drop Styles */
+    .gantt-bar.dragging {
+        opacity: 0.5;
+        cursor: grabbing;
+    }
+
+    .gantt-bar.drag-over {
+        border: 2px dashed var(--primary-color);
+    }
+
+    .gantt-row.drop-target {
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    /* Progress Indicator */
+    .optimization-progress {
+        margin-bottom: 1rem;
+    }
+
+    .progress-bar {
+        width: 100%;
+        height: 8px;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+
+    .progress-text {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    /* Job Detail Panel */
+    .job-detail-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .job-detail-section {
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 10px;
+        padding: 1rem;
+    }
+
+    .job-detail-section h4 {
+        margin: 0 0 0.75rem 0;
+        font-size: 0.9rem;
+        color: var(--text-primary);
+    }
+
+    .job-detail-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.85rem;
+    }
+
+    .job-detail-row:last-child {
+        border-bottom: none;
+    }
+
+    .job-detail-label {
+        color: var(--text-secondary);
+    }
+
+    .job-detail-value {
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    /* Timeline Visualization */
+    .job-timeline {
+        margin-top: 1rem;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 10px;
+    }
+
+    .timeline-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .timeline-step:last-child {
+        margin-bottom: 0;
+    }
+
+    .timeline-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-top: 4px;
+        flex-shrink: 0;
+    }
+
+    .timeline-dot.completed { background: #22c55e; }
+    .timeline-dot.current { background: #3b82f6; animation: pulse 1.5s infinite; }
+    .timeline-dot.pending { background: #9ca3af; }
+
+    .timeline-content {
+        flex: 1;
+    }
+
+    .timeline-title {
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 0.85rem;
+    }
+
+    .timeline-time {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .schedule-overview {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .bottom-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .algorithm-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .job-detail-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .schedule-overview {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .algorithm-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scheduling-header">
+    <div>
+        <div class="header-title">
+            <h1>📅 Production Scheduling</h1>
+        </div>
+        <div class="header-subtitle">AI-Optimized Job Shop Scheduling • Real-Time Dispatch</div>
+    </div>
+    <div class="header-controls">
+        <div class="view-selector">
+            <button class="active" onclick="setView('gantt')">Gantt</button>
+            <button onclick="setView('calendar')">Calendar</button>
+            <button onclick="setView('list')">List</button>
+        </div>
+        <div class="date-navigator">
+            <button class="date-nav-btn" onclick="navigateDate(-1)">◀</button>
+            <div class="date-display" id="current-date">January 21, 2024</div>
+            <button class="date-nav-btn" onclick="navigateDate(1)">▶</button>
+        </div>
+        <button class="btn btn-primary" onclick="createJob()">+ New Job</button>
+    </div>
+</div>
+
+<!-- Schedule Overview -->
+<div class="schedule-overview">
+    <div class="overview-card">
+        <div class="overview-icon jobs">📋</div>
+        <div class="overview-value">47</div>
+        <div class="overview-label">Total Jobs Today</div>
+    </div>
+    <div class="overview-card">
+        <div class="overview-icon running">▶</div>
+        <div class="overview-value">12</div>
+        <div class="overview-label">Currently Running</div>
+    </div>
+    <div class="overview-card">
+        <div class="overview-icon pending">⏳</div>
+        <div class="overview-value">23</div>
+        <div class="overview-label">Pending</div>
+    </div>
+    <div class="overview-card">
+        <div class="overview-icon completed">✓</div>
+        <div class="overview-value">10</div>
+        <div class="overview-label">Completed</div>
+    </div>
+    <div class="overview-card">
+        <div class="overview-icon late">⚠</div>
+        <div class="overview-value">2</div>
+        <div class="overview-label">Delayed</div>
+    </div>
+</div>
+
+<!-- Algorithm Selection -->
+<div class="algorithm-section">
+    <div class="gantt-header">
+        <div class="gantt-title">🤖 Scheduling Algorithm</div>
+        <button class="btn btn-outline btn-sm" onclick="runOptimization()">Run Optimization</button>
+    </div>
+    <div class="algorithm-grid">
+        <div class="algorithm-card selected" onclick="selectAlgorithm('nsga2')">
+            <div class="algorithm-icon">🧬</div>
+            <div class="algorithm-name">NSGA-II</div>
+            <div class="algorithm-desc">Multi-objective genetic algorithm for Pareto-optimal solutions</div>
+            <div class="algorithm-badge">RECOMMENDED</div>
+        </div>
+        <div class="algorithm-card" onclick="selectAlgorithm('qaoa')">
+            <div class="algorithm-icon">⚛️</div>
+            <div class="algorithm-name">QAOA</div>
+            <div class="algorithm-desc">Quantum-inspired optimization for complex constraints</div>
+            <div class="algorithm-badge">EXPERIMENTAL</div>
+        </div>
+        <div class="algorithm-card" onclick="selectAlgorithm('rl')">
+            <div class="algorithm-icon">🧠</div>
+            <div class="algorithm-name">PPO-RL</div>
+            <div class="algorithm-desc">Reinforcement learning for adaptive dispatching</div>
+            <div class="algorithm-badge">ADAPTIVE</div>
+        </div>
+        <div class="algorithm-card" onclick="selectAlgorithm('cpsat')">
+            <div class="algorithm-icon">📐</div>
+            <div class="algorithm-name">CP-SAT</div>
+            <div class="algorithm-desc">Constraint programming for guaranteed optimality</div>
+            <div class="algorithm-badge">EXACT</div>
+        </div>
+    </div>
+</div>
+
+<!-- Gantt Chart -->
+<div class="gantt-section">
+    <div class="gantt-header">
+        <div class="gantt-title">📊 Production Gantt Chart</div>
+        <div class="gantt-legend">
+            <div class="legend-item"><span class="legend-color running"></span>Running</div>
+            <div class="legend-item"><span class="legend-color scheduled"></span>Scheduled</div>
+            <div class="legend-item"><span class="legend-color pending"></span>Pending</div>
+            <div class="legend-item"><span class="legend-color completed"></span>Completed</div>
+            <div class="legend-item"><span class="legend-color delayed"></span>Delayed</div>
+        </div>
+    </div>
+    <div class="gantt-container" id="gantt-container">
+        <!-- Rendered by JavaScript -->
+    </div>
+</div>
+
+<!-- Bottom Grid -->
+<div class="bottom-grid">
+    <!-- Optimization Panel -->
+    <div class="optimization-section">
+        <div class="optimization-header">
+            <div class="optimization-title">
+                ⚡ Schedule Optimization
+                <span class="optimizer-badge">NSGA-II Active</span>
+            </div>
+        </div>
+        <div class="optimization-metrics">
+            <div class="opt-metric">
+                <div class="opt-metric-value">8.5h</div>
+                <div class="opt-metric-label">Makespan</div>
+                <div class="opt-metric-change positive">↓ 12% improved</div>
+            </div>
+            <div class="opt-metric">
+                <div class="opt-metric-value">87.2%</div>
+                <div class="opt-metric-label">Utilization</div>
+                <div class="opt-metric-change positive">↑ 5.3% improved</div>
+            </div>
+            <div class="opt-metric">
+                <div class="opt-metric-value">2.1h</div>
+                <div class="opt-metric-label">Avg Wait Time</div>
+                <div class="opt-metric-change positive">↓ 18% reduced</div>
+            </div>
+            <div class="opt-metric">
+                <div class="opt-metric-value">94.5%</div>
+                <div class="opt-metric-label">On-Time Rate</div>
+                <div class="opt-metric-change positive">↑ 3.2% improved</div>
+            </div>
+        </div>
+        <div class="optimization-actions">
+            <button class="opt-action-btn" onclick="revertSchedule()">↩ Revert</button>
+            <button class="opt-action-btn" onclick="compareSchedules()">📊 Compare</button>
+            <button class="opt-action-btn primary" onclick="applyOptimization()">✓ Apply</button>
+        </div>
+    </div>
+
+    <!-- Job Queue -->
+    <div class="queue-section">
+        <div class="queue-header">
+            <div class="queue-title">📋 Job Queue</div>
+            <div class="queue-filters">
+                <button class="queue-filter active" onclick="filterQueue('all')">All</button>
+                <button class="queue-filter" onclick="filterQueue('ready')">Ready</button>
+                <button class="queue-filter" onclick="filterQueue('waiting')">Waiting</button>
+            </div>
+        </div>
+        <div class="job-list" id="job-list">
+            <!-- Rendered by JavaScript -->
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- New Job Modal -->
+<div class="modal-overlay" id="newJobModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>📋 Create New Production Job</h2>
+            <button class="modal-close" onclick="closeModal('newJobModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="newJobForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Part Number</label>
+                        <select class="form-select" name="partNumber" required>
+                            <option value="">Select part...</option>
+                            <option value="3001">LEGO 3001 - 2x4 Brick</option>
+                            <option value="3002">LEGO 3002 - 2x3 Brick</option>
+                            <option value="3003">LEGO 3003 - 2x2 Brick</option>
+                            <option value="3004">LEGO 3004 - 1x2 Brick</option>
+                            <option value="baseplate32">Baseplate 32x32</option>
+                            <option value="baseplate48">Baseplate 48x48</option>
+                            <option value="custom">Custom Part</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select" name="priority" required>
+                            <option value="low">🟢 Low</option>
+                            <option value="medium" selected>🟡 Medium</option>
+                            <option value="high">🔴 High</option>
+                            <option value="urgent">🚨 Urgent</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-input" name="quantity" placeholder="e.g., 1000" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Color</label>
+                        <select class="form-select" name="color">
+                            <option value="red">Red</option>
+                            <option value="blue">Blue</option>
+                            <option value="yellow">Yellow</option>
+                            <option value="green">Green</option>
+                            <option value="white">White</option>
+                            <option value="black">Black</option>
+                            <option value="gray">Gray</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Due Date</label>
+                        <input type="datetime-local" class="form-input" name="dueDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Work Center</label>
+                        <select class="form-select" name="workCenter">
+                            <option value="">Auto-assign</option>
+                            <option value="3d-printer-1">3D Printer 1</option>
+                            <option value="3d-printer-2">3D Printer 2</option>
+                            <option value="injection-a">Injection Mold A</option>
+                            <option value="assembly-1">Assembly Cell 1</option>
+                            <option value="cnc-1">CNC Mill 1</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Customer/Order Reference</label>
+                    <input type="text" class="form-input" name="orderRef" placeholder="e.g., ORD-2024-0089">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Special Instructions</label>
+                    <textarea class="form-textarea" name="instructions" placeholder="Any special processing requirements..."></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('newJobModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitNewJob()">Create Job</button>
+        </div>
+    </div>
+</div>
+
+<!-- Job Detail Modal -->
+<div class="modal-overlay" id="jobDetailModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>📋 <span id="jobDetailTitle">JOB-2024-089</span></h2>
+            <button class="modal-close" onclick="closeModal('jobDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="job-detail-grid">
+                <div class="job-detail-section">
+                    <h4>Job Information</h4>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Part Number</span>
+                        <span class="job-detail-value" id="detailPartNumber">LEGO 3001</span>
+                    </div>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Quantity</span>
+                        <span class="job-detail-value" id="detailQuantity">5,000 units</span>
+                    </div>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Priority</span>
+                        <span class="job-detail-value" id="detailPriority">🔴 High</span>
+                    </div>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Status</span>
+                        <span class="job-detail-value" id="detailStatus">Running</span>
+                    </div>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Work Center</span>
+                        <span class="job-detail-value" id="detailWorkCenter">3D Printer 1</span>
+                    </div>
+                </div>
+                <div class="job-detail-section">
+                    <h4>Timing</h4>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Scheduled Start</span>
+                        <span class="job-detail-value" id="detailStart">Jan 21, 10:00</span>
+                    </div>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Scheduled End</span>
+                        <span class="job-detail-value" id="detailEnd">Jan 21, 14:30</span>
+                    </div>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Due Date</span>
+                        <span class="job-detail-value" id="detailDue">Jan 21, 18:00</span>
+                    </div>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Progress</span>
+                        <span class="job-detail-value" id="detailProgress">62%</span>
+                    </div>
+                    <div class="job-detail-row">
+                        <span class="job-detail-label">Est. Completion</span>
+                        <span class="job-detail-value" id="detailEst">On Time ✓</span>
+                    </div>
+                </div>
+            </div>
+            <div class="job-timeline">
+                <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem;">Production Timeline</h4>
+                <div class="timeline-step">
+                    <div class="timeline-dot completed"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">Job Created</div>
+                        <div class="timeline-time">Jan 21, 08:00 - By System</div>
+                    </div>
+                </div>
+                <div class="timeline-step">
+                    <div class="timeline-dot completed"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">Material Ready</div>
+                        <div class="timeline-time">Jan 21, 09:45 - ABS Red verified</div>
+                    </div>
+                </div>
+                <div class="timeline-step">
+                    <div class="timeline-dot current"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">Production Running</div>
+                        <div class="timeline-time">Started Jan 21, 10:00 - 3,100 of 5,000 complete</div>
+                    </div>
+                </div>
+                <div class="timeline-step">
+                    <div class="timeline-dot pending"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">Quality Inspection</div>
+                        <div class="timeline-time">Scheduled: Jan 21, 14:30</div>
+                    </div>
+                </div>
+                <div class="timeline-step">
+                    <div class="timeline-dot pending"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-title">Complete</div>
+                        <div class="timeline-time">Expected: Jan 21, 15:00</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="rescheduleJob()">📅 Reschedule</button>
+            <button class="btn btn-outline" onclick="pauseJob()">⏸️ Pause</button>
+            <button class="btn btn-outline" style="color: #ef4444;" onclick="cancelJob()">✗ Cancel</button>
+            <button class="btn btn-primary" onclick="closeModal('jobDetailModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Algorithm Comparison Modal -->
+<div class="modal-overlay" id="comparisonModal">
+    <div class="modal" style="max-width: 1000px;">
+        <div class="modal-header">
+            <h2>📊 Schedule Comparison</h2>
+            <button class="modal-close" onclick="closeModal('comparisonModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Comparing current schedule with optimized alternatives:</p>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Current</th>
+                        <th>NSGA-II</th>
+                        <th>QAOA</th>
+                        <th>PPO-RL</th>
+                        <th>CP-SAT</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Makespan</strong></td>
+                        <td>9.7 hours</td>
+                        <td class="better">8.5 hours (-12%)</td>
+                        <td class="better">8.8 hours (-9%)</td>
+                        <td class="better">8.9 hours (-8%)</td>
+                        <td class="better">8.2 hours (-15%)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Utilization</strong></td>
+                        <td>82.1%</td>
+                        <td class="better">87.2% (+5%)</td>
+                        <td class="better">85.8% (+4%)</td>
+                        <td class="better">86.5% (+4%)</td>
+                        <td class="better">89.1% (+7%)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>On-Time Rate</strong></td>
+                        <td>91.3%</td>
+                        <td class="better">94.5% (+3%)</td>
+                        <td class="better">93.2% (+2%)</td>
+                        <td class="better">95.1% (+4%)</td>
+                        <td class="better">96.8% (+5%)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Avg Wait Time</strong></td>
+                        <td>2.6 hours</td>
+                        <td class="better">2.1 hours (-19%)</td>
+                        <td class="better">2.3 hours (-12%)</td>
+                        <td class="better">2.0 hours (-23%)</td>
+                        <td class="better">1.8 hours (-31%)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Setup Changes</strong></td>
+                        <td>12</td>
+                        <td class="better">9 (-25%)</td>
+                        <td>11 (-8%)</td>
+                        <td class="better">8 (-33%)</td>
+                        <td class="better">7 (-42%)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Compute Time</strong></td>
+                        <td>-</td>
+                        <td>45 sec</td>
+                        <td>120 sec</td>
+                        <td>15 sec</td>
+                        <td>180 sec</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px;">
+                <strong style="color: var(--text-primary);">💡 Recommendation:</strong>
+                <span style="color: var(--text-secondary);"> For this workload, <strong>CP-SAT</strong> provides the best results but takes longer. Use <strong>PPO-RL</strong> for quick re-optimization during the day.</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('comparisonModal')">Close</button>
+            <button class="btn btn-primary" onclick="applyBestSchedule()">Apply Best Schedule</button>
+        </div>
+    </div>
+</div>
+
+<!-- Optimization Progress Modal -->
+<div class="modal-overlay" id="optimizationModal">
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2>⚡ Running Optimization</h2>
+            <button class="modal-close" onclick="closeModal('optimizationModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="text-align: center; margin-bottom: 1.5rem;">
+                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🧬</div>
+                <div style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);" id="optAlgoName">NSGA-II Multi-Objective</div>
+                <div style="color: var(--text-secondary); font-size: 0.875rem;">Genetic Algorithm Optimization</div>
+            </div>
+            <div class="optimization-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="optProgressFill" style="width: 0%;"></div>
+                </div>
+                <div class="progress-text">
+                    <span id="optProgressText">Generation 0 of 100</span>
+                    <span id="optTimeRemaining">Est. 45 sec remaining</span>
+                </div>
+            </div>
+            <div style="background: rgba(0, 0, 0, 0.03); border-radius: 10px; padding: 1rem; margin-top: 1rem;">
+                <div style="font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);">Current Best Solution</div>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; font-size: 0.85rem;">
+                    <div>
+                        <span style="color: var(--text-secondary);">Makespan:</span>
+                        <strong id="optMakespan">-</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary);">Utilization:</span>
+                        <strong id="optUtilization">-</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary);">On-Time:</span>
+                        <strong id="optOnTime">-</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary);">Improvement:</span>
+                        <strong id="optImprovement" style="color: #22c55e;">-</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="cancelOptimization()">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Gantt data
+    const ganttData = [
+        {
+            name: '3D Printer 1',
+            status: 'online',
+            jobs: [
+                { name: 'LEGO 3001 Batch', start: 0, duration: 25, status: 'completed' },
+                { name: 'LEGO 3002 Batch', start: 25, duration: 35, status: 'running' },
+                { name: 'LEGO 3003 Batch', start: 65, duration: 20, status: 'scheduled' },
+            ]
+        },
+        {
+            name: '3D Printer 2',
+            status: 'online',
+            jobs: [
+                { name: 'Baseplate 32x32', start: 5, duration: 45, status: 'running' },
+                { name: 'LEGO 3001 v2', start: 55, duration: 30, status: 'scheduled' },
+            ]
+        },
+        {
+            name: 'Injection Mold A',
+            status: 'online',
+            jobs: [
+                { name: 'LEGO 3004 High Vol', start: 0, duration: 60, status: 'running' },
+                { name: 'LEGO 3005 Batch', start: 62, duration: 25, status: 'pending' },
+            ]
+        },
+        {
+            name: 'Quality Station',
+            status: 'online',
+            jobs: [
+                { name: 'QC Batch-041', start: 10, duration: 15, status: 'completed' },
+                { name: 'QC Batch-042', start: 28, duration: 15, status: 'completed' },
+                { name: 'QC Batch-043', start: 45, duration: 15, status: 'running' },
+                { name: 'QC Batch-044', start: 65, duration: 15, status: 'scheduled' },
+            ]
+        },
+        {
+            name: 'Assembly Cell 1',
+            status: 'online',
+            jobs: [
+                { name: 'Set 60198 Assy', start: 20, duration: 40, status: 'running' },
+                { name: 'Set 75192 Assy', start: 65, duration: 25, status: 'scheduled' },
+            ]
+        },
+        {
+            name: 'Packaging Line',
+            status: 'online',
+            jobs: [
+                { name: 'Pack Order-2041', start: 0, duration: 20, status: 'completed' },
+                { name: 'Pack Order-2042', start: 22, duration: 25, status: 'running' },
+                { name: 'Pack Order-2043', start: 50, duration: 20, status: 'scheduled' },
+                { name: 'Pack Order-2044', start: 72, duration: 18, status: 'pending' },
+            ]
+        },
+        {
+            name: 'CNC Mill 1',
+            status: 'maintenance',
+            jobs: [
+                { name: 'Maintenance', start: 30, duration: 30, status: 'delayed' },
+            ]
+        },
+    ];
+
+    // Job queue data
+    const jobQueue = [
+        { id: 'JOB-2024-089', name: 'LEGO 3001 Large Batch', priority: 'high', quantity: 5000, due: 'Today 18:00', status: 'ready', machine: '3D Printer 1' },
+        { id: 'JOB-2024-090', name: 'Baseplate 48x48', priority: 'high', quantity: 200, due: 'Today 20:00', status: 'ready', machine: '3D Printer 2' },
+        { id: 'JOB-2024-091', name: 'LEGO 3002 Red', priority: 'medium', quantity: 2000, due: 'Tomorrow 10:00', status: 'waiting', machine: 'Injection Mold A' },
+        { id: 'JOB-2024-092', name: 'Set 75192 Parts', priority: 'medium', quantity: 50, due: 'Tomorrow 14:00', status: 'ready', machine: 'Assembly Cell 1' },
+        { id: 'JOB-2024-093', name: 'Custom Order C-2024', priority: 'low', quantity: 100, due: 'Tomorrow 18:00', status: 'waiting', machine: 'CNC Mill 1' },
+        { id: 'JOB-2024-094', name: 'LEGO 3003 Blue', priority: 'medium', quantity: 3000, due: 'Jan 23 10:00', status: 'ready', machine: 'Injection Mold A' },
+        { id: 'JOB-2024-095', name: 'Packaging Materials', priority: 'low', quantity: 1000, due: 'Jan 23 16:00', status: 'blocked', machine: 'Packaging Line' },
+    ];
+
+    function renderGantt() {
+        const container = document.getElementById('gantt-container');
+        const hours = Array.from({length: 13}, (_, i) => 6 + i); // 6 AM to 6 PM
+        const currentHour = 10; // Simulated current time (10 AM)
+        const currentPosition = ((currentHour - 6) / 12) * 100;
+
+        let html = `
+            <div class="gantt-timeline">
+                ${hours.map(h => `<div class="timeline-hour">${h}:00</div>`).join('')}
+            </div>
+            <div class="gantt-body">
+        `;
+
+        ganttData.forEach(row => {
+            html += `
+                <div class="gantt-row">
+                    <div class="gantt-row-label">
+                        <span class="row-status ${row.status}"></span>
+                        <span class="row-name">${row.name}</span>
+                    </div>
+                    <div class="gantt-bars">
+                        <div class="current-time-line" style="left: ${currentPosition}%"></div>
+                        ${row.jobs.map(job => {
+                            const left = (job.start / 100) * 100;
+                            const width = (job.duration / 100) * 100;
+                            return `<div class="gantt-bar ${job.status}"
+                                        style="left: ${left}%; width: ${width}%"
+                                        onclick="showJobDetails('${job.name}')"
+                                        title="${job.name}">
+                                ${job.name}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div>';
+        container.innerHTML = html;
+    }
+
+    function renderJobQueue(filter = 'all') {
+        const container = document.getElementById('job-list');
+        const filtered = filter === 'all' ? jobQueue : jobQueue.filter(j => j.status === filter);
+
+        container.innerHTML = filtered.map(job => `
+            <div class="job-item" onclick="showJobDetails('${job.id}')">
+                <div class="job-priority ${job.priority}"></div>
+                <div class="job-info">
+                    <div class="job-name">${job.name}</div>
+                    <div class="job-details">${job.id} • ${job.quantity} units • ${job.machine}</div>
+                </div>
+                <div class="job-status">
+                    <span class="job-status-badge ${job.status}">${job.status.toUpperCase()}</span>
+                    <div class="job-due">Due: ${job.due}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function setView(view) {
+        document.querySelectorAll('.view-selector button').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        // Implement view switching
+    }
+
+    function navigateDate(offset) {
+        const dateDisplay = document.getElementById('current-date');
+        const currentDate = new Date('2024-01-21');
+        currentDate.setDate(currentDate.getDate() + offset);
+        dateDisplay.textContent = currentDate.toLocaleDateString('en-US', {
+            month: 'long', day: 'numeric', year: 'numeric'
+        });
+    }
+
+    function selectAlgorithm(algo) {
+        document.querySelectorAll('.algorithm-card').forEach(card => card.classList.remove('selected'));
+        event.target.closest('.algorithm-card').classList.add('selected');
+    }
+
+    // ========================
+    // Modal Functions
+    // ========================
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // Close modal on backdrop click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+        }
+    });
+
+    // ========================
+    // Toast Notifications
+    // ========================
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const icons = {
+            success: '✓',
+            error: '✗',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+
+        toast.innerHTML = `<span>${icons[type] || icons.info}</span> ${message}`;
+        container.appendChild(toast);
+
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            toast.style.animation = 'slideInRight 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
+    }
+
+    // ========================
+    // Algorithm Selection
+    // ========================
+    let selectedAlgorithm = 'nsga2';
+    let optimizationInterval = null;
+
+    const algorithmInfo = {
+        'nsga2': { name: 'NSGA-II Multi-Objective', icon: '🧬', type: 'Genetic Algorithm' },
+        'qaoa': { name: 'QAOA Quantum-Inspired', icon: '⚛️', type: 'Quantum Optimization' },
+        'rl': { name: 'PPO Reinforcement Learning', icon: '🧠', type: 'Adaptive Learning' },
+        'cpsat': { name: 'CP-SAT Constraint Solver', icon: '📐', type: 'Exact Optimization' }
+    };
+
+    function selectAlgorithm(algo) {
+        selectedAlgorithm = algo;
+        document.querySelectorAll('.algorithm-card').forEach(card => card.classList.remove('selected'));
+        event.target.closest('.algorithm-card').classList.add('selected');
+        showToast(`Selected ${algorithmInfo[algo].name}`, 'info');
+    }
+
+    function runOptimization() {
+        const info = algorithmInfo[selectedAlgorithm];
+        document.getElementById('optAlgoName').textContent = info.name;
+
+        openModal('optimizationModal');
+        simulateOptimization();
+    }
+
+    function simulateOptimization() {
+        let progress = 0;
+        const totalSteps = 100;
+        const stepTime = 450; // ms per step
+
+        document.getElementById('optProgressFill').style.width = '0%';
+        document.getElementById('optProgressText').textContent = 'Initializing...';
+        document.getElementById('optMakespan').textContent = '-';
+        document.getElementById('optUtilization').textContent = '-';
+        document.getElementById('optOnTime').textContent = '-';
+        document.getElementById('optImprovement').textContent = '-';
+
+        optimizationInterval = setInterval(() => {
+            progress += 1;
+            const percentage = (progress / totalSteps) * 100;
+
+            document.getElementById('optProgressFill').style.width = percentage + '%';
+            document.getElementById('optProgressText').textContent = `Generation ${progress} of ${totalSteps}`;
+
+            const remaining = Math.ceil((totalSteps - progress) * stepTime / 1000);
+            document.getElementById('optTimeRemaining').textContent = `Est. ${remaining} sec remaining`;
+
+            // Simulate improving metrics
+            if (progress > 10) {
+                const makespan = (9.7 - (progress / totalSteps) * 1.5).toFixed(1);
+                const utilization = (82.1 + (progress / totalSteps) * 7).toFixed(1);
+                const ontime = (91.3 + (progress / totalSteps) * 5).toFixed(1);
+                const improvement = ((1 - parseFloat(makespan) / 9.7) * 100).toFixed(0);
+
+                document.getElementById('optMakespan').textContent = makespan + 'h';
+                document.getElementById('optUtilization').textContent = utilization + '%';
+                document.getElementById('optOnTime').textContent = ontime + '%';
+                document.getElementById('optImprovement').textContent = '+' + improvement + '%';
+            }
+
+            if (progress >= totalSteps) {
+                clearInterval(optimizationInterval);
+                setTimeout(() => {
+                    closeModal('optimizationModal');
+                    showToast('Optimization complete! Schedule improved by 15%', 'success');
+                    updateOptimizationMetrics();
+                }, 500);
+            }
+        }, stepTime);
+    }
+
+    function cancelOptimization() {
+        if (optimizationInterval) {
+            clearInterval(optimizationInterval);
+        }
+        closeModal('optimizationModal');
+        showToast('Optimization cancelled', 'warning');
+    }
+
+    function updateOptimizationMetrics() {
+        // Update the optimization panel with new values
+        const metrics = document.querySelectorAll('.opt-metric-value');
+        if (metrics[0]) metrics[0].textContent = '8.5h';
+        if (metrics[1]) metrics[1].textContent = '87.2%';
+        if (metrics[2]) metrics[2].textContent = '2.1h';
+        if (metrics[3]) metrics[3].textContent = '94.5%';
+    }
+
+    function applyOptimization() {
+        showToast('Optimized schedule applied to production floor', 'success');
+        // Re-render Gantt with optimized data
+        renderGantt();
+    }
+
+    function revertSchedule() {
+        showToast('Reverted to previous schedule', 'info');
+        renderGantt();
+    }
+
+    function compareSchedules() {
+        openModal('comparisonModal');
+    }
+
+    function applyBestSchedule() {
+        closeModal('comparisonModal');
+        showToast('CP-SAT optimal schedule applied', 'success');
+        updateOptimizationMetrics();
+    }
+
+    // ========================
+    // Job Functions
+    // ========================
+    function createJob() {
+        openModal('newJobModal');
+    }
+
+    function submitNewJob() {
+        const form = document.getElementById('newJobForm');
+        const partNumber = form.querySelector('[name="partNumber"]').value;
+        const quantity = form.querySelector('[name="quantity"]').value;
+
+        if (!partNumber || !quantity) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        closeModal('newJobModal');
+        showToast('Job JOB-2024-096 created and scheduled', 'success');
+        form.reset();
+
+        // Add to queue
+        jobQueue.unshift({
+            id: 'JOB-2024-096',
+            name: 'New Production Job',
+            priority: 'medium',
+            quantity: parseInt(quantity),
+            due: 'Tomorrow 18:00',
+            status: 'ready',
+            machine: 'Auto-assigned'
+        });
+        renderJobQueue();
+    }
+
+    function showJobDetails(jobId) {
+        const job = jobQueue.find(j => j.id === jobId) || {
+            id: jobId,
+            name: 'LEGO 3001 Large Batch',
+            priority: 'high',
+            quantity: 5000,
+            due: 'Today 18:00',
+            status: 'running',
+            machine: '3D Printer 1'
+        };
+
+        document.getElementById('jobDetailTitle').textContent = job.id;
+        document.getElementById('detailPartNumber').textContent = job.name;
+        document.getElementById('detailQuantity').textContent = job.quantity.toLocaleString() + ' units';
+        document.getElementById('detailPriority').textContent =
+            job.priority === 'high' ? '🔴 High' :
+            job.priority === 'medium' ? '🟡 Medium' : '🟢 Low';
+        document.getElementById('detailStatus').textContent = job.status.charAt(0).toUpperCase() + job.status.slice(1);
+        document.getElementById('detailWorkCenter').textContent = job.machine;
+
+        openModal('jobDetailModal');
+    }
+
+    function rescheduleJob() {
+        closeModal('jobDetailModal');
+        showToast('Opening reschedule dialog...', 'info');
+    }
+
+    function pauseJob() {
+        closeModal('jobDetailModal');
+        showToast('Job paused', 'warning');
+    }
+
+    function cancelJob() {
+        if (confirm('Are you sure you want to cancel this job?')) {
+            closeModal('jobDetailModal');
+            showToast('Job cancelled', 'error');
+        }
+    }
+
+    function filterQueue(filter) {
+        document.querySelectorAll('.queue-filter').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        renderJobQueue(filter);
+    }
+
+    // ========================
+    // Drag and Drop
+    // ========================
+    let draggedBar = null;
+    let dragStartX = 0;
+
+    function initDragDrop() {
+        document.querySelectorAll('.gantt-bar').forEach(bar => {
+            bar.setAttribute('draggable', 'true');
+
+            bar.addEventListener('dragstart', function(e) {
+                draggedBar = this;
+                dragStartX = e.clientX;
+                this.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            bar.addEventListener('dragend', function(e) {
+                this.classList.remove('dragging');
+                draggedBar = null;
+
+                // Calculate new position and show toast
+                const deltaX = e.clientX - dragStartX;
+                if (Math.abs(deltaX) > 20) {
+                    const hours = Math.round(deltaX / 60);
+                    if (hours !== 0) {
+                        showToast(`Job rescheduled by ${hours > 0 ? '+' : ''}${hours} hours`, 'info');
+                    }
+                }
+            });
+        });
+
+        document.querySelectorAll('.gantt-row').forEach(row => {
+            row.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                this.classList.add('drop-target');
+            });
+
+            row.addEventListener('dragleave', function() {
+                this.classList.remove('drop-target');
+            });
+
+            row.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('drop-target');
+
+                if (draggedBar) {
+                    const newMachine = this.querySelector('.row-name').textContent;
+                    showToast(`Job moved to ${newMachine}`, 'success');
+                }
+            });
+        });
+    }
+
+    // ========================
+    // Real-time Updates (Pattern-Based)
+    // ========================
+    let scheduleUpdateCounter = 0;
+    function updateScheduleStats() {
+        scheduleUpdateCounter++;
+        const overviewCards = document.querySelectorAll('.overview-value');
+        const now = new Date();
+        const secondMod = now.getSeconds();
+
+        // Update running jobs based on time pattern (every ~30 seconds)
+        if (overviewCards[1] && secondMod % 30 === 0) {
+            const current = parseInt(overviewCards[1].textContent) || 3;
+            // Oscillate between 2-5 running jobs
+            const variation = Math.sin(scheduleUpdateCounter * 0.2) > 0 ? 1 : -1;
+            overviewCards[1].textContent = Math.max(2, Math.min(5, current + variation));
+        }
+
+        // Update completed count (increment every ~40 seconds based on time)
+        if (overviewCards[3] && secondMod % 40 === 0) {
+            const current = parseInt(overviewCards[3].textContent) || 23;
+            overviewCards[3].textContent = current + 1;
+        }
+    }
+
+    function startLiveUpdates() {
+        setInterval(updateScheduleStats, 10000);
+    }
+
+    // ========================
+    // View Functions
+    // ========================
+    function setView(view) {
+        document.querySelectorAll('.view-selector button').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        showToast(`Switched to ${view} view`, 'info');
+    }
+
+    let currentDateOffset = 0;
+
+    function navigateDate(offset) {
+        currentDateOffset += offset;
+        const currentDate = new Date('2024-01-21');
+        currentDate.setDate(currentDate.getDate() + currentDateOffset);
+        document.getElementById('current-date').textContent = currentDate.toLocaleDateString('en-US', {
+            month: 'long', day: 'numeric', year: 'numeric'
+        });
+
+        if (offset !== 0) {
+            showToast(`Viewing schedule for ${currentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`, 'info');
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        renderGantt();
+        renderJobQueue();
+        initDragDrop();
+        startLiveUpdates();
+
+        // Show welcome toast
+        setTimeout(() => {
+            showToast('Scheduling Dashboard loaded - NSGA-II optimizer ready', 'success');
+        }, 500);
+    });
+</script>
+{% endblock %}

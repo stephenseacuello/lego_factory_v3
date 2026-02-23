@@ -1,0 +1,569 @@
+{% extends "base.html" %}
+
+{% block title %}{{ build.name }} - Build Planner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="breadcrumb">
+        <a href="{{ url_for('builds.builds_page') }}">← Back to Builds</a>
+    </div>
+    <h1>{{ build.name }}</h1>
+    <div class="page-actions">
+        {% if check and check.can_build %}
+        <span class="badge badge-success badge-large">✓ Ready to Build!</span>
+        {% else %}
+        <span class="badge badge-warning badge-large">Missing {{ check.parts_missing if check else '?' }} parts</span>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Build Overview -->
+<div class="build-overview">
+    <div class="build-main">
+        <div class="build-image-large">
+            {% if build.image_url %}
+            <img src="{{ build.image_url }}" alt="{{ build.name }}">
+            {% else %}
+            <div class="build-placeholder-large">🧱</div>
+            {% endif %}
+        </div>
+        
+        <div class="build-details">
+            <p class="build-description">{{ build.description or 'No description' }}</p>
+            
+            <div class="build-meta-grid">
+                <div class="meta-item">
+                    <span class="meta-label">Total Parts</span>
+                    <span class="meta-value">{{ build.total_parts }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Source</span>
+                    <span class="meta-value">{{ build.source | title }}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Created</span>
+                    <span class="meta-value">{{ build.created[:10] if build.created else 'Unknown' }}</span>
+                </div>
+            </div>
+            
+            {% if check %}
+            <div class="completion-section">
+                <h4>Completion Status</h4>
+                <div class="completion-bar">
+                    <div class="completion-progress" style="width: {{ check.completion_percent }}%">
+                        <span>{{ check.completion_percent }}%</span>
+                    </div>
+                </div>
+                <div class="completion-stats">
+                    <span class="stat-have">✓ {{ check.parts_owned }} parts owned</span>
+                    <span class="stat-missing">✗ {{ check.parts_missing }} parts missing</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Parts Tabs -->
+<div class="parts-tabs">
+    <button class="tab-btn active" data-tab="all">All Parts ({{ build.parts | length }})</button>
+    <button class="tab-btn" data-tab="have">Have ({{ check.parts_owned if check else 0 }})</button>
+    <button class="tab-btn" data-tab="missing">Missing ({{ check.parts_missing if check else 0 }})</button>
+</div>
+
+<!-- All Parts -->
+<div class="tab-content active" id="tab-all">
+    <div class="parts-grid">
+        {% for part in build.parts %}
+        <div class="part-card">
+            <div class="part-color" style="background: var(--color-{{ part.color }}, #888)"></div>
+            <div class="part-icon">🧱</div>
+            <div class="part-info">
+                <span class="part-name">{{ part.brick_name }}</span>
+                <span class="part-color-name">{{ part.color | replace('_', ' ') | title }}</span>
+            </div>
+            <div class="part-qty">×{{ part.quantity }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Have Parts -->
+<div class="tab-content" id="tab-have">
+    {% if check and check.have %}
+    <div class="parts-grid">
+        {% for part in check.have %}
+        <div class="part-card have">
+            <div class="part-icon">✓</div>
+            <div class="part-info">
+                <span class="part-name">{{ part.brick_name }}</span>
+                <span class="part-color-name">{{ part.color | replace('_', ' ') | title }}</span>
+            </div>
+            <div class="part-qty">
+                <span class="qty-needed">Need {{ part.needed }}</span>
+                <span class="qty-owned">Have {{ part.owned }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-message">No parts owned yet</p>
+    {% endif %}
+</div>
+
+<!-- Missing Parts -->
+<div class="tab-content" id="tab-missing">
+    {% if check and check.missing %}
+    <div class="parts-grid">
+        {% for part in check.missing %}
+        <div class="part-card missing">
+            <div class="part-color" style="background: var(--color-{{ part.color }}, #888)"></div>
+            <div class="part-icon">✗</div>
+            <div class="part-info">
+                <span class="part-name">{{ part.brick_name }}</span>
+                <span class="part-color-name">{{ part.color | replace('_', ' ') | title }}</span>
+            </div>
+            <div class="part-qty">
+                <span class="qty-short">Short {{ part.short }}</span>
+                <span class="qty-detail">(have {{ part.owned }}/{{ part.needed }})</span>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Substitutes -->
+    {% if substitutes %}
+    <div class="substitutes-section">
+        <h3>Possible Substitutes</h3>
+        <p>These pieces in your collection could work as alternatives:</p>
+        
+        {% for brick_id, subs in substitutes.items() %}
+        <div class="substitute-group">
+            <h4>For {{ brick_id | replace('_', ' ') | title }}</h4>
+            <div class="substitute-list">
+                {% for sub in subs %}
+                <div class="substitute-item {{ 'can-use' if sub.can_substitute else '' }}">
+                    <span class="sub-color" style="background: var(--color-{{ sub.color }}, #888)"></span>
+                    <span class="sub-name">{{ sub.brick_id | replace('_', ' ') | title }}</span>
+                    <span class="sub-color-name">{{ sub.color | replace('_', ' ') | title }}</span>
+                    <span class="sub-qty">{{ sub.available }} available</span>
+                    {% if sub.can_substitute %}
+                    <span class="badge badge-success">✓ Enough</span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="empty-message success-message">🎉 You have all the parts! Ready to build!</p>
+    {% endif %}
+</div>
+
+<!-- Shopping List -->
+{% if shopping and shopping.items %}
+<section class="section shopping-section">
+    <h2 class="section-title">Shopping List</h2>
+    <p>Parts you need to acquire:</p>
+    
+    <div class="shopping-list">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Part</th>
+                    <th>Color</th>
+                    <th>Quantity</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in shopping.items %}
+                <tr>
+                    <td>{{ item.brick_name }}</td>
+                    <td>
+                        <span class="color-dot" style="background: var(--color-{{ item.color }}, #888)"></span>
+                        {{ item.color | replace('_', ' ') | title }}
+                    </td>
+                    <td>{{ item.quantity }}</td>
+                    <td>
+                        <a href="https://www.bricklink.com/v2/search.page?q={{ item.brick_id }}" 
+                           target="_blank" class="btn btn-small btn-secondary">
+                            BrickLink
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="shopping-summary">
+        <span>Total: {{ shopping.total_pieces }} pieces across {{ shopping.total_items }} types</span>
+        <button class="btn btn-secondary" onclick="copyShoppingList()">📋 Copy List</button>
+        <a href="{{ url_for('builds.export_build', build_id=build.id, format='csv') }}" class="btn btn-secondary">
+            📥 Export CSV
+        </a>
+    </div>
+</section>
+{% endif %}
+
+<!-- Actions -->
+<div class="build-actions-bar">
+    <button class="btn btn-secondary" onclick="deleteBuild('{{ build.id }}')">🗑️ Delete Build</button>
+    <a href="{{ url_for('builds.export_build', build_id=build.id, format='json') }}" class="btn btn-secondary">
+        📥 Export JSON
+    </a>
+    <button class="btn btn-primary" onclick="refreshCheck()">🔄 Refresh Check</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const tab = this.dataset.tab;
+        
+        // Update buttons
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        // Update content
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById('tab-' + tab).classList.add('active');
+    });
+});
+
+// Copy shopping list
+function copyShoppingList() {
+    const items = {{ shopping.items | tojson if shopping else '[]' }};
+    const text = items.map(i => `${i.quantity}x ${i.brick_name} (${i.color})`).join('\n');
+    
+    navigator.clipboard.writeText(text).then(() => {
+        App.toast('Shopping list copied!', 'success');
+    });
+}
+
+// Delete build
+function deleteBuild(buildId) {
+    if (confirm('Delete this build? This cannot be undone.')) {
+        fetch(`/builds/${buildId}/delete`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.href = '/builds/';
+                }
+            });
+    }
+}
+
+// Refresh check
+function refreshCheck() {
+    location.reload();
+}
+</script>
+
+<style>
+.build-overview {
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+}
+
+.build-main {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: var(--spacing-xl);
+}
+
+.build-image-large {
+    aspect-ratio: 1;
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.build-placeholder-large {
+    font-size: 100px;
+}
+
+.build-description {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-lg);
+}
+
+.build-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+}
+
+.meta-item {
+    text-align: center;
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius);
+}
+
+.meta-label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-xs);
+}
+
+.meta-value {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.completion-section h4 {
+    margin: 0 0 var(--spacing-sm);
+}
+
+.completion-bar {
+    height: 30px;
+    background: var(--bg-tertiary);
+    border-radius: 15px;
+    overflow: hidden;
+    margin-bottom: var(--spacing-sm);
+}
+
+.completion-progress {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), var(--success));
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 600;
+    min-width: 50px;
+}
+
+.completion-stats {
+    display: flex;
+    gap: var(--spacing-lg);
+}
+
+.stat-have {
+    color: var(--success);
+}
+
+.stat-missing {
+    color: var(--danger);
+}
+
+/* Tabs */
+.parts-tabs {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: var(--spacing-sm);
+}
+
+.tab-btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -calc(var(--spacing-sm) + 2px);
+}
+
+.tab-btn.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Parts Grid */
+.parts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.part-card {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--border-color);
+}
+
+.part-card.have {
+    border-left-color: var(--success);
+}
+
+.part-card.missing {
+    border-left-color: var(--danger);
+}
+
+.part-color {
+    width: 8px;
+    height: 40px;
+    border-radius: 4px;
+}
+
+.part-icon {
+    font-size: 24px;
+}
+
+.part-info {
+    flex: 1;
+}
+
+.part-name {
+    display: block;
+    font-weight: 500;
+}
+
+.part-color-name {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.part-qty {
+    text-align: right;
+    font-weight: 600;
+}
+
+.qty-short {
+    color: var(--danger);
+    display: block;
+}
+
+.qty-detail {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* Substitutes */
+.substitutes-section {
+    margin-top: var(--spacing-xl);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-color);
+}
+
+.substitute-group {
+    margin-bottom: var(--spacing-lg);
+}
+
+.substitute-group h4 {
+    margin: 0 0 var(--spacing-sm);
+    color: var(--text-secondary);
+}
+
+.substitute-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.substitute-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    background: var(--bg-secondary);
+    border-radius: var(--border-radius-sm);
+}
+
+.substitute-item.can-use {
+    background: rgba(40, 167, 69, 0.1);
+}
+
+.sub-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+}
+
+.sub-name {
+    font-weight: 500;
+}
+
+.sub-color-name {
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.sub-qty {
+    font-size: 12px;
+}
+
+/* Shopping */
+.shopping-section {
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-lg);
+}
+
+.shopping-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+}
+
+.shopping-summary span:first-child {
+    flex: 1;
+    color: var(--text-secondary);
+}
+
+/* Actions */
+.build-actions-bar {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+    margin-top: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+}
+
+.success-message {
+    text-align: center;
+    padding: var(--spacing-xl);
+    font-size: 18px;
+    color: var(--success);
+}
+
+.badge-large {
+    font-size: 14px;
+    padding: var(--spacing-sm) var(--spacing-md);
+}
+
+@media (max-width: 768px) {
+    .build-main {
+        grid-template-columns: 1fr;
+    }
+    
+    .build-meta-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}

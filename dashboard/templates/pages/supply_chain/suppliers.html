@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+
+{% block title %}Supply Chain - LEGO MCP{% endblock %}
+
+{% block styles %}
+<style>
+    .supply-chain-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .metrics-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .metric-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .metric-label {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--primary);
+    }
+
+    .suppliers-section {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+        margin-bottom: 2rem;
+    }
+
+    .suppliers-section h2 {
+        margin: 0 0 1rem 0;
+        font-size: 1.1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .supplier-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1rem;
+    }
+
+    .supplier-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .supplier-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .supplier-name {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    .supplier-type {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+
+    .supplier-score {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .supplier-score.excellent {
+        background: rgba(76, 175, 80, 0.15);
+        color: #4CAF50;
+    }
+
+    .supplier-score.good {
+        background: rgba(33, 150, 243, 0.15);
+        color: #2196F3;
+    }
+
+    .supplier-score.warning {
+        background: rgba(255, 152, 0, 0.15);
+        color: #FF9800;
+    }
+
+    .supplier-score.critical {
+        background: rgba(244, 67, 54, 0.15);
+        color: #f44336;
+    }
+
+    .supplier-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    .supplier-metric {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .supplier-metric-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .supplier-metric-value {
+        font-weight: 600;
+    }
+
+    .risk-table {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .risk-table h2 {
+        margin: 0 0 1rem 0;
+        font-size: 1.1rem;
+    }
+
+    .risk-table table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .risk-table th,
+    .risk-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .risk-table th {
+        font-weight: 600;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+    }
+
+    .risk-level {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .risk-level.low {
+        background: rgba(76, 175, 80, 0.15);
+        color: #4CAF50;
+    }
+
+    .risk-level.medium {
+        background: rgba(255, 152, 0, 0.15);
+        color: #FF9800;
+    }
+
+    .risk-level.high {
+        background: rgba(244, 67, 54, 0.15);
+        color: #f44336;
+    }
+
+    .orders-section {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+        margin-top: 2rem;
+    }
+
+    .orders-section h2 {
+        margin: 0 0 1rem 0;
+        font-size: 1.1rem;
+    }
+
+    .order-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .order-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+    }
+
+    .order-info {
+        display: flex;
+        gap: 2rem;
+    }
+
+    .order-status {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .order-status.pending {
+        background: rgba(255, 152, 0, 0.15);
+        color: #FF9800;
+    }
+
+    .order-status.shipped {
+        background: rgba(33, 150, 243, 0.15);
+        color: #2196F3;
+    }
+
+    .order-status.delivered {
+        background: rgba(76, 175, 80, 0.15);
+        color: #4CAF50;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="supply-chain-header">
+    <div>
+        <h1>Supply Chain Management</h1>
+        <p>Supplier Performance, Procurement & Risk Assessment</p>
+    </div>
+    <div>
+        <button class="btn btn-primary" onclick="addSupplier()">+ Add Supplier</button>
+    </div>
+</div>
+
+<div class="metrics-row">
+    <div class="metric-card">
+        <div class="metric-label">Active Suppliers</div>
+        <div class="metric-value">12</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Avg Lead Time</div>
+        <div class="metric-value">4.2 days</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">On-Time Delivery</div>
+        <div class="metric-value">94.7%</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Quality Score</div>
+        <div class="metric-value">A (92)</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">Open POs</div>
+        <div class="metric-value">8</div>
+    </div>
+</div>
+
+<div class="suppliers-section">
+    <h2>
+        <span>Top Suppliers by Scorecard</span>
+        <button class="btn btn-sm" onclick="viewAllSuppliers()">View All</button>
+    </h2>
+    <div class="supplier-grid">
+        <div class="supplier-card">
+            <div class="supplier-header">
+                <div>
+                    <div class="supplier-name">FilamentCo Premium</div>
+                    <div class="supplier-type">PLA/PETG Materials</div>
+                </div>
+                <div class="supplier-score excellent">A+ (97)</div>
+            </div>
+            <div class="supplier-metrics">
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Quality</span>
+                    <span class="supplier-metric-value">99.2%</span>
+                </div>
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Delivery</span>
+                    <span class="supplier-metric-value">98.5%</span>
+                </div>
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Lead Time</span>
+                    <span class="supplier-metric-value">2.1 days</span>
+                </div>
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Response</span>
+                    <span class="supplier-metric-value">< 4 hrs</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="supplier-card">
+            <div class="supplier-header">
+                <div>
+                    <div class="supplier-name">TechParts Inc</div>
+                    <div class="supplier-type">Electronics & Motors</div>
+                </div>
+                <div class="supplier-score good">A (91)</div>
+            </div>
+            <div class="supplier-metrics">
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Quality</span>
+                    <span class="supplier-metric-value">97.8%</span>
+                </div>
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Delivery</span>
+                    <span class="supplier-metric-value">94.2%</span>
+                </div>
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Lead Time</span>
+                    <span class="supplier-metric-value">5.3 days</span>
+                </div>
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Response</span>
+                    <span class="supplier-metric-value">< 8 hrs</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="supplier-card">
+            <div class="supplier-header">
+                <div>
+                    <div class="supplier-name">PackSafe Solutions</div>
+                    <div class="supplier-type">Packaging Materials</div>
+                </div>
+                <div class="supplier-score warning">B+ (82)</div>
+            </div>
+            <div class="supplier-metrics">
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Quality</span>
+                    <span class="supplier-metric-value">95.1%</span>
+                </div>
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Delivery</span>
+                    <span class="supplier-metric-value">87.3%</span>
+                </div>
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Lead Time</span>
+                    <span class="supplier-metric-value">6.8 days</span>
+                </div>
+                <div class="supplier-metric">
+                    <span class="supplier-metric-label">Response</span>
+                    <span class="supplier-metric-value">< 24 hrs</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="risk-table">
+    <h2>Supply Risk Assessment</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Risk Factor</th>
+                <th>Affected Suppliers</th>
+                <th>Impact</th>
+                <th>Risk Level</th>
+                <th>Mitigation</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Single-source dependency</td>
+                <td>Specialty Resins Ltd</td>
+                <td>Critical materials</td>
+                <td><span class="risk-level high">High</span></td>
+                <td>Qualify alternate supplier</td>
+            </tr>
+            <tr>
+                <td>Geographic concentration</td>
+                <td>3 suppliers in same region</td>
+                <td>Logistics disruption</td>
+                <td><span class="risk-level medium">Medium</span></td>
+                <td>Safety stock increase</td>
+            </tr>
+            <tr>
+                <td>Financial stability</td>
+                <td>QuickShip Logistics</td>
+                <td>Delivery services</td>
+                <td><span class="risk-level medium">Medium</span></td>
+                <td>Monitor quarterly</td>
+            </tr>
+            <tr>
+                <td>Quality variability</td>
+                <td>PackSafe Solutions</td>
+                <td>Packaging defects</td>
+                <td><span class="risk-level low">Low</span></td>
+                <td>Incoming inspection</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="orders-section">
+    <h2>Recent Purchase Orders</h2>
+    <div class="order-list">
+        <div class="order-item">
+            <div class="order-info">
+                <span><strong>PO-2024-0847</strong></span>
+                <span>FilamentCo Premium</span>
+                <span>PLA White 1.75mm x 10kg</span>
+            </div>
+            <span class="order-status shipped">Shipped</span>
+        </div>
+        <div class="order-item">
+            <div class="order-info">
+                <span><strong>PO-2024-0846</strong></span>
+                <span>TechParts Inc</span>
+                <span>Stepper Motors NEMA17 x 4</span>
+            </div>
+            <span class="order-status pending">Pending</span>
+        </div>
+        <div class="order-item">
+            <div class="order-info">
+                <span><strong>PO-2024-0845</strong></span>
+                <span>FilamentCo Premium</span>
+                <span>PETG Black 1.75mm x 5kg</span>
+            </div>
+            <span class="order-status delivered">Delivered</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addSupplier() {
+    window.location.href = '/supply-chain/suppliers/new';
+}
+
+function viewAllSuppliers() {
+    window.location.href = '/supply-chain/suppliers';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Brick Catalog - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Brick Catalog</h1>
+    <div class="page-actions">
+        <div class="view-toggle">
+            <button class="view-btn {{ 'active' if view == 'grid' else '' }}" data-view="grid" title="Grid view">▦</button>
+            <button class="view-btn {{ 'active' if view == 'list' else '' }}" data-view="list" title="List view">☰</button>
+        </div>
+    </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="filter-bar">
+    <form action="{{ url_for('catalog.list_bricks') }}" method="get" class="filter-form">
+        <input type="text" name="q" value="{{ search_query }}" placeholder="Search bricks..." class="filter-search">
+        
+        <select name="sort" class="filter-select" onchange="this.form.submit()">
+            <option value="name" {{ 'selected' if sort_by == 'name' else '' }}>Name</option>
+            <option value="width" {{ 'selected' if sort_by == 'width' else '' }}>Width</option>
+            <option value="height" {{ 'selected' if sort_by == 'height' else '' }}>Height</option>
+            <option value="size" {{ 'selected' if sort_by == 'size' else '' }}>Size</option>
+        </select>
+        
+        <select name="order" class="filter-select" onchange="this.form.submit()">
+            <option value="asc" {{ 'selected' if sort_order == 'asc' else '' }}>Ascending</option>
+            <option value="desc" {{ 'selected' if sort_order == 'desc' else '' }}>Descending</option>
+        </select>
+        
+        <input type="hidden" name="view" value="{{ view }}">
+        <input type="hidden" name="category" value="{{ current_category or '' }}">
+        
+        <button type="submit" class="btn btn-primary">Search</button>
+        {% if search_query or current_category %}
+        <a href="{{ url_for('catalog.list_bricks') }}" class="btn btn-secondary">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="catalog-layout">
+    <!-- Category Sidebar -->
+    <aside class="catalog-sidebar">
+        <h3>Categories</h3>
+        <ul class="category-list">
+            <li class="{{ 'active' if not current_category else '' }}">
+                <a href="{{ url_for('catalog.list_bricks', q=search_query, sort=sort_by, order=sort_order, view=view) }}">
+                    All <span class="count">({{ total }})</span>
+                </a>
+            </li>
+            {% for cat in categories %}
+            <li class="{{ 'active' if current_category == cat.id else '' }}">
+                <a href="{{ url_for('catalog.list_bricks', category=cat.id, q=search_query, sort=sort_by, order=sort_order, view=view) }}">
+                    {{ cat.name }} <span class="count">({{ cat.count }})</span>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </aside>
+    
+    <!-- Brick Grid/List -->
+    <div class="catalog-content">
+        <p class="results-info">Showing {{ bricks | length }} of {{ total }} bricks</p>
+        
+        {% if bricks %}
+        <div class="brick-grid {{ 'list-view' if view == 'list' else '' }}" id="brickGrid">
+            {% for brick in bricks %}
+            <a href="{{ url_for('catalog.brick_detail', brick_id=brick.id) }}" class="brick-card">
+                <div class="brick-preview">
+                    <div class="brick-3d-canvas"
+                         data-studs-x="{{ brick.studs_x }}"
+                         data-studs-y="{{ brick.studs_y }}"
+                         data-height-plates="{{ brick.height_plates }}">
+                        <div class="brick-placeholder">{{ brick.studs_x }}×{{ brick.studs_y }}</div>
+                    </div>
+                </div>
+                <div class="brick-info">
+                    <h4 class="brick-name">{{ brick.name }}</h4>
+                    <p class="brick-dims">{{ brick.width_mm }} × {{ brick.depth_mm }} × {{ brick.height_mm }} mm</p>
+                    <span class="brick-category">{{ brick.category }}</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if page > 1 %}
+            <a href="{{ url_for('catalog.list_bricks', page=page-1, category=current_category, q=search_query, sort=sort_by, order=sort_order, view=view) }}" class="page-btn">← Prev</a>
+            {% endif %}
+            
+            <span class="page-info">Page {{ page }} of {{ total_pages }}</span>
+            
+            {% if page < total_pages %}
+            <a href="{{ url_for('catalog.list_bricks', page=page+1, category=current_category, q=search_query, sort=sort_by, order=sort_order, view=view) }}" class="page-btn">Next →</a>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <div class="empty-state">
+            <p>No bricks found</p>
+            {% if search_query or current_category %}
+            <a href="{{ url_for('catalog.list_bricks') }}" class="btn btn-secondary">Clear filters</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Three.js for 3D previews -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// View toggle
+document.querySelectorAll('.view-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const view = this.dataset.view;
+        const url = new URL(window.location);
+        url.searchParams.set('view', view);
+        window.location = url;
+    });
+});
+
+// === 3D Brick Preview Rendering ===
+// LEGO dimensions (in cm for Three.js)
+const STUD_PITCH = 0.8;
+const STUD_DIAMETER = 0.48;
+const STUD_HEIGHT = 0.17;
+const BRICK_HEIGHT = 0.96;
+
+// Create a simple 3D brick preview
+function createBrickPreview(container, studsX, studsY, heightPlates) {
+    const width = container.clientWidth || 150;
+    const height = container.clientHeight || 120;
+
+    // Clear placeholder
+    container.innerHTML = '';
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+
+    // Camera - fixed isometric view
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(5, 10, 5);
+    scene.add(directionalLight);
+
+    // Calculate brick dimensions
+    const brickWidth = studsX * STUD_PITCH;
+    const brickDepth = studsY * STUD_PITCH;
+    const brickHeight = (heightPlates / 3) * BRICK_HEIGHT;
+
+    // Create brick group
+    const brickGroup = new THREE.Group();
+
+    // LEGO red material
+    const brickMaterial = new THREE.MeshPhongMaterial({
+        color: 0xDA291C,
+        shininess: 30
+    });
+
+    // Main body
+    const bodyGeometry = new THREE.BoxGeometry(brickWidth, brickHeight, brickDepth);
+    const bodyMesh = new THREE.Mesh(bodyGeometry, brickMaterial);
+    bodyMesh.position.y = brickHeight / 2;
+    brickGroup.add(bodyMesh);
+
+    // Add studs
+    const studGeometry = new THREE.CylinderGeometry(
+        STUD_DIAMETER / 2, STUD_DIAMETER / 2, STUD_HEIGHT, 12
+    );
+
+    for (let x = 0; x < studsX; x++) {
+        for (let z = 0; z < studsY; z++) {
+            const stud = new THREE.Mesh(studGeometry, brickMaterial);
+            stud.position.set(
+                (x + 0.5) * STUD_PITCH - brickWidth / 2,
+                brickHeight + STUD_HEIGHT / 2,
+                (z + 0.5) * STUD_PITCH - brickDepth / 2
+            );
+            brickGroup.add(stud);
+        }
+    }
+
+    scene.add(brickGroup);
+
+    // Fixed isometric camera position
+    const maxDim = Math.max(brickWidth, brickDepth, brickHeight + STUD_HEIGHT);
+    const cameraDistance = maxDim * 2;
+    camera.position.set(cameraDistance * 0.7, cameraDistance * 0.5, cameraDistance * 0.7);
+    camera.lookAt(0, brickHeight / 2, 0);
+
+    // Single render (no animation loop for thumbnails)
+    renderer.render(scene, camera);
+
+    // Clean up geometries and materials to prevent memory leaks
+    container.addEventListener('remove', () => {
+        bodyGeometry.dispose();
+        studGeometry.dispose();
+        brickMaterial.dispose();
+        renderer.dispose();
+    });
+}
+
+// Lazy load 3D previews using IntersectionObserver
+if (typeof THREE !== 'undefined') {
+    const previewObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const container = entry.target;
+                const studsX = parseInt(container.dataset.studsX) || 2;
+                const studsY = parseInt(container.dataset.studsY) || 4;
+                const heightPlates = parseInt(container.dataset.heightPlates) || 3;
+
+                try {
+                    createBrickPreview(container, studsX, studsY, heightPlates);
+                } catch (e) {
+                    console.warn('Failed to create 3D preview:', e);
+                    // Leave placeholder visible on error
+                }
+
+                // Stop observing once rendered
+                previewObserver.unobserve(container);
+            }
+        });
+    }, {
+        rootMargin: '100px',  // Start loading slightly before visible
+        threshold: 0.1
+    });
+
+    // Observe all brick preview containers
+    document.querySelectorAll('.brick-3d-canvas').forEach(el => {
+        previewObserver.observe(el);
+    });
+} else {
+    console.warn('Three.js not loaded - 3D previews disabled');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,199 @@
+{{/*
+LegoMCP ConfigMap
+PhD-Level Manufacturing Platform
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "legomcp.fullname" . }}-config
+  labels:
+    {{- include "legomcp.labels" . | nindent 4 }}
+data:
+  # Flask Configuration
+  FLASK_ENV: {{ .Values.dashboard.env.FLASK_ENV | default "production" | quote }}
+  FLASK_DEBUG: "false"
+
+  # Database Configuration
+  DB_POOL_SIZE: "10"
+  DB_MAX_OVERFLOW: "20"
+  DB_POOL_TIMEOUT: "30"
+  DB_POOL_RECYCLE: "1800"
+
+  # Redis Configuration
+  REDIS_MAX_CONNECTIONS: "50"
+
+  # Celery Configuration
+  CELERY_TASK_SERIALIZER: "json"
+  CELERY_RESULT_SERIALIZER: "json"
+  CELERY_ACCEPT_CONTENT: "json"
+  CELERY_TIMEZONE: "UTC"
+  CELERY_ENABLE_UTC: "true"
+  CELERY_TASK_TRACK_STARTED: "true"
+  CELERY_TASK_TIME_LIMIT: "3600"
+  CELERY_TASK_SOFT_TIME_LIMIT: "3000"
+
+  # ML Configuration
+  ML_MODEL_PATH: "/app/models"
+  ML_BATCH_SIZE: "32"
+  ML_INFERENCE_TIMEOUT: "30"
+
+  # Vision Configuration
+  VISION_CONFIDENCE_THRESHOLD: "0.5"
+  VISION_IOU_THRESHOLD: "0.45"
+  VISION_MAX_DETECTIONS: "100"
+
+  # Scheduling Configuration
+  SCHEDULER_DEFAULT_TIMEOUT: "300"
+  SCHEDULER_MAX_ITERATIONS: "1000"
+
+  # Quality Configuration
+  QUALITY_SPC_SAMPLE_SIZE: "5"
+  QUALITY_CONTROL_LIMIT_SIGMA: "3"
+
+  # Monitoring Configuration
+  METRICS_ENABLED: "true"
+  METRICS_PATH: "/metrics"
+  TRACING_ENABLED: "true"
+  TRACING_SAMPLE_RATE: "0.1"
+
+  # Logging Configuration
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+
+  # Security Configuration
+  CORS_ORIGINS: "*"
+  RATE_LIMIT_DEFAULT: "100/minute"
+  SESSION_COOKIE_SECURE: "true"
+  SESSION_COOKIE_HTTPONLY: "true"
+  SESSION_COOKIE_SAMESITE: "Lax"
+
+  # Feature Flags
+  FEATURE_DIGITAL_TWIN: "true"
+  FEATURE_QUANTUM_SCHEDULING: "true"
+  FEATURE_FEDERATED_LEARNING: "true"
+  FEATURE_CAUSAL_INFERENCE: "true"
+
+  # External Services
+  PROMETHEUS_URL: "http://prometheus:9090"
+  GRAFANA_URL: "http://grafana:3000"
+
+---
+{{/*
+LegoMCP Worker Configuration
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "legomcp.fullname" . }}-worker-config
+  labels:
+    {{- include "legomcp.labels" . | nindent 4 }}
+data:
+  # Worker Configuration
+  WORKER_CONCURRENCY: {{ .Values.worker.celery.concurrency | default 4 | quote }}
+  WORKER_PREFETCH_MULTIPLIER: "4"
+  WORKER_MAX_TASKS_PER_CHILD: "1000"
+
+  # Queue Configuration
+  CELERY_DEFAULT_QUEUE: "default"
+  CELERY_QUEUES: {{ .Values.worker.celery.queues | join "," | quote }}
+
+  # Task Routing
+  TASK_ROUTES: |
+    {
+      "tasks.ml.*": {"queue": "ml"},
+      "tasks.vision.*": {"queue": "vision"},
+      "tasks.quality.*": {"queue": "priority"},
+      "tasks.scheduling.*": {"queue": "priority"},
+      "tasks.*": {"queue": "default"}
+    }
+
+---
+{{/*
+LegoMCP ML Worker Configuration
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "legomcp.fullname" . }}-ml-worker-config
+  labels:
+    {{- include "legomcp.labels" . | nindent 4 }}
+data:
+  # ML Worker Configuration
+  WORKER_CONCURRENCY: {{ .Values.mlWorker.celery.concurrency | default 1 | quote }}
+  WORKER_PREFETCH_MULTIPLIER: "1"
+  WORKER_MAX_TASKS_PER_CHILD: "100"
+
+  # GPU Configuration
+  CUDA_VISIBLE_DEVICES: "0"
+  TF_FORCE_GPU_ALLOW_GROWTH: "true"
+  PYTORCH_CUDA_ALLOC_CONF: "max_split_size_mb:512"
+
+  # Model Configuration
+  MODEL_CACHE_SIZE: "5"
+  MODEL_WARMUP_ENABLED: "true"
+
+  # Queue Configuration
+  CELERY_QUEUES: {{ .Values.mlWorker.celery.queues | join "," | quote }}
+
+---
+{{/*
+LegoMCP Scheduler Configuration
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "legomcp.fullname" . }}-scheduler-config
+  labels:
+    {{- include "legomcp.labels" . | nindent 4 }}
+data:
+  # Beat Schedule
+  CELERY_BEAT_SCHEDULE: |
+    {
+      "collect-metrics": {
+        "task": "tasks.monitoring.collect_metrics",
+        "schedule": 60
+      },
+      "check-model-drift": {
+        "task": "tasks.ml.check_drift",
+        "schedule": 3600
+      },
+      "cleanup-old-data": {
+        "task": "tasks.maintenance.cleanup",
+        "schedule": 86400
+      },
+      "generate-reports": {
+        "task": "tasks.reports.daily_summary",
+        "schedule": {"hour": 6, "minute": 0}
+      },
+      "backup-database": {
+        "task": "tasks.backup.database",
+        "schedule": {"hour": 2, "minute": 0}
+      },
+      "sync-digital-twin": {
+        "task": "tasks.digital_twin.sync",
+        "schedule": 300
+      }
+    }
+
+---
+{{/*
+Nginx Configuration for Ingress
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "legomcp.fullname" . }}-nginx-config
+  labels:
+    {{- include "legomcp.labels" . | nindent 4 }}
+data:
+  proxy-body-size: "100m"
+  proxy-read-timeout: "300"
+  proxy-send-timeout: "300"
+  proxy-connect-timeout: "60"
+  use-gzip: "true"
+  gzip-types: "application/json application/javascript text/css text/plain"
+  ssl-protocols: "TLSv1.2 TLSv1.3"
+  ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+  hsts: "true"
+  hsts-max-age: "31536000"
+  hsts-include-subdomains: "true"

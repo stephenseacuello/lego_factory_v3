@@ -1,0 +1,545 @@
+{% extends "base.html" %}
+
+{% block title %}AI Copilot - LEGO MCP v5.0{% endblock %}
+
+{% block styles %}
+<style>
+    .copilot-container {
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 1.5rem;
+        height: calc(100vh - 180px);
+        padding: 1rem;
+    }
+
+    @media (max-width: 1000px) {
+        .copilot-container {
+            grid-template-columns: 1fr;
+        }
+        .context-panel {
+            display: none;
+        }
+    }
+
+    /* Chat Panel */
+    .chat-panel {
+        display: flex;
+        flex-direction: column;
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        overflow: hidden;
+    }
+
+    .chat-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .chat-header h2 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+
+    .copilot-badge {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .message {
+        max-width: 85%;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+
+    .message.user {
+        align-self: flex-end;
+        background: var(--primary-color);
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+
+    .message.assistant {
+        align-self: flex-start;
+        background: var(--bg-secondary);
+        border-bottom-left-radius: 4px;
+    }
+
+    .message.system {
+        align-self: center;
+        background: #fef3c7;
+        color: #92400e;
+        font-size: 0.8rem;
+        max-width: 100%;
+    }
+
+    .message-meta {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    .message.user .message-meta {
+        color: rgba(255,255,255,0.7);
+    }
+
+    /* Typing indicator */
+    .typing-indicator {
+        display: none;
+        align-self: flex-start;
+        padding: 0.75rem 1rem;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+    }
+
+    .typing-indicator.active {
+        display: flex;
+        gap: 4px;
+    }
+
+    .typing-dot {
+        width: 8px;
+        height: 8px;
+        background: var(--text-secondary);
+        border-radius: 50%;
+        animation: typing 1.4s infinite ease-in-out;
+    }
+
+    .typing-dot:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .typing-dot:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+
+    @keyframes typing {
+        0%, 80%, 100% {
+            transform: scale(1);
+            opacity: 0.4;
+        }
+        40% {
+            transform: scale(1.2);
+            opacity: 1;
+        }
+    }
+
+    /* Chat Input */
+    .chat-input-container {
+        padding: 1rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .chat-input {
+        flex: 1;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 24px;
+        font-size: 0.9rem;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+
+    .chat-input:focus {
+        border-color: var(--primary-color);
+    }
+
+    .send-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        color: white;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.2s;
+    }
+
+    .send-btn:hover {
+        transform: scale(1.05);
+    }
+
+    .send-btn:disabled {
+        background: var(--text-secondary);
+        cursor: not-allowed;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        overflow-x: auto;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .quick-action {
+        padding: 0.4rem 0.75rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 16px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.2s;
+    }
+
+    .quick-action:hover {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    /* Context Panel */
+    .context-panel {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .context-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .context-header h3 {
+        margin: 0;
+        font-size: 1rem;
+    }
+
+    .context-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+    }
+
+    .context-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .context-section h4 {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .context-stat {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.4rem 0;
+        font-size: 0.85rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .context-stat:last-child {
+        border-bottom: none;
+    }
+
+    .context-stat .value {
+        font-weight: 600;
+    }
+
+    .context-stat .value.good {
+        color: #22c55e;
+    }
+
+    .context-stat .value.warning {
+        color: #eab308;
+    }
+
+    .context-stat .value.bad {
+        color: #ef4444;
+    }
+
+    /* Recommendation Cards */
+    .recommendation-card {
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .recommendation-card.high {
+        border-left: 3px solid #ef4444;
+    }
+
+    .recommendation-card.medium {
+        border-left: 3px solid #eab308;
+    }
+
+    .recommendation-card.low {
+        border-left: 3px solid #22c55e;
+    }
+
+    .recommendation-title {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .recommendation-action {
+        color: var(--primary-color);
+        cursor: pointer;
+        font-size: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>AI Manufacturing Copilot</h1>
+    <p class="subtitle">Your intelligent assistant for production optimization</p>
+</div>
+
+<div class="copilot-container">
+    <!-- Chat Panel -->
+    <div class="chat-panel">
+        <div class="chat-header">
+            <span style="font-size: 1.5rem;">🤖</span>
+            <h2>Claude Manufacturing Assistant</h2>
+            <span class="copilot-badge">Phase 17</span>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message assistant">
+                <div>Hello! I'm your AI Manufacturing Copilot. I can help you with:</div>
+                <ul style="margin: 0.5rem 0 0 1rem; padding: 0;">
+                    <li>Quality analysis and FMEA recommendations</li>
+                    <li>Production scheduling optimization</li>
+                    <li>Root cause analysis for issues</li>
+                    <li>Process improvement suggestions</li>
+                </ul>
+                <div style="margin-top: 0.5rem;">What would you like to know?</div>
+                <div class="message-meta">AI Copilot</div>
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+            <span class="typing-dot"></span>
+        </div>
+
+        <div class="quick-actions">
+            <button class="quick-action" onclick="sendQuickAction('What are today\\'s production priorities?')">Production Priorities</button>
+            <button class="quick-action" onclick="sendQuickAction('Show me any quality issues')">Quality Issues</button>
+            <button class="quick-action" onclick="sendQuickAction('Which machines need attention?')">Machine Status</button>
+            <button class="quick-action" onclick="sendQuickAction('Recommend OEE improvements')">OEE Improvements</button>
+            <button class="quick-action" onclick="sendQuickAction('Summarize current work orders')">Work Orders</button>
+        </div>
+
+        <div class="chat-input-container">
+            <input type="text" class="chat-input" id="chatInput" placeholder="Ask me about production, quality, scheduling..." onkeypress="handleKeyPress(event)">
+            <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- Context Panel -->
+    <div class="context-panel">
+        <div class="context-header">
+            <h3>Production Context</h3>
+        </div>
+        <div class="context-content">
+            <div class="context-section">
+                <h4>Current Status</h4>
+                <div class="context-stat">
+                    <span>Active Work Orders</span>
+                    <span class="value" id="ctxActiveWO">-</span>
+                </div>
+                <div class="context-stat">
+                    <span>Machine Utilization</span>
+                    <span class="value" id="ctxUtilization">-</span>
+                </div>
+                <div class="context-stat">
+                    <span>Today's OEE</span>
+                    <span class="value" id="ctxOEE">-</span>
+                </div>
+                <div class="context-stat">
+                    <span>Quality Rate</span>
+                    <span class="value" id="ctxQuality">-</span>
+                </div>
+            </div>
+
+            <div class="context-section">
+                <h4>Active Recommendations</h4>
+                <div id="recommendations">
+                    <div class="recommendation-card high">
+                        <div class="recommendation-title">High Defect Rate on WC-PRINT-02</div>
+                        <div>Consider nozzle inspection or temperature adjustment</div>
+                        <div class="recommendation-action" onclick="sendQuickAction('Explain the defect issue on WC-PRINT-02')">Ask Copilot</div>
+                    </div>
+                    <div class="recommendation-card medium">
+                        <div class="recommendation-title">Schedule Gap at 14:00</div>
+                        <div>WC-ASSEMBLY has 30 min idle time</div>
+                        <div class="recommendation-action" onclick="sendQuickAction('How can I fill the schedule gap at 14:00?')">Ask Copilot</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="context-section">
+                <h4>Recent Alerts</h4>
+                <div id="recentAlerts">
+                    <div class="context-stat">
+                        <span>Material Low: PLA-RED</span>
+                        <span class="value warning">85%</span>
+                    </div>
+                    <div class="context-stat">
+                        <span>WO-1042 Behind</span>
+                        <span class="value bad">+15min</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const sendBtn = document.getElementById('sendBtn');
+const typingIndicator = document.getElementById('typingIndicator');
+
+function addMessage(content, sender = 'user') {
+    const message = document.createElement('div');
+    message.className = `message ${sender}`;
+
+    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+    message.innerHTML = `
+        <div>${content}</div>
+        <div class="message-meta">${time}</div>
+    `;
+
+    chatMessages.appendChild(message);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function sendMessage() {
+    const text = chatInput.value.trim();
+    if (!text) return;
+
+    // Add user message
+    addMessage(text, 'user');
+    chatInput.value = '';
+    sendBtn.disabled = true;
+
+    // Show typing indicator
+    typingIndicator.classList.add('active');
+
+    try {
+        const response = await fetch('/api/ai/ask', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                question: text,
+                include_context: true
+            })
+        });
+
+        const data = await response.json();
+
+        // Hide typing indicator
+        typingIndicator.classList.remove('active');
+
+        // Add assistant response
+        const answer = data.answer || data.response || 'I apologize, but I encountered an issue processing your request.';
+        addMessage(answer, 'assistant');
+
+    } catch (error) {
+        typingIndicator.classList.remove('active');
+        addMessage('Sorry, I encountered an error. Please try again.', 'system');
+        console.error('Error:', error);
+    }
+
+    sendBtn.disabled = false;
+}
+
+function sendQuickAction(question) {
+    chatInput.value = question;
+    sendMessage();
+}
+
+function handleKeyPress(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+}
+
+// Load production context
+async function loadContext() {
+    try {
+        const response = await fetch('/api/ai/context');
+        const data = await response.json();
+
+        if (data.production_context) {
+            const ctx = data.production_context;
+            document.getElementById('ctxActiveWO').textContent = ctx.active_work_orders || '-';
+            document.getElementById('ctxUtilization').textContent = (ctx.utilization_percent || '-') + '%';
+            document.getElementById('ctxOEE').textContent = (ctx.oee_percent || '-') + '%';
+            document.getElementById('ctxQuality').textContent = (ctx.quality_rate || '-') + '%';
+
+            // Update value colors
+            updateStatColor('ctxOEE', ctx.oee_percent, 85, 70);
+            updateStatColor('ctxQuality', ctx.quality_rate, 98, 95);
+        }
+    } catch (error) {
+        console.error('Error loading context:', error);
+    }
+}
+
+function updateStatColor(elementId, value, goodThreshold, warningThreshold) {
+    const el = document.getElementById(elementId);
+    if (!value) return;
+
+    el.classList.remove('good', 'warning', 'bad');
+    if (value >= goodThreshold) {
+        el.classList.add('good');
+    } else if (value >= warningThreshold) {
+        el.classList.add('warning');
+    } else {
+        el.classList.add('bad');
+    }
+}
+
+// Initial load
+document.addEventListener('DOMContentLoaded', () => {
+    loadContext();
+    chatInput.focus();
+
+    // Refresh context periodically
+    setInterval(loadContext, 60000);
+});
+</script>
+{% endblock %}

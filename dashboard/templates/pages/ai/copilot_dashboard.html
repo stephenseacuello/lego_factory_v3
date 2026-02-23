@@ -1,0 +1,2671 @@
+{% extends "base.html" %}
+
+{% block title %}AI Copilot - LegoMCP Manufacturing{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --ai-primary: #8b5cf6;
+        --ai-secondary: #a78bfa;
+        --ai-accent: #c4b5fd;
+        --ai-glow: rgba(139, 92, 246, 0.3);
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+    }
+
+    .copilot-container {
+        display: grid;
+        grid-template-columns: 1fr 400px;
+        gap: 24px;
+        height: calc(100vh - 140px);
+        padding: 24px;
+        background: var(--bg-dark);
+    }
+
+    /* Main Chat Area */
+    .chat-area {
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-card);
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .chat-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 20px 24px;
+        background: linear-gradient(135deg, var(--ai-primary), #6366f1);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .ai-identity {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .ai-avatar {
+        width: 56px;
+        height: 56px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        backdrop-filter: blur(10px);
+        animation: pulse-glow 2s infinite;
+    }
+
+    @keyframes pulse-glow {
+        0%, 100% { box-shadow: 0 0 20px var(--ai-glow); }
+        50% { box-shadow: 0 0 40px var(--ai-glow), 0 0 60px var(--ai-glow); }
+    }
+
+    .ai-info h2 {
+        color: white;
+        font-size: 1.5rem;
+        margin: 0 0 4px 0;
+        font-weight: 600;
+    }
+
+    .ai-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.875rem;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        background: #10b981;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .header-btn {
+        padding: 10px 16px;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        color: white;
+        cursor: pointer;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .header-btn:hover {
+        background: rgba(255, 255, 255, 0.25);
+        transform: translateY(-1px);
+    }
+
+    /* Messages Area */
+    .messages-area {
+        flex: 1;
+        padding: 24px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .message {
+        display: flex;
+        gap: 16px;
+        max-width: 85%;
+        animation: fadeInUp 0.3s ease-out;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .message.user {
+        align-self: flex-end;
+        flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+
+    .message.ai .message-avatar {
+        background: linear-gradient(135deg, var(--ai-primary), #6366f1);
+    }
+
+    .message.user .message-avatar {
+        background: var(--info);
+    }
+
+    .message-content {
+        background: var(--bg-card-hover);
+        padding: 16px 20px;
+        border-radius: 16px;
+        color: var(--text-primary);
+        line-height: 1.6;
+    }
+
+    .message.user .message-content {
+        background: var(--ai-primary);
+    }
+
+    .message-content p {
+        margin: 0;
+    }
+
+    .message-content code {
+        background: rgba(0, 0, 0, 0.3);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-family: 'Monaco', monospace;
+        font-size: 0.85em;
+    }
+
+    .message-content pre {
+        background: rgba(0, 0, 0, 0.4);
+        padding: 16px;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 12px 0;
+    }
+
+    .message-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .action-chip {
+        padding: 6px 12px;
+        background: rgba(139, 92, 246, 0.2);
+        border: 1px solid var(--ai-primary);
+        border-radius: 20px;
+        color: var(--ai-secondary);
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .action-chip:hover {
+        background: var(--ai-primary);
+        color: white;
+    }
+
+    /* Typing Indicator */
+    .typing-indicator {
+        display: flex;
+        gap: 4px;
+        padding: 12px 16px;
+    }
+
+    .typing-dot {
+        width: 8px;
+        height: 8px;
+        background: var(--ai-secondary);
+        border-radius: 50%;
+        animation: typing 1.4s infinite;
+    }
+
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typing {
+        0%, 100% { transform: translateY(0); opacity: 0.4; }
+        50% { transform: translateY(-8px); opacity: 1; }
+    }
+
+    /* Input Area */
+    .input-area {
+        padding: 20px 24px;
+        border-top: 1px solid var(--border-color);
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .input-container {
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+    }
+
+    .input-wrapper {
+        flex: 1;
+        background: var(--bg-card-hover);
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        transition: border-color 0.2s;
+    }
+
+    .input-wrapper:focus-within {
+        border-color: var(--ai-primary);
+        box-shadow: 0 0 0 3px var(--ai-glow);
+    }
+
+    .chat-input {
+        width: 100%;
+        padding: 16px 20px;
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        font-size: 1rem;
+        resize: none;
+        min-height: 24px;
+        max-height: 120px;
+    }
+
+    .chat-input:focus {
+        outline: none;
+    }
+
+    .chat-input::placeholder {
+        color: var(--text-secondary);
+    }
+
+    .input-tools {
+        display: flex;
+        padding: 8px 12px;
+        gap: 8px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .tool-btn {
+        width: 32px;
+        height: 32px;
+        background: transparent;
+        border: none;
+        border-radius: 8px;
+        color: var(--text-secondary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+    }
+
+    .tool-btn:hover {
+        background: var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .send-btn {
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, var(--ai-primary), #6366f1);
+        border: none;
+        border-radius: 16px;
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        transition: all 0.2s;
+    }
+
+    .send-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 20px var(--ai-glow);
+    }
+
+    /* Right Sidebar */
+    .sidebar {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .sidebar-card {
+        background: var(--bg-card);
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .sidebar-card-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .sidebar-card-header h3 {
+        color: var(--text-primary);
+        font-size: 1rem;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .sidebar-card-body {
+        padding: 16px 20px;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .quick-action {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        background: var(--bg-card-hover);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+
+    .quick-action:hover {
+        border-color: var(--ai-primary);
+        background: rgba(139, 92, 246, 0.1);
+    }
+
+    .quick-action-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+
+    .quick-action-icon.production { background: linear-gradient(135deg, #10b981, #059669); }
+    .quick-action-icon.quality { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .quick-action-icon.scheduling { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .quick-action-icon.maintenance { background: linear-gradient(135deg, #ef4444, #dc2626); }
+
+    .quick-action-text {
+        flex: 1;
+    }
+
+    .quick-action-text h4 {
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        margin: 0 0 2px 0;
+    }
+
+    .quick-action-text p {
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        margin: 0;
+    }
+
+    /* AI Capabilities */
+    .capabilities-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .capability {
+        padding: 14px;
+        background: var(--bg-card-hover);
+        border-radius: 12px;
+        text-align: center;
+    }
+
+    .capability-icon {
+        width: 44px;
+        height: 44px;
+        margin: 0 auto 10px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        background: linear-gradient(135deg, var(--ai-primary), #6366f1);
+    }
+
+    .capability h4 {
+        color: var(--text-primary);
+        font-size: 0.8rem;
+        margin: 0 0 4px 0;
+    }
+
+    .capability p {
+        color: var(--text-secondary);
+        font-size: 0.7rem;
+        margin: 0;
+    }
+
+    /* Recent Insights */
+    .insights-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .insight-item {
+        padding: 14px;
+        background: var(--bg-card-hover);
+        border-radius: 12px;
+        border-left: 3px solid;
+    }
+
+    .insight-item.critical { border-color: var(--danger); }
+    .insight-item.warning { border-color: var(--warning); }
+    .insight-item.info { border-color: var(--info); }
+    .insight-item.success { border-color: var(--success); }
+
+    .insight-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+    }
+
+    .insight-type {
+        font-size: 0.7rem;
+        padding: 3px 8px;
+        border-radius: 10px;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .insight-item.critical .insight-type { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+    .insight-item.warning .insight-type { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+    .insight-item.info .insight-type { background: rgba(59, 130, 246, 0.2); color: var(--info); }
+    .insight-item.success .insight-type { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+
+    .insight-time {
+        color: var(--text-secondary);
+        font-size: 0.7rem;
+    }
+
+    .insight-text {
+        color: var(--text-primary);
+        font-size: 0.85rem;
+        line-height: 1.5;
+    }
+
+    /* Context Panel */
+    .context-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .context-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 14px;
+        background: var(--bg-card-hover);
+        border-radius: 10px;
+    }
+
+    .context-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+    }
+
+    .context-value {
+        color: var(--text-primary);
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .context-value.good { color: var(--success); }
+    .context-value.warning { color: var(--warning); }
+    .context-value.critical { color: var(--danger); }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .copilot-container {
+            grid-template-columns: 1fr;
+            height: auto;
+        }
+
+        .sidebar {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .chat-area {
+            min-height: 600px;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .copilot-container {
+            padding: 16px;
+            gap: 16px;
+        }
+
+        .sidebar {
+            grid-template-columns: 1fr;
+        }
+
+        .message {
+            max-width: 95%;
+        }
+
+        .capabilities-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Toast Notification System */
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .toast {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 16px 20px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 320px;
+        animation: slideIn 0.3s ease-out;
+        border-left: 4px solid var(--ai-primary);
+    }
+
+    .toast.success { border-left-color: var(--success); }
+    .toast.warning { border-left-color: var(--warning); }
+    .toast.error { border-left-color: var(--danger); }
+    .toast.info { border-left-color: var(--info); }
+
+    .toast-icon { font-size: 1.5rem; }
+    .toast-content { flex: 1; }
+    .toast-title { font-weight: 600; color: var(--text-primary); font-size: 0.95rem; }
+    .toast-message { color: var(--text-secondary); font-size: 0.85rem; margin-top: 2px; }
+    .toast-close { background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.25rem; }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Modal System */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal {
+        background: var(--bg-card);
+        border-radius: 20px;
+        width: 100%;
+        max-width: 800px;
+        max-height: 90vh;
+        overflow: hidden;
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+        animation: modalSlideIn 0.3s ease-out;
+    }
+
+    .modal.large { max-width: 1100px; }
+
+    @keyframes modalSlideIn {
+        from { transform: translateY(-30px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+    }
+
+    .modal-header {
+        padding: 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: linear-gradient(135deg, var(--ai-primary), #6366f1);
+    }
+
+    .modal-header h2 {
+        color: white;
+        margin: 0;
+        font-size: 1.4rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .modal-close {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+    }
+
+    .modal-close:hover { background: rgba(255, 255, 255, 0.3); }
+
+    .modal-body {
+        padding: 24px;
+        overflow-y: auto;
+        max-height: calc(90vh - 160px);
+        color: var(--text-primary);
+    }
+
+    .modal-footer {
+        padding: 20px 24px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    /* Form Styles */
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        margin-bottom: 8px;
+        font-weight: 500;
+    }
+
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 12px 16px;
+        background: var(--bg-card-hover);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: var(--ai-primary);
+        box-shadow: 0 0 0 3px var(--ai-glow);
+    }
+
+    .form-textarea { min-height: 100px; resize: vertical; }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+
+    /* Button Styles */
+    .btn {
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+        border: none;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--ai-primary), #6366f1);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 20px var(--ai-glow);
+    }
+
+    .btn-secondary {
+        background: var(--bg-card-hover);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover { background: var(--border-color); }
+
+    .btn-success { background: var(--success); color: white; }
+    .btn-danger { background: var(--danger); color: white; }
+
+    /* XAI Explanation Panel */
+    .xai-panel {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.1));
+        border: 1px solid var(--ai-primary);
+        border-radius: 16px;
+        padding: 20px;
+        margin-top: 16px;
+    }
+
+    .xai-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+
+    .xai-badge {
+        background: var(--ai-primary);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .xai-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .feature-importance {
+        margin-top: 16px;
+    }
+
+    .feature-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+
+    .feature-name {
+        width: 150px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .feature-bar-container {
+        flex: 1;
+        height: 24px;
+        background: var(--bg-card-hover);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .feature-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--ai-primary), var(--ai-secondary));
+        border-radius: 12px;
+        transition: width 0.5s ease-out;
+    }
+
+    .feature-value {
+        width: 50px;
+        text-align: right;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--ai-secondary);
+    }
+
+    /* Query History */
+    .history-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 16px;
+        background: var(--bg-card-hover);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .history-item:hover {
+        background: var(--border-color);
+        transform: translateX(4px);
+    }
+
+    .history-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, var(--ai-primary), #6366f1);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+
+    .history-content { flex: 1; }
+
+    .history-query {
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+    }
+
+    .history-meta {
+        display: flex;
+        gap: 16px;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    /* Model Settings */
+    .model-card {
+        background: var(--bg-card-hover);
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 16px;
+        border: 2px solid transparent;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .model-card:hover { border-color: var(--border-color); }
+    .model-card.selected { border-color: var(--ai-primary); background: rgba(139, 92, 246, 0.1); }
+
+    .model-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+
+    .model-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .model-badge {
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .model-badge.recommended { background: var(--success); color: white; }
+    .model-badge.fast { background: var(--info); color: white; }
+    .model-badge.expert { background: var(--warning); color: white; }
+
+    .model-specs {
+        display: flex;
+        gap: 20px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .model-spec {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    /* Parameter Slider */
+    .param-slider {
+        margin-bottom: 24px;
+    }
+
+    .param-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+
+    .param-label {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .param-value {
+        color: var(--ai-secondary);
+        font-weight: 600;
+    }
+
+    .slider {
+        width: 100%;
+        height: 8px;
+        background: var(--bg-card-hover);
+        border-radius: 4px;
+        appearance: none;
+        cursor: pointer;
+    }
+
+    .slider::-webkit-slider-thumb {
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        background: var(--ai-primary);
+        border-radius: 50%;
+        cursor: pointer;
+        box-shadow: 0 2px 10px var(--ai-glow);
+    }
+
+    /* Integration Cards */
+    .integration-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 16px;
+    }
+
+    .integration-card {
+        background: var(--bg-card-hover);
+        border-radius: 16px;
+        padding: 20px;
+        border: 1px solid var(--border-color);
+        transition: all 0.2s;
+    }
+
+    .integration-card:hover { transform: translateY(-4px); border-color: var(--ai-primary); }
+
+    .integration-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+
+    .integration-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .integration-toggle {
+        width: 50px;
+        height: 26px;
+        background: var(--border-color);
+        border-radius: 13px;
+        position: relative;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+
+    .integration-toggle.active { background: var(--success); }
+
+    .integration-toggle::after {
+        content: '';
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        background: white;
+        border-radius: 50%;
+        top: 2px;
+        left: 2px;
+        transition: transform 0.2s;
+    }
+
+    .integration-toggle.active::after { transform: translateX(24px); }
+
+    .integration-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+    }
+
+    .integration-status {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .integration-status.connected { color: var(--success); }
+
+    /* Knowledge Base */
+    .kb-section {
+        margin-bottom: 24px;
+    }
+
+    .kb-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+    }
+
+    .kb-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .kb-count {
+        background: var(--ai-primary);
+        color: white;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+    }
+
+    .kb-item {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px;
+        background: var(--bg-card-hover);
+        border-radius: 12px;
+        margin-bottom: 10px;
+    }
+
+    .kb-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+
+    .kb-icon.procedures { background: linear-gradient(135deg, #10b981, #059669); }
+    .kb-icon.equipment { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .kb-icon.quality { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .kb-icon.safety { background: linear-gradient(135deg, #ef4444, #dc2626); }
+
+    .kb-info { flex: 1; }
+
+    .kb-name {
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 2px;
+    }
+
+    .kb-meta {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    /* Analytics Dashboard */
+    .analytics-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .analytics-card {
+        background: var(--bg-card-hover);
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+    }
+
+    .analytics-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--ai-primary);
+        margin-bottom: 4px;
+    }
+
+    .analytics-label {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+    }
+
+    .analytics-trend {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        font-size: 0.8rem;
+        margin-top: 8px;
+    }
+
+    .analytics-trend.up { color: var(--success); }
+    .analytics-trend.down { color: var(--danger); }
+
+    /* Tab Navigation */
+    .tab-nav {
+        display: flex;
+        gap: 4px;
+        background: var(--bg-card-hover);
+        border-radius: 12px;
+        padding: 4px;
+        margin-bottom: 20px;
+    }
+
+    .tab-btn {
+        flex: 1;
+        padding: 12px 16px;
+        background: transparent;
+        border: none;
+        border-radius: 10px;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+        background: var(--ai-primary);
+        color: white;
+    }
+
+    .tab-btn:hover:not(.active) { color: var(--text-primary); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Confidence Meter */
+    .confidence-meter {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: var(--bg-card-hover);
+        border-radius: 12px;
+        margin-top: 12px;
+    }
+
+    .confidence-label {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+    }
+
+    .confidence-bar {
+        flex: 1;
+        height: 8px;
+        background: var(--border-color);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .confidence-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s ease-out;
+    }
+
+    .confidence-fill.high { background: var(--success); }
+    .confidence-fill.medium { background: var(--warning); }
+    .confidence-fill.low { background: var(--danger); }
+
+    .confidence-value {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    /* Response Actions */
+    .response-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .response-action {
+        padding: 8px 16px;
+        background: rgba(139, 92, 246, 0.15);
+        border: 1px solid var(--ai-primary);
+        border-radius: 20px;
+        color: var(--ai-secondary);
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .response-action:hover {
+        background: var(--ai-primary);
+        color: white;
+    }
+
+    /* Clickable Elements */
+    .clickable {
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .clickable:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="copilot-container">
+    <!-- Main Chat Area -->
+    <div class="chat-area">
+        <div class="chat-header">
+            <div class="ai-identity">
+                <div class="ai-avatar">🤖</div>
+                <div class="ai-info">
+                    <h2>LegoMCP AI Copilot</h2>
+                    <div class="ai-status">
+                        <span class="status-dot"></span>
+                        <span id="aiStatusText">Online • GPT-4 Turbo • Manufacturing Expert</span>
+                    </div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" onclick="openModal('modelSettingsModal')" title="Model Settings">
+                    <span>⚙️</span> Model
+                </button>
+                <button class="header-btn" onclick="openModal('historyModal')" title="Query History">
+                    <span>📜</span> History
+                </button>
+                <button class="header-btn" onclick="openModal('analyticsModal')" title="Usage Analytics">
+                    <span>📊</span> Analytics
+                </button>
+                <button class="header-btn" onclick="clearChat()">
+                    <span>🗑️</span> Clear
+                </button>
+                <button class="header-btn" onclick="exportChat()">
+                    <span>📥</span> Export
+                </button>
+                <button class="header-btn" onclick="toggleVoice()" id="voiceBtn">
+                    <span>🎤</span> Voice
+                </button>
+            </div>
+        </div>
+
+        <div class="messages-area" id="messagesArea">
+            <!-- Welcome Message -->
+            <div class="message ai">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <p>👋 Welcome to LegoMCP AI Copilot! I'm your intelligent manufacturing assistant with expertise in:</p>
+                    <ul style="margin: 12px 0; padding-left: 20px; color: var(--text-secondary);">
+                        <li>Production optimization & scheduling</li>
+                        <li>Quality analysis & defect prediction</li>
+                        <li>Equipment maintenance & RUL prediction</li>
+                        <li>Supply chain management</li>
+                        <li>Sustainability & carbon tracking</li>
+                    </ul>
+                    <p>How can I assist you today?</p>
+                    <div class="message-actions">
+                        <span class="action-chip" onclick="askQuestion('Show me today\'s production status')">📊 Production Status</span>
+                        <span class="action-chip" onclick="askQuestion('Any quality issues to address?')">🔍 Quality Check</span>
+                        <span class="action-chip" onclick="askQuestion('Optimize today\'s schedule')">📅 Optimize Schedule</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sample Conversation -->
+            <div class="message user">
+                <div class="message-avatar">👤</div>
+                <div class="message-content">
+                    <p>What's the current OEE and are there any critical issues I should know about?</p>
+                </div>
+            </div>
+
+            <div class="message ai">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <p>📊 <strong>Current OEE: 87.3%</strong> (Target: 85%)</p>
+                    <p style="margin-top: 12px;">Here's the breakdown:</p>
+                    <pre style="font-size: 0.85rem;">
+┌─────────────┬────────┬────────┐
+│ Metric      │ Value  │ Status │
+├─────────────┼────────┼────────┤
+│ Availability│ 94.2%  │ ✅ Good │
+│ Performance │ 96.1%  │ ✅ Good │
+│ Quality     │ 96.4%  │ ✅ Good │
+└─────────────┴────────┴────────┘</pre>
+                    <p style="margin-top: 12px;">⚠️ <strong>1 Critical Issue Detected:</strong></p>
+                    <p style="color: var(--warning);">Work Center WC-003 (CNC Mill) showing vibration anomaly. Predicted bearing failure in 12 days. Recommend scheduling preventive maintenance.</p>
+                    <div class="message-actions">
+                        <span class="action-chip" onclick="askQuestion('Schedule maintenance for WC-003')">📅 Schedule Maintenance</span>
+                        <span class="action-chip" onclick="askQuestion('Show WC-003 sensor data')">📈 View Sensor Data</span>
+                        <span class="action-chip" onclick="askQuestion('What\'s the cost of downtime?')">💰 Downtime Cost</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="message user">
+                <div class="message-avatar">👤</div>
+                <div class="message-content">
+                    <p>Schedule maintenance for WC-003 and show me the optimized production schedule</p>
+                </div>
+            </div>
+
+            <div class="message ai">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <p>✅ <strong>Maintenance Scheduled</strong></p>
+                    <p style="margin: 12px 0;">I've scheduled preventive maintenance for <code>WC-003 (CNC Mill)</code>:</p>
+                    <ul style="padding-left: 20px; color: var(--text-secondary);">
+                        <li><strong>Date:</strong> Dec 30, 2025 (Shift 3 - Low demand period)</li>
+                        <li><strong>Duration:</strong> 4 hours estimated</li>
+                        <li><strong>Work Order:</strong> PM-2025-1247 created</li>
+                        <li><strong>Parts:</strong> 2x SKF 6205 bearings reserved from inventory</li>
+                    </ul>
+                    <p style="margin-top: 16px;">📅 <strong>Optimized Schedule (using NSGA-II algorithm):</strong></p>
+                    <p style="color: var(--success);">Jobs redistributed to WC-001 and WC-002 during maintenance window. Total makespan increased by only 2.3% while maintaining all delivery commitments.</p>
+                    <div class="message-actions">
+                        <span class="action-chip" onclick="askQuestion('Show Gantt chart')">📊 View Gantt</span>
+                        <span class="action-chip" onclick="askQuestion('Notify maintenance team')">📧 Notify Team</span>
+                        <span class="action-chip" onclick="askQuestion('Calculate impact on delivery')">🚚 Delivery Impact</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea class="chat-input" id="chatInput" placeholder="Ask about production, quality, scheduling, maintenance..." rows="1" onkeydown="handleKeyDown(event)"></textarea>
+                    <div class="input-tools">
+                        <button class="tool-btn" title="Attach file">📎</button>
+                        <button class="tool-btn" title="Insert chart">📊</button>
+                        <button class="tool-btn" title="Reference work order">📋</button>
+                        <button class="tool-btn" title="Use template">📝</button>
+                    </div>
+                </div>
+                <button class="send-btn" onclick="sendMessage()">➤</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="sidebar">
+        <!-- Quick Actions -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <h3>⚡ Quick Actions</h3>
+            </div>
+            <div class="sidebar-card-body">
+                <div class="quick-actions">
+                    <div class="quick-action" onclick="askQuestion('Analyze current production efficiency')">
+                        <div class="quick-action-icon production">📈</div>
+                        <div class="quick-action-text">
+                            <h4>Production Analysis</h4>
+                            <p>Analyze efficiency & bottlenecks</p>
+                        </div>
+                    </div>
+                    <div class="quick-action" onclick="askQuestion('Show quality predictions for today')">
+                        <div class="quick-action-icon quality">🔬</div>
+                        <div class="quick-action-text">
+                            <h4>Quality Prediction</h4>
+                            <p>ML-based defect forecasting</p>
+                        </div>
+                    </div>
+                    <div class="quick-action" onclick="askQuestion('Optimize schedule with NSGA-II')">
+                        <div class="quick-action-icon scheduling">📅</div>
+                        <div class="quick-action-text">
+                            <h4>Schedule Optimization</h4>
+                            <p>Multi-objective scheduling</p>
+                        </div>
+                    </div>
+                    <div class="quick-action" onclick="askQuestion('Which equipment needs attention?')">
+                        <div class="quick-action-icon maintenance">🔧</div>
+                        <div class="quick-action-text">
+                            <h4>Predictive Maintenance</h4>
+                            <p>RUL & failure prediction</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Capabilities -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <h3>🧠 AI Capabilities</h3>
+                <button class="header-btn" style="padding: 6px 12px; font-size: 0.75rem;" onclick="openModal('integrationsModal')">Configure</button>
+            </div>
+            <div class="sidebar-card-body">
+                <div class="capabilities-grid">
+                    <div class="capability clickable" onclick="showCapabilityDetail('analytics')">
+                        <div class="capability-icon">📊</div>
+                        <h4>Analytics</h4>
+                        <p>Real-time insights</p>
+                    </div>
+                    <div class="capability clickable" onclick="showCapabilityDetail('prediction')">
+                        <div class="capability-icon">🔮</div>
+                        <h4>Prediction</h4>
+                        <p>ML forecasting</p>
+                    </div>
+                    <div class="capability clickable" onclick="showCapabilityDetail('optimization')">
+                        <div class="capability-icon">⚙️</div>
+                        <h4>Optimization</h4>
+                        <p>NSGA-II, QAOA</p>
+                    </div>
+                    <div class="capability clickable" onclick="showCapabilityDetail('xai')">
+                        <div class="capability-icon">🎯</div>
+                        <h4>XAI</h4>
+                        <p>SHAP/LIME</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent AI Insights -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <h3>💡 Recent Insights</h3>
+                <button class="header-btn" style="padding: 6px 12px; font-size: 0.75rem;" onclick="openModal('knowledgeBaseModal')">📚 KB</button>
+            </div>
+            <div class="sidebar-card-body">
+                <div class="insights-list" id="insightsList">
+                    <div class="insight-item warning clickable" onclick="showInsightDetail('INS-001', 'warning', 'Spindle vibration on WC-003')">
+                        <div class="insight-header">
+                            <span class="insight-type">⚠️ Warning</span>
+                            <span class="insight-time">5 min ago</span>
+                        </div>
+                        <div class="insight-text">Spindle vibration on WC-003 exceeds threshold. Bearing replacement recommended within 12 days.</div>
+                    </div>
+                    <div class="insight-item success clickable" onclick="showInsightDetail('INS-002', 'optimization', 'Schedule optimized')">
+                        <div class="insight-header">
+                            <span class="insight-type">✅ Optimization</span>
+                            <span class="insight-time">1 hr ago</span>
+                        </div>
+                        <div class="insight-text">Schedule optimized: 7% reduction in makespan, 12% energy savings by shifting to off-peak hours.</div>
+                    </div>
+                    <div class="insight-item info clickable" onclick="showInsightDetail('INS-003', 'quality', 'FPY trending up')">
+                        <div class="insight-header">
+                            <span class="insight-type">📊 Quality</span>
+                            <span class="insight-time">2 hr ago</span>
+                        </div>
+                        <div class="insight-text">First Pass Yield trending up: 98.2% (+0.3% vs yesterday). SPC control charts nominal.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manufacturing Context -->
+        <div class="sidebar-card">
+            <div class="sidebar-card-header">
+                <h3>🏭 Manufacturing Context</h3>
+            </div>
+            <div class="sidebar-card-body">
+                <div class="context-list">
+                    <div class="context-item">
+                        <span class="context-label">📊 Current OEE</span>
+                        <span class="context-value good">87.3%</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">🏭 Active Work Centers</span>
+                        <span class="context-value">8 / 10</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">📦 Orders in Progress</span>
+                        <span class="context-value">24</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">⚠️ Quality Alerts</span>
+                        <span class="context-value warning">2</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">🔧 Maintenance Due</span>
+                        <span class="context-value critical">1</span>
+                    </div>
+                    <div class="context-item">
+                        <span class="context-label">🌱 Carbon Footprint</span>
+                        <span class="context-value good">-8% vs target</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Model Settings Modal -->
+<div class="modal-overlay" id="modelSettingsModal" onclick="closeModalOnBackdrop(event)">
+    <div class="modal large">
+        <div class="modal-header">
+            <h2>⚙️ AI Model Configuration</h2>
+            <button class="modal-close" onclick="closeModal('modelSettingsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="tab-nav">
+                <button class="tab-btn active" onclick="switchTab('modelTab', 'models')">Models</button>
+                <button class="tab-btn" onclick="switchTab('modelTab', 'parameters')">Parameters</button>
+                <button class="tab-btn" onclick="switchTab('modelTab', 'prompts')">System Prompts</button>
+            </div>
+
+            <div id="modelTab-models" class="tab-content active">
+                <h4 style="margin-bottom: 16px; color: var(--text-secondary);">Select AI Model</h4>
+                <div class="model-card selected" onclick="selectModel(this, 'gpt4-turbo')">
+                    <div class="model-header">
+                        <span class="model-name">🚀 GPT-4 Turbo <span class="model-badge recommended">Recommended</span></span>
+                    </div>
+                    <div class="model-specs">
+                        <span class="model-spec">📊 128K context</span>
+                        <span class="model-spec">⚡ ~2s response</span>
+                        <span class="model-spec">🎯 94% accuracy</span>
+                    </div>
+                    <p style="margin-top: 12px; color: var(--text-secondary); font-size: 0.85rem;">Best for complex manufacturing analysis, scheduling optimization, and multi-step reasoning.</p>
+                </div>
+                <div class="model-card" onclick="selectModel(this, 'claude-3')">
+                    <div class="model-header">
+                        <span class="model-name">🧠 Claude 3 Opus <span class="model-badge expert">Expert</span></span>
+                    </div>
+                    <div class="model-specs">
+                        <span class="model-spec">📊 200K context</span>
+                        <span class="model-spec">⚡ ~3s response</span>
+                        <span class="model-spec">🎯 96% accuracy</span>
+                    </div>
+                    <p style="margin-top: 12px; color: var(--text-secondary); font-size: 0.85rem;">Superior for nuanced quality analysis, FMEA generation, and technical documentation.</p>
+                </div>
+                <div class="model-card" onclick="selectModel(this, 'gpt-3.5')">
+                    <div class="model-header">
+                        <span class="model-name">⚡ GPT-3.5 Turbo <span class="model-badge fast">Fast</span></span>
+                    </div>
+                    <div class="model-specs">
+                        <span class="model-spec">📊 16K context</span>
+                        <span class="model-spec">⚡ ~0.5s response</span>
+                        <span class="model-spec">🎯 88% accuracy</span>
+                    </div>
+                    <p style="margin-top: 12px; color: var(--text-secondary); font-size: 0.85rem;">Best for quick queries, simple lookups, and real-time chat interactions.</p>
+                </div>
+                <div class="model-card" onclick="selectModel(this, 'manufacturing-llm')">
+                    <div class="model-header">
+                        <span class="model-name">🏭 Manufacturing LLM (Fine-tuned)</span>
+                    </div>
+                    <div class="model-specs">
+                        <span class="model-spec">📊 32K context</span>
+                        <span class="model-spec">⚡ ~1s response</span>
+                        <span class="model-spec">🎯 97% domain accuracy</span>
+                    </div>
+                    <p style="margin-top: 12px; color: var(--text-secondary); font-size: 0.85rem;">Custom fine-tuned on LEGO manufacturing data. Best for brick specifications, quality standards, and production protocols.</p>
+                </div>
+            </div>
+
+            <div id="modelTab-parameters" class="tab-content">
+                <h4 style="margin-bottom: 20px; color: var(--text-secondary);">Model Parameters</h4>
+                <div class="param-slider">
+                    <div class="param-header">
+                        <span class="param-label">Temperature (Creativity)</span>
+                        <span class="param-value" id="tempValue">0.7</span>
+                    </div>
+                    <input type="range" class="slider" min="0" max="100" value="70" oninput="updateSlider('tempValue', this.value / 100)">
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 8px;">Lower = more deterministic, Higher = more creative responses</p>
+                </div>
+                <div class="param-slider">
+                    <div class="param-header">
+                        <span class="param-label">Max Tokens</span>
+                        <span class="param-value" id="tokensValue">2048</span>
+                    </div>
+                    <input type="range" class="slider" min="256" max="4096" value="2048" step="256" oninput="updateSlider('tokensValue', this.value)">
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 8px;">Maximum response length in tokens</p>
+                </div>
+                <div class="param-slider">
+                    <div class="param-header">
+                        <span class="param-label">Top P (Nucleus Sampling)</span>
+                        <span class="param-value" id="topPValue">0.9</span>
+                    </div>
+                    <input type="range" class="slider" min="0" max="100" value="90" oninput="updateSlider('topPValue', this.value / 100)">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Response Format</label>
+                    <select class="form-select">
+                        <option value="markdown">Markdown (Default)</option>
+                        <option value="json">JSON Structured</option>
+                        <option value="text">Plain Text</option>
+                        <option value="table">Tabular Data</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="modelTab-prompts" class="tab-content">
+                <h4 style="margin-bottom: 16px; color: var(--text-secondary);">System Prompt</h4>
+                <div class="form-group">
+                    <label class="form-label">Manufacturing Context Prompt</label>
+                    <textarea class="form-textarea" rows="6">You are an expert manufacturing AI assistant for the LegoMCP v5.0 system. You specialize in:
+- LEGO brick production optimization (323+ brick types)
+- Quality control using SPC, FMEA, and zero-defect principles
+- Production scheduling with NSGA-II and reinforcement learning
+- Predictive maintenance and RUL estimation
+- Sustainability and carbon footprint tracking
+- ISO 9001/13485 compliance requirements
+
+Always provide actionable insights with specific metrics when available.</textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Quick Prompt Templates</label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 8px 12px;">Quality Focus</button>
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 8px 12px;">Scheduling Expert</button>
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 8px 12px;">Maintenance Advisor</button>
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 8px 12px;">Sustainability</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('modelSettingsModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveModelSettings()">💾 Save Configuration</button>
+        </div>
+    </div>
+</div>
+
+<!-- Query History Modal -->
+<div class="modal-overlay" id="historyModal" onclick="closeModalOnBackdrop(event)">
+    <div class="modal large">
+        <div class="modal-header">
+            <h2>📜 Query History</h2>
+            <button class="modal-close" onclick="closeModal('historyModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row" style="margin-bottom: 20px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <input type="text" class="form-input" placeholder="Search queries..." id="historySearch">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <select class="form-select" id="historyFilter">
+                        <option value="all">All Categories</option>
+                        <option value="production">Production</option>
+                        <option value="quality">Quality</option>
+                        <option value="scheduling">Scheduling</option>
+                        <option value="maintenance">Maintenance</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="historyList">
+                <div class="history-item" onclick="replayQuery('Show me today\\'s OEE breakdown')">
+                    <div class="history-icon">📊</div>
+                    <div class="history-content">
+                        <div class="history-query">Show me today's OEE breakdown</div>
+                        <div class="history-meta">
+                            <span>📅 Today, 2:45 PM</span>
+                            <span>⏱️ 1.2s response</span>
+                            <span>✅ 94% confidence</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="history-item" onclick="replayQuery('Schedule maintenance for WC-003')">
+                    <div class="history-icon">🔧</div>
+                    <div class="history-content">
+                        <div class="history-query">Schedule maintenance for WC-003</div>
+                        <div class="history-meta">
+                            <span>📅 Today, 1:30 PM</span>
+                            <span>⏱️ 2.1s response</span>
+                            <span>✅ 97% confidence</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="history-item" onclick="replayQuery('Analyze quality trends for 2x4 bricks')">
+                    <div class="history-icon">🔬</div>
+                    <div class="history-content">
+                        <div class="history-query">Analyze quality trends for 2x4 bricks</div>
+                        <div class="history-meta">
+                            <span>📅 Yesterday, 4:15 PM</span>
+                            <span>⏱️ 1.8s response</span>
+                            <span>✅ 91% confidence</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="history-item" onclick="replayQuery('Optimize production schedule with NSGA-II')">
+                    <div class="history-icon">📅</div>
+                    <div class="history-content">
+                        <div class="history-query">Optimize production schedule with NSGA-II</div>
+                        <div class="history-meta">
+                            <span>📅 Yesterday, 10:00 AM</span>
+                            <span>⏱️ 3.5s response</span>
+                            <span>✅ 89% confidence</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="history-item" onclick="replayQuery('What is the carbon footprint of today\\'s production?')">
+                    <div class="history-icon">🌱</div>
+                    <div class="history-content">
+                        <div class="history-query">What is the carbon footprint of today's production?</div>
+                        <div class="history-meta">
+                            <span>📅 2 days ago</span>
+                            <span>⏱️ 1.5s response</span>
+                            <span>✅ 92% confidence</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-danger" onclick="clearHistory()">🗑️ Clear History</button>
+            <button class="btn btn-secondary" onclick="exportHistory()">📥 Export</button>
+            <button class="btn btn-primary" onclick="closeModal('historyModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Analytics Modal -->
+<div class="modal-overlay" id="analyticsModal" onclick="closeModalOnBackdrop(event)">
+    <div class="modal large">
+        <div class="modal-header">
+            <h2>📊 AI Usage Analytics</h2>
+            <button class="modal-close" onclick="closeModal('analyticsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="analytics-grid">
+                <div class="analytics-card">
+                    <div class="analytics-value" id="totalQueries">1,247</div>
+                    <div class="analytics-label">Total Queries</div>
+                    <div class="analytics-trend up">↑ 23% vs last week</div>
+                </div>
+                <div class="analytics-card">
+                    <div class="analytics-value" id="avgResponseTime">1.4s</div>
+                    <div class="analytics-label">Avg Response Time</div>
+                    <div class="analytics-trend up">↓ 15% improvement</div>
+                </div>
+                <div class="analytics-card">
+                    <div class="analytics-value" id="avgConfidence">93%</div>
+                    <div class="analytics-label">Avg Confidence</div>
+                    <div class="analytics-trend up">↑ 2% vs last week</div>
+                </div>
+                <div class="analytics-card">
+                    <div class="analytics-value" id="actionsExecuted">89</div>
+                    <div class="analytics-label">Actions Executed</div>
+                    <div class="analytics-trend up">↑ 45% vs last week</div>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 16px; color: var(--text-secondary);">Query Categories Distribution</h4>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
+                <div class="feature-bar">
+                    <span class="feature-name">Production</span>
+                    <div class="feature-bar-container">
+                        <div class="feature-bar-fill" style="width: 35%; background: linear-gradient(90deg, #10b981, #059669);"></div>
+                    </div>
+                    <span class="feature-value">35%</span>
+                </div>
+                <div class="feature-bar">
+                    <span class="feature-name">Quality</span>
+                    <div class="feature-bar-container">
+                        <div class="feature-bar-fill" style="width: 28%; background: linear-gradient(90deg, #3b82f6, #2563eb);"></div>
+                    </div>
+                    <span class="feature-value">28%</span>
+                </div>
+                <div class="feature-bar">
+                    <span class="feature-name">Scheduling</span>
+                    <div class="feature-bar-container">
+                        <div class="feature-bar-fill" style="width: 22%; background: linear-gradient(90deg, #f59e0b, #d97706);"></div>
+                    </div>
+                    <span class="feature-value">22%</span>
+                </div>
+                <div class="feature-bar">
+                    <span class="feature-name">Maintenance</span>
+                    <div class="feature-bar-container">
+                        <div class="feature-bar-fill" style="width: 15%; background: linear-gradient(90deg, #ef4444, #dc2626);"></div>
+                    </div>
+                    <span class="feature-value">15%</span>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 16px; color: var(--text-secondary);">Top Performing Queries (by User Satisfaction)</h4>
+            <div class="history-item">
+                <div class="history-icon">🏆</div>
+                <div class="history-content">
+                    <div class="history-query">"Show OEE breakdown by work center"</div>
+                    <div class="history-meta">
+                        <span>⭐ 4.9/5 rating</span>
+                        <span>📊 Used 127 times</span>
+                        <span>✅ 98% satisfaction</span>
+                    </div>
+                </div>
+            </div>
+            <div class="history-item">
+                <div class="history-icon">🥈</div>
+                <div class="history-content">
+                    <div class="history-query">"Predict quality issues for next shift"</div>
+                    <div class="history-meta">
+                        <span>⭐ 4.8/5 rating</span>
+                        <span>📊 Used 89 times</span>
+                        <span>✅ 96% satisfaction</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="exportAnalytics()">📥 Export Report</button>
+            <button class="btn btn-primary" onclick="closeModal('analyticsModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Integrations Modal -->
+<div class="modal-overlay" id="integrationsModal" onclick="closeModalOnBackdrop(event)">
+    <div class="modal large">
+        <div class="modal-header">
+            <h2>🔌 AI Integrations</h2>
+            <button class="modal-close" onclick="closeModal('integrationsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <h4 style="margin-bottom: 16px; color: var(--text-secondary);">Manufacturing Systems</h4>
+            <div class="integration-grid">
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon" style="background: linear-gradient(135deg, #10b981, #059669);">🏭</div>
+                        <div class="integration-toggle active" onclick="toggleIntegration(this)"></div>
+                    </div>
+                    <div class="integration-name">MES Integration</div>
+                    <div class="integration-status connected">✓ Connected - Real-time</div>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon" style="background: linear-gradient(135deg, #3b82f6, #2563eb);">📊</div>
+                        <div class="integration-toggle active" onclick="toggleIntegration(this)"></div>
+                    </div>
+                    <div class="integration-name">OEE Dashboard</div>
+                    <div class="integration-status connected">✓ Connected - Live</div>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">🔬</div>
+                        <div class="integration-toggle active" onclick="toggleIntegration(this)"></div>
+                    </div>
+                    <div class="integration-name">Quality Vision AI</div>
+                    <div class="integration-status connected">✓ YOLO11 Active</div>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">📅</div>
+                        <div class="integration-toggle active" onclick="toggleIntegration(this)"></div>
+                    </div>
+                    <div class="integration-name">Scheduling Engine</div>
+                    <div class="integration-status connected">✓ NSGA-II + RL</div>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon" style="background: linear-gradient(135deg, #ef4444, #dc2626);">🔧</div>
+                        <div class="integration-toggle" onclick="toggleIntegration(this)"></div>
+                    </div>
+                    <div class="integration-name">Predictive Maintenance</div>
+                    <div class="integration-status">○ Disconnected</div>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon" style="background: linear-gradient(135deg, #06b6d4, #0891b2);">🌱</div>
+                        <div class="integration-toggle active" onclick="toggleIntegration(this)"></div>
+                    </div>
+                    <div class="integration-name">Sustainability LCA</div>
+                    <div class="integration-status connected">✓ Real-time CO2</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 24px 0 16px; color: var(--text-secondary);">External Services</h4>
+            <div class="integration-grid">
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon" style="background: linear-gradient(135deg, #22c55e, #16a34a);">📧</div>
+                        <div class="integration-toggle active" onclick="toggleIntegration(this)"></div>
+                    </div>
+                    <div class="integration-name">Email Notifications</div>
+                    <div class="integration-status connected">✓ SMTP Configured</div>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon" style="background: linear-gradient(135deg, #a855f7, #9333ea);">💬</div>
+                        <div class="integration-toggle" onclick="toggleIntegration(this)"></div>
+                    </div>
+                    <div class="integration-name">Slack Integration</div>
+                    <div class="integration-status">○ Not configured</div>
+                </div>
+                <div class="integration-card">
+                    <div class="integration-header">
+                        <div class="integration-icon" style="background: linear-gradient(135deg, #ec4899, #db2777);">📱</div>
+                        <div class="integration-toggle" onclick="toggleIntegration(this)"></div>
+                    </div>
+                    <div class="integration-name">Mobile Push</div>
+                    <div class="integration-status">○ Not configured</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('integrationsModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveIntegrations()">💾 Save Settings</button>
+        </div>
+    </div>
+</div>
+
+<!-- Knowledge Base Modal -->
+<div class="modal-overlay" id="knowledgeBaseModal" onclick="closeModalOnBackdrop(event)">
+    <div class="modal large">
+        <div class="modal-header">
+            <h2>📚 Manufacturing Knowledge Base</h2>
+            <button class="modal-close" onclick="closeModal('knowledgeBaseModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <input type="text" class="form-input" placeholder="Search knowledge base..." style="font-size: 1rem;">
+            </div>
+
+            <div class="kb-section">
+                <div class="kb-header">
+                    <span class="kb-title">📋 Standard Operating Procedures <span class="kb-count">156</span></span>
+                    <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;">+ Add</button>
+                </div>
+                <div class="kb-item clickable" onclick="openKBDocument('SOP-001')">
+                    <div class="kb-icon procedures">📋</div>
+                    <div class="kb-info">
+                        <div class="kb-name">SOP-001: 2x4 Brick Injection Molding</div>
+                        <div class="kb-meta">Updated 2 days ago • 12 pages • Rev 3.2</div>
+                    </div>
+                </div>
+                <div class="kb-item clickable" onclick="openKBDocument('SOP-002')">
+                    <div class="kb-icon procedures">📋</div>
+                    <div class="kb-info">
+                        <div class="kb-name">SOP-002: Quality Inspection Protocol</div>
+                        <div class="kb-meta">Updated 1 week ago • 8 pages • Rev 2.5</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kb-section">
+                <div class="kb-header">
+                    <span class="kb-title">🔧 Equipment Manuals <span class="kb-count">48</span></span>
+                    <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;">+ Add</button>
+                </div>
+                <div class="kb-item clickable" onclick="openKBDocument('EQ-001')">
+                    <div class="kb-icon equipment">🔧</div>
+                    <div class="kb-info">
+                        <div class="kb-name">Arburg 520A Injection Molder Manual</div>
+                        <div class="kb-meta">245 pages • Maintenance schedules included</div>
+                    </div>
+                </div>
+                <div class="kb-item clickable" onclick="openKBDocument('EQ-002')">
+                    <div class="kb-icon equipment">🔧</div>
+                    <div class="kb-info">
+                        <div class="kb-name">FANUC CNC Mill M-20iA Operating Guide</div>
+                        <div class="kb-meta">180 pages • Troubleshooting guide</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kb-section">
+                <div class="kb-header">
+                    <span class="kb-title">📊 Quality Standards <span class="kb-count">32</span></span>
+                    <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;">+ Add</button>
+                </div>
+                <div class="kb-item clickable" onclick="openKBDocument('QS-001')">
+                    <div class="kb-icon quality">📊</div>
+                    <div class="kb-info">
+                        <div class="kb-name">ISO 9001:2015 Quality Management System</div>
+                        <div class="kb-meta">Compliance requirements • 94% score</div>
+                    </div>
+                </div>
+                <div class="kb-item clickable" onclick="openKBDocument('QS-002')">
+                    <div class="kb-icon quality">📊</div>
+                    <div class="kb-info">
+                        <div class="kb-name">LEGO Brick Dimensional Tolerances</div>
+                        <div class="kb-meta">±0.005mm specifications • 323 brick types</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kb-section">
+                <div class="kb-header">
+                    <span class="kb-title">⚠️ Safety Guidelines <span class="kb-count">24</span></span>
+                    <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 6px 12px;">+ Add</button>
+                </div>
+                <div class="kb-item clickable" onclick="openKBDocument('SG-001')">
+                    <div class="kb-icon safety">⚠️</div>
+                    <div class="kb-info">
+                        <div class="kb-name">ISO 45001 Occupational Health & Safety</div>
+                        <div class="kb-meta">Emergency procedures • PPE requirements</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('knowledgeBaseModal')">Close</button>
+            <button class="btn btn-primary" onclick="syncKnowledgeBase()">🔄 Sync with AI</button>
+        </div>
+    </div>
+</div>
+
+<!-- Insight Detail Modal -->
+<div class="modal-overlay" id="insightDetailModal" onclick="closeModalOnBackdrop(event)">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="insightDetailTitle">💡 Insight Details</h2>
+            <button class="modal-close" onclick="closeModal('insightDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="insightDetailBody">
+            <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="dismissInsight()">Dismiss</button>
+            <button class="btn btn-primary" onclick="actOnInsight()">🎯 Take Action</button>
+        </div>
+    </div>
+</div>
+
+<!-- Capability Detail Modal -->
+<div class="modal-overlay" id="capabilityDetailModal" onclick="closeModalOnBackdrop(event)">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 id="capabilityTitle">🧠 AI Capability</h2>
+            <button class="modal-close" onclick="closeModal('capabilityDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="capabilityBody">
+            <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('capabilityDetailModal')">Close</button>
+            <button class="btn btn-primary" onclick="tryCapability()">🚀 Try It</button>
+        </div>
+    </div>
+</div>
+
+<!-- XAI Explanation Modal -->
+<div class="modal-overlay" id="xaiModal" onclick="closeModalOnBackdrop(event)">
+    <div class="modal large">
+        <div class="modal-header">
+            <h2>🎯 Explainable AI - Decision Breakdown</h2>
+            <button class="modal-close" onclick="closeModal('xaiModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="xaiBody">
+            <div class="xai-panel">
+                <div class="xai-header">
+                    <span class="xai-badge">SHAP Analysis</span>
+                    <span class="xai-title">Feature Importance for Quality Prediction</span>
+                </div>
+                <p style="color: var(--text-secondary); margin-bottom: 16px;">This shows which factors most influenced the AI's prediction that <strong>WC-003 requires bearing replacement</strong>.</p>
+
+                <div class="feature-importance">
+                    <div class="feature-bar">
+                        <span class="feature-name">Vibration Level</span>
+                        <div class="feature-bar-container">
+                            <div class="feature-bar-fill" style="width: 85%;"></div>
+                        </div>
+                        <span class="feature-value">+0.42</span>
+                    </div>
+                    <div class="feature-bar">
+                        <span class="feature-name">Temperature</span>
+                        <div class="feature-bar-container">
+                            <div class="feature-bar-fill" style="width: 65%;"></div>
+                        </div>
+                        <span class="feature-value">+0.28</span>
+                    </div>
+                    <div class="feature-bar">
+                        <span class="feature-name">Operating Hours</span>
+                        <div class="feature-bar-container">
+                            <div class="feature-bar-fill" style="width: 55%;"></div>
+                        </div>
+                        <span class="feature-value">+0.21</span>
+                    </div>
+                    <div class="feature-bar">
+                        <span class="feature-name">Load Factor</span>
+                        <div class="feature-bar-container">
+                            <div class="feature-bar-fill" style="width: 40%;"></div>
+                        </div>
+                        <span class="feature-value">+0.15</span>
+                    </div>
+                    <div class="feature-bar">
+                        <span class="feature-name">Last Maintenance</span>
+                        <div class="feature-bar-container">
+                            <div class="feature-bar-fill" style="width: 30%;"></div>
+                        </div>
+                        <span class="feature-value">+0.09</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="confidence-meter" style="margin-top: 24px;">
+                <span class="confidence-label">Overall Prediction Confidence:</span>
+                <div class="confidence-bar">
+                    <div class="confidence-fill high" style="width: 94%;"></div>
+                </div>
+                <span class="confidence-value" style="color: var(--success);">94%</span>
+            </div>
+
+            <div style="margin-top: 24px; padding: 16px; background: var(--bg-card-hover); border-radius: 12px;">
+                <h4 style="margin-bottom: 12px; color: var(--text-primary);">📊 Counterfactual Analysis</h4>
+                <p style="color: var(--text-secondary); font-size: 0.9rem;">If vibration level were <strong>15% lower</strong>, the predicted RUL would increase from 12 days to <strong>45 days</strong>.</p>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="exportXAIReport()">📥 Export Report</button>
+            <button class="btn btn-primary" onclick="closeModal('xaiModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Auto-resize textarea
+    const chatInput = document.getElementById('chatInput');
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
+
+    function handleKeyDown(event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const message = input.value.trim();
+        if (!message) return;
+
+        addMessage(message, 'user');
+        input.value = '';
+        input.style.height = 'auto';
+
+        // Show typing indicator
+        showTyping();
+
+        // Simulate AI response (deterministic delay based on message length)
+        const responseDelay = 1500 + (message.length % 10) * 100;
+        setTimeout(() => {
+            hideTyping();
+            const response = generateResponse(message);
+            addMessage(response, 'ai');
+        }, responseDelay);
+    }
+
+    function askQuestion(question) {
+        document.getElementById('chatInput').value = question;
+        sendMessage();
+    }
+
+    function addMessage(content, type) {
+        const messagesArea = document.getElementById('messagesArea');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${type}`;
+
+        const avatar = type === 'ai' ? '🤖' : '👤';
+
+        messageDiv.innerHTML = `
+            <div class="message-avatar">${avatar}</div>
+            <div class="message-content">
+                <p>${content}</p>
+            </div>
+        `;
+
+        messagesArea.appendChild(messageDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function showTyping() {
+        const messagesArea = document.getElementById('messagesArea');
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'message ai';
+        typingDiv.id = 'typingIndicator';
+        typingDiv.innerHTML = `
+            <div class="message-avatar">🤖</div>
+            <div class="message-content">
+                <div class="typing-indicator">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                </div>
+            </div>
+        `;
+        messagesArea.appendChild(typingDiv);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+
+    function hideTyping() {
+        const typing = document.getElementById('typingIndicator');
+        if (typing) typing.remove();
+    }
+
+    function generateResponse(message) {
+        const lowerMsg = message.toLowerCase();
+        let response = '';
+        let confidence = 0;
+        let showXAI = false;
+
+        if (lowerMsg.includes('oee') || lowerMsg.includes('efficiency')) {
+            response = `📊 <strong>Current OEE: 87.3%</strong><br><br>All three components performing above target:<br>• Availability: 94.2% ✅<br>• Performance: 96.1% ✅<br>• Quality: 96.4% ✅<br><br>Trend: +1.2% improvement over last week.`;
+            confidence = 94;
+        } else if (lowerMsg.includes('quality') || lowerMsg.includes('defect')) {
+            response = `🔬 <strong>Quality Status:</strong><br><br>• First Pass Yield: 98.2%<br>• Cpk: 1.47 (excellent)<br>• Open NCRs: 3<br>• SPC: All control charts nominal<br><br>AI Prediction: Low defect probability for next shift based on current parameters.`;
+            confidence = 91;
+            showXAI = true;
+        } else if (lowerMsg.includes('schedule') || lowerMsg.includes('gantt') || lowerMsg.includes('nsga')) {
+            response = `📅 <strong>Schedule Overview:</strong><br><br>• Active Jobs: 24<br>• On-Time Rate: 96%<br>• Bottleneck: WC-004 (85% utilization)<br><br><strong>NSGA-II Optimization Result:</strong><br>Pareto-optimal solution found with 7% makespan reduction and 12% energy savings.`;
+            confidence = 89;
+            showXAI = true;
+        } else if (lowerMsg.includes('maintenance') || lowerMsg.includes('equipment') || lowerMsg.includes('bearing')) {
+            response = `🔧 <strong>Equipment Health:</strong><br><br>• 8/10 Work Centers: Healthy<br>• WC-003: Bearing wear detected (12 days RUL)<br>• WC-007: Scheduled PM tomorrow<br><br>AI Recommendation: Schedule WC-003 maintenance during low-demand window on Dec 30.`;
+            confidence = 97;
+            showXAI = true;
+        } else if (lowerMsg.includes('carbon') || lowerMsg.includes('sustainability') || lowerMsg.includes('co2')) {
+            response = `🌱 <strong>Sustainability Metrics:</strong><br><br>• Today's CO2: 2,847 kg (-8% vs target)<br>• Energy Consumption: 1,245 kWh<br>• Renewable Energy: 34%<br>• Waste Recycled: 94%<br><br>LCA Analysis: Current production run has 12% lower footprint than baseline.`;
+            confidence = 92;
+        } else if (lowerMsg.includes('explain') || lowerMsg.includes('why') || lowerMsg.includes('xai')) {
+            openModal('xaiModal');
+            response = `🎯 <strong>Opening XAI Explanation Panel...</strong><br><br>The explainable AI dashboard shows SHAP values and feature importance for the latest prediction. You can see which factors most influenced the AI's recommendation.`;
+            confidence = 96;
+        } else {
+            response = `✅ I understand your request. Let me analyze the manufacturing data and provide insights. Is there a specific area you'd like me to focus on: production, quality, scheduling, or maintenance?`;
+            confidence = 85;
+        }
+
+        // Add confidence meter to response
+        const confClass = confidence >= 90 ? 'high' : confidence >= 75 ? 'medium' : 'low';
+        const confColor = confidence >= 90 ? 'var(--success)' : confidence >= 75 ? 'var(--warning)' : 'var(--danger)';
+
+        response += `
+            <div class="confidence-meter" style="margin-top: 16px;">
+                <span class="confidence-label">Confidence:</span>
+                <div class="confidence-bar">
+                    <div class="confidence-fill ${confClass}" style="width: ${confidence}%;"></div>
+                </div>
+                <span class="confidence-value" style="color: ${confColor};">${confidence}%</span>
+            </div>`;
+
+        if (showXAI) {
+            response += `
+                <div class="response-actions">
+                    <span class="response-action" onclick="openModal('xaiModal')">🎯 Explain This</span>
+                    <span class="response-action" onclick="askQuestion('Show me more details')">📊 More Details</span>
+                    <span class="response-action" onclick="askQuestion('Take action on this')">⚡ Take Action</span>
+                </div>`;
+        }
+
+        // Update query count
+        incrementQueryCount();
+
+        return response;
+    }
+
+    // Toast Notification System
+    function showToast(title, message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' };
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <span class="toast-icon">${icons[type]}</span>
+            <div class="toast-content">
+                <div class="toast-title">${title}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease-out reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
+    }
+
+    // Modal Functions
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    function closeModalOnBackdrop(event) {
+        if (event.target.classList.contains('modal-overlay')) {
+            event.target.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+    }
+
+    // Keyboard support
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+        }
+    });
+
+    // Tab Navigation
+    function switchTab(prefix, tabName) {
+        document.querySelectorAll(`[id^="${prefix}-"]`).forEach(tab => {
+            tab.classList.remove('active');
+        });
+        document.querySelectorAll(`[onclick*="switchTab('${prefix}'"]`).forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.getElementById(`${prefix}-${tabName}`).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    // Model Settings
+    let selectedModel = 'gpt4-turbo';
+
+    function selectModel(element, modelId) {
+        document.querySelectorAll('.model-card').forEach(card => card.classList.remove('selected'));
+        element.classList.add('selected');
+        selectedModel = modelId;
+        showToast('Model Selected', `Switched to ${modelId}`, 'success');
+    }
+
+    function updateSlider(elementId, value) {
+        document.getElementById(elementId).textContent = value;
+    }
+
+    function saveModelSettings() {
+        showToast('Settings Saved', 'AI model configuration updated successfully', 'success');
+        closeModal('modelSettingsModal');
+    }
+
+    // Integration Toggle
+    function toggleIntegration(element) {
+        element.classList.toggle('active');
+        const statusEl = element.closest('.integration-card').querySelector('.integration-status');
+        if (element.classList.contains('active')) {
+            statusEl.classList.add('connected');
+            statusEl.textContent = '✓ Connected';
+        } else {
+            statusEl.classList.remove('connected');
+            statusEl.textContent = '○ Disconnected';
+        }
+    }
+
+    function saveIntegrations() {
+        showToast('Integrations Updated', 'AI integration settings saved', 'success');
+        closeModal('integrationsModal');
+    }
+
+    // Query History
+    function replayQuery(query) {
+        closeModal('historyModal');
+        document.getElementById('chatInput').value = query;
+        sendMessage();
+    }
+
+    function clearHistory() {
+        if (confirm('Are you sure you want to clear all query history?')) {
+            document.getElementById('historyList').innerHTML = '<p style="color: var(--text-secondary); text-align: center;">No history available</p>';
+            showToast('History Cleared', 'All query history has been deleted', 'info');
+        }
+    }
+
+    function exportHistory() {
+        showToast('Export Started', 'Downloading query history as JSON...', 'info');
+    }
+
+    // Analytics
+    function exportAnalytics() {
+        showToast('Report Generated', 'AI usage analytics exported as PDF', 'success');
+    }
+
+    let queryCount = 1247;
+
+    function incrementQueryCount() {
+        queryCount++;
+        const el = document.getElementById('totalQueries');
+        if (el) el.textContent = queryCount.toLocaleString();
+    }
+
+    // Insight Detail
+    function showInsightDetail(insightId, type, title) {
+        const typeIcons = { warning: '⚠️', optimization: '✅', quality: '📊' };
+        document.getElementById('insightDetailTitle').textContent = `${typeIcons[type] || '💡'} ${title}`;
+
+        const details = {
+            'INS-001': {
+                description: 'Vibration analysis detected anomalous patterns on spindle bearing of WC-003 (CNC Mill).',
+                metrics: [
+                    { label: 'Current Vibration', value: '4.2 mm/s', status: 'warning' },
+                    { label: 'Threshold', value: '3.5 mm/s', status: 'neutral' },
+                    { label: 'Predicted RUL', value: '12 days', status: 'warning' },
+                    { label: 'Confidence', value: '97%', status: 'good' }
+                ],
+                recommendation: 'Schedule preventive maintenance during the next low-demand period (Shift 3 on Dec 30).',
+                impact: 'Avoiding unplanned downtime estimated at $12,400'
+            },
+            'INS-002': {
+                description: 'NSGA-II multi-objective optimization found improved production schedule.',
+                metrics: [
+                    { label: 'Makespan Reduction', value: '7%', status: 'good' },
+                    { label: 'Energy Savings', value: '12%', status: 'good' },
+                    { label: 'On-Time Delivery', value: '98%', status: 'good' },
+                    { label: 'Algorithm Runtime', value: '2.3s', status: 'neutral' }
+                ],
+                recommendation: 'Apply the optimized schedule to maximize efficiency during peak hours.',
+                impact: 'Estimated daily savings: $2,150'
+            },
+            'INS-003': {
+                description: 'Statistical Process Control analysis shows positive quality trend.',
+                metrics: [
+                    { label: 'First Pass Yield', value: '98.2%', status: 'good' },
+                    { label: 'Trend', value: '+0.3%', status: 'good' },
+                    { label: 'Cpk Index', value: '1.47', status: 'good' },
+                    { label: 'Control Charts', value: 'All nominal', status: 'good' }
+                ],
+                recommendation: 'Maintain current process parameters. Consider documenting best practices.',
+                impact: 'Quality improvement reduces rework costs by ~$450/day'
+            }
+        };
+
+        const detail = details[insightId] || details['INS-001'];
+
+        document.getElementById('insightDetailBody').innerHTML = `
+            <p style="margin-bottom: 20px; color: var(--text-secondary);">${detail.description}</p>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
+                ${detail.metrics.map(m => `
+                    <div style="padding: 12px; background: var(--bg-card-hover); border-radius: 10px;">
+                        <div style="color: var(--text-secondary); font-size: 0.8rem;">${m.label}</div>
+                        <div style="font-size: 1.2rem; font-weight: 600; color: ${m.status === 'good' ? 'var(--success)' : m.status === 'warning' ? 'var(--warning)' : 'var(--text-primary)'};">${m.value}</div>
+                    </div>
+                `).join('')}
+            </div>
+            <div style="padding: 16px; background: rgba(139, 92, 246, 0.1); border-radius: 12px; border-left: 4px solid var(--ai-primary); margin-bottom: 16px;">
+                <strong style="color: var(--ai-secondary);">AI Recommendation:</strong>
+                <p style="margin-top: 8px; color: var(--text-secondary);">${detail.recommendation}</p>
+            </div>
+            <div style="padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 10px;">
+                <strong style="color: var(--success);">💰 Business Impact:</strong> ${detail.impact}
+            </div>
+        `;
+
+        openModal('insightDetailModal');
+    }
+
+    function dismissInsight() {
+        showToast('Insight Dismissed', 'This insight has been acknowledged', 'info');
+        closeModal('insightDetailModal');
+    }
+
+    function actOnInsight() {
+        showToast('Action Initiated', 'Creating work order based on AI recommendation...', 'success');
+        closeModal('insightDetailModal');
+    }
+
+    // Capability Detail
+    const capabilities = {
+        analytics: {
+            title: '📊 Real-Time Analytics',
+            description: 'AI-powered real-time analysis of manufacturing data with automatic pattern detection and anomaly identification.',
+            features: ['Live OEE monitoring', 'Trend analysis', 'Anomaly detection', 'Predictive insights'],
+            example: 'Try asking: "Show me today\'s production efficiency breakdown"'
+        },
+        prediction: {
+            title: '🔮 ML Forecasting',
+            description: 'Machine learning models for quality prediction, demand forecasting, and process optimization.',
+            features: ['Quality prediction', 'Demand sensing', 'Failure prediction', 'Yield optimization'],
+            example: 'Try asking: "Predict quality issues for the next shift"'
+        },
+        optimization: {
+            title: '⚙️ Multi-Objective Optimization',
+            description: 'Advanced optimization algorithms including NSGA-II and Quantum-Approximate (QAOA) for production scheduling.',
+            features: ['NSGA-II scheduling', 'Pareto optimization', 'Resource allocation', 'Energy optimization'],
+            example: 'Try asking: "Optimize tomorrow\'s schedule for minimum makespan"'
+        },
+        xai: {
+            title: '🎯 Explainable AI (XAI)',
+            description: 'SHAP and LIME-based explanations for all AI predictions to ensure transparency and trust.',
+            features: ['SHAP values', 'Feature importance', 'Counterfactual analysis', 'Decision audit trail'],
+            example: 'Try asking: "Explain why WC-003 needs maintenance"'
+        }
+    };
+
+    function showCapabilityDetail(capId) {
+        const cap = capabilities[capId];
+        document.getElementById('capabilityTitle').textContent = cap.title;
+        document.getElementById('capabilityBody').innerHTML = `
+            <p style="margin-bottom: 20px; color: var(--text-secondary);">${cap.description}</p>
+            <h4 style="margin-bottom: 12px; color: var(--text-primary);">Key Features:</h4>
+            <ul style="margin-bottom: 20px; padding-left: 20px; color: var(--text-secondary);">
+                ${cap.features.map(f => `<li style="margin-bottom: 8px;">${f}</li>`).join('')}
+            </ul>
+            <div style="padding: 16px; background: rgba(139, 92, 246, 0.1); border-radius: 12px; border-left: 4px solid var(--ai-primary);">
+                <strong style="color: var(--ai-secondary);">💡 ${cap.example}</strong>
+            </div>
+        `;
+        openModal('capabilityDetailModal');
+    }
+
+    function tryCapability() {
+        closeModal('capabilityDetailModal');
+        document.getElementById('chatInput').focus();
+    }
+
+    // Knowledge Base
+    function openKBDocument(docId) {
+        showToast('Document Loading', `Opening ${docId}...`, 'info');
+    }
+
+    function syncKnowledgeBase() {
+        showToast('Sync Started', 'Synchronizing knowledge base with AI model...', 'info');
+        setTimeout(() => {
+            showToast('Sync Complete', 'Knowledge base updated successfully', 'success');
+        }, 2000);
+    }
+
+    // XAI Export
+    function exportXAIReport() {
+        showToast('Report Generated', 'XAI explanation exported as PDF', 'success');
+    }
+
+    // Chat Functions
+    function clearChat() {
+        const messagesArea = document.getElementById('messagesArea');
+        messagesArea.innerHTML = '';
+        addMessage('👋 Chat cleared. How can I assist you with manufacturing operations?', 'ai');
+        showToast('Chat Cleared', 'Conversation history removed', 'info');
+    }
+
+    function exportChat() {
+        showToast('Export Started', 'Generating conversation export...', 'info');
+        setTimeout(() => {
+            showToast('Export Complete', 'Chat exported as JSON', 'success');
+        }, 1500);
+    }
+
+    let voiceActive = false;
+
+    function toggleVoice() {
+        voiceActive = !voiceActive;
+        const btn = document.getElementById('voiceBtn');
+        if (voiceActive) {
+            btn.style.background = 'rgba(16, 185, 129, 0.3)';
+            showToast('Voice Mode Active', 'Listening for voice commands...', 'success');
+            document.getElementById('aiStatusText').textContent = 'Online • Voice Mode Active • GPT-4 Turbo';
+        } else {
+            btn.style.background = '';
+            showToast('Voice Mode Disabled', 'Voice input deactivated', 'info');
+            document.getElementById('aiStatusText').textContent = 'Online • GPT-4 Turbo • Manufacturing Expert';
+        }
+    }
+
+    // Real-time Updates
+    function updateInsights() {
+        // Simulate real-time insight updates
+        const types = ['warning', 'success', 'info', 'critical'];
+        const messages = [
+            { type: 'warning', text: 'Temperature variance detected on Injection Molder #2' },
+            { type: 'success', text: 'Batch B-2024-847 passed all quality checks (98.7%)' },
+            { type: 'info', text: 'Schedule optimization found 5% improvement opportunity' }
+        ];
+
+        // Update manufacturing context values with pattern-based variation
+        const oeeEl = document.querySelector('.context-value.good');
+        if (oeeEl && oeeEl.textContent.includes('%')) {
+            const time = Date.now() * 0.001;
+            const baseOEE = 87.5;
+            const variation = Math.sin(time * 0.1) * 0.5;
+            oeeEl.textContent = (baseOEE + variation).toFixed(1) + '%';
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show welcome toast
+        setTimeout(() => {
+            showToast('AI Copilot Ready', 'Manufacturing AI assistant is online and ready', 'success');
+        }, 1000);
+
+        // Start real-time updates
+        setInterval(updateInsights, 45000);
+
+        // Focus chat input
+        document.getElementById('chatInput').focus();
+    });
+</script>
+{% endblock %}

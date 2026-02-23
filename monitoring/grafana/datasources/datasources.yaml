@@ -1,0 +1,220 @@
+# =============================================================================
+# LEGO MCP v8.0 Grafana Datasources Provisioning
+# DoD/ONR-Class Manufacturing System
+# =============================================================================
+#
+# This file provisions Grafana datasources automatically on startup.
+# Place in /etc/grafana/provisioning/datasources/
+# =============================================================================
+
+apiVersion: 1
+
+# Delete datasources that are no longer in this file
+deleteDatasources:
+  - name: Prometheus-Old
+    orgId: 1
+
+datasources:
+  # ===========================================================================
+  # Prometheus - Primary Metrics Store
+  # ===========================================================================
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    uid: prometheus
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      httpMethod: POST
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: "2.48.0"
+      cacheLevel: "High"
+      disableRecordingRules: false
+      incrementalQueryOverlapWindow: "10m"
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: tempo
+    editable: false
+
+  # ===========================================================================
+  # Tempo - Distributed Tracing
+  # ===========================================================================
+  - name: Tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    uid: tempo
+    jsonData:
+      httpMethod: GET
+      tracesToLogs:
+        datasourceUid: loki
+        tags: ['service.name', 'trace_id']
+        mappedTags: [{ key: 'service.name', value: 'service' }]
+        mapTagNamesEnabled: true
+        spanStartTimeShift: '-1h'
+        spanEndTimeShift: '1h'
+        filterByTraceID: true
+        filterBySpanID: false
+      tracesToMetrics:
+        datasourceUid: prometheus
+        tags: [{ key: 'service.name', value: 'service' }]
+        queries:
+          - name: 'Request Rate'
+            query: 'sum(rate(http_server_request_duration_seconds_count{$__tags}[5m]))'
+          - name: 'Error Rate'
+            query: 'sum(rate(http_server_request_duration_seconds_count{$__tags,http_status_code=~"5.."}[5m]))'
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      lokiSearch:
+        datasourceUid: loki
+      search:
+        hide: false
+      spanBar:
+        type: 'Tag'
+        tag: 'http.status_code'
+    editable: false
+
+  # ===========================================================================
+  # Loki - Log Aggregation
+  # ===========================================================================
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    uid: loki
+    jsonData:
+      maxLines: 1000
+      timeout: "60s"
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: '"trace_id":"(\w+)"'
+          name: TraceID
+          url: '$${__value.raw}'
+    editable: false
+
+  # ===========================================================================
+  # PostgreSQL - Database Metrics
+  # ===========================================================================
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    uid: postgresql
+    database: lego_mcp
+    user: grafana_reader
+    secureJsonData:
+      password: ${POSTGRES_GRAFANA_PASSWORD}
+    jsonData:
+      sslmode: require
+      maxOpenConns: 5
+      maxIdleConns: 2
+      connMaxLifetime: 14400
+      postgresVersion: 1600
+      timescaledb: false
+    editable: false
+
+  # ===========================================================================
+  # Redis - Cache Metrics
+  # ===========================================================================
+  - name: Redis
+    type: redis-datasource
+    access: proxy
+    url: redis://redis:6379
+    uid: redis
+    secureJsonData:
+      password: ${REDIS_PASSWORD}
+    jsonData:
+      client: standalone
+      poolSize: 5
+      timeout: 10
+      pingInterval: 0
+      pipelineWindow: 0
+    editable: false
+
+  # ===========================================================================
+  # Jaeger - Alternative Tracing (if Tempo unavailable)
+  # ===========================================================================
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    uid: jaeger
+    jsonData:
+      tracesToLogs:
+        datasourceUid: loki
+        tags: ['service.name']
+    editable: false
+
+  # ===========================================================================
+  # Alertmanager - Alert Management
+  # ===========================================================================
+  - name: Alertmanager
+    type: alertmanager
+    access: proxy
+    url: http://alertmanager:9093
+    uid: alertmanager
+    jsonData:
+      implementation: prometheus
+      handleGrafanaManagedAlerts: true
+    editable: false
+
+  # ===========================================================================
+  # InfluxDB - Time Series (Optional, for high-frequency data)
+  # ===========================================================================
+  - name: InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    uid: influxdb
+    database: lego_mcp_metrics
+    user: grafana
+    secureJsonData:
+      password: ${INFLUXDB_PASSWORD}
+      token: ${INFLUXDB_TOKEN}
+    jsonData:
+      version: Flux
+      organization: lego-mcp
+      defaultBucket: metrics
+      tlsSkipVerify: false
+      httpMode: POST
+    editable: false
+
+  # ===========================================================================
+  # Elasticsearch - Log Search (Alternative to Loki)
+  # ===========================================================================
+  - name: Elasticsearch
+    type: elasticsearch
+    access: proxy
+    url: https://elasticsearch:9200
+    uid: elasticsearch
+    database: "lego-mcp-logs-*"
+    basicAuth: true
+    basicAuthUser: grafana
+    secureJsonData:
+      basicAuthPassword: ${ELASTICSEARCH_PASSWORD}
+    jsonData:
+      esVersion: "8.0.0"
+      timeField: "@timestamp"
+      logMessageField: message
+      logLevelField: level
+      maxConcurrentShardRequests: 5
+      includeFrozen: false
+    editable: false
+
+  # ===========================================================================
+  # OpenTelemetry Collector - OTLP Metrics
+  # ===========================================================================
+  - name: OTEL-Collector
+    type: prometheus
+    access: proxy
+    url: http://otel-collector:8889
+    uid: otel-collector
+    jsonData:
+      timeInterval: "30s"
+      httpMethod: GET
+    editable: false

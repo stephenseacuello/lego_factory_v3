@@ -1,0 +1,609 @@
+{% extends "base.html" %}
+
+{% block title %}Design FMEA Editor{% endblock %}
+
+{% block head %}
+<style>
+    .fmea-container {
+        padding: 1rem;
+    }
+
+    .fmea-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .component-selector {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+
+    .component-selector select {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        min-width: 200px;
+    }
+
+    .fmea-table-container {
+        overflow-x: auto;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1rem;
+    }
+
+    .fmea-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+
+    .fmea-table th {
+        background: var(--bg-primary);
+        padding: 0.75rem 0.5rem;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    .fmea-table td {
+        padding: 0.75rem 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+        vertical-align: top;
+    }
+
+    .fmea-table tr:hover {
+        background: var(--bg-primary);
+    }
+
+    .rpn-cell {
+        text-align: center;
+        font-weight: bold;
+    }
+
+    .rpn-high { color: #dc2626; background: #fee2e2; }
+    .rpn-medium { color: #d97706; background: #fef3c7; }
+    .rpn-low { color: #059669; background: #d1fae5; }
+
+    .rating-input {
+        width: 50px;
+        padding: 0.25rem;
+        text-align: center;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
+
+    .text-input {
+        width: 100%;
+        padding: 0.25rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        resize: vertical;
+        min-height: 60px;
+    }
+
+    .add-row-btn {
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .summary-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .summary-card h4 {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .summary-card .value {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-icon {
+        padding: 0.25rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-secondary);
+        border-radius: 4px;
+    }
+
+    .btn-icon:hover {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
+
+    .severity-guide {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .severity-guide h4 {
+        margin-bottom: 0.5rem;
+    }
+
+    .guide-table {
+        width: 100%;
+        font-size: 0.75rem;
+    }
+
+    .guide-table th, .guide-table td {
+        padding: 0.25rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .controls-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: var(--accent-color);
+        color: white;
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .collapse-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-secondary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fmea-container">
+    <div class="fmea-header">
+        <div>
+            <h1>Design FMEA Editor</h1>
+            <p style="color: var(--text-secondary);">LEGO Brick Design Failure Mode Analysis</p>
+        </div>
+        <div class="component-selector">
+            <label>Component:</label>
+            <select id="componentSelect" onchange="loadComponent(this.value)">
+                <option value="stud">Stud Geometry</option>
+                <option value="tube">Anti-Stud Tubes</option>
+                <option value="wall">Wall Structure</option>
+                <option value="material">Material Properties</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="controls-bar">
+        <button class="btn btn-primary" onclick="saveDFMEA()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Save DFMEA
+        </button>
+        <button class="btn btn-secondary" onclick="generateReport()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            Generate Report
+        </button>
+        <button class="btn btn-secondary" onclick="runAIAnalysis()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            AI Analysis
+        </button>
+        <button class="btn btn-secondary" onclick="toggleGuide()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            Rating Guide
+        </button>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary-cards">
+        <div class="summary-card">
+            <h4>Total Failure Modes</h4>
+            <div class="value" id="totalModes">8</div>
+        </div>
+        <div class="summary-card">
+            <h4>High RPN (>100)</h4>
+            <div class="value" style="color: #dc2626;" id="highRPN">2</div>
+        </div>
+        <div class="summary-card">
+            <h4>Average RPN</h4>
+            <div class="value" id="avgRPN">84</div>
+        </div>
+        <div class="summary-card">
+            <h4>Actions Required</h4>
+            <div class="value" style="color: #d97706;" id="actionsRequired">3</div>
+        </div>
+    </div>
+
+    <!-- Rating Guide (collapsible) -->
+    <div class="severity-guide" id="ratingGuide" style="display: none;">
+        <h4>DFMEA Rating Guidelines</h4>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+            <div>
+                <h5>Severity (S)</h5>
+                <table class="guide-table">
+                    <tr><th>Rating</th><th>Criteria</th></tr>
+                    <tr><td>10</td><td>Safety hazard without warning</td></tr>
+                    <tr><td>9</td><td>Safety hazard with warning</td></tr>
+                    <tr><td>8</td><td>Loss of primary function</td></tr>
+                    <tr><td>7</td><td>Degraded primary function</td></tr>
+                    <tr><td>6</td><td>Loss of comfort/convenience</td></tr>
+                    <tr><td>5</td><td>Reduced comfort/convenience</td></tr>
+                    <tr><td>4</td><td>Appearance affected (most notice)</td></tr>
+                    <tr><td>3</td><td>Appearance affected (some notice)</td></tr>
+                    <tr><td>2</td><td>Appearance affected (few notice)</td></tr>
+                    <tr><td>1</td><td>No effect</td></tr>
+                </table>
+            </div>
+            <div>
+                <h5>Occurrence (O)</h5>
+                <table class="guide-table">
+                    <tr><th>Rating</th><th>Probability</th></tr>
+                    <tr><td>10</td><td>≥1 in 2</td></tr>
+                    <tr><td>9</td><td>1 in 3</td></tr>
+                    <tr><td>8</td><td>1 in 8</td></tr>
+                    <tr><td>7</td><td>1 in 20</td></tr>
+                    <tr><td>6</td><td>1 in 80</td></tr>
+                    <tr><td>5</td><td>1 in 400</td></tr>
+                    <tr><td>4</td><td>1 in 2000</td></tr>
+                    <tr><td>3</td><td>1 in 15000</td></tr>
+                    <tr><td>2</td><td>1 in 150000</td></tr>
+                    <tr><td>1</td><td>≤1 in 1500000</td></tr>
+                </table>
+            </div>
+            <div>
+                <h5>Detection (D)</h5>
+                <table class="guide-table">
+                    <tr><th>Rating</th><th>Detection Ability</th></tr>
+                    <tr><td>10</td><td>Cannot detect</td></tr>
+                    <tr><td>9</td><td>Very remote chance</td></tr>
+                    <tr><td>8</td><td>Remote chance</td></tr>
+                    <tr><td>7</td><td>Very low chance</td></tr>
+                    <tr><td>6</td><td>Low chance</td></tr>
+                    <tr><td>5</td><td>Moderate chance</td></tr>
+                    <tr><td>4</td><td>Moderately high</td></tr>
+                    <tr><td>3</td><td>High chance</td></tr>
+                    <tr><td>2</td><td>Very high chance</td></tr>
+                    <tr><td>1</td><td>Almost certain</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- FMEA Table -->
+    <div class="fmea-table-container">
+        <table class="fmea-table" id="fmeaTable">
+            <thead>
+                <tr>
+                    <th style="width: 30px;">#</th>
+                    <th style="min-width: 120px;">Function</th>
+                    <th style="min-width: 150px;">Potential Failure Mode</th>
+                    <th style="min-width: 150px;">Potential Effect(s)</th>
+                    <th style="width: 50px;">S</th>
+                    <th style="min-width: 120px;">Potential Cause(s)</th>
+                    <th style="width: 50px;">O</th>
+                    <th style="min-width: 120px;">Current Controls</th>
+                    <th style="width: 50px;">D</th>
+                    <th style="width: 60px;">RPN</th>
+                    <th style="min-width: 150px;">Recommended Actions</th>
+                    <th style="width: 80px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="fmeaBody">
+                <!-- Rows populated by JavaScript -->
+            </tbody>
+        </table>
+
+        <button class="add-row-btn" onclick="addRow()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Add Failure Mode
+        </button>
+    </div>
+</div>
+
+<script>
+// Sample DFMEA data for Stud Geometry
+const dfmeaData = {
+    stud: [
+        {
+            function: "Connect to other bricks",
+            failureMode: "Stud diameter undersized",
+            effects: "Loose connection, bricks fall apart",
+            severity: 8,
+            causes: "Print shrinkage, incorrect scaling",
+            occurrence: 4,
+            controls: "Dimensional inspection, test fit",
+            detection: 3,
+            actions: "Compensate for shrinkage in design"
+        },
+        {
+            function: "Connect to other bricks",
+            failureMode: "Stud diameter oversized",
+            effects: "Cannot connect, excessive force required",
+            severity: 7,
+            causes: "Over-extrusion, elephant foot",
+            occurrence: 5,
+            controls: "Dimensional inspection",
+            detection: 3,
+            actions: "Calibrate extrusion multiplier"
+        },
+        {
+            function: "Maintain clutch power",
+            failureMode: "Stud top deformed",
+            effects: "Weak connection, variable clutch",
+            severity: 6,
+            causes: "Poor cooling, stringing",
+            occurrence: 6,
+            controls: "Visual inspection",
+            detection: 4,
+            actions: "Optimize cooling, retraction"
+        },
+        {
+            function: "Aesthetic appearance",
+            failureMode: "Layer lines visible on stud",
+            effects: "Poor surface finish",
+            severity: 4,
+            causes: "Layer height too large",
+            occurrence: 7,
+            controls: "Visual QC",
+            detection: 2,
+            actions: "Reduce layer height to 0.12mm"
+        }
+    ],
+    tube: [
+        {
+            function: "Receive studs from above",
+            failureMode: "Tube inner diameter wrong",
+            effects: "Cannot connect or too loose",
+            severity: 8,
+            causes: "Print inaccuracy, shrinkage",
+            occurrence: 5,
+            controls: "Test fit inspection",
+            detection: 3,
+            actions: "Calibration compensation"
+        }
+    ],
+    wall: [
+        {
+            function: "Structural support",
+            failureMode: "Wall thickness inconsistent",
+            effects: "Weak spots, breakage",
+            severity: 7,
+            causes: "Under-extrusion, gaps",
+            occurrence: 4,
+            controls: "Visual and tactile inspection",
+            detection: 4,
+            actions: "Extrusion calibration"
+        }
+    ],
+    material: [
+        {
+            function: "Durability",
+            failureMode: "Brittle material",
+            effects: "Cracks under stress",
+            severity: 8,
+            causes: "Wrong filament, moisture",
+            occurrence: 3,
+            controls: "Material certification",
+            detection: 5,
+            actions: "Dry filament before use"
+        }
+    ]
+};
+
+let currentComponent = 'stud';
+let tableData = [];
+
+function loadComponent(component) {
+    currentComponent = component;
+    tableData = [...dfmeaData[component] || []];
+    renderTable();
+    updateSummary();
+}
+
+function renderTable() {
+    const tbody = document.getElementById('fmeaBody');
+    tbody.innerHTML = '';
+
+    tableData.forEach((row, index) => {
+        const rpn = row.severity * row.occurrence * row.detection;
+        const rpnClass = rpn > 100 ? 'rpn-high' : rpn > 50 ? 'rpn-medium' : 'rpn-low';
+
+        tbody.innerHTML += `
+            <tr>
+                <td>${index + 1}</td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'function', this.value)">${row.function}</textarea></td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'failureMode', this.value)">${row.failureMode}</textarea></td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'effects', this.value)">${row.effects}</textarea></td>
+                <td><input type="number" class="rating-input" value="${row.severity}" min="1" max="10" onchange="updateRow(${index}, 'severity', parseInt(this.value))"></td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'causes', this.value)">${row.causes}</textarea></td>
+                <td><input type="number" class="rating-input" value="${row.occurrence}" min="1" max="10" onchange="updateRow(${index}, 'occurrence', parseInt(this.value))"></td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'controls', this.value)">${row.controls}</textarea></td>
+                <td><input type="number" class="rating-input" value="${row.detection}" min="1" max="10" onchange="updateRow(${index}, 'detection', parseInt(this.value))"></td>
+                <td class="rpn-cell ${rpnClass}">${rpn}</td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'actions', this.value)">${row.actions}</textarea></td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-icon" onclick="deleteRow(${index})" title="Delete">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                        <button class="btn-icon" onclick="duplicateRow(${index})" title="Duplicate">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+}
+
+function updateRow(index, field, value) {
+    tableData[index][field] = value;
+    renderTable();
+    updateSummary();
+}
+
+function addRow() {
+    tableData.push({
+        function: "",
+        failureMode: "",
+        effects: "",
+        severity: 5,
+        causes: "",
+        occurrence: 5,
+        controls: "",
+        detection: 5,
+        actions: ""
+    });
+    renderTable();
+    updateSummary();
+}
+
+function deleteRow(index) {
+    if (confirm('Delete this failure mode?')) {
+        tableData.splice(index, 1);
+        renderTable();
+        updateSummary();
+    }
+}
+
+function duplicateRow(index) {
+    tableData.splice(index + 1, 0, {...tableData[index]});
+    renderTable();
+    updateSummary();
+}
+
+function updateSummary() {
+    const totalModes = tableData.length;
+    const rpns = tableData.map(r => r.severity * r.occurrence * r.detection);
+    const highRPN = rpns.filter(r => r > 100).length;
+    const avgRPN = rpns.length ? Math.round(rpns.reduce((a, b) => a + b, 0) / rpns.length) : 0;
+    const actionsRequired = tableData.filter(r => r.actions && r.severity * r.occurrence * r.detection > 50).length;
+
+    document.getElementById('totalModes').textContent = totalModes;
+    document.getElementById('highRPN').textContent = highRPN;
+    document.getElementById('avgRPN').textContent = avgRPN;
+    document.getElementById('actionsRequired').textContent = actionsRequired;
+}
+
+function toggleGuide() {
+    const guide = document.getElementById('ratingGuide');
+    guide.style.display = guide.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveDFMEA() {
+    fetch('/api/v6/quality/dfmea/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            component: currentComponent,
+            data: tableData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert('DFMEA saved successfully!');
+    });
+}
+
+function generateReport() {
+    window.open('/api/v6/quality/dfmea/report?component=' + currentComponent, '_blank');
+}
+
+function runAIAnalysis() {
+    fetch('/api/v6/quality/dfmea/ai-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            component: currentComponent,
+            data: tableData
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.suggestions) {
+            alert('AI Suggestions:\n\n' + data.suggestions.join('\n'));
+        }
+    });
+}
+
+// Initialize
+loadComponent('stud');
+</script>
+{% endblock %}

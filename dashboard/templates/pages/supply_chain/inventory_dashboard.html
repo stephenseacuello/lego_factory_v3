@@ -1,0 +1,1496 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory Management - LEGO MCP v5.0{% endblock %}
+
+{% block styles %}
+<style>
+    /* ============================================
+       Inventory Management Dashboard
+       ABC/XYZ Analysis, Kanban, Heat Maps
+       ============================================ */
+
+    .inventory-dashboard {
+        padding: 1.5rem;
+        max-width: 1800px;
+        margin: 0 auto;
+    }
+
+    /* Dashboard Header */
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .dashboard-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .dashboard-title h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .badge-version {
+        background: linear-gradient(135deg, var(--accent-primary) 0%, #c00 100%);
+        color: white;
+    }
+
+    .badge-kanban {
+        background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        color: white;
+    }
+
+    .dashboard-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: var(--accent-primary);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #c00;
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+        background: var(--bg-primary);
+    }
+
+    .btn-warning {
+        background: #ffc107;
+        color: #333;
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+        background: var(--card-bg);
+        border-radius: 8px;
+        padding: 1.25rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .kpi-card.total::before { background: var(--accent-secondary); }
+    .kpi-card.turns::before { background: #28a745; }
+    .kpi-card.stockout::before { background: #dc3545; }
+    .kpi-card.overstock::before { background: #ffc107; }
+    .kpi-card.order::before { background: #6f42c1; }
+
+    .kpi-label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .kpi-value.good { color: #28a745; }
+    .kpi-value.warning { color: #ffc107; }
+    .kpi-value.danger { color: #dc3545; }
+
+    .kpi-subtitle {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.35rem;
+    }
+
+    /* Chart Panels */
+    .chart-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .chart-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .chart-panel {
+        background: var(--card-bg);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        overflow: hidden;
+    }
+
+    .chart-panel.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .panel-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .panel-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .panel-body {
+        padding: 1.25rem;
+    }
+
+    /* ============================================
+       ABC/XYZ Classification Matrix
+       ============================================ */
+    .abc-xyz-container {
+        display: flex;
+        gap: 2rem;
+    }
+
+    @media (max-width: 900px) {
+        .abc-xyz-container {
+            flex-direction: column;
+        }
+    }
+
+    .abc-xyz-matrix {
+        display: grid;
+        grid-template-columns: 50px repeat(3, 1fr);
+        grid-template-rows: 50px repeat(3, 1fr);
+        gap: 4px;
+        width: 320px;
+        height: 320px;
+        flex-shrink: 0;
+    }
+
+    .matrix-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .matrix-header.corner {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .matrix-header.row-header {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+    }
+
+    .matrix-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: transform 0.15s, box-shadow 0.15s;
+        position: relative;
+    }
+
+    .matrix-cell:hover {
+        transform: scale(1.05);
+        z-index: 10;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    .matrix-cell.ax { background: #28a745; color: white; }
+    .matrix-cell.ay { background: #20c997; color: white; }
+    .matrix-cell.az { background: #17a2b8; color: white; }
+    .matrix-cell.bx { background: #ffc107; color: #333; }
+    .matrix-cell.by { background: #fd7e14; color: white; }
+    .matrix-cell.bz { background: #e83e8c; color: white; }
+    .matrix-cell.cx { background: #6f42c1; color: white; }
+    .matrix-cell.cy { background: #6c757d; color: white; }
+    .matrix-cell.cz { background: #dc3545; color: white; }
+
+    .cell-count {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .cell-label {
+        font-size: 0.65rem;
+        opacity: 0.9;
+    }
+
+    .cell-value {
+        font-size: 0.6rem;
+        opacity: 0.8;
+    }
+
+    .abc-xyz-legend {
+        flex: 1;
+    }
+
+    .legend-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .legend-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .legend-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    .legend-color {
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.7rem;
+        color: white;
+    }
+
+    .strategy-badge {
+        margin-left: auto;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        background: var(--bg-secondary);
+    }
+
+    /* ============================================
+       Kanban Board
+       ============================================ */
+    .kanban-board {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        min-height: 400px;
+    }
+
+    @media (max-width: 1200px) {
+        .kanban-board {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 800px) {
+        .kanban-board {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .kanban-column {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        min-height: 350px;
+    }
+
+    .kanban-column-header {
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        border-bottom: 3px solid;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .kanban-column.critical .kanban-column-header { border-color: #dc3545; }
+    .kanban-column.low .kanban-column-header { border-color: #fd7e14; }
+    .kanban-column.reorder .kanban-column-header { border-color: #ffc107; }
+    .kanban-column.adequate .kanban-column-header { border-color: #28a745; }
+    .kanban-column.overstock .kanban-column-header { border-color: #6f42c1; }
+
+    .kanban-count {
+        background: var(--bg-primary);
+        padding: 0.15rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.75rem;
+    }
+
+    .kanban-cards {
+        flex: 1;
+        padding: 0.75rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .kanban-card {
+        background: var(--card-bg);
+        border-radius: 6px;
+        padding: 0.75rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        cursor: pointer;
+        transition: box-shadow 0.15s;
+    }
+
+    .kanban-card:hover {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .kanban-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.5rem;
+    }
+
+    .kanban-card-title {
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .kanban-card-class {
+        font-size: 0.6rem;
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+        font-weight: 600;
+    }
+
+    .kanban-card-class.a { background: #28a745; color: white; }
+    .kanban-card-class.b { background: #ffc107; color: #333; }
+    .kanban-card-class.c { background: #6c757d; color: white; }
+
+    .kanban-card-body {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .kanban-card-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.25rem;
+    }
+
+    .kanban-card-progress {
+        height: 4px;
+        background: var(--bg-secondary);
+        border-radius: 2px;
+        margin-top: 0.5rem;
+        overflow: hidden;
+    }
+
+    .kanban-card-progress-fill {
+        height: 100%;
+        border-radius: 2px;
+        transition: width 0.3s;
+    }
+
+    .kanban-card-progress-fill.critical { background: #dc3545; }
+    .kanban-card-progress-fill.low { background: #fd7e14; }
+    .kanban-card-progress-fill.adequate { background: #28a745; }
+    .kanban-card-progress-fill.overstock { background: #6f42c1; }
+
+    /* ============================================
+       Inventory Heat Map
+       ============================================ */
+    .heatmap-container {
+        overflow-x: auto;
+    }
+
+    .heatmap-table {
+        border-collapse: collapse;
+        font-size: 0.8rem;
+        width: 100%;
+    }
+
+    .heatmap-table th,
+    .heatmap-table td {
+        padding: 0.5rem;
+        text-align: center;
+        border: 1px solid var(--border-color);
+    }
+
+    .heatmap-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
+    .heatmap-table th.row-header {
+        text-align: left;
+        min-width: 120px;
+    }
+
+    .heatmap-cell {
+        min-width: 60px;
+        position: relative;
+    }
+
+    .heatmap-cell-value {
+        font-weight: 600;
+    }
+
+    .heatmap-cell-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    /* Turnover rate colors */
+    .turn-vhigh { background: rgba(40, 167, 69, 0.3); }
+    .turn-high { background: rgba(32, 201, 151, 0.3); }
+    .turn-medium { background: rgba(255, 193, 7, 0.3); }
+    .turn-low { background: rgba(253, 126, 20, 0.3); }
+    .turn-vlow { background: rgba(220, 53, 69, 0.3); }
+
+    /* ============================================
+       EOQ & Safety Stock Calculator
+       ============================================ */
+    .calculator-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1000px) {
+        .calculator-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .calc-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1.25rem;
+    }
+
+    .calc-title {
+        font-weight: 600;
+        margin-bottom: 1rem;
+        font-size: 0.95rem;
+    }
+
+    .calc-formula {
+        font-family: monospace;
+        font-size: 0.8rem;
+        padding: 0.5rem;
+        background: var(--bg-primary);
+        border-radius: 4px;
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+
+    .calc-inputs {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .calc-input-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .calc-input-row label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .calc-input-row input {
+        width: 80px;
+        padding: 0.35rem 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        text-align: right;
+        font-size: 0.85rem;
+    }
+
+    .calc-result {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: var(--card-bg);
+        border-radius: 6px;
+        text-align: center;
+    }
+
+    .calc-result-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+    }
+
+    .calc-result-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--accent-primary);
+    }
+
+    /* ============================================
+       Reorder Alerts
+       ============================================ */
+    .alerts-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .alert-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem 1rem;
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        border-left: 4px solid;
+    }
+
+    .alert-item.critical { border-color: #dc3545; background: rgba(220, 53, 69, 0.1); }
+    .alert-item.warning { border-color: #ffc107; background: rgba(255, 193, 7, 0.1); }
+    .alert-item.info { border-color: #17a2b8; background: rgba(23, 162, 184, 0.1); }
+
+    .alert-icon {
+        font-size: 1.5rem;
+    }
+
+    .alert-content {
+        flex: 1;
+    }
+
+    .alert-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .alert-details {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .alert-action {
+        padding: 0.35rem 0.75rem;
+        background: var(--accent-primary);
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    /* ============================================
+       Inventory Table
+       ============================================ */
+    .inventory-table-container {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .inventory-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+    }
+
+    .inventory-table th,
+    .inventory-table td {
+        padding: 0.6rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .inventory-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+    }
+
+    .inventory-table tbody tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .stock-level-cell {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .stock-bar {
+        width: 60px;
+        height: 8px;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .stock-bar-fill {
+        height: 100%;
+        border-radius: 4px;
+    }
+
+    .status-pill {
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .status-pill.critical { background: rgba(220, 53, 69, 0.15); color: #dc3545; }
+    .status-pill.low { background: rgba(253, 126, 20, 0.15); color: #fd7e14; }
+    .status-pill.reorder { background: rgba(255, 193, 7, 0.15); color: #856404; }
+    .status-pill.ok { background: rgba(40, 167, 69, 0.15); color: #28a745; }
+    .status-pill.over { background: rgba(111, 66, 193, 0.15); color: #6f42c1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="inventory-dashboard">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <div class="dashboard-title">
+            <h1>Inventory Management</h1>
+            <span class="badge badge-version">v5.0</span>
+            <span class="badge badge-kanban">Kanban</span>
+        </div>
+        <div class="dashboard-actions">
+            <button class="btn btn-secondary" onclick="exportReport('pdf')">
+                <span>Export PDF</span>
+            </button>
+            <button class="btn btn-secondary" onclick="refreshData()">
+                <span>Refresh</span>
+            </button>
+            <button class="btn btn-warning" onclick="showReorderAlerts()">
+                <span>Reorder Alerts (5)</span>
+            </button>
+            <button class="btn btn-primary" onclick="openOrderEntry()">
+                <span>+ Create Order</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card total">
+            <div class="kpi-label">Total SKUs</div>
+            <div class="kpi-value" id="kpiTotalSKU">247</div>
+            <div class="kpi-subtitle">Active inventory items</div>
+        </div>
+        <div class="kpi-card total">
+            <div class="kpi-label">Inventory Value</div>
+            <div class="kpi-value" id="kpiValue">$42.8K</div>
+            <div class="kpi-subtitle">At standard cost</div>
+        </div>
+        <div class="kpi-card turns">
+            <div class="kpi-label">Inventory Turns</div>
+            <div class="kpi-value good" id="kpiTurns">8.4</div>
+            <div class="kpi-subtitle">Target: 8.0</div>
+        </div>
+        <div class="kpi-card stockout">
+            <div class="kpi-label">Stockout Risk</div>
+            <div class="kpi-value danger" id="kpiStockout">12</div>
+            <div class="kpi-subtitle">Items below safety stock</div>
+        </div>
+        <div class="kpi-card overstock">
+            <div class="kpi-label">Overstock</div>
+            <div class="kpi-value warning" id="kpiOverstock">8</div>
+            <div class="kpi-subtitle">Items over max level</div>
+        </div>
+        <div class="kpi-card order">
+            <div class="kpi-label">Pending Orders</div>
+            <div class="kpi-value" id="kpiOrders">15</div>
+            <div class="kpi-subtitle">$8,200 on order</div>
+        </div>
+    </div>
+
+    <!-- ABC/XYZ Matrix -->
+    <div class="chart-panel full-width" style="margin-bottom: 1.5rem;">
+        <div class="panel-header">
+            <span class="panel-title">
+                <span>ABC/XYZ Classification Matrix</span>
+            </span>
+        </div>
+        <div class="panel-body">
+            <div class="abc-xyz-container">
+                <div class="abc-xyz-matrix" id="abcXyzMatrix">
+                    <!-- Column headers -->
+                    <div class="matrix-header corner">ABC\XYZ</div>
+                    <div class="matrix-header">X (Stable)</div>
+                    <div class="matrix-header">Y (Variable)</div>
+                    <div class="matrix-header">Z (Erratic)</div>
+
+                    <!-- Row A -->
+                    <div class="matrix-header row-header">A (High Value)</div>
+                    <div class="matrix-cell ax" onclick="filterInventory('AX')">
+                        <span class="cell-count">18</span>
+                        <span class="cell-label">AX</span>
+                        <span class="cell-value">$18.2K</span>
+                    </div>
+                    <div class="matrix-cell ay" onclick="filterInventory('AY')">
+                        <span class="cell-count">12</span>
+                        <span class="cell-label">AY</span>
+                        <span class="cell-value">$12.4K</span>
+                    </div>
+                    <div class="matrix-cell az" onclick="filterInventory('AZ')">
+                        <span class="cell-count">5</span>
+                        <span class="cell-label">AZ</span>
+                        <span class="cell-value">$5.8K</span>
+                    </div>
+
+                    <!-- Row B -->
+                    <div class="matrix-header row-header">B (Medium Value)</div>
+                    <div class="matrix-cell bx" onclick="filterInventory('BX')">
+                        <span class="cell-count">25</span>
+                        <span class="cell-label">BX</span>
+                        <span class="cell-value">$3.2K</span>
+                    </div>
+                    <div class="matrix-cell by" onclick="filterInventory('BY')">
+                        <span class="cell-count">38</span>
+                        <span class="cell-label">BY</span>
+                        <span class="cell-value">$2.1K</span>
+                    </div>
+                    <div class="matrix-cell bz" onclick="filterInventory('BZ')">
+                        <span class="cell-count">22</span>
+                        <span class="cell-label">BZ</span>
+                        <span class="cell-value">$0.8K</span>
+                    </div>
+
+                    <!-- Row C -->
+                    <div class="matrix-header row-header">C (Low Value)</div>
+                    <div class="matrix-cell cx" onclick="filterInventory('CX')">
+                        <span class="cell-count">45</span>
+                        <span class="cell-label">CX</span>
+                        <span class="cell-value">$0.2K</span>
+                    </div>
+                    <div class="matrix-cell cy" onclick="filterInventory('CY')">
+                        <span class="cell-count">52</span>
+                        <span class="cell-label">CY</span>
+                        <span class="cell-value">$0.1K</span>
+                    </div>
+                    <div class="matrix-cell cz" onclick="filterInventory('CZ')">
+                        <span class="cell-count">30</span>
+                        <span class="cell-label">CZ</span>
+                        <span class="cell-value">$0.05K</span>
+                    </div>
+                </div>
+
+                <div class="abc-xyz-legend">
+                    <div class="legend-section">
+                        <div class="legend-title">Recommended Strategies</div>
+                        <div class="legend-items">
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #28a745;">AX</div>
+                                <span>High value, stable - JIT, tight control</span>
+                                <span class="strategy-badge">Kanban</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #20c997;">AY</div>
+                                <span>High value, variable - Safety stock + forecast</span>
+                                <span class="strategy-badge">MRP</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #17a2b8;">AZ</div>
+                                <span>High value, erratic - Make-to-order</span>
+                                <span class="strategy-badge">MTO</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #ffc107;">BX</div>
+                                <span>Medium value, stable - EOQ reorder</span>
+                                <span class="strategy-badge">EOQ</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #fd7e14;">BY</div>
+                                <span>Medium value, variable - Periodic review</span>
+                                <span class="strategy-badge">Periodic</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color" style="background: #dc3545;">CZ</div>
+                                <span>Low value, erratic - Min/max or eliminate</span>
+                                <span class="strategy-badge">Min/Max</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kanban Board -->
+    <div class="chart-panel full-width" style="margin-bottom: 1.5rem;">
+        <div class="panel-header">
+            <span class="panel-title">
+                <span>Inventory Kanban Board</span>
+            </span>
+        </div>
+        <div class="panel-body">
+            <div class="kanban-board" id="kanbanBoard">
+                <!-- Critical -->
+                <div class="kanban-column critical">
+                    <div class="kanban-column-header">
+                        <span>Critical (Stockout)</span>
+                        <span class="kanban-count">3</span>
+                    </div>
+                    <div class="kanban-cards">
+                        <div class="kanban-card" onclick="showItemDetails('ABS-RED')">
+                            <div class="kanban-card-header">
+                                <span class="kanban-card-title">ABS Red Pellets</span>
+                                <span class="kanban-card-class a">A</span>
+                            </div>
+                            <div class="kanban-card-body">
+                                <div class="kanban-card-row">
+                                    <span>On Hand:</span>
+                                    <span><strong>2.5 kg</strong></span>
+                                </div>
+                                <div class="kanban-card-row">
+                                    <span>Safety Stock:</span>
+                                    <span>10 kg</span>
+                                </div>
+                            </div>
+                            <div class="kanban-card-progress">
+                                <div class="kanban-card-progress-fill critical" style="width: 25%;"></div>
+                            </div>
+                        </div>
+                        <div class="kanban-card">
+                            <div class="kanban-card-header">
+                                <span class="kanban-card-title">0.4mm Nozzle</span>
+                                <span class="kanban-card-class a">A</span>
+                            </div>
+                            <div class="kanban-card-body">
+                                <div class="kanban-card-row">
+                                    <span>On Hand:</span>
+                                    <span><strong>0</strong></span>
+                                </div>
+                                <div class="kanban-card-row">
+                                    <span>On Order:</span>
+                                    <span>5 units</span>
+                                </div>
+                            </div>
+                            <div class="kanban-card-progress">
+                                <div class="kanban-card-progress-fill critical" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Low Stock -->
+                <div class="kanban-column low">
+                    <div class="kanban-column-header">
+                        <span>Low Stock</span>
+                        <span class="kanban-count">9</span>
+                    </div>
+                    <div class="kanban-cards">
+                        <div class="kanban-card">
+                            <div class="kanban-card-header">
+                                <span class="kanban-card-title">ABS Blue Pellets</span>
+                                <span class="kanban-card-class a">A</span>
+                            </div>
+                            <div class="kanban-card-body">
+                                <div class="kanban-card-row">
+                                    <span>On Hand:</span>
+                                    <span><strong>8 kg</strong></span>
+                                </div>
+                                <div class="kanban-card-row">
+                                    <span>Reorder Point:</span>
+                                    <span>12 kg</span>
+                                </div>
+                            </div>
+                            <div class="kanban-card-progress">
+                                <div class="kanban-card-progress-fill low" style="width: 40%;"></div>
+                            </div>
+                        </div>
+                        <div class="kanban-card">
+                            <div class="kanban-card-header">
+                                <span class="kanban-card-title">Build Plate Adhesive</span>
+                                <span class="kanban-card-class b">B</span>
+                            </div>
+                            <div class="kanban-card-body">
+                                <div class="kanban-card-row">
+                                    <span>On Hand:</span>
+                                    <span><strong>3 bottles</strong></span>
+                                </div>
+                                <div class="kanban-card-row">
+                                    <span>Reorder Point:</span>
+                                    <span>5 bottles</span>
+                                </div>
+                            </div>
+                            <div class="kanban-card-progress">
+                                <div class="kanban-card-progress-fill low" style="width: 35%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reorder Point -->
+                <div class="kanban-column reorder">
+                    <div class="kanban-column-header">
+                        <span>Reorder Point</span>
+                        <span class="kanban-count">12</span>
+                    </div>
+                    <div class="kanban-cards">
+                        <div class="kanban-card">
+                            <div class="kanban-card-header">
+                                <span class="kanban-card-title">ABS Yellow Pellets</span>
+                                <span class="kanban-card-class a">A</span>
+                            </div>
+                            <div class="kanban-card-body">
+                                <div class="kanban-card-row">
+                                    <span>On Hand:</span>
+                                    <span><strong>15 kg</strong></span>
+                                </div>
+                                <div class="kanban-card-row">
+                                    <span>EOQ:</span>
+                                    <span>25 kg</span>
+                                </div>
+                            </div>
+                            <div class="kanban-card-progress">
+                                <div class="kanban-card-progress-fill adequate" style="width: 55%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Adequate Stock -->
+                <div class="kanban-column adequate">
+                    <div class="kanban-column-header">
+                        <span>Adequate Stock</span>
+                        <span class="kanban-count">185</span>
+                    </div>
+                    <div class="kanban-cards">
+                        <div class="kanban-card">
+                            <div class="kanban-card-header">
+                                <span class="kanban-card-title">ABS White Pellets</span>
+                                <span class="kanban-card-class a">A</span>
+                            </div>
+                            <div class="kanban-card-body">
+                                <div class="kanban-card-row">
+                                    <span>On Hand:</span>
+                                    <span><strong>28 kg</strong></span>
+                                </div>
+                                <div class="kanban-card-row">
+                                    <span>Days of Supply:</span>
+                                    <span>14 days</span>
+                                </div>
+                            </div>
+                            <div class="kanban-card-progress">
+                                <div class="kanban-card-progress-fill adequate" style="width: 75%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Overstock -->
+                <div class="kanban-column overstock">
+                    <div class="kanban-column-header">
+                        <span>Overstock</span>
+                        <span class="kanban-count">8</span>
+                    </div>
+                    <div class="kanban-cards">
+                        <div class="kanban-card">
+                            <div class="kanban-card-header">
+                                <span class="kanban-card-title">ABS Black Pellets</span>
+                                <span class="kanban-card-class b">B</span>
+                            </div>
+                            <div class="kanban-card-body">
+                                <div class="kanban-card-row">
+                                    <span>On Hand:</span>
+                                    <span><strong>45 kg</strong></span>
+                                </div>
+                                <div class="kanban-card-row">
+                                    <span>Max Level:</span>
+                                    <span>30 kg</span>
+                                </div>
+                            </div>
+                            <div class="kanban-card-progress">
+                                <div class="kanban-card-progress-fill overstock" style="width: 100%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Heat Map & EOQ Calculator -->
+    <div class="chart-grid">
+        <!-- Turnover Heat Map -->
+        <div class="chart-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>Inventory Turnover Heat Map</span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="heatmap-container">
+                    <table class="heatmap-table">
+                        <thead>
+                            <tr>
+                                <th class="row-header">Material</th>
+                                <th>Jan</th>
+                                <th>Feb</th>
+                                <th>Mar</th>
+                                <th>Apr</th>
+                                <th>May</th>
+                                <th>Jun</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="row-header">ABS Red</td>
+                                <td class="heatmap-cell turn-vhigh"><span class="heatmap-cell-value">12.4</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">10.2</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">9.8</span></td>
+                                <td class="heatmap-cell turn-vhigh"><span class="heatmap-cell-value">11.5</span></td>
+                                <td class="heatmap-cell turn-medium"><span class="heatmap-cell-value">7.2</span></td>
+                                <td class="heatmap-cell turn-low"><span class="heatmap-cell-value">5.1</span></td>
+                            </tr>
+                            <tr>
+                                <td class="row-header">ABS Blue</td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">9.5</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">8.8</span></td>
+                                <td class="heatmap-cell turn-vhigh"><span class="heatmap-cell-value">11.2</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">9.0</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">8.5</span></td>
+                                <td class="heatmap-cell turn-medium"><span class="heatmap-cell-value">7.8</span></td>
+                            </tr>
+                            <tr>
+                                <td class="row-header">ABS Yellow</td>
+                                <td class="heatmap-cell turn-medium"><span class="heatmap-cell-value">6.2</span></td>
+                                <td class="heatmap-cell turn-medium"><span class="heatmap-cell-value">7.1</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">8.4</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">9.2</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">8.8</span></td>
+                                <td class="heatmap-cell turn-medium"><span class="heatmap-cell-value">7.5</span></td>
+                            </tr>
+                            <tr>
+                                <td class="row-header">ABS White</td>
+                                <td class="heatmap-cell turn-vhigh"><span class="heatmap-cell-value">14.2</span></td>
+                                <td class="heatmap-cell turn-vhigh"><span class="heatmap-cell-value">13.5</span></td>
+                                <td class="heatmap-cell turn-vhigh"><span class="heatmap-cell-value">12.8</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">10.5</span></td>
+                                <td class="heatmap-cell turn-high"><span class="heatmap-cell-value">11.2</span></td>
+                                <td class="heatmap-cell turn-vhigh"><span class="heatmap-cell-value">12.0</span></td>
+                            </tr>
+                            <tr>
+                                <td class="row-header">ABS Black</td>
+                                <td class="heatmap-cell turn-low"><span class="heatmap-cell-value">4.2</span></td>
+                                <td class="heatmap-cell turn-vlow"><span class="heatmap-cell-value">3.1</span></td>
+                                <td class="heatmap-cell turn-low"><span class="heatmap-cell-value">4.5</span></td>
+                                <td class="heatmap-cell turn-low"><span class="heatmap-cell-value">5.2</span></td>
+                                <td class="heatmap-cell turn-vlow"><span class="heatmap-cell-value">2.8</span></td>
+                                <td class="heatmap-cell turn-vlow"><span class="heatmap-cell-value">2.2</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1rem; font-size: 0.75rem;">
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(40,167,69,0.3);margin-right:4px;"></span> &gt;10 (Very High)</span>
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(32,201,151,0.3);margin-right:4px;"></span> 8-10 (High)</span>
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(255,193,7,0.3);margin-right:4px;"></span> 6-8 (Medium)</span>
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(253,126,20,0.3);margin-right:4px;"></span> 4-6 (Low)</span>
+                    <span><span style="display:inline-block;width:12px;height:12px;background:rgba(220,53,69,0.3);margin-right:4px;"></span> &lt;4 (Very Low)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- EOQ & Safety Stock Calculators -->
+        <div class="chart-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>Inventory Calculators</span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="calculator-grid">
+                    <!-- EOQ Calculator -->
+                    <div class="calc-card">
+                        <div class="calc-title">Economic Order Quantity (EOQ)</div>
+                        <div class="calc-formula">EOQ = √(2DS / H)</div>
+                        <div class="calc-inputs">
+                            <div class="calc-input-row">
+                                <label>D (Annual Demand):</label>
+                                <input type="number" id="eoqD" value="1200" onchange="calculateEOQ()">
+                            </div>
+                            <div class="calc-input-row">
+                                <label>S (Order Cost $):</label>
+                                <input type="number" id="eoqS" value="25" onchange="calculateEOQ()">
+                            </div>
+                            <div class="calc-input-row">
+                                <label>H (Holding Cost $):</label>
+                                <input type="number" id="eoqH" value="5" onchange="calculateEOQ()">
+                            </div>
+                        </div>
+                        <div class="calc-result">
+                            <div class="calc-result-label">Optimal Order Quantity</div>
+                            <div class="calc-result-value" id="eoqResult">110</div>
+                        </div>
+                    </div>
+
+                    <!-- Reorder Point -->
+                    <div class="calc-card">
+                        <div class="calc-title">Reorder Point (ROP)</div>
+                        <div class="calc-formula">ROP = d × L + SS</div>
+                        <div class="calc-inputs">
+                            <div class="calc-input-row">
+                                <label>d (Daily Demand):</label>
+                                <input type="number" id="ropD" value="10" onchange="calculateROP()">
+                            </div>
+                            <div class="calc-input-row">
+                                <label>L (Lead Time days):</label>
+                                <input type="number" id="ropL" value="5" onchange="calculateROP()">
+                            </div>
+                            <div class="calc-input-row">
+                                <label>SS (Safety Stock):</label>
+                                <input type="number" id="ropSS" value="20" onchange="calculateROP()">
+                            </div>
+                        </div>
+                        <div class="calc-result">
+                            <div class="calc-result-label">Reorder Point</div>
+                            <div class="calc-result-value" id="ropResult">70</div>
+                        </div>
+                    </div>
+
+                    <!-- Safety Stock -->
+                    <div class="calc-card">
+                        <div class="calc-title">Safety Stock (SS)</div>
+                        <div class="calc-formula">SS = Z × σ × √L</div>
+                        <div class="calc-inputs">
+                            <div class="calc-input-row">
+                                <label>Z (Service Level):</label>
+                                <select id="ssZ" onchange="calculateSS()" style="width:80px;padding:0.35rem;">
+                                    <option value="1.28">90%</option>
+                                    <option value="1.65" selected>95%</option>
+                                    <option value="2.05">98%</option>
+                                    <option value="2.33">99%</option>
+                                </select>
+                            </div>
+                            <div class="calc-input-row">
+                                <label>σ (Demand Std Dev):</label>
+                                <input type="number" id="ssSigma" value="8" onchange="calculateSS()">
+                            </div>
+                            <div class="calc-input-row">
+                                <label>L (Lead Time days):</label>
+                                <input type="number" id="ssL" value="5" onchange="calculateSS()">
+                            </div>
+                        </div>
+                        <div class="calc-result">
+                            <div class="calc-result-label">Safety Stock</div>
+                            <div class="calc-result-value" id="ssResult">29</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reorder Alerts & Inventory Table -->
+    <div class="chart-grid">
+        <!-- Reorder Alerts -->
+        <div class="chart-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>Reorder Alerts</span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="alerts-list">
+                    <div class="alert-item critical">
+                        <span class="alert-icon">🔴</span>
+                        <div class="alert-content">
+                            <div class="alert-title">ABS Red Pellets - STOCKOUT IMMINENT</div>
+                            <div class="alert-details">On hand: 2.5 kg | Safety stock: 10 kg | Lead time: 5 days</div>
+                        </div>
+                        <button class="alert-action">Order Now</button>
+                    </div>
+                    <div class="alert-item critical">
+                        <span class="alert-icon">🔴</span>
+                        <div class="alert-content">
+                            <div class="alert-title">0.4mm Nozzle - OUT OF STOCK</div>
+                            <div class="alert-details">On hand: 0 | On order: 5 units | ETA: 3 days</div>
+                        </div>
+                        <button class="alert-action">Expedite</button>
+                    </div>
+                    <div class="alert-item warning">
+                        <span class="alert-icon">🟡</span>
+                        <div class="alert-content">
+                            <div class="alert-title">ABS Blue Pellets - Below Reorder Point</div>
+                            <div class="alert-details">On hand: 8 kg | ROP: 12 kg | EOQ: 25 kg</div>
+                        </div>
+                        <button class="alert-action">Create PO</button>
+                    </div>
+                    <div class="alert-item warning">
+                        <span class="alert-icon">🟡</span>
+                        <div class="alert-content">
+                            <div class="alert-title">Build Plate Adhesive - Low Stock</div>
+                            <div class="alert-details">On hand: 3 bottles | Min: 5 | Days of supply: 6</div>
+                        </div>
+                        <button class="alert-action">Create PO</button>
+                    </div>
+                    <div class="alert-item info">
+                        <span class="alert-icon">🔵</span>
+                        <div class="alert-content">
+                            <div class="alert-title">ABS Black Pellets - Overstock Warning</div>
+                            <div class="alert-details">On hand: 45 kg | Max: 30 kg | Excess: $120 value</div>
+                        </div>
+                        <button class="alert-action" style="background: #6c757d;">Review</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inventory Table -->
+        <div class="chart-panel">
+            <div class="panel-header">
+                <span class="panel-title">
+                    <span>Inventory List</span>
+                </span>
+                <input type="text" placeholder="Search..." style="padding: 0.35rem 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.8rem;">
+            </div>
+            <div class="panel-body">
+                <div class="inventory-table-container">
+                    <table class="inventory-table">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Description</th>
+                                <th>ABC</th>
+                                <th>On Hand</th>
+                                <th>Stock Level</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>MAT-001</td>
+                                <td>ABS Red Pellets</td>
+                                <td><span class="kanban-card-class a">AX</span></td>
+                                <td>2.5 kg</td>
+                                <td class="stock-level-cell">
+                                    <div class="stock-bar">
+                                        <div class="stock-bar-fill" style="width: 15%; background: #dc3545;"></div>
+                                    </div>
+                                    <span>15%</span>
+                                </td>
+                                <td><span class="status-pill critical">Critical</span></td>
+                            </tr>
+                            <tr>
+                                <td>MAT-002</td>
+                                <td>ABS Blue Pellets</td>
+                                <td><span class="kanban-card-class a">AX</span></td>
+                                <td>8 kg</td>
+                                <td class="stock-level-cell">
+                                    <div class="stock-bar">
+                                        <div class="stock-bar-fill" style="width: 40%; background: #fd7e14;"></div>
+                                    </div>
+                                    <span>40%</span>
+                                </td>
+                                <td><span class="status-pill low">Low</span></td>
+                            </tr>
+                            <tr>
+                                <td>MAT-003</td>
+                                <td>ABS Yellow Pellets</td>
+                                <td><span class="kanban-card-class a">AY</span></td>
+                                <td>15 kg</td>
+                                <td class="stock-level-cell">
+                                    <div class="stock-bar">
+                                        <div class="stock-bar-fill" style="width: 55%; background: #ffc107;"></div>
+                                    </div>
+                                    <span>55%</span>
+                                </td>
+                                <td><span class="status-pill reorder">Reorder</span></td>
+                            </tr>
+                            <tr>
+                                <td>MAT-004</td>
+                                <td>ABS White Pellets</td>
+                                <td><span class="kanban-card-class a">AX</span></td>
+                                <td>28 kg</td>
+                                <td class="stock-level-cell">
+                                    <div class="stock-bar">
+                                        <div class="stock-bar-fill" style="width: 75%; background: #28a745;"></div>
+                                    </div>
+                                    <span>75%</span>
+                                </td>
+                                <td><span class="status-pill ok">OK</span></td>
+                            </tr>
+                            <tr>
+                                <td>MAT-005</td>
+                                <td>ABS Black Pellets</td>
+                                <td><span class="kanban-card-class b">BY</span></td>
+                                <td>45 kg</td>
+                                <td class="stock-level-cell">
+                                    <div class="stock-bar">
+                                        <div class="stock-bar-fill" style="width: 100%; background: #6f42c1;"></div>
+                                    </div>
+                                    <span>150%</span>
+                                </td>
+                                <td><span class="status-pill over">Overstock</span></td>
+                            </tr>
+                            <tr>
+                                <td>CON-001</td>
+                                <td>0.4mm Nozzle</td>
+                                <td><span class="kanban-card-class a">AZ</span></td>
+                                <td>0</td>
+                                <td class="stock-level-cell">
+                                    <div class="stock-bar">
+                                        <div class="stock-bar-fill" style="width: 0%;"></div>
+                                    </div>
+                                    <span>0%</span>
+                                </td>
+                                <td><span class="status-pill critical">Stockout</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ============================================
+// Inventory Management Dashboard
+// ============================================
+
+// Initialize calculators on load
+document.addEventListener('DOMContentLoaded', () => {
+    calculateEOQ();
+    calculateROP();
+    calculateSS();
+});
+
+// EOQ Calculator
+function calculateEOQ() {
+    const D = parseFloat(document.getElementById('eoqD').value) || 0;
+    const S = parseFloat(document.getElementById('eoqS').value) || 0;
+    const H = parseFloat(document.getElementById('eoqH').value) || 1;
+
+    const eoq = Math.sqrt((2 * D * S) / H);
+    document.getElementById('eoqResult').textContent = Math.round(eoq);
+}
+
+// Reorder Point Calculator
+function calculateROP() {
+    const d = parseFloat(document.getElementById('ropD').value) || 0;
+    const L = parseFloat(document.getElementById('ropL').value) || 0;
+    const SS = parseFloat(document.getElementById('ropSS').value) || 0;
+
+    const rop = (d * L) + SS;
+    document.getElementById('ropResult').textContent = Math.round(rop);
+}
+
+// Safety Stock Calculator
+function calculateSS() {
+    const Z = parseFloat(document.getElementById('ssZ').value) || 1.65;
+    const sigma = parseFloat(document.getElementById('ssSigma').value) || 0;
+    const L = parseFloat(document.getElementById('ssL').value) || 0;
+
+    const ss = Z * sigma * Math.sqrt(L);
+    document.getElementById('ssResult').textContent = Math.round(ss);
+}
+
+// Filter inventory by ABC/XYZ class
+function filterInventory(classification) {
+    alert(`Filtering inventory for ${classification} items. In production, this would filter the table below.`);
+}
+
+// Show item details
+function showItemDetails(sku) {
+    alert(`Showing details for ${sku}. In production, this would open a detail modal.`);
+}
+
+// Show reorder alerts
+function showReorderAlerts() {
+    // Scroll to alerts section
+    document.querySelector('.alerts-list').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Export report
+function exportReport(format) {
+    alert(`Export to ${format.toUpperCase()} - In production, this would generate a ${format} report`);
+}
+
+// Refresh data
+function refreshData() {
+    alert('Refreshing inventory data...');
+    location.reload();
+}
+
+// Open order entry
+function openOrderEntry() {
+    alert('Create Order - In production, this would open a purchase order form');
+}
+</script>
+{% endblock %}

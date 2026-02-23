@@ -1,0 +1,302 @@
+# Vision AI Configuration
+# LegoMCP World-Class Manufacturing System v6.0
+# Phase 26: Vision AI & ML Training
+
+# =============================================================================
+# ROBOFLOW CONFIGURATION
+# =============================================================================
+roboflow:
+  # API key (set via environment variable ROBOFLOW_API_KEY for security)
+  api_key: ${ROBOFLOW_API_KEY:}
+
+  # Workspace settings
+  workspace: "legomcp"
+
+  # Projects
+  projects:
+    lego_bricks:
+      name: "lego-bricks"
+      type: "object-detection"
+      classes:
+        - brick_2x4
+        - brick_2x2
+        - brick_1x4
+        - brick_1x2
+        - brick_1x1
+        - plate_2x4
+        - plate_2x2
+        - plate_1x4
+        - plate_1x2
+        - slope_2x2
+        - slope_1x2
+        - tile_2x2
+        - tile_1x4
+        - technic_beam
+        - technic_pin
+        - technic_axle
+        - minifig_head
+        - minifig_torso
+        - minifig_legs
+
+    print_defects:
+      name: "print-defects"
+      type: "object-detection"
+      classes:
+        - layer_shift
+        - stringing
+        - warping
+        - under_extrusion
+        - over_extrusion
+        - z_wobble
+        - blob
+        - gap
+
+    surface_quality:
+      name: "surface-quality"
+      type: "classification"
+      classes:
+        - excellent
+        - good
+        - acceptable
+        - poor
+        - defective
+
+# =============================================================================
+# MODEL CONFIGURATION
+# =============================================================================
+models:
+  # Default model architecture
+  default_architecture: "yolov8n"
+
+  # Available architectures
+  architectures:
+    yolov8n:
+      params_million: 3.2
+      flops_billion: 8.7
+      speed_ms: 12
+      recommended_for: ["edge", "real-time"]
+
+    yolov8s:
+      params_million: 11.2
+      flops_billion: 28.6
+      speed_ms: 18
+      recommended_for: ["balanced"]
+
+    yolov8m:
+      params_million: 25.9
+      flops_billion: 78.9
+      speed_ms: 35
+      recommended_for: ["accuracy"]
+
+    yolov8l:
+      params_million: 43.7
+      flops_billion: 165.2
+      speed_ms: 55
+      recommended_for: ["high-accuracy"]
+
+    yolov11n:
+      params_million: 2.6
+      flops_billion: 6.5
+      speed_ms: 10
+      recommended_for: ["edge", "real-time", "latest"]
+
+  # Model storage paths
+  storage:
+    base_path: "/models"
+    checkpoints_dir: "checkpoints"
+    exports_dir: "exports"
+    tensorrt_dir: "tensorrt"
+    onnx_dir: "onnx"
+    coreml_dir: "coreml"
+
+# =============================================================================
+# TRAINING CONFIGURATION
+# =============================================================================
+training:
+  # Default training parameters
+  defaults:
+    epochs: 100
+    batch_size: 16
+    image_size: 640
+    optimizer: "AdamW"
+    learning_rate: 0.001
+    weight_decay: 0.0005
+    warmup_epochs: 3
+    patience: 50  # Early stopping patience
+
+  # Augmentation presets
+  augmentation_presets:
+    light:
+      horizontal_flip: 0.3
+      rotation_limit: 10
+      brightness_limit: 0.1
+      mosaic_prob: 0.0
+
+    default:
+      horizontal_flip: 0.5
+      rotation_limit: 15
+      brightness_limit: 0.2
+      contrast_limit: 0.2
+      mosaic_prob: 0.5
+      mixup_prob: 0.3
+
+    heavy:
+      horizontal_flip: 0.5
+      rotation_limit: 30
+      brightness_limit: 0.3
+      contrast_limit: 0.3
+      mosaic_prob: 0.7
+      mixup_prob: 0.5
+      coarse_dropout_prob: 0.5
+
+    lego_specific:
+      horizontal_flip: 0.5
+      rotation_limit: 15
+      hue_shift_limit: 5  # Preserve LEGO colors
+      stud_highlight_prob: 0.5
+      plastic_reflection_prob: 0.3
+
+  # Dataset split ratios
+  splits:
+    train: 0.7
+    valid: 0.2
+    test: 0.1
+
+# =============================================================================
+# HARDWARE PROFILES
+# =============================================================================
+hardware:
+  # Auto-detection enabled
+  auto_detect: true
+
+  # Preferred device order (first available wins)
+  device_priority:
+    - cuda
+    - mps
+    - cpu
+
+  # Hardware profiles
+  profiles:
+    cuda_high:
+      device: "cuda"
+      precision: "fp16"
+      batch_size: 32
+      image_size: 640
+      memory_limit_mb: 8000
+
+    cuda_medium:
+      device: "cuda"
+      precision: "fp16"
+      batch_size: 16
+      image_size: 640
+      memory_limit_mb: 4000
+
+    mps:
+      device: "mps"
+      precision: "fp32"
+      batch_size: 16
+      image_size: 640
+      memory_limit_mb: 8000
+
+    jetson_nano:
+      device: "tensorrt"
+      precision: "fp16"
+      batch_size: 4
+      image_size: 416
+      memory_limit_mb: 2000
+
+    jetson_xavier:
+      device: "tensorrt"
+      precision: "fp16"
+      batch_size: 16
+      image_size: 640
+      memory_limit_mb: 8000
+
+    raspberry_pi:
+      device: "ncnn"
+      precision: "int8"
+      batch_size: 1
+      image_size: 320
+      memory_limit_mb: 1000
+
+    cpu:
+      device: "cpu"
+      precision: "fp32"
+      batch_size: 4
+      image_size: 640
+      memory_limit_mb: 8000
+
+# =============================================================================
+# INFERENCE CONFIGURATION
+# =============================================================================
+inference:
+  # Default confidence threshold
+  confidence_threshold: 0.5
+
+  # Default NMS IoU threshold
+  iou_threshold: 0.45
+
+  # Maximum detections per image
+  max_detections: 100
+
+  # Warm-up iterations
+  warmup_iterations: 3
+
+  # Batch inference settings
+  batch:
+    enabled: true
+    max_batch_size: 32
+    timeout_ms: 100
+
+# =============================================================================
+# QUALITY INTEGRATION
+# =============================================================================
+quality_integration:
+  # Enable vision-to-quality pipeline
+  enabled: true
+
+  # Confidence threshold for quality alerts
+  alert_threshold: 0.7
+
+  # Defect severity mapping
+  defect_severity:
+    layer_shift: "high"
+    stringing: "low"
+    warping: "high"
+    under_extrusion: "medium"
+    over_extrusion: "medium"
+    z_wobble: "medium"
+    blob: "low"
+    gap: "high"
+
+  # SPC integration
+  spc:
+    enabled: true
+    measurement_types:
+      - defect_count
+      - defect_area_ratio
+      - layer_quality_score
+
+# =============================================================================
+# MONITORING & LOGGING
+# =============================================================================
+monitoring:
+  # Enable inference monitoring
+  enabled: true
+
+  # Log inference metrics
+  log_metrics: true
+
+  # Metrics to track
+  tracked_metrics:
+    - inference_time_ms
+    - detections_per_image
+    - confidence_distribution
+    - class_distribution
+    - memory_usage_mb
+
+  # Alert thresholds
+  alerts:
+    inference_time_ms_max: 100
+    memory_usage_percent_max: 90
+    detection_drop_percent: 30

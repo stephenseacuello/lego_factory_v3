@@ -1,0 +1,518 @@
+{% extends "base.html" %}
+
+{% block title %}Camera Settings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Camera Settings</h1>
+    <div class="page-actions">
+        <a href="/workspace" class="btn btn-secondary">Back to Workspace</a>
+    </div>
+</div>
+
+<div class="settings-layout">
+    <!-- USB Cameras Section -->
+    <div class="settings-section">
+        <div class="section-header">
+            <h2>USB Cameras</h2>
+            <button class="btn btn-secondary btn-sm" id="scanCamerasBtn">
+                Scan for Cameras
+            </button>
+        </div>
+        <div class="camera-list" id="usbCameraList">
+            {% for camera in cameras %}
+            <div class="camera-card" data-id="{{ camera.id }}">
+                <div class="camera-info">
+                    <span class="camera-icon">{{ camera.name }}</span>
+                    <span class="camera-name">{{ camera.name }}</span>
+                    <span class="camera-resolution">{{ camera.width }}x{{ camera.height }}</span>
+                </div>
+                <div class="camera-actions">
+                    <button class="btn btn-sm btn-secondary test-camera-btn" data-id="{{ camera.id }}">
+                        Test
+                    </button>
+                    <button class="btn btn-sm btn-primary activate-camera-btn" data-id="{{ camera.id }}">
+                        Use This
+                    </button>
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-state" id="noCamerasMsg">
+                <p>No USB cameras detected</p>
+                <p class="text-muted">Plug in a webcam and click "Scan for Cameras"</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- IP Cameras Section -->
+    <div class="settings-section">
+        <div class="section-header">
+            <h2>IP / Network Cameras</h2>
+        </div>
+
+        <!-- Add IP Camera Form -->
+        <div class="add-camera-form">
+            <h4>Add New Camera</h4>
+            <div class="form-group">
+                <label for="cameraName">Camera Name</label>
+                <input type="text" id="cameraName" class="form-control" placeholder="Living Room Camera">
+            </div>
+            <div class="form-group">
+                <label for="cameraUrl">Stream URL</label>
+                <input type="text" id="cameraUrl" class="form-control" placeholder="rtsp://192.168.1.100:554/stream1">
+                <small class="text-muted">RTSP, HTTP, or MJPEG stream URL</small>
+            </div>
+            <div class="form-group">
+                <label>Quick Presets</label>
+                <select id="presetSelect" class="form-select">
+                    <option value="">-- Select a preset --</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" id="addCameraBtn">Add Camera</button>
+        </div>
+
+        <!-- Saved IP Cameras -->
+        <div class="saved-cameras" id="savedCamerasList">
+            {% for camera in saved_cameras %}
+            <div class="camera-card ip-camera" data-id="{{ camera.id }}">
+                <div class="camera-info">
+                    <span class="camera-icon">{{ camera.name }}</span>
+                    <span class="camera-name">{{ camera.name }}</span>
+                    <span class="camera-url text-muted">{{ camera.url }}</span>
+                </div>
+                <div class="camera-status">
+                    {% if camera.active %}
+                    <span class="badge badge-success">Active</span>
+                    {% endif %}
+                </div>
+                <div class="camera-actions">
+                    <button class="btn btn-sm btn-secondary test-camera-btn" data-id="{{ camera.id }}">
+                        Test
+                    </button>
+                    <button class="btn btn-sm btn-primary activate-camera-btn" data-id="{{ camera.id }}">
+                        Use This
+                    </button>
+                    <button class="btn btn-sm btn-danger remove-camera-btn" data-id="{{ camera.id }}">
+                        Remove
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Phone as Camera Section -->
+    <div class="settings-section">
+        <div class="section-header">
+            <h2>Use Phone as Camera</h2>
+        </div>
+        <div class="phone-camera-guide">
+            <div class="guide-card">
+                <h4>IP Webcam (Android)</h4>
+                <ol>
+                    <li>Install <strong>IP Webcam</strong> from Play Store</li>
+                    <li>Open app, scroll down and tap <strong>Start server</strong></li>
+                    <li>Note the IP address shown (e.g., 192.168.1.50:8080)</li>
+                    <li>Add camera with URL: <code>http://YOUR_IP:8080/video</code></li>
+                </ol>
+            </div>
+            <div class="guide-card">
+                <h4>DroidCam (Android/iOS)</h4>
+                <ol>
+                    <li>Install <strong>DroidCam</strong> on phone</li>
+                    <li>Open app and note the IP address</li>
+                    <li>Add camera with URL: <code>http://YOUR_IP:4747/video</code></li>
+                </ol>
+            </div>
+            <div class="guide-card">
+                <h4>iVCam (iOS)</h4>
+                <ol>
+                    <li>Install <strong>iVCam</strong> from App Store</li>
+                    <li>Open app and note the IP address</li>
+                    <li>Add camera with URL: <code>http://YOUR_IP:8080/video</code></li>
+                </ol>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Preview -->
+    <div class="settings-section">
+        <div class="section-header">
+            <h2>Camera Preview</h2>
+        </div>
+        <div class="preview-container" id="previewContainer">
+            <div class="preview-placeholder" id="previewPlaceholder">
+                <p>Click "Test" on any camera to see preview</p>
+            </div>
+            <img id="previewImage" src="" alt="Camera Preview" style="display: none; max-width: 100%;">
+        </div>
+        <div class="preview-status" id="previewStatus"></div>
+    </div>
+</div>
+
+<style>
+.settings-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px 0;
+}
+
+.settings-section {
+    background: var(--card-bg, #1e1e1e);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border-color, #333);
+    padding-bottom: 10px;
+}
+
+.section-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.camera-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: var(--bg-secondary, #2a2a2a);
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.camera-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.camera-icon {
+    font-size: 1.5rem;
+}
+
+.camera-name {
+    font-weight: 600;
+}
+
+.camera-resolution, .camera-url {
+    font-size: 0.85rem;
+    color: var(--text-muted, #888);
+}
+
+.camera-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.add-camera-form {
+    background: var(--bg-secondary, #2a2a2a);
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.add-camera-form h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+.form-control, .form-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 4px;
+    background: var(--bg-primary, #1e1e1e);
+    color: var(--text-primary, #fff);
+}
+
+.phone-camera-guide {
+    display: grid;
+    gap: 15px;
+}
+
+.guide-card {
+    background: var(--bg-secondary, #2a2a2a);
+    padding: 15px;
+    border-radius: 6px;
+}
+
+.guide-card h4 {
+    margin-top: 0;
+    color: var(--primary-color, #007bff);
+}
+
+.guide-card ol {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.guide-card li {
+    margin-bottom: 8px;
+}
+
+.guide-card code {
+    background: var(--bg-primary, #1e1e1e);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.9rem;
+}
+
+.preview-container {
+    background: var(--bg-secondary, #2a2a2a);
+    border-radius: 6px;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.preview-placeholder {
+    text-align: center;
+    color: var(--text-muted, #888);
+}
+
+.preview-status {
+    padding: 10px;
+    text-align: center;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 30px;
+    color: var(--text-muted, #888);
+}
+
+.badge {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.badge-success {
+    background: #28a745;
+    color: white;
+}
+
+.btn-sm {
+    padding: 4px 12px;
+    font-size: 0.85rem;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+    border: none;
+}
+
+@media (max-width: 900px) {
+    .settings-layout {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Load presets
+    loadPresets();
+
+    // Scan cameras button
+    document.getElementById('scanCamerasBtn').addEventListener('click', scanCameras);
+
+    // Add camera button
+    document.getElementById('addCameraBtn').addEventListener('click', addCamera);
+
+    // Preset select
+    document.getElementById('presetSelect').addEventListener('change', function() {
+        const url = this.value;
+        if (url) {
+            document.getElementById('cameraUrl').value = url;
+        }
+    });
+
+    // Bind test/activate/remove buttons
+    bindCameraButtons();
+});
+
+function loadPresets() {
+    fetch('/workspace/settings/cameras/presets')
+        .then(r => r.json())
+        .then(data => {
+            const select = document.getElementById('presetSelect');
+            data.presets.forEach(preset => {
+                const option = document.createElement('option');
+                option.value = preset.url_template;
+                option.textContent = `${preset.name} - ${preset.description}`;
+                select.appendChild(option);
+            });
+        });
+}
+
+function scanCameras() {
+    const btn = document.getElementById('scanCamerasBtn');
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+
+    fetch('/workspace/settings/cameras/scan', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload(); // Refresh to show new cameras
+            }
+            btn.disabled = false;
+            btn.textContent = 'Scan for Cameras';
+        })
+        .catch(err => {
+            console.error(err);
+            btn.disabled = false;
+            btn.textContent = 'Scan for Cameras';
+        });
+}
+
+function addCamera() {
+    const name = document.getElementById('cameraName').value.trim();
+    const url = document.getElementById('cameraUrl').value.trim();
+
+    if (!url) {
+        alert('Please enter a camera URL');
+        return;
+    }
+
+    fetch('/workspace/settings/cameras/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: name || 'IP Camera',
+            url: url,
+            type: url.startsWith('rtsp') ? 'rtsp' : 'http'
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Add to list
+            addCameraToList(data.camera);
+            // Clear form
+            document.getElementById('cameraName').value = '';
+            document.getElementById('cameraUrl').value = '';
+            showStatus('Camera added successfully', 'success');
+        } else {
+            showStatus(data.error, 'error');
+        }
+    });
+}
+
+function addCameraToList(camera) {
+    const list = document.getElementById('savedCamerasList');
+    const card = document.createElement('div');
+    card.className = 'camera-card ip-camera';
+    card.dataset.id = camera.id;
+    card.innerHTML = `
+        <div class="camera-info">
+            <span class="camera-icon">${camera.name}</span>
+            <span class="camera-name">${camera.name}</span>
+            <span class="camera-url text-muted">${camera.url}</span>
+        </div>
+        <div class="camera-actions">
+            <button class="btn btn-sm btn-secondary test-camera-btn" data-id="${camera.id}">Test</button>
+            <button class="btn btn-sm btn-primary activate-camera-btn" data-id="${camera.id}">Use This</button>
+            <button class="btn btn-sm btn-danger remove-camera-btn" data-id="${camera.id}">Remove</button>
+        </div>
+    `;
+    list.appendChild(card);
+    bindCameraButtons();
+}
+
+function bindCameraButtons() {
+    // Test buttons
+    document.querySelectorAll('.test-camera-btn').forEach(btn => {
+        btn.onclick = () => testCamera(btn.dataset.id);
+    });
+
+    // Activate buttons
+    document.querySelectorAll('.activate-camera-btn').forEach(btn => {
+        btn.onclick = () => activateCamera(btn.dataset.id);
+    });
+
+    // Remove buttons
+    document.querySelectorAll('.remove-camera-btn').forEach(btn => {
+        btn.onclick = () => removeCamera(btn.dataset.id);
+    });
+}
+
+function testCamera(cameraId) {
+    showStatus('Testing camera...', 'info');
+
+    fetch(`/workspace/settings/cameras/${cameraId}/test`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                // Show preview
+                const img = document.getElementById('previewImage');
+                const placeholder = document.getElementById('previewPlaceholder');
+                img.src = 'data:image/jpeg;base64,' + data.frame;
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+                showStatus('Camera connected!', 'success');
+            } else {
+                showStatus('Failed: ' + data.error, 'error');
+            }
+        })
+        .catch(err => {
+            showStatus('Connection error: ' + err, 'error');
+        });
+}
+
+function activateCamera(cameraId) {
+    fetch(`/workspace/settings/cameras/${cameraId}/activate`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showStatus('Camera activated! Redirecting to workspace...', 'success');
+                setTimeout(() => window.location.href = '/workspace', 1500);
+            } else {
+                showStatus('Failed: ' + data.error, 'error');
+            }
+        });
+}
+
+function removeCamera(cameraId) {
+    if (!confirm('Remove this camera?')) return;
+
+    fetch(`/workspace/settings/cameras/${cameraId}/remove`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.querySelector(`.camera-card[data-id="${cameraId}"]`).remove();
+                showStatus('Camera removed', 'success');
+            }
+        });
+}
+
+function showStatus(message, type) {
+    const status = document.getElementById('previewStatus');
+    status.textContent = message;
+    status.className = 'preview-status ' + type;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,2448 @@
+{% extends "base.html" %}
+
+{% block title %}Equipment Control Center - LEGO MCP v6.0{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --eq-primary: #00d4ff;
+        --eq-secondary: #8b5cf6;
+        --eq-success: #10b981;
+        --eq-warning: #f59e0b;
+        --eq-danger: #ef4444;
+        --eq-printing: #00d4ff;
+        --eq-ready: #10b981;
+        --eq-idle: #f59e0b;
+        --eq-offline: #ef4444;
+        --eq-dark: #0f172a;
+        --eq-darker: #020617;
+        --eq-card: #1e293b;
+        --eq-card-hover: #334155;
+        --eq-border: #334155;
+        --eq-text: #f8fafc;
+        --eq-text-muted: #94a3b8;
+        --eq-glow: rgba(0, 212, 255, 0.3);
+    }
+
+    .equipment-control-page {
+        background: linear-gradient(135deg, var(--eq-darker) 0%, var(--eq-dark) 100%);
+        min-height: 100vh;
+        padding: 1.5rem;
+    }
+
+    /* Connection Status */
+    .connection-status {
+        position: fixed;
+        top: 70px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 16px;
+        background: var(--eq-card);
+        border: 1px solid var(--eq-border);
+        border-radius: 20px;
+        font-size: 0.85rem;
+        z-index: 1000;
+    }
+
+    .connection-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        animation: pulse-glow 2s infinite;
+    }
+
+    .connection-dot.connected { background: var(--eq-success); }
+    .connection-dot.disconnected { background: var(--eq-danger); animation: none; }
+    .connection-dot.connecting { background: var(--eq-warning); }
+
+    @keyframes pulse-glow {
+        0%, 100% { opacity: 1; box-shadow: 0 0 10px currentColor; }
+        50% { opacity: 0.6; box-shadow: 0 0 5px currentColor; }
+    }
+
+    /* Page Header */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--eq-primary), var(--eq-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 0.25rem;
+    }
+
+    .page-subtitle {
+        color: var(--eq-text-muted);
+        font-size: 0.9rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .btn-emergency {
+        background: linear-gradient(135deg, var(--eq-danger), #dc2626);
+        border: none;
+        color: white;
+        font-weight: 600;
+        padding: 0.5rem 1.25rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        animation: emergency-pulse 2s infinite;
+    }
+
+    @keyframes emergency-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+        50% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
+
+    .btn-emergency:hover {
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        transform: scale(1.02);
+    }
+
+    .btn-refresh {
+        background: var(--eq-card);
+        border: 1px solid var(--eq-border);
+        color: var(--eq-text);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-refresh:hover {
+        background: var(--eq-card-hover);
+        border-color: var(--eq-primary);
+    }
+
+    /* KPI Summary Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1400px) {
+        .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 768px) {
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .kpi-card {
+        background: var(--eq-card);
+        border: 1px solid var(--eq-border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--kpi-color), transparent);
+    }
+
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .kpi-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(var(--kpi-color-rgb), 0.15);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        color: var(--kpi-color);
+        margin-bottom: 0.75rem;
+    }
+
+    .kpi-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--eq-text);
+        margin-bottom: 0.25rem;
+    }
+
+    .kpi-label {
+        font-size: 0.8rem;
+        color: var(--eq-text-muted);
+    }
+
+    .kpi-trend {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .kpi-trend.up { color: var(--eq-success); }
+    .kpi-trend.down { color: var(--eq-danger); }
+
+    /* Protocol Tabs */
+    .protocol-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .protocol-tab {
+        background: var(--eq-card);
+        border: 1px solid var(--eq-border);
+        border-radius: 8px;
+        padding: 0.6rem 1.25rem;
+        color: var(--eq-text-muted);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .protocol-tab:hover {
+        background: var(--eq-card-hover);
+        color: var(--eq-text);
+    }
+
+    .protocol-tab.active {
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(139, 92, 246, 0.1));
+        border-color: var(--eq-primary);
+        color: var(--eq-primary);
+    }
+
+    .protocol-tab .protocol-count {
+        background: rgba(0, 212, 255, 0.2);
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.75rem;
+    }
+
+    /* Quick Actions Grid */
+    .quick-actions-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .quick-action-card {
+        background: var(--eq-card);
+        border: 1px solid var(--eq-border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .quick-action-card:hover {
+        transform: translateY(-2px);
+        border-color: var(--eq-primary);
+        box-shadow: 0 8px 25px rgba(0, 212, 255, 0.15);
+    }
+
+    .quick-action-icon {
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(139, 92, 246, 0.1));
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        color: var(--eq-primary);
+        flex-shrink: 0;
+    }
+
+    .quick-action-content {
+        flex: 1;
+    }
+
+    .quick-action-title {
+        font-weight: 600;
+        color: var(--eq-text);
+        margin-bottom: 0.25rem;
+    }
+
+    .quick-action-desc {
+        font-size: 0.8rem;
+        color: var(--eq-text-muted);
+    }
+
+    /* Main Content Layout */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 400px;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .main-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Equipment Grid */
+    .equipment-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+        gap: 1.25rem;
+    }
+
+    /* Printer Card */
+    .printer-card {
+        background: var(--eq-card);
+        border: 1px solid var(--eq-border);
+        border-radius: 16px;
+        overflow: hidden;
+        transition: all 0.3s;
+    }
+
+    .printer-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .printer-card.status-printing {
+        border-color: rgba(0, 212, 255, 0.3);
+    }
+
+    .printer-card.status-ready {
+        border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .printer-card.status-idle {
+        border-color: rgba(245, 158, 11, 0.3);
+    }
+
+    .printer-card.status-offline {
+        border-color: rgba(239, 68, 68, 0.3);
+        opacity: 0.75;
+    }
+
+    .printer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--eq-border);
+    }
+
+    .printer-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .printer-avatar {
+        width: 42px;
+        height: 42px;
+        background: linear-gradient(135deg, var(--eq-primary), var(--eq-secondary));
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: white;
+    }
+
+    .printer-name {
+        font-weight: 600;
+        font-size: 1rem;
+        color: var(--eq-text);
+    }
+
+    .printer-protocol {
+        font-size: 0.75rem;
+        color: var(--eq-text-muted);
+    }
+
+    .printer-status-badge {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        animation: status-pulse 2s infinite;
+    }
+
+    .printer-status-badge.printing {
+        background: rgba(0, 212, 255, 0.15);
+        color: var(--eq-printing);
+    }
+
+    .printer-status-badge.printing .status-dot {
+        background: var(--eq-printing);
+    }
+
+    .printer-status-badge.ready {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--eq-ready);
+    }
+
+    .printer-status-badge.ready .status-dot {
+        background: var(--eq-ready);
+    }
+
+    .printer-status-badge.idle {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--eq-idle);
+    }
+
+    .printer-status-badge.idle .status-dot {
+        background: var(--eq-idle);
+    }
+
+    .printer-status-badge.offline {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--eq-offline);
+    }
+
+    .printer-status-badge.offline .status-dot {
+        background: var(--eq-offline);
+        animation: none;
+    }
+
+    @keyframes status-pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    .printer-body {
+        padding: 1.25rem;
+    }
+
+    /* Print Visualization */
+    .print-visualization {
+        background: var(--eq-darker);
+        border-radius: 12px;
+        height: 160px;
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .print-bed {
+        width: 120px;
+        height: 120px;
+        position: relative;
+    }
+
+    .print-bed svg {
+        width: 100%;
+        height: 100%;
+    }
+
+    .print-layer-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(to top, rgba(0, 212, 255, 0.3), transparent);
+        transition: height 0.5s ease;
+    }
+
+    .print-extruder {
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        background: var(--eq-primary);
+        border-radius: 50%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 20px var(--eq-primary);
+        animation: extruder-move 3s ease-in-out infinite;
+    }
+
+    @keyframes extruder-move {
+        0%, 100% { transform: translate(-50%, -50%); }
+        25% { transform: translate(-150%, -50%); }
+        50% { transform: translate(-150%, -150%); }
+        75% { transform: translate(-50%, -150%); }
+    }
+
+    .visualization-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .visualization-icon {
+        font-size: 3rem;
+        color: var(--eq-text-muted);
+        opacity: 0.5;
+    }
+
+    .camera-feed-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: rgba(0, 0, 0, 0.5);
+        border: 1px solid var(--eq-border);
+        border-radius: 8px;
+        padding: 6px 10px;
+        color: var(--eq-text-muted);
+        cursor: pointer;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s;
+    }
+
+    .camera-feed-btn:hover {
+        background: rgba(0, 212, 255, 0.2);
+        color: var(--eq-primary);
+        border-color: var(--eq-primary);
+    }
+
+    /* Job Info */
+    .job-info {
+        margin-bottom: 1rem;
+    }
+
+    .job-name {
+        font-weight: 600;
+        color: var(--eq-text);
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .job-name .file-icon {
+        color: var(--eq-primary);
+    }
+
+    .progress-container {
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+    }
+
+    .progress-percent {
+        font-weight: 600;
+        color: var(--eq-primary);
+    }
+
+    .progress-bar {
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--eq-primary), var(--eq-success));
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .progress-fill.paused {
+        background: linear-gradient(90deg, var(--eq-warning), var(--eq-idle));
+    }
+
+    .progress-details {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        color: var(--eq-text-muted);
+    }
+
+    /* Temperature Stats */
+    .temp-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .temp-stat {
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 10px;
+        padding: 0.75rem;
+        text-align: center;
+    }
+
+    .temp-label {
+        font-size: 0.7rem;
+        color: var(--eq-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+    }
+
+    .temp-value {
+        font-size: 1.2rem;
+        font-weight: 700;
+    }
+
+    .temp-value.hot { color: #ef4444; }
+    .temp-value.warm { color: #f59e0b; }
+    .temp-value.cool { color: var(--eq-text); }
+    .temp-value.flow { color: var(--eq-success); }
+    .temp-value.speed { color: var(--eq-primary); }
+
+    .temp-target {
+        font-size: 0.7rem;
+        color: var(--eq-text-muted);
+    }
+
+    /* Control Buttons */
+    .control-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+    }
+
+    .control-btn {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--eq-border);
+        border-radius: 10px;
+        padding: 10px 6px;
+        color: var(--eq-text);
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.7rem;
+    }
+
+    .control-btn i {
+        font-size: 1.1rem;
+    }
+
+    .control-btn:hover {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: var(--eq-primary);
+        color: var(--eq-primary);
+    }
+
+    .control-btn.primary {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: rgba(0, 212, 255, 0.3);
+        color: var(--eq-primary);
+    }
+
+    .control-btn.primary:hover {
+        background: rgba(0, 212, 255, 0.2);
+    }
+
+    .control-btn.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+        border-color: var(--eq-danger);
+        color: var(--eq-danger);
+    }
+
+    .control-btn.success {
+        background: rgba(16, 185, 129, 0.1);
+        border-color: rgba(16, 185, 129, 0.3);
+        color: var(--eq-success);
+    }
+
+    .control-btn.success:hover {
+        background: rgba(16, 185, 129, 0.2);
+    }
+
+    .control-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Side Panel */
+    .side-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+    }
+
+    .panel-card {
+        background: var(--eq-card);
+        border: 1px solid var(--eq-border);
+        border-radius: 16px;
+        overflow: hidden;
+    }
+
+    .panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--eq-border);
+    }
+
+    .panel-title {
+        font-weight: 600;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .panel-body {
+        padding: 1.25rem;
+    }
+
+    /* G-code Terminal */
+    .terminal-container {
+        background: var(--eq-darker);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .terminal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background: rgba(0, 0, 0, 0.3);
+        border-bottom: 1px solid var(--eq-border);
+    }
+
+    .terminal-tabs {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .terminal-tab {
+        padding: 4px 10px;
+        background: transparent;
+        border: none;
+        color: var(--eq-text-muted);
+        font-size: 0.8rem;
+        cursor: pointer;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+
+    .terminal-tab.active {
+        background: rgba(0, 212, 255, 0.1);
+        color: var(--eq-primary);
+    }
+
+    .terminal-output {
+        height: 200px;
+        padding: 1rem;
+        font-family: 'Fira Code', 'Monaco', monospace;
+        font-size: 0.8rem;
+        overflow-y: auto;
+        line-height: 1.6;
+    }
+
+    .terminal-line {
+        margin-bottom: 4px;
+    }
+
+    .terminal-line.sent {
+        color: var(--eq-primary);
+    }
+
+    .terminal-line.sent::before {
+        content: '> ';
+        color: var(--eq-secondary);
+    }
+
+    .terminal-line.received {
+        color: var(--eq-success);
+    }
+
+    .terminal-line.received::before {
+        content: '< ';
+        color: var(--eq-text-muted);
+    }
+
+    .terminal-line.error {
+        color: var(--eq-danger);
+    }
+
+    .terminal-line.error::before {
+        content: '! ';
+    }
+
+    .terminal-line.info {
+        color: var(--eq-text-muted);
+        font-style: italic;
+    }
+
+    .terminal-input-container {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-top: 1px solid var(--eq-border);
+    }
+
+    .terminal-input {
+        flex: 1;
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--eq-border);
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem;
+        color: var(--eq-text);
+        font-family: 'Fira Code', monospace;
+        font-size: 0.85rem;
+    }
+
+    .terminal-input:focus {
+        outline: none;
+        border-color: var(--eq-primary);
+    }
+
+    .terminal-send-btn {
+        background: var(--eq-primary);
+        border: none;
+        border-radius: 6px;
+        padding: 0.5rem 1rem;
+        color: var(--eq-darker);
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .terminal-send-btn:hover {
+        background: #00b8d9;
+    }
+
+    /* Jog Controls */
+    .jog-controls {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .jog-row {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .jog-btn {
+        width: 50px;
+        height: 50px;
+        background: var(--eq-card-hover);
+        border: 1px solid var(--eq-border);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: var(--eq-text);
+        font-size: 1.2rem;
+    }
+
+    .jog-btn:hover {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: var(--eq-primary);
+        color: var(--eq-primary);
+    }
+
+    .jog-btn.home {
+        background: rgba(139, 92, 246, 0.1);
+        border-color: rgba(139, 92, 246, 0.3);
+        color: var(--eq-secondary);
+    }
+
+    .jog-distance-selector {
+        display: flex;
+        gap: 0.25rem;
+        margin-top: 0.5rem;
+    }
+
+    .jog-distance {
+        padding: 4px 12px;
+        background: transparent;
+        border: 1px solid var(--eq-border);
+        border-radius: 4px;
+        color: var(--eq-text-muted);
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .jog-distance.active {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: var(--eq-primary);
+        color: var(--eq-primary);
+    }
+
+    .z-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-left: 1rem;
+    }
+
+    .z-btn {
+        width: 50px;
+        height: 40px;
+    }
+
+    /* Job Queue */
+    .job-queue-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .job-queue-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+    }
+
+    .job-queue-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .job-queue-number {
+        width: 24px;
+        height: 24px;
+        background: var(--eq-card-hover);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+
+    .job-queue-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .job-queue-name {
+        font-size: 0.85rem;
+        color: var(--eq-text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .job-queue-meta {
+        font-size: 0.7rem;
+        color: var(--eq-text-muted);
+    }
+
+    .job-queue-actions {
+        display: flex;
+        gap: 4px;
+    }
+
+    .job-queue-btn {
+        width: 28px;
+        height: 28px;
+        background: transparent;
+        border: 1px solid var(--eq-border);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: var(--eq-text-muted);
+        transition: all 0.2s;
+    }
+
+    .job-queue-btn:hover {
+        background: rgba(0, 212, 255, 0.1);
+        border-color: var(--eq-primary);
+        color: var(--eq-primary);
+    }
+
+    .job-queue-btn.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+        border-color: var(--eq-danger);
+        color: var(--eq-danger);
+    }
+
+    /* Temperature Chart */
+    .temp-chart-container {
+        height: 150px;
+        margin-bottom: 1rem;
+    }
+
+    /* Safety Panel */
+    .safety-panel {
+        background: rgba(239, 68, 68, 0.05);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        border-radius: 12px;
+        padding: 1rem;
+    }
+
+    .safety-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .safety-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(239, 68, 68, 0.1);
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--eq-danger);
+        font-size: 1.25rem;
+    }
+
+    .safety-title {
+        font-weight: 600;
+        color: var(--eq-danger);
+    }
+
+    .safety-status {
+        font-size: 0.8rem;
+        color: var(--eq-text-muted);
+    }
+
+    .safety-indicators {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    .safety-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .safety-light {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .safety-light.active {
+        background: var(--eq-success);
+        box-shadow: 0 0 8px var(--eq-success);
+    }
+
+    .safety-light.warning {
+        background: var(--eq-warning);
+        box-shadow: 0 0 8px var(--eq-warning);
+    }
+
+    .safety-light.danger {
+        background: var(--eq-danger);
+        box-shadow: 0 0 8px var(--eq-danger);
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 350px;
+    }
+
+    .toast {
+        background: var(--eq-card);
+        border: 1px solid var(--eq-border);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        animation: toast-in 0.3s ease;
+    }
+
+    @keyframes toast-in {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .toast.removing {
+        animation: toast-out 0.3s ease forwards;
+    }
+
+    @keyframes toast-out {
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+
+    .toast-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .toast.success .toast-icon { background: rgba(16, 185, 129, 0.2); color: var(--eq-success); }
+    .toast.warning .toast-icon { background: rgba(245, 158, 11, 0.2); color: var(--eq-warning); }
+    .toast.danger .toast-icon { background: rgba(239, 68, 68, 0.2); color: var(--eq-danger); }
+    .toast.info .toast-icon { background: rgba(0, 212, 255, 0.2); color: var(--eq-primary); }
+
+    .toast-content {
+        flex: 1;
+    }
+
+    .toast-title {
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 2px;
+    }
+
+    .toast-message {
+        font-size: 0.8rem;
+        color: var(--eq-text-muted);
+    }
+
+    .toast-close {
+        background: transparent;
+        border: none;
+        color: var(--eq-text-muted);
+        cursor: pointer;
+        padding: 4px;
+        margin: -4px;
+    }
+
+    .toast-close:hover {
+        color: var(--eq-text);
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal-content {
+        background: var(--eq-card);
+        border: 1px solid var(--eq-border);
+        border-radius: 16px;
+        max-width: 500px;
+        width: 90%;
+        max-height: 80vh;
+        overflow: hidden;
+        transform: scale(0.9);
+        transition: transform 0.3s;
+    }
+
+    .modal-overlay.active .modal-content {
+        transform: scale(1);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.25rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--eq-border);
+    }
+
+    .modal-title {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .modal-close {
+        background: transparent;
+        border: none;
+        color: var(--eq-text-muted);
+        font-size: 1.25rem;
+        cursor: pointer;
+    }
+
+    .modal-body {
+        padding: 1.25rem;
+        max-height: 50vh;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding: 1.25rem;
+        background: rgba(0, 0, 0, 0.1);
+        border-top: 1px solid var(--eq-border);
+    }
+
+    /* Scrollbar styling */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: var(--eq-darker);
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: var(--eq-border);
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--eq-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="equipment-control-page">
+    <!-- Connection Status -->
+    <div class="connection-status" id="connectionStatus">
+        <div class="connection-dot connected"></div>
+        <span>Connected</span>
+    </div>
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Equipment Control Center</h1>
+            <p class="page-subtitle">Direct control of 3D printers and manufacturing equipment</p>
+        </div>
+        <div class="header-actions">
+            <button class="btn-emergency" onclick="emergencyStopAll()">
+                <i class="bi bi-stop-circle-fill"></i>
+                Emergency Stop All
+            </button>
+            <button class="btn-refresh" onclick="refreshAll()">
+                <i class="bi bi-arrow-clockwise"></i>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary -->
+    <div class="kpi-grid">
+        <div class="kpi-card" style="--kpi-color: var(--eq-success); --kpi-color-rgb: 16, 185, 129;">
+            <div class="kpi-icon"><i class="bi bi-printer-fill"></i></div>
+            <div class="kpi-value" id="kpiActiveprinters">3</div>
+            <div class="kpi-label">Active Printers</div>
+            <div class="kpi-trend up"><i class="bi bi-arrow-up"></i> 1</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color: var(--eq-primary); --kpi-color-rgb: 0, 212, 255;">
+            <div class="kpi-icon"><i class="bi bi-play-circle-fill"></i></div>
+            <div class="kpi-value" id="kpiPrinting">1</div>
+            <div class="kpi-label">Currently Printing</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color: var(--eq-warning); --kpi-color-rgb: 245, 158, 11;">
+            <div class="kpi-icon"><i class="bi bi-clock-fill"></i></div>
+            <div class="kpi-value" id="kpiQueue">7</div>
+            <div class="kpi-label">Jobs in Queue</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color: var(--eq-secondary); --kpi-color-rgb: 139, 92, 246;">
+            <div class="kpi-icon"><i class="bi bi-speedometer2"></i></div>
+            <div class="kpi-value" id="kpiOee">87%</div>
+            <div class="kpi-label">Fleet OEE</div>
+            <div class="kpi-trend up"><i class="bi bi-arrow-up"></i> 3%</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color: var(--eq-success); --kpi-color-rgb: 16, 185, 129;">
+            <div class="kpi-icon"><i class="bi bi-check-circle-fill"></i></div>
+            <div class="kpi-value" id="kpiCompleted">24</div>
+            <div class="kpi-label">Completed Today</div>
+        </div>
+        <div class="kpi-card" style="--kpi-color: var(--eq-danger); --kpi-color-rgb: 239, 68, 68;">
+            <div class="kpi-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+            <div class="kpi-value" id="kpiAlerts">2</div>
+            <div class="kpi-label">Active Alerts</div>
+        </div>
+    </div>
+
+    <!-- Protocol Tabs -->
+    <div class="protocol-tabs">
+        <div class="protocol-tab active" data-protocol="all">
+            <i class="bi bi-grid-3x3-gap-fill"></i>
+            All Devices
+            <span class="protocol-count">4</span>
+        </div>
+        <div class="protocol-tab" data-protocol="octoprint">
+            <i class="bi bi-printer"></i>
+            OctoPrint
+            <span class="protocol-count">2</span>
+        </div>
+        <div class="protocol-tab" data-protocol="moonraker">
+            <i class="bi bi-gear-wide-connected"></i>
+            Moonraker/Klipper
+            <span class="protocol-count">1</span>
+        </div>
+        <div class="protocol-tab" data-protocol="bambu">
+            <i class="bi bi-box-seam"></i>
+            Bambu Lab
+            <span class="protocol-count">1</span>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions-grid">
+        <div class="quick-action-card" onclick="homeAllAxes()">
+            <div class="quick-action-icon"><i class="bi bi-house-fill"></i></div>
+            <div class="quick-action-content">
+                <div class="quick-action-title">Home All Axes</div>
+                <div class="quick-action-desc">Return all printers to origin</div>
+            </div>
+        </div>
+        <div class="quick-action-card" onclick="preheatAll()">
+            <div class="quick-action-icon"><i class="bi bi-thermometer-high"></i></div>
+            <div class="quick-action-content">
+                <div class="quick-action-title">Preheat All</div>
+                <div class="quick-action-desc">PLA profile (210°C / 60°C)</div>
+            </div>
+        </div>
+        <div class="quick-action-card" onclick="cooldownAll()">
+            <div class="quick-action-icon"><i class="bi bi-snow"></i></div>
+            <div class="quick-action-content">
+                <div class="quick-action-title">Cooldown All</div>
+                <div class="quick-action-desc">Turn off all heaters</div>
+            </div>
+        </div>
+        <div class="quick-action-card" onclick="startNextJobs()">
+            <div class="quick-action-icon"><i class="bi bi-play-fill"></i></div>
+            <div class="quick-action-content">
+                <div class="quick-action-title">Start Next Jobs</div>
+                <div class="quick-action-desc">Begin queued jobs on ready printers</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-grid">
+        <!-- Equipment Grid -->
+        <div class="equipment-section">
+            <div class="equipment-grid" id="equipmentGrid">
+                <!-- Printer 1 - Printing -->
+                <div class="printer-card status-printing" data-printer-id="prusa-001">
+                    <div class="printer-header">
+                        <div class="printer-info">
+                            <div class="printer-avatar">
+                                <i class="bi bi-printer-fill"></i>
+                            </div>
+                            <div>
+                                <div class="printer-name">Prusa MK4 #001</div>
+                                <div class="printer-protocol">OctoPrint v1.9.3</div>
+                            </div>
+                        </div>
+                        <div class="printer-status-badge printing">
+                            <span class="status-dot"></span>
+                            Printing
+                        </div>
+                    </div>
+                    <div class="printer-body">
+                        <div class="print-visualization">
+                            <div class="print-bed">
+                                <svg viewBox="0 0 100 100">
+                                    <rect x="5" y="5" width="90" height="90" fill="none" stroke="#334155" stroke-width="1"/>
+                                    <rect x="10" y="10" width="80" height="80" fill="rgba(0,212,255,0.05)" stroke="#00d4ff" stroke-width="0.5" stroke-dasharray="2"/>
+                                    <!-- Print object preview -->
+                                    <rect x="30" y="30" width="40" height="40" fill="rgba(0,212,255,0.2)" stroke="#00d4ff"/>
+                                </svg>
+                                <div class="print-layer-progress" style="height: 67%;"></div>
+                                <div class="print-extruder"></div>
+                            </div>
+                            <button class="camera-feed-btn" onclick="openCamera('prusa-001')">
+                                <i class="bi bi-camera-video"></i> Live
+                            </button>
+                        </div>
+                        <div class="job-info">
+                            <div class="job-name">
+                                <i class="bi bi-file-earmark-code file-icon"></i>
+                                LEGO-2x4-Brick-001.gcode
+                            </div>
+                            <div class="progress-container">
+                                <div class="progress-header">
+                                    <span>Layer 134 of 200</span>
+                                    <span class="progress-percent">67%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 67%;"></div>
+                                </div>
+                                <div class="progress-details">
+                                    <span>Elapsed: 1h 12m</span>
+                                    <span>ETA: 23 min</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="temp-stats">
+                            <div class="temp-stat">
+                                <div class="temp-label">Nozzle</div>
+                                <div class="temp-value hot">215°C</div>
+                                <div class="temp-target">/ 215°C</div>
+                            </div>
+                            <div class="temp-stat">
+                                <div class="temp-label">Bed</div>
+                                <div class="temp-value warm">60°C</div>
+                                <div class="temp-target">/ 60°C</div>
+                            </div>
+                            <div class="temp-stat">
+                                <div class="temp-label">Speed</div>
+                                <div class="temp-value speed">100%</div>
+                                <div class="temp-target">Normal</div>
+                            </div>
+                        </div>
+                        <div class="control-grid">
+                            <button class="control-btn" onclick="pausePrint('prusa-001')">
+                                <i class="bi bi-pause-circle"></i>
+                                Pause
+                            </button>
+                            <button class="control-btn danger" onclick="cancelPrint('prusa-001')">
+                                <i class="bi bi-stop-circle"></i>
+                                Cancel
+                            </button>
+                            <button class="control-btn" onclick="adjustSpeed('prusa-001')">
+                                <i class="bi bi-speedometer2"></i>
+                                Speed
+                            </button>
+                            <button class="control-btn" onclick="adjustTemp('prusa-001')">
+                                <i class="bi bi-thermometer"></i>
+                                Temp
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Printer 2 - Ready -->
+                <div class="printer-card status-ready" data-printer-id="prusa-002">
+                    <div class="printer-header">
+                        <div class="printer-info">
+                            <div class="printer-avatar">
+                                <i class="bi bi-printer-fill"></i>
+                            </div>
+                            <div>
+                                <div class="printer-name">Prusa MK4 #002</div>
+                                <div class="printer-protocol">OctoPrint v1.9.3</div>
+                            </div>
+                        </div>
+                        <div class="printer-status-badge ready">
+                            <span class="status-dot"></span>
+                            Ready
+                        </div>
+                    </div>
+                    <div class="printer-body">
+                        <div class="print-visualization">
+                            <div class="visualization-overlay">
+                                <i class="bi bi-check-circle-fill visualization-icon" style="color: var(--eq-success);"></i>
+                            </div>
+                            <button class="camera-feed-btn" onclick="openCamera('prusa-002')">
+                                <i class="bi bi-camera-video"></i> Live
+                            </button>
+                        </div>
+                        <div class="job-info">
+                            <div class="job-name" style="color: var(--eq-text-muted);">
+                                <i class="bi bi-inbox file-icon"></i>
+                                No active job
+                            </div>
+                            <div class="progress-container">
+                                <div class="progress-header">
+                                    <span>Queue: 3 jobs waiting</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 0%;"></div>
+                                </div>
+                                <div class="progress-details">
+                                    <span>Next: LEGO-1x2-Brick.gcode</span>
+                                    <span>Est: 45 min</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="temp-stats">
+                            <div class="temp-stat">
+                                <div class="temp-label">Nozzle</div>
+                                <div class="temp-value cool">28°C</div>
+                                <div class="temp-target">Off</div>
+                            </div>
+                            <div class="temp-stat">
+                                <div class="temp-label">Bed</div>
+                                <div class="temp-value cool">25°C</div>
+                                <div class="temp-target">Off</div>
+                            </div>
+                            <div class="temp-stat">
+                                <div class="temp-label">Filament</div>
+                                <div class="temp-value flow">OK</div>
+                                <div class="temp-target">PLA Red</div>
+                            </div>
+                        </div>
+                        <div class="control-grid">
+                            <button class="control-btn success" onclick="startNextJob('prusa-002')">
+                                <i class="bi bi-play-circle"></i>
+                                Start
+                            </button>
+                            <button class="control-btn" onclick="preheat('prusa-002')">
+                                <i class="bi bi-thermometer-high"></i>
+                                Preheat
+                            </button>
+                            <button class="control-btn" onclick="home('prusa-002')">
+                                <i class="bi bi-house"></i>
+                                Home
+                            </button>
+                            <button class="control-btn" onclick="openJogModal('prusa-002')">
+                                <i class="bi bi-arrows-move"></i>
+                                Move
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Printer 3 - Idle/Maintenance -->
+                <div class="printer-card status-idle" data-printer-id="bambu-003">
+                    <div class="printer-header">
+                        <div class="printer-info">
+                            <div class="printer-avatar">
+                                <i class="bi bi-box-seam-fill"></i>
+                            </div>
+                            <div>
+                                <div class="printer-name">Bambu A1 Mini #003</div>
+                                <div class="printer-protocol">Bambu API v1.0</div>
+                            </div>
+                        </div>
+                        <div class="printer-status-badge idle">
+                            <span class="status-dot"></span>
+                            Maintenance
+                        </div>
+                    </div>
+                    <div class="printer-body">
+                        <div class="print-visualization">
+                            <div class="visualization-overlay">
+                                <i class="bi bi-wrench-adjustable visualization-icon" style="color: var(--eq-warning);"></i>
+                            </div>
+                            <button class="camera-feed-btn" onclick="openCamera('bambu-003')">
+                                <i class="bi bi-camera-video"></i> Live
+                            </button>
+                        </div>
+                        <div class="job-info">
+                            <div class="job-name" style="color: var(--eq-warning);">
+                                <i class="bi bi-exclamation-triangle file-icon"></i>
+                                Calibration Required
+                            </div>
+                            <div class="progress-container">
+                                <div class="progress-header">
+                                    <span style="color: var(--eq-warning);">Last calibration: 7 days ago</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill paused" style="width: 100%;"></div>
+                                </div>
+                                <div class="progress-details">
+                                    <span>AMS: 4/4 slots filled</span>
+                                    <span>Lidar: OK</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="temp-stats">
+                            <div class="temp-stat">
+                                <div class="temp-label">Nozzle</div>
+                                <div class="temp-value cool">42°C</div>
+                                <div class="temp-target">Cooling</div>
+                            </div>
+                            <div class="temp-stat">
+                                <div class="temp-label">Chamber</div>
+                                <div class="temp-value cool">35°C</div>
+                                <div class="temp-target">Ambient</div>
+                            </div>
+                            <div class="temp-stat">
+                                <div class="temp-label">AMS</div>
+                                <div class="temp-value flow">4/4</div>
+                                <div class="temp-target">Full</div>
+                            </div>
+                        </div>
+                        <div class="control-grid">
+                            <button class="control-btn primary" onclick="calibrate('bambu-003')">
+                                <i class="bi bi-gear"></i>
+                                Calibrate
+                            </button>
+                            <button class="control-btn" onclick="levelBed('bambu-003')">
+                                <i class="bi bi-grid-3x3"></i>
+                                Bed Level
+                            </button>
+                            <button class="control-btn" onclick="cleanNozzle('bambu-003')">
+                                <i class="bi bi-brush"></i>
+                                Clean
+                            </button>
+                            <button class="control-btn" onclick="amsConfig('bambu-003')">
+                                <i class="bi bi-stack"></i>
+                                AMS
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Printer 4 - Offline -->
+                <div class="printer-card status-offline" data-printer-id="ender-004">
+                    <div class="printer-header">
+                        <div class="printer-info">
+                            <div class="printer-avatar">
+                                <i class="bi bi-printer-fill"></i>
+                            </div>
+                            <div>
+                                <div class="printer-name">Ender 3 V3 #004</div>
+                                <div class="printer-protocol">Moonraker/Klipper</div>
+                            </div>
+                        </div>
+                        <div class="printer-status-badge offline">
+                            <span class="status-dot"></span>
+                            Offline
+                        </div>
+                    </div>
+                    <div class="printer-body">
+                        <div class="print-visualization">
+                            <div class="visualization-overlay">
+                                <i class="bi bi-wifi-off visualization-icon" style="color: var(--eq-danger);"></i>
+                            </div>
+                        </div>
+                        <div class="job-info">
+                            <div class="job-name" style="color: var(--eq-danger);">
+                                <i class="bi bi-x-circle file-icon"></i>
+                                Connection Lost
+                            </div>
+                            <div class="progress-container">
+                                <div class="progress-header">
+                                    <span style="color: var(--eq-danger);">Last seen: 15 minutes ago</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 0%; background: var(--eq-danger);"></div>
+                                </div>
+                                <div class="progress-details">
+                                    <span>IP: 192.168.1.104</span>
+                                    <span>Port: 7125</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="temp-stats">
+                            <div class="temp-stat">
+                                <div class="temp-label">Status</div>
+                                <div class="temp-value" style="color: var(--eq-danger);">--</div>
+                                <div class="temp-target">Unknown</div>
+                            </div>
+                            <div class="temp-stat">
+                                <div class="temp-label">Error</div>
+                                <div class="temp-value" style="color: var(--eq-danger); font-size: 0.8rem;">Timeout</div>
+                                <div class="temp-target">Network</div>
+                            </div>
+                            <div class="temp-stat">
+                                <div class="temp-label">Retries</div>
+                                <div class="temp-value" style="color: var(--eq-warning);">3</div>
+                                <div class="temp-target">/ 5 max</div>
+                            </div>
+                        </div>
+                        <div class="control-grid">
+                            <button class="control-btn primary" onclick="reconnect('ender-004')">
+                                <i class="bi bi-arrow-repeat"></i>
+                                Reconnect
+                            </button>
+                            <button class="control-btn" onclick="pingDevice('ender-004')">
+                                <i class="bi bi-broadcast-pin"></i>
+                                Ping
+                            </button>
+                            <button class="control-btn" onclick="viewLogs('ender-004')">
+                                <i class="bi bi-journal-text"></i>
+                                Logs
+                            </button>
+                            <button class="control-btn" onclick="configure('ender-004')">
+                                <i class="bi bi-sliders"></i>
+                                Config
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Side Panel -->
+        <div class="side-panel">
+            <!-- G-code Terminal -->
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="bi bi-terminal"></i>
+                        G-code Terminal
+                    </div>
+                    <select class="form-select form-select-sm" id="terminalPrinter" style="width: 140px; background: var(--eq-darker); border-color: var(--eq-border); color: var(--eq-text); font-size: 0.8rem;">
+                        <option value="prusa-001">Prusa MK4 #001</option>
+                        <option value="prusa-002">Prusa MK4 #002</option>
+                        <option value="bambu-003">Bambu A1 #003</option>
+                    </select>
+                </div>
+                <div class="panel-body" style="padding: 0;">
+                    <div class="terminal-container">
+                        <div class="terminal-header">
+                            <div class="terminal-tabs">
+                                <button class="terminal-tab active">Console</button>
+                                <button class="terminal-tab">History</button>
+                                <button class="terminal-tab">Macros</button>
+                            </div>
+                            <button class="terminal-tab" onclick="clearTerminal()">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                        <div class="terminal-output" id="terminalOutput">
+                            <div class="terminal-line info">Connected to Prusa MK4 #001</div>
+                            <div class="terminal-line sent">M105</div>
+                            <div class="terminal-line received">ok T:215.0 /215.0 B:60.0 /60.0</div>
+                            <div class="terminal-line sent">M105</div>
+                            <div class="terminal-line received">ok T:215.1 /215.0 B:60.0 /60.0</div>
+                            <div class="terminal-line sent">G1 X100 Y100 F3000</div>
+                            <div class="terminal-line received">ok</div>
+                            <div class="terminal-line sent">M105</div>
+                            <div class="terminal-line received">ok T:215.0 /215.0 B:60.0 /60.0 @:64</div>
+                        </div>
+                        <div class="terminal-input-container">
+                            <input type="text" class="terminal-input" id="gcodeInput" placeholder="Enter G-code (e.g., G28, M104 S200)" onkeypress="handleGcodeInput(event)">
+                            <button class="terminal-send-btn" onclick="sendGcode()">
+                                <i class="bi bi-send"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Jog Controls -->
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="bi bi-arrows-move"></i>
+                        Jog Controls
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div style="display: flex; align-items: center; justify-content: center;">
+                        <div class="jog-controls">
+                            <div class="jog-row">
+                                <div style="width: 50px;"></div>
+                                <button class="jog-btn" onclick="jogAxis('Y', 1)" title="Y+">
+                                    <i class="bi bi-arrow-up"></i>
+                                </button>
+                                <div style="width: 50px;"></div>
+                            </div>
+                            <div class="jog-row">
+                                <button class="jog-btn" onclick="jogAxis('X', -1)" title="X-">
+                                    <i class="bi bi-arrow-left"></i>
+                                </button>
+                                <button class="jog-btn home" onclick="homeAxes()" title="Home XY">
+                                    <i class="bi bi-house"></i>
+                                </button>
+                                <button class="jog-btn" onclick="jogAxis('X', 1)" title="X+">
+                                    <i class="bi bi-arrow-right"></i>
+                                </button>
+                            </div>
+                            <div class="jog-row">
+                                <div style="width: 50px;"></div>
+                                <button class="jog-btn" onclick="jogAxis('Y', -1)" title="Y-">
+                                    <i class="bi bi-arrow-down"></i>
+                                </button>
+                                <div style="width: 50px;"></div>
+                            </div>
+                            <div class="jog-distance-selector">
+                                <button class="jog-distance" data-distance="0.1">0.1</button>
+                                <button class="jog-distance active" data-distance="1">1</button>
+                                <button class="jog-distance" data-distance="10">10</button>
+                                <button class="jog-distance" data-distance="100">100</button>
+                            </div>
+                        </div>
+                        <div class="z-controls">
+                            <button class="jog-btn z-btn" onclick="jogAxis('Z', 1)" title="Z+">
+                                <i class="bi bi-arrow-up"></i>
+                            </button>
+                            <div style="text-align: center; font-size: 0.75rem; color: var(--eq-text-muted);">Z</div>
+                            <button class="jog-btn z-btn" onclick="jogAxis('Z', -1)" title="Z-">
+                                <i class="bi bi-arrow-down"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Job Queue -->
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <i class="bi bi-list-ol"></i>
+                        Job Queue
+                    </div>
+                    <span style="font-size: 0.8rem; color: var(--eq-text-muted);">7 jobs</span>
+                </div>
+                <div class="panel-body">
+                    <div class="job-queue-list" id="jobQueueList">
+                        <div class="job-queue-item">
+                            <div class="job-queue-number">1</div>
+                            <div class="job-queue-info">
+                                <div class="job-queue-name">LEGO-1x2-Brick.gcode</div>
+                                <div class="job-queue-meta">Est: 45 min | Prusa #002</div>
+                            </div>
+                            <div class="job-queue-actions">
+                                <button class="job-queue-btn" title="Start Now"><i class="bi bi-play"></i></button>
+                                <button class="job-queue-btn danger" title="Remove"><i class="bi bi-x"></i></button>
+                            </div>
+                        </div>
+                        <div class="job-queue-item">
+                            <div class="job-queue-number">2</div>
+                            <div class="job-queue-info">
+                                <div class="job-queue-name">LEGO-1x4-Brick.gcode</div>
+                                <div class="job-queue-meta">Est: 52 min | Any printer</div>
+                            </div>
+                            <div class="job-queue-actions">
+                                <button class="job-queue-btn" title="Start Now"><i class="bi bi-play"></i></button>
+                                <button class="job-queue-btn danger" title="Remove"><i class="bi bi-x"></i></button>
+                            </div>
+                        </div>
+                        <div class="job-queue-item">
+                            <div class="job-queue-number">3</div>
+                            <div class="job-queue-info">
+                                <div class="job-queue-name">LEGO-2x2-Plate.gcode</div>
+                                <div class="job-queue-meta">Est: 28 min | Any printer</div>
+                            </div>
+                            <div class="job-queue-actions">
+                                <button class="job-queue-btn" title="Start Now"><i class="bi bi-play"></i></button>
+                                <button class="job-queue-btn danger" title="Remove"><i class="bi bi-x"></i></button>
+                            </div>
+                        </div>
+                        <div class="job-queue-item">
+                            <div class="job-queue-number">4</div>
+                            <div class="job-queue-info">
+                                <div class="job-queue-name">LEGO-2x6-Brick.gcode</div>
+                                <div class="job-queue-meta">Est: 1h 15m | Bambu #003</div>
+                            </div>
+                            <div class="job-queue-actions">
+                                <button class="job-queue-btn" title="Start Now"><i class="bi bi-play"></i></button>
+                                <button class="job-queue-btn danger" title="Remove"><i class="bi bi-x"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Safety Panel -->
+            <div class="panel-card">
+                <div class="panel-body">
+                    <div class="safety-panel">
+                        <div class="safety-header">
+                            <div class="safety-icon">
+                                <i class="bi bi-shield-check"></i>
+                            </div>
+                            <div>
+                                <div class="safety-title">Safety Interlocks Active</div>
+                                <div class="safety-status">All systems nominal</div>
+                            </div>
+                        </div>
+                        <div class="safety-indicators">
+                            <div class="safety-indicator">
+                                <div class="safety-light active"></div>
+                                <span>Thermal Protection</span>
+                            </div>
+                            <div class="safety-indicator">
+                                <div class="safety-light active"></div>
+                                <span>Endstop Monitoring</span>
+                            </div>
+                            <div class="safety-indicator">
+                                <div class="safety-light active"></div>
+                                <span>Power Loss Recovery</span>
+                            </div>
+                            <div class="safety-indicator">
+                                <div class="safety-light active"></div>
+                                <span>Collision Avoidance</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Jog Modal -->
+<div class="modal-overlay" id="jogModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title">Movement Control</div>
+            <button class="modal-close" onclick="closeJogModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- Modal jog controls would go here -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeJogModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Camera Modal -->
+<div class="modal-overlay" id="cameraModal">
+    <div class="modal-content" style="max-width: 700px;">
+        <div class="modal-header">
+            <div class="modal-title" id="cameraModalTitle">Camera Feed</div>
+            <button class="modal-close" onclick="closeCameraModal()">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 0;">
+            <div style="background: #000; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center;">
+                <div style="text-align: center; color: var(--eq-text-muted);">
+                    <i class="bi bi-camera-video-off" style="font-size: 3rem; display: block; margin-bottom: 1rem;"></i>
+                    <p>Camera feed placeholder</p>
+                    <small>Connect webcam or use OctoPrint/Bambu camera integration</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+    // State management
+    const state = {
+        connected: false,
+        selectedPrinter: 'prusa-001',
+        jogDistance: 1,
+        printers: {},
+        commandHistory: [],
+        historyIndex: -1
+    };
+
+    // WebSocket connection
+    let socket;
+
+    function initWebSocket() {
+        socket = io('/equipment', {
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionDelay: 1000
+        });
+
+        socket.on('connect', () => {
+            state.connected = true;
+            updateConnectionStatus(true);
+            showToast('success', 'Connected', 'Real-time equipment monitoring active');
+        });
+
+        socket.on('disconnect', () => {
+            state.connected = false;
+            updateConnectionStatus(false);
+            showToast('warning', 'Disconnected', 'Attempting to reconnect...');
+        });
+
+        socket.on('printer_update', (data) => {
+            updatePrinterCard(data);
+        });
+
+        socket.on('temperature_update', (data) => {
+            updateTemperatures(data);
+        });
+
+        socket.on('print_progress', (data) => {
+            updatePrintProgress(data);
+        });
+
+        socket.on('gcode_response', (data) => {
+            appendTerminalLine(data.response, 'received');
+        });
+
+        socket.on('error', (data) => {
+            showToast('danger', 'Error', data.message);
+        });
+    }
+
+    function updateConnectionStatus(connected) {
+        const statusEl = document.getElementById('connectionStatus');
+        const dot = statusEl.querySelector('.connection-dot');
+        const text = statusEl.querySelector('span');
+
+        if (connected) {
+            dot.className = 'connection-dot connected';
+            text.textContent = 'Connected';
+        } else {
+            dot.className = 'connection-dot disconnected';
+            text.textContent = 'Disconnected';
+        }
+    }
+
+    // Protocol tab handling
+    document.querySelectorAll('.protocol-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.protocol-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            filterPrinters(this.dataset.protocol);
+        });
+    });
+
+    function filterPrinters(protocol) {
+        const cards = document.querySelectorAll('.printer-card');
+        cards.forEach(card => {
+            if (protocol === 'all') {
+                card.style.display = '';
+            } else {
+                const printerProtocol = card.querySelector('.printer-protocol').textContent.toLowerCase();
+                card.style.display = printerProtocol.includes(protocol) ? '' : 'none';
+            }
+        });
+    }
+
+    // Jog distance selection
+    document.querySelectorAll('.jog-distance').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.jog-distance').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            state.jogDistance = parseFloat(this.dataset.distance);
+        });
+    });
+
+    // Terminal functions
+    function sendGcode() {
+        const input = document.getElementById('gcodeInput');
+        const cmd = input.value.trim().toUpperCase();
+        if (!cmd) return;
+
+        state.commandHistory.unshift(cmd);
+        state.historyIndex = -1;
+
+        appendTerminalLine(cmd, 'sent');
+
+        if (socket && state.connected) {
+            socket.emit('send_gcode', {
+                printer_id: document.getElementById('terminalPrinter').value,
+                command: cmd
+            });
+        } else {
+            // Simulate response for demo
+            setTimeout(() => {
+                appendTerminalLine('ok', 'received');
+            }, 100);
+        }
+
+        input.value = '';
+    }
+
+    function handleGcodeInput(event) {
+        if (event.key === 'Enter') {
+            sendGcode();
+        } else if (event.key === 'ArrowUp') {
+            if (state.historyIndex < state.commandHistory.length - 1) {
+                state.historyIndex++;
+                document.getElementById('gcodeInput').value = state.commandHistory[state.historyIndex];
+            }
+        } else if (event.key === 'ArrowDown') {
+            if (state.historyIndex > 0) {
+                state.historyIndex--;
+                document.getElementById('gcodeInput').value = state.commandHistory[state.historyIndex];
+            } else if (state.historyIndex === 0) {
+                state.historyIndex = -1;
+                document.getElementById('gcodeInput').value = '';
+            }
+        }
+    }
+
+    function appendTerminalLine(text, type) {
+        const terminal = document.getElementById('terminalOutput');
+        const line = document.createElement('div');
+        line.className = `terminal-line ${type}`;
+        line.textContent = text;
+        terminal.appendChild(line);
+        terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function clearTerminal() {
+        document.getElementById('terminalOutput').innerHTML = '<div class="terminal-line info">Terminal cleared</div>';
+    }
+
+    // Jog controls
+    function jogAxis(axis, direction) {
+        const distance = state.jogDistance * direction;
+        const cmd = `G91\nG1 ${axis}${distance} F3000\nG90`;
+        appendTerminalLine(`G1 ${axis}${distance} F3000`, 'sent');
+
+        if (socket && state.connected) {
+            socket.emit('jog', {
+                printer_id: document.getElementById('terminalPrinter').value,
+                axis: axis,
+                distance: distance
+            });
+        } else {
+            setTimeout(() => appendTerminalLine('ok', 'received'), 100);
+        }
+    }
+
+    function homeAxes() {
+        appendTerminalLine('G28 X Y', 'sent');
+        if (socket && state.connected) {
+            socket.emit('home', {
+                printer_id: document.getElementById('terminalPrinter').value,
+                axes: ['X', 'Y']
+            });
+        } else {
+            setTimeout(() => appendTerminalLine('ok', 'received'), 100);
+        }
+        showToast('info', 'Homing', 'Homing X and Y axes...');
+    }
+
+    // Printer control functions
+    function pausePrint(printerId) {
+        if (confirm('Pause the current print?')) {
+            showToast('info', 'Pausing', `Pausing print on ${printerId}`);
+            if (socket) socket.emit('pause_print', { printer_id: printerId });
+        }
+    }
+
+    function cancelPrint(printerId) {
+        if (confirm('Cancel the current print? This cannot be undone.')) {
+            showToast('warning', 'Cancelling', `Cancelling print on ${printerId}`);
+            if (socket) socket.emit('cancel_print', { printer_id: printerId });
+        }
+    }
+
+    function adjustSpeed(printerId) {
+        const speed = prompt('Enter speed percentage (50-200):', '100');
+        if (speed && speed >= 50 && speed <= 200) {
+            showToast('success', 'Speed Adjusted', `Speed set to ${speed}% on ${printerId}`);
+            if (socket) socket.emit('set_speed', { printer_id: printerId, speed: parseInt(speed) });
+        }
+    }
+
+    function adjustTemp(printerId) {
+        const temp = prompt('Enter nozzle temperature (150-280):', '215');
+        if (temp && temp >= 150 && temp <= 280) {
+            showToast('success', 'Temperature Set', `Nozzle temperature set to ${temp}°C on ${printerId}`);
+            if (socket) socket.emit('set_temperature', { printer_id: printerId, target: parseInt(temp) });
+        }
+    }
+
+    function startNextJob(printerId) {
+        showToast('info', 'Starting Job', `Starting next queued job on ${printerId}`);
+        if (socket) socket.emit('start_job', { printer_id: printerId });
+    }
+
+    function preheat(printerId) {
+        showToast('info', 'Preheating', `Preheating ${printerId} to PLA profile`);
+        if (socket) socket.emit('preheat', { printer_id: printerId, profile: 'PLA' });
+    }
+
+    function home(printerId) {
+        showToast('info', 'Homing', `Homing all axes on ${printerId}`);
+        if (socket) socket.emit('home', { printer_id: printerId, axes: ['X', 'Y', 'Z'] });
+    }
+
+    function calibrate(printerId) {
+        showToast('info', 'Calibrating', `Running full calibration on ${printerId}`);
+        if (socket) socket.emit('calibrate', { printer_id: printerId });
+    }
+
+    function levelBed(printerId) {
+        showToast('info', 'Bed Leveling', `Starting bed leveling on ${printerId}`);
+        if (socket) socket.emit('bed_level', { printer_id: printerId });
+    }
+
+    function cleanNozzle(printerId) {
+        showToast('info', 'Cleaning', `Running nozzle cleaning routine on ${printerId}`);
+        if (socket) socket.emit('clean_nozzle', { printer_id: printerId });
+    }
+
+    function amsConfig(printerId) {
+        showToast('info', 'AMS', `Opening AMS configuration for ${printerId}`);
+    }
+
+    function reconnect(printerId) {
+        showToast('info', 'Reconnecting', `Attempting to reconnect to ${printerId}...`);
+        if (socket) socket.emit('reconnect', { printer_id: printerId });
+    }
+
+    function pingDevice(printerId) {
+        showToast('info', 'Ping', `Pinging ${printerId}...`);
+        if (socket) socket.emit('ping', { printer_id: printerId });
+    }
+
+    function viewLogs(printerId) {
+        showToast('info', 'Logs', `Opening logs for ${printerId}`);
+    }
+
+    function configure(printerId) {
+        showToast('info', 'Config', `Opening configuration for ${printerId}`);
+    }
+
+    // Quick actions
+    function homeAllAxes() {
+        showToast('info', 'Homing All', 'Homing all axes on all printers...');
+        if (socket) socket.emit('home_all');
+    }
+
+    function preheatAll() {
+        showToast('info', 'Preheating All', 'Preheating all printers to PLA profile...');
+        if (socket) socket.emit('preheat_all', { profile: 'PLA' });
+    }
+
+    function cooldownAll() {
+        showToast('info', 'Cooling Down', 'Turning off all heaters...');
+        if (socket) socket.emit('cooldown_all');
+    }
+
+    function startNextJobs() {
+        showToast('info', 'Starting Jobs', 'Starting queued jobs on ready printers...');
+        if (socket) socket.emit('start_all_ready');
+    }
+
+    function emergencyStopAll() {
+        if (confirm('EMERGENCY STOP ALL PRINTERS?\n\nThis will immediately halt all printers and may damage prints in progress.')) {
+            showToast('danger', 'EMERGENCY STOP', 'All printers stopped immediately!');
+            if (socket) socket.emit('emergency_stop_all');
+        }
+    }
+
+    function refreshAll() {
+        showToast('info', 'Refreshing', 'Refreshing all printer states...');
+        if (socket) socket.emit('refresh_all');
+        setTimeout(() => location.reload(), 500);
+    }
+
+    // Camera modal
+    function openCamera(printerId) {
+        document.getElementById('cameraModalTitle').textContent = `Camera Feed - ${printerId}`;
+        document.getElementById('cameraModal').classList.add('active');
+    }
+
+    function closeCameraModal() {
+        document.getElementById('cameraModal').classList.remove('active');
+    }
+
+    // Jog modal
+    function openJogModal(printerId) {
+        document.getElementById('jogModal').classList.add('active');
+    }
+
+    function closeJogModal() {
+        document.getElementById('jogModal').classList.remove('active');
+    }
+
+    // Toast notification system
+    function showToast(type, title, message) {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const icons = {
+            success: 'bi-check-circle',
+            warning: 'bi-exclamation-triangle',
+            danger: 'bi-x-circle',
+            info: 'bi-info-circle'
+        };
+
+        toast.innerHTML = `
+            <div class="toast-icon">
+                <i class="bi ${icons[type]}"></i>
+            </div>
+            <div class="toast-content">
+                <div class="toast-title">${title}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close" onclick="this.parentElement.remove()">
+                <i class="bi bi-x"></i>
+            </button>
+        `;
+
+        container.appendChild(toast);
+
+        // Auto remove after 4 seconds
+        setTimeout(() => {
+            toast.classList.add('removing');
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // Update functions for real-time data
+    function updatePrinterCard(data) {
+        const card = document.querySelector(`[data-printer-id="${data.printer_id}"]`);
+        if (!card) return;
+
+        // Update status badge
+        const badge = card.querySelector('.printer-status-badge');
+        badge.className = `printer-status-badge ${data.status}`;
+        badge.innerHTML = `<span class="status-dot"></span>${data.status.charAt(0).toUpperCase() + data.status.slice(1)}`;
+
+        // Update card border
+        card.className = `printer-card status-${data.status}`;
+    }
+
+    function updateTemperatures(data) {
+        const card = document.querySelector(`[data-printer-id="${data.printer_id}"]`);
+        if (!card) return;
+
+        const tempStats = card.querySelectorAll('.temp-stat');
+        if (tempStats[0]) {
+            const value = tempStats[0].querySelector('.temp-value');
+            value.textContent = `${data.nozzle}°C`;
+            value.className = `temp-value ${data.nozzle > 100 ? 'hot' : data.nozzle > 50 ? 'warm' : 'cool'}`;
+        }
+        if (tempStats[1]) {
+            const value = tempStats[1].querySelector('.temp-value');
+            value.textContent = `${data.bed}°C`;
+            value.className = `temp-value ${data.bed > 50 ? 'warm' : 'cool'}`;
+        }
+    }
+
+    function updatePrintProgress(data) {
+        const card = document.querySelector(`[data-printer-id="${data.printer_id}"]`);
+        if (!card) return;
+
+        const progressFill = card.querySelector('.progress-fill');
+        if (progressFill) {
+            progressFill.style.width = `${data.progress}%`;
+        }
+
+        const progressPercent = card.querySelector('.progress-percent');
+        if (progressPercent) {
+            progressPercent.textContent = `${data.progress}%`;
+        }
+
+        const layerProgress = card.querySelector('.print-layer-progress');
+        if (layerProgress) {
+            layerProgress.style.height = `${data.progress}%`;
+        }
+    }
+
+    // Terminal printer selector
+    document.getElementById('terminalPrinter').addEventListener('change', function() {
+        clearTerminal();
+        appendTerminalLine(`Connected to ${this.options[this.selectedIndex].text}`, 'info');
+    });
+
+    // Close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(modal => {
+        modal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+            }
+        });
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        // ESC to close modals
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(m => m.classList.remove('active'));
+        }
+
+        // Ctrl+Shift+E for emergency stop
+        if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+            emergencyStopAll();
+        }
+    });
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        initWebSocket();
+
+        // Simulate periodic updates for demo
+        setInterval(() => {
+            if (state.connected) {
+                // Update printing progress
+                const printingCard = document.querySelector('.status-printing');
+                if (printingCard) {
+                    const progress = parseFloat(printingCard.querySelector('.progress-fill').style.width) || 67;
+                    const newProgress = Math.min(progress + 0.1, 100);
+                    updatePrintProgress({
+                        printer_id: printingCard.dataset.printerId,
+                        progress: newProgress.toFixed(1)
+                    });
+                }
+            }
+        }, 5000);
+    });
+</script>
+{% endblock %}

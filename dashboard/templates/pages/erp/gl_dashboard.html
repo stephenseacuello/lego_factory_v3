@@ -1,0 +1,1482 @@
+{% extends "base.html" %}
+
+{% block title %}General Ledger - LEGO MCP{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .account-card {
+        border-left: 4px solid;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .account-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .account-card.assets { border-color: #28a745; }
+    .account-card.liabilities { border-color: #dc3545; }
+    .account-card.equity { border-color: #6f42c1; }
+    .account-card.revenue { border-color: #17a2b8; }
+    .account-card.expenses { border-color: #fd7e14; }
+
+    .account-type-badge {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .journal-entry-row:hover {
+        background-color: rgba(111, 66, 193, 0.05);
+    }
+
+    .debit { color: #28a745; }
+    .credit { color: #dc3545; }
+
+    .trial-balance-row {
+        border-bottom: 1px solid #e9ecef;
+    }
+    .trial-balance-row.total {
+        font-weight: bold;
+        background-color: #f8f9fa;
+        border-top: 2px solid #000;
+    }
+
+    .chart-of-accounts-item {
+        padding: 0.5rem 1rem;
+        border-left: 3px solid transparent;
+        transition: all 0.2s;
+    }
+    .chart-of-accounts-item:hover {
+        background-color: #f8f9fa;
+        border-left-color: #6f42c1;
+    }
+    .chart-of-accounts-item.active {
+        background-color: rgba(111, 66, 193, 0.1);
+        border-left-color: #6f42c1;
+    }
+
+    .period-selector .btn.active {
+        background-color: #6f42c1;
+        border-color: #6f42c1;
+        color: white;
+    }
+
+    .balance-card {
+        background: linear-gradient(135deg, #6f42c1 0%, #9b59b6 100%);
+        color: white;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="bi bi-journal-text text-purple me-2"></i>
+                        General Ledger
+                    </h2>
+                    <p class="text-muted mb-0">Chart of accounts, journal entries, and financial reports</p>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-purple" onclick="showNewJournalEntryModal()" style="background-color: #6f42c1; border-color: #6f42c1; color: white;">
+                        <i class="bi bi-plus-lg me-1"></i>Journal Entry
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="exportGLData()">
+                        <i class="bi bi-download me-1"></i>Export
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="runPeriodClose()">
+                        <i class="bi bi-calendar-check me-1"></i>Period Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card balance-card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="mb-1 opacity-75">Total Assets</p>
+                            <h3 class="mb-0" id="totalAssets">$0</h3>
+                        </div>
+                        <i class="bi bi-bank fs-1 opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100" style="border-left: 4px solid #dc3545;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1">Total Liabilities</p>
+                            <h3 class="mb-0" id="totalLiabilities">$0</h3>
+                        </div>
+                        <i class="bi bi-credit-card fs-1 text-danger opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100" style="border-left: 4px solid #6f42c1;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1">Total Equity</p>
+                            <h3 class="mb-0" id="totalEquity">$0</h3>
+                        </div>
+                        <i class="bi bi-pie-chart fs-1 text-purple opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card h-100" style="border-left: 4px solid #28a745;">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <p class="text-muted mb-1">Net Income (MTD)</p>
+                            <h3 class="mb-0" id="netIncome">$0</h3>
+                        </div>
+                        <i class="bi bi-graph-up-arrow fs-1 text-success opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="row">
+        <!-- Chart of Accounts Sidebar -->
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="bi bi-list-nested me-2"></i>Chart of Accounts
+                    </h6>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="showNewAccountModal()">
+                        <i class="bi bi-plus"></i>
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="input-group p-2">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control border-start-0" id="accountSearch" placeholder="Search accounts...">
+                    </div>
+                    <div id="chartOfAccounts" style="max-height: 500px; overflow-y: auto;">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-purple" role="status"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Panel -->
+        <div class="col-md-9">
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#journalEntries" role="tab">
+                                <i class="bi bi-journal-text me-1"></i>Journal Entries
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#trialBalance" role="tab">
+                                <i class="bi bi-table me-1"></i>Trial Balance
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#incomeStatement" role="tab">
+                                <i class="bi bi-graph-up me-1"></i>Income Statement
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#balanceSheet" role="tab">
+                                <i class="bi bi-file-earmark-spreadsheet me-1"></i>Balance Sheet
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#accountActivity" role="tab">
+                                <i class="bi bi-activity me-1"></i>Account Activity
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <!-- Journal Entries Tab -->
+                        <div class="tab-pane fade show active" id="journalEntries" role="tabpanel">
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label small">Date Range</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="date" class="form-control" id="jeStartDate">
+                                        <span class="input-group-text">to</span>
+                                        <input type="date" class="form-control" id="jeEndDate">
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small">Status</label>
+                                    <select class="form-select form-select-sm" id="jeStatusFilter">
+                                        <option value="">All</option>
+                                        <option value="draft">Draft</option>
+                                        <option value="posted">Posted</option>
+                                        <option value="reversed">Reversed</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label small">Source</label>
+                                    <select class="form-select form-select-sm" id="jeSourceFilter">
+                                        <option value="">All</option>
+                                        <option value="manual">Manual</option>
+                                        <option value="ar">AR</option>
+                                        <option value="ap">AP</option>
+                                        <option value="payroll">Payroll</option>
+                                        <option value="system">System</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-5 text-end d-flex align-items-end justify-content-end">
+                                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="loadJournalEntries()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                    </button>
+                                    <button class="btn btn-sm btn-purple" onclick="showNewJournalEntryModal()" style="background-color: #6f42c1; border-color: #6f42c1; color: white;">
+                                        <i class="bi bi-plus-lg me-1"></i>New Entry
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Entry #</th>
+                                            <th>Date</th>
+                                            <th>Description</th>
+                                            <th>Source</th>
+                                            <th class="text-end">Debit</th>
+                                            <th class="text-end">Credit</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="journalEntriesTable">
+                                        <tr>
+                                            <td colspan="8" class="text-center py-4">
+                                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                                <span class="ms-2">Loading entries...</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Trial Balance Tab -->
+                        <div class="tab-pane fade" id="trialBalance" role="tabpanel">
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label small">As of Date</label>
+                                    <input type="date" class="form-control form-control-sm" id="tbDate">
+                                </div>
+                                <div class="col-md-9 text-end d-flex align-items-end justify-content-end">
+                                    <div class="btn-group btn-group-sm period-selector me-2">
+                                        <button class="btn btn-outline-secondary" onclick="setTBPeriod('mtd')">MTD</button>
+                                        <button class="btn btn-outline-secondary" onclick="setTBPeriod('qtd')">QTD</button>
+                                        <button class="btn btn-outline-secondary active" onclick="setTBPeriod('ytd')">YTD</button>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="loadTrialBalance()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="exportTrialBalance()">
+                                        <i class="bi bi-download me-1"></i>Export
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Account #</th>
+                                            <th>Account Name</th>
+                                            <th>Type</th>
+                                            <th class="text-end">Debit</th>
+                                            <th class="text-end">Credit</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="trialBalanceTable">
+                                        <tr>
+                                            <td colspan="5" class="text-center py-4">
+                                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot id="trialBalanceFooter">
+                                    </tfoot>
+                                </table>
+                            </div>
+                            <div id="tbBalanceStatus" class="alert alert-success d-none">
+                                <i class="bi bi-check-circle me-2"></i>Trial balance is in balance
+                            </div>
+                        </div>
+
+                        <!-- Income Statement Tab -->
+                        <div class="tab-pane fade" id="incomeStatement" role="tabpanel">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label small">Period</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="date" class="form-control" id="isStartDate">
+                                        <span class="input-group-text">to</span>
+                                        <input type="date" class="form-control" id="isEndDate">
+                                    </div>
+                                </div>
+                                <div class="col-md-8 text-end d-flex align-items-end justify-content-end">
+                                    <div class="btn-group btn-group-sm me-2">
+                                        <button class="btn btn-outline-secondary" onclick="setISPeriod('month')">Month</button>
+                                        <button class="btn btn-outline-secondary" onclick="setISPeriod('quarter')">Quarter</button>
+                                        <button class="btn btn-outline-secondary" onclick="setISPeriod('year')">Year</button>
+                                    </div>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="exportIncomeStatement()">
+                                        <i class="bi bi-download me-1"></i>Export
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div id="incomeStatementReport">
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="card">
+                                        <div class="card-header">
+                                            <h6 class="mb-0">Income vs Expenses</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="incomeExpenseChart" height="200"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Balance Sheet Tab -->
+                        <div class="tab-pane fade" id="balanceSheet" role="tabpanel">
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label small">As of Date</label>
+                                    <input type="date" class="form-control form-control-sm" id="bsDate">
+                                </div>
+                                <div class="col-md-9 text-end d-flex align-items-end justify-content-end">
+                                    <button class="btn btn-sm btn-outline-secondary me-2" onclick="loadBalanceSheet()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="exportBalanceSheet()">
+                                        <i class="bi bi-download me-1"></i>Export
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="border-bottom pb-2">Assets</h6>
+                                    <div id="bsAssets">
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="border-bottom pb-2">Liabilities & Equity</h6>
+                                    <div id="bsLiabilitiesEquity">
+                                        <div class="text-center py-4">
+                                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Account Activity Tab -->
+                        <div class="tab-pane fade" id="accountActivity" role="tabpanel">
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label small">Account</label>
+                                    <select class="form-select form-select-sm" id="activityAccount">
+                                        <option value="">Select Account...</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small">Date Range</label>
+                                    <div class="input-group input-group-sm">
+                                        <input type="date" class="form-control" id="activityStartDate">
+                                        <span class="input-group-text">to</span>
+                                        <input type="date" class="form-control" id="activityEndDate">
+                                    </div>
+                                </div>
+                                <div class="col-md-5 text-end d-flex align-items-end justify-content-end">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="loadAccountActivity()">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>Load Activity
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="accountActivityContent">
+                                <div class="text-center py-5 text-muted">
+                                    <i class="bi bi-journal-text fs-1 d-block mb-3"></i>
+                                    Select an account to view activity
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Journal Entry Modal -->
+<div class="modal fade" id="newJournalEntryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-journal-plus me-2" style="color: #6f42c1;"></i>Create Journal Entry
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="journalEntryForm">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Entry Date *</label>
+                            <input type="date" class="form-control" id="jeDate" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Reference</label>
+                            <input type="text" class="form-control" id="jeReference" placeholder="Optional reference">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Source</label>
+                            <select class="form-select" id="jeSource">
+                                <option value="manual">Manual</option>
+                                <option value="adjustment">Adjustment</option>
+                                <option value="closing">Closing Entry</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description *</label>
+                        <input type="text" class="form-control" id="jeDescription" required placeholder="Enter journal entry description">
+                    </div>
+
+                    <h6 class="mb-3">Entry Lines</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm" id="jeLines">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Description</th>
+                                    <th style="width: 130px;">Debit</th>
+                                    <th style="width: 130px;">Credit</th>
+                                    <th style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="jeLinesBody">
+                                <tr class="je-line">
+                                    <td>
+                                        <select class="form-select form-select-sm" name="account" required>
+                                            <option value="">Select Account...</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="text" class="form-control form-control-sm" name="description"></td>
+                                    <td><input type="number" class="form-control form-control-sm" name="debit" step="0.01" min="0"></td>
+                                    <td><input type="number" class="form-control form-control-sm" name="credit" step="0.01" min="0"></td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeJELine(this)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr class="je-line">
+                                    <td>
+                                        <select class="form-select form-select-sm" name="account" required>
+                                            <option value="">Select Account...</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="text" class="form-control form-control-sm" name="description"></td>
+                                    <td><input type="number" class="form-control form-control-sm" name="debit" step="0.01" min="0"></td>
+                                    <td><input type="number" class="form-control form-control-sm" name="credit" step="0.01" min="0"></td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeJELine(this)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addJELine()">
+                                            <i class="bi bi-plus me-1"></i>Add Line
+                                        </button>
+                                    </td>
+                                    <td class="text-end"><strong id="totalDebit">$0.00</strong></td>
+                                    <td class="text-end"><strong id="totalCredit">$0.00</strong></td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <div id="jeBalanceAlert" class="alert alert-danger d-none">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Debits must equal credits for a valid journal entry.
+                    </div>
+                    <div id="jeBalanceSuccess" class="alert alert-success d-none">
+                        <i class="bi bi-check-circle me-2"></i>
+                        Entry is balanced.
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="saveJEDraft()">
+                    <i class="bi bi-save me-1"></i>Save Draft
+                </button>
+                <button type="button" class="btn btn-purple" onclick="postJournalEntry()" style="background-color: #6f42c1; border-color: #6f42c1; color: white;">
+                    <i class="bi bi-check-lg me-1"></i>Post Entry
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- View Journal Entry Modal -->
+<div class="modal fade" id="viewJournalEntryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-journal-text me-2" style="color: #6f42c1;"></i>
+                    Journal Entry <span id="viewJENumber">-</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="viewJEContent">
+                <!-- Populated dynamically -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-outline-danger" id="reverseJEBtn" onclick="reverseJournalEntry()">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reverse
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global state
+let glData = {
+    accounts: [],
+    journalEntries: [],
+    trialBalance: null,
+    incomeStatement: null
+};
+
+let incomeExpenseChart = null;
+let currentViewJE = null;
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadGLData();
+    setupEventListeners();
+    setDefaultDates();
+});
+
+async function loadGLData() {
+    try {
+        const [accounts, entries, trialBalance] = await Promise.all([
+            fetch('/api/erp/financials/gl/accounts').then(r => r.json()),
+            fetch('/api/erp/financials/gl/journal-entries').then(r => r.json()),
+            fetch('/api/erp/financials/gl/trial-balance').then(r => r.json())
+        ]);
+
+        glData = { accounts, journalEntries: entries, trialBalance };
+
+        updateSummaryCards();
+        renderChartOfAccounts();
+        renderJournalEntries();
+        renderTrialBalance();
+        populateAccountDropdowns();
+        loadIncomeStatement();
+
+    } catch (error) {
+        console.error('Error loading GL data:', error);
+        showToast('Error loading general ledger data', 'danger');
+    }
+}
+
+function updateSummaryCards() {
+    const tb = glData.trialBalance;
+    if (!tb || !tb.accounts) return;
+
+    let assets = 0, liabilities = 0, equity = 0, revenue = 0, expenses = 0;
+
+    tb.accounts.forEach(a => {
+        const balance = a.balance || 0;
+        switch(a.type) {
+            case 'asset': assets += balance; break;
+            case 'liability': liabilities += balance; break;
+            case 'equity': equity += balance; break;
+            case 'revenue': revenue += balance; break;
+            case 'expense': expenses += balance; break;
+        }
+    });
+
+    document.getElementById('totalAssets').textContent = formatCurrency(assets);
+    document.getElementById('totalLiabilities').textContent = formatCurrency(liabilities);
+    document.getElementById('totalEquity').textContent = formatCurrency(equity);
+    document.getElementById('netIncome').textContent = formatCurrency(revenue - expenses);
+}
+
+function renderChartOfAccounts() {
+    const container = document.getElementById('chartOfAccounts');
+    const accounts = glData.accounts;
+
+    if (!accounts || accounts.length === 0) {
+        container.innerHTML = '<div class="text-center py-4 text-muted">No accounts found</div>';
+        return;
+    }
+
+    // Group by type
+    const grouped = {
+        asset: accounts.filter(a => a.type === 'asset'),
+        liability: accounts.filter(a => a.type === 'liability'),
+        equity: accounts.filter(a => a.type === 'equity'),
+        revenue: accounts.filter(a => a.type === 'revenue'),
+        expense: accounts.filter(a => a.type === 'expense')
+    };
+
+    const typeLabels = {
+        asset: { label: 'Assets', color: '#28a745', icon: 'bi-bank' },
+        liability: { label: 'Liabilities', color: '#dc3545', icon: 'bi-credit-card' },
+        equity: { label: 'Equity', color: '#6f42c1', icon: 'bi-pie-chart' },
+        revenue: { label: 'Revenue', color: '#17a2b8', icon: 'bi-graph-up' },
+        expense: { label: 'Expenses', color: '#fd7e14', icon: 'bi-receipt' }
+    };
+
+    let html = '';
+    for (const [type, accts] of Object.entries(grouped)) {
+        if (accts.length === 0) continue;
+
+        const info = typeLabels[type];
+        html += `
+            <div class="mb-2">
+                <div class="px-3 py-2 bg-light d-flex align-items-center" style="border-left: 3px solid ${info.color};">
+                    <i class="bi ${info.icon} me-2" style="color: ${info.color};"></i>
+                    <strong>${info.label}</strong>
+                    <span class="badge bg-secondary ms-auto">${accts.length}</span>
+                </div>
+                ${accts.map(a => `
+                    <div class="chart-of-accounts-item d-flex justify-content-between align-items-center" onclick="selectAccount('${a.account_number}')">
+                        <div>
+                            <small class="text-muted">${a.account_number}</small>
+                            <span class="ms-2">${a.name}</span>
+                        </div>
+                        <span class="${a.balance >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(a.balance)}</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+function renderJournalEntries() {
+    const tbody = document.getElementById('journalEntriesTable');
+    const entries = glData.journalEntries;
+
+    if (!entries || entries.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-4 text-muted">
+                    <i class="bi bi-journal-text fs-1 d-block mb-2"></i>
+                    No journal entries found
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = entries.map(e => {
+        const statusBadge = getJEStatusBadge(e.status);
+        const sourceBadge = getSourceBadge(e.source);
+
+        return `
+            <tr class="journal-entry-row">
+                <td>
+                    <a href="#" onclick="viewJournalEntry('${e.entry_id}')" class="text-decoration-none fw-bold">
+                        ${e.entry_number}
+                    </a>
+                </td>
+                <td>${formatDate(e.entry_date)}</td>
+                <td>${e.description}</td>
+                <td>${sourceBadge}</td>
+                <td class="text-end debit">${formatCurrency(e.total_debit)}</td>
+                <td class="text-end credit">${formatCurrency(e.total_credit)}</td>
+                <td>${statusBadge}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="viewJournalEntry('${e.entry_id}')" title="View">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        ${e.status === 'posted' ? `
+                            <button class="btn btn-outline-danger" onclick="confirmReverseJE('${e.entry_id}')" title="Reverse">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderTrialBalance() {
+    const tbody = document.getElementById('trialBalanceTable');
+    const footer = document.getElementById('trialBalanceFooter');
+    const tb = glData.trialBalance;
+
+    if (!tb || !tb.accounts) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-muted">No data available</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = tb.accounts.map(a => `
+        <tr class="trial-balance-row">
+            <td><code>${a.account_number}</code></td>
+            <td>${a.name}</td>
+            <td><span class="account-type-badge badge bg-${getTypeColor(a.type)}">${a.type}</span></td>
+            <td class="text-end">${a.debit > 0 ? formatCurrency(a.debit) : ''}</td>
+            <td class="text-end">${a.credit > 0 ? formatCurrency(a.credit) : ''}</td>
+        </tr>
+    `).join('');
+
+    footer.innerHTML = `
+        <tr class="trial-balance-row total">
+            <td colspan="3"><strong>TOTALS</strong></td>
+            <td class="text-end"><strong>${formatCurrency(tb.total_debits)}</strong></td>
+            <td class="text-end"><strong>${formatCurrency(tb.total_credits)}</strong></td>
+        </tr>
+    `;
+
+    // Show balance status
+    const statusEl = document.getElementById('tbBalanceStatus');
+    if (tb.is_balanced) {
+        statusEl.className = 'alert alert-success';
+        statusEl.innerHTML = '<i class="bi bi-check-circle me-2"></i>Trial balance is in balance';
+    } else {
+        statusEl.className = 'alert alert-danger';
+        const diff = Math.abs(tb.total_debits - tb.total_credits);
+        statusEl.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i>Trial balance is OUT of balance by ${formatCurrency(diff)}`;
+    }
+    statusEl.classList.remove('d-none');
+}
+
+async function loadIncomeStatement() {
+    const startDate = document.getElementById('isStartDate').value;
+    const endDate = document.getElementById('isEndDate').value;
+
+    try {
+        let url = '/api/erp/financials/gl/income-statement';
+        if (startDate && endDate) {
+            url += `?start=${startDate}&end=${endDate}`;
+        }
+
+        const response = await fetch(url);
+        const data = await response.json();
+        glData.incomeStatement = data;
+
+        renderIncomeStatement(data);
+        updateIncomeExpenseChart(data);
+
+    } catch (error) {
+        console.error('Error loading income statement:', error);
+    }
+}
+
+function renderIncomeStatement(data) {
+    const container = document.getElementById('incomeStatementReport');
+
+    if (!data) {
+        container.innerHTML = '<div class="text-center py-4 text-muted">No data available</div>';
+        return;
+    }
+
+    const totalRevenue = data.revenue?.total || 0;
+    const totalExpenses = data.expenses?.total || 0;
+    const netIncome = totalRevenue - totalExpenses;
+
+    container.innerHTML = `
+        <div class="border rounded p-3">
+            <h6 class="text-center mb-3">Income Statement</h6>
+            <p class="text-center text-muted small mb-4">
+                ${data.period_start ? formatDate(data.period_start) : 'Start'} - ${data.period_end ? formatDate(data.period_end) : 'End'}
+            </p>
+
+            <h6 class="text-success border-bottom pb-2">Revenue</h6>
+            ${(data.revenue?.accounts || []).map(a => `
+                <div class="d-flex justify-content-between py-1">
+                    <span>${a.name}</span>
+                    <span>${formatCurrency(a.balance)}</span>
+                </div>
+            `).join('') || '<div class="text-muted py-2">No revenue recorded</div>'}
+            <div class="d-flex justify-content-between py-2 border-top mt-2">
+                <strong>Total Revenue</strong>
+                <strong class="text-success">${formatCurrency(totalRevenue)}</strong>
+            </div>
+
+            <h6 class="text-danger border-bottom pb-2 mt-4">Expenses</h6>
+            ${(data.expenses?.accounts || []).map(a => `
+                <div class="d-flex justify-content-between py-1">
+                    <span>${a.name}</span>
+                    <span>${formatCurrency(a.balance)}</span>
+                </div>
+            `).join('') || '<div class="text-muted py-2">No expenses recorded</div>'}
+            <div class="d-flex justify-content-between py-2 border-top mt-2">
+                <strong>Total Expenses</strong>
+                <strong class="text-danger">${formatCurrency(totalExpenses)}</strong>
+            </div>
+
+            <div class="d-flex justify-content-between py-3 border-top border-dark mt-4">
+                <strong class="fs-5">Net Income</strong>
+                <strong class="fs-5 ${netIncome >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(netIncome)}</strong>
+            </div>
+        </div>
+    `;
+}
+
+function updateIncomeExpenseChart(data) {
+    const ctx = document.getElementById('incomeExpenseChart').getContext('2d');
+
+    if (incomeExpenseChart) {
+        incomeExpenseChart.destroy();
+    }
+
+    const revenue = data?.revenue?.total || 0;
+    const expenses = data?.expenses?.total || 0;
+
+    incomeExpenseChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Revenue', 'Expenses'],
+            datasets: [{
+                data: [revenue, expenses],
+                backgroundColor: ['rgba(40, 167, 69, 0.8)', 'rgba(220, 53, 69, 0.8)'],
+                borderColor: ['rgb(40, 167, 69)', 'rgb(220, 53, 69)'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ' + formatCurrency(context.raw);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function populateAccountDropdowns() {
+    const accounts = glData.accounts;
+    const options = accounts.map(a =>
+        `<option value="${a.account_number}">${a.account_number} - ${a.name}</option>`
+    ).join('');
+
+    // Activity dropdown
+    document.getElementById('activityAccount').innerHTML = '<option value="">Select Account...</option>' + options;
+
+    // JE line dropdowns
+    document.querySelectorAll('#jeLinesBody select[name="account"]').forEach(select => {
+        select.innerHTML = '<option value="">Select Account...</option>' + options;
+    });
+}
+
+// Modal functions
+function showNewJournalEntryModal() {
+    document.getElementById('journalEntryForm').reset();
+    document.getElementById('jeDate').value = new Date().toISOString().split('T')[0];
+
+    // Reset lines
+    const tbody = document.getElementById('jeLinesBody');
+    tbody.innerHTML = `
+        <tr class="je-line">
+            <td>
+                <select class="form-select form-select-sm" name="account" required>
+                    <option value="">Select Account...</option>
+                </select>
+            </td>
+            <td><input type="text" class="form-control form-control-sm" name="description"></td>
+            <td><input type="number" class="form-control form-control-sm" name="debit" step="0.01" min="0"></td>
+            <td><input type="number" class="form-control form-control-sm" name="credit" step="0.01" min="0"></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeJELine(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+        <tr class="je-line">
+            <td>
+                <select class="form-select form-select-sm" name="account" required>
+                    <option value="">Select Account...</option>
+                </select>
+            </td>
+            <td><input type="text" class="form-control form-control-sm" name="description"></td>
+            <td><input type="number" class="form-control form-control-sm" name="debit" step="0.01" min="0"></td>
+            <td><input type="number" class="form-control form-control-sm" name="credit" step="0.01" min="0"></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeJELine(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `;
+
+    populateAccountDropdowns();
+    updateJETotals();
+
+    new bootstrap.Modal(document.getElementById('newJournalEntryModal')).show();
+}
+
+async function viewJournalEntry(entryId) {
+    try {
+        const response = await fetch(`/api/erp/financials/gl/journal-entries/${entryId}`);
+        if (!response.ok) {
+            // Entry might not have detail endpoint, use list data
+            const entry = glData.journalEntries.find(e => e.entry_id === entryId);
+            if (entry) {
+                renderJEDetail(entry);
+            }
+            return;
+        }
+        const entry = await response.json();
+        renderJEDetail(entry);
+    } catch (error) {
+        console.error('Error loading journal entry:', error);
+        // Fallback to list data
+        const entry = glData.journalEntries.find(e => e.entry_id === entryId);
+        if (entry) {
+            renderJEDetail(entry);
+        }
+    }
+}
+
+function renderJEDetail(entry) {
+    currentViewJE = entry;
+    document.getElementById('viewJENumber').textContent = entry.entry_number;
+
+    const content = document.getElementById('viewJEContent');
+    content.innerHTML = `
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label class="form-label small text-muted">Date</label>
+                <div><strong>${formatDate(entry.entry_date)}</strong></div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small text-muted">Source</label>
+                <div>${getSourceBadge(entry.source)}</div>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small text-muted">Status</label>
+                <div>${getJEStatusBadge(entry.status)}</div>
+            </div>
+        </div>
+        <div class="mb-3">
+            <label class="form-label small text-muted">Description</label>
+            <div><strong>${entry.description}</strong></div>
+        </div>
+
+        <h6 class="mb-3">Entry Lines</h6>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Account</th>
+                        <th>Description</th>
+                        <th class="text-end">Debit</th>
+                        <th class="text-end">Credit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${entry.lines ? entry.lines.map(l => `
+                        <tr>
+                            <td><code>${l.account_number}</code> ${l.account_name || ''}</td>
+                            <td>${l.description || ''}</td>
+                            <td class="text-end debit">${l.debit_amount > 0 ? formatCurrency(l.debit_amount) : ''}</td>
+                            <td class="text-end credit">${l.credit_amount > 0 ? formatCurrency(l.credit_amount) : ''}</td>
+                        </tr>
+                    `).join('') : `
+                        <tr>
+                            <td colspan="4" class="text-muted">Line details not available</td>
+                        </tr>
+                    `}
+                </tbody>
+                <tfoot>
+                    <tr class="table-light">
+                        <td colspan="2"><strong>Totals</strong></td>
+                        <td class="text-end"><strong class="debit">${formatCurrency(entry.total_debit)}</strong></td>
+                        <td class="text-end"><strong class="credit">${formatCurrency(entry.total_credit)}</strong></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    `;
+
+    // Show/hide reverse button based on status
+    document.getElementById('reverseJEBtn').style.display = entry.status === 'posted' ? 'inline-block' : 'none';
+
+    new bootstrap.Modal(document.getElementById('viewJournalEntryModal')).show();
+}
+
+async function postJournalEntry() {
+    const description = document.getElementById('jeDescription').value;
+    if (!description) {
+        showToast('Please enter a description', 'warning');
+        return;
+    }
+
+    const lines = [];
+    document.querySelectorAll('#jeLinesBody .je-line').forEach(row => {
+        const account = row.querySelector('[name="account"]').value;
+        const desc = row.querySelector('[name="description"]').value;
+        const debit = parseFloat(row.querySelector('[name="debit"]').value) || 0;
+        const credit = parseFloat(row.querySelector('[name="credit"]').value) || 0;
+
+        if (account && (debit > 0 || credit > 0)) {
+            lines.push({ account, description: desc, debit, credit });
+        }
+    });
+
+    if (lines.length < 2) {
+        showToast('Journal entry requires at least 2 lines', 'warning');
+        return;
+    }
+
+    // Check balance
+    const totalDebit = lines.reduce((sum, l) => sum + l.debit, 0);
+    const totalCredit = lines.reduce((sum, l) => sum + l.credit, 0);
+
+    if (Math.abs(totalDebit - totalCredit) > 0.01) {
+        showToast('Debits must equal credits', 'danger');
+        return;
+    }
+
+    const data = {
+        description: description,
+        entry_date: document.getElementById('jeDate').value,
+        source: document.getElementById('jeSource').value,
+        source_document: document.getElementById('jeReference').value,
+        lines: lines
+    };
+
+    try {
+        const response = await fetch('/api/erp/financials/gl/journal-entries', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('newJournalEntryModal')).hide();
+            showToast('Journal entry posted successfully', 'success');
+            loadGLData();
+        } else {
+            const error = await response.json();
+            showToast(error.error || 'Failed to post journal entry', 'danger');
+        }
+    } catch (error) {
+        console.error('Error posting journal entry:', error);
+        showToast('Error posting journal entry', 'danger');
+    }
+}
+
+// Line functions
+function addJELine() {
+    const tbody = document.getElementById('jeLinesBody');
+    const accounts = glData.accounts;
+    const options = accounts.map(a =>
+        `<option value="${a.account_number}">${a.account_number} - ${a.name}</option>`
+    ).join('');
+
+    const row = document.createElement('tr');
+    row.className = 'je-line';
+    row.innerHTML = `
+        <td>
+            <select class="form-select form-select-sm" name="account" required>
+                <option value="">Select Account...</option>
+                ${options}
+            </select>
+        </td>
+        <td><input type="text" class="form-control form-control-sm" name="description"></td>
+        <td><input type="number" class="form-control form-control-sm" name="debit" step="0.01" min="0"></td>
+        <td><input type="number" class="form-control form-control-sm" name="credit" step="0.01" min="0"></td>
+        <td>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeJELine(this)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(row);
+    setupJELineListeners();
+}
+
+function removeJELine(btn) {
+    const rows = document.querySelectorAll('#jeLinesBody .je-line');
+    if (rows.length > 2) {
+        btn.closest('tr').remove();
+        updateJETotals();
+    } else {
+        showToast('Journal entry requires at least 2 lines', 'warning');
+    }
+}
+
+function setupJELineListeners() {
+    document.querySelectorAll('#jeLinesBody input[name="debit"], #jeLinesBody input[name="credit"]').forEach(input => {
+        input.addEventListener('input', updateJETotals);
+    });
+}
+
+function updateJETotals() {
+    let totalDebit = 0;
+    let totalCredit = 0;
+
+    document.querySelectorAll('#jeLinesBody .je-line').forEach(row => {
+        totalDebit += parseFloat(row.querySelector('[name="debit"]').value) || 0;
+        totalCredit += parseFloat(row.querySelector('[name="credit"]').value) || 0;
+    });
+
+    document.getElementById('totalDebit').textContent = formatCurrency(totalDebit);
+    document.getElementById('totalCredit').textContent = formatCurrency(totalCredit);
+
+    // Show balance status
+    const alertEl = document.getElementById('jeBalanceAlert');
+    const successEl = document.getElementById('jeBalanceSuccess');
+
+    if (Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0) {
+        alertEl.classList.add('d-none');
+        successEl.classList.remove('d-none');
+    } else if (totalDebit > 0 || totalCredit > 0) {
+        alertEl.classList.remove('d-none');
+        successEl.classList.add('d-none');
+    } else {
+        alertEl.classList.add('d-none');
+        successEl.classList.add('d-none');
+    }
+}
+
+// Helper functions
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount || 0);
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function getJEStatusBadge(status) {
+    const badges = {
+        'draft': '<span class="badge bg-secondary">Draft</span>',
+        'posted': '<span class="badge bg-success">Posted</span>',
+        'reversed': '<span class="badge bg-warning">Reversed</span>',
+        'pending': '<span class="badge bg-info">Pending</span>'
+    };
+    return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function getSourceBadge(source) {
+    const badges = {
+        'manual': '<span class="badge bg-secondary">Manual</span>',
+        'ar': '<span class="badge bg-info">AR</span>',
+        'ap': '<span class="badge bg-danger">AP</span>',
+        'payroll': '<span class="badge bg-warning">Payroll</span>',
+        'system': '<span class="badge bg-dark">System</span>',
+        'adjustment': '<span class="badge bg-purple" style="background-color: #6f42c1;">Adjustment</span>',
+        'closing': '<span class="badge bg-dark">Closing</span>'
+    };
+    return badges[source] || `<span class="badge bg-secondary">${source}</span>`;
+}
+
+function getTypeColor(type) {
+    const colors = {
+        'asset': 'success',
+        'liability': 'danger',
+        'equity': 'purple',
+        'revenue': 'info',
+        'expense': 'warning'
+    };
+    return colors[type] || 'secondary';
+}
+
+function setupEventListeners() {
+    // Account search
+    document.getElementById('accountSearch').addEventListener('input', function() {
+        const search = this.value.toLowerCase();
+        document.querySelectorAll('.chart-of-accounts-item').forEach(item => {
+            const text = item.textContent.toLowerCase();
+            item.style.display = text.includes(search) ? '' : 'none';
+        });
+    });
+
+    // JE line listeners
+    setupJELineListeners();
+
+    // Tab change listeners
+    document.querySelectorAll('a[data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(e) {
+            const targetId = e.target.getAttribute('href');
+            if (targetId === '#trialBalance') {
+                loadTrialBalance();
+            } else if (targetId === '#incomeStatement') {
+                loadIncomeStatement();
+            } else if (targetId === '#balanceSheet') {
+                loadBalanceSheet();
+            }
+        });
+    });
+}
+
+function setDefaultDates() {
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    // Journal entries dates
+    document.getElementById('jeStartDate').value = startOfMonth.toISOString().split('T')[0];
+    document.getElementById('jeEndDate').value = today.toISOString().split('T')[0];
+
+    // Trial balance date
+    document.getElementById('tbDate').value = today.toISOString().split('T')[0];
+
+    // Income statement dates
+    document.getElementById('isStartDate').value = startOfMonth.toISOString().split('T')[0];
+    document.getElementById('isEndDate').value = today.toISOString().split('T')[0];
+
+    // Balance sheet date
+    document.getElementById('bsDate').value = today.toISOString().split('T')[0];
+
+    // Account activity dates
+    document.getElementById('activityStartDate').value = startOfMonth.toISOString().split('T')[0];
+    document.getElementById('activityEndDate').value = today.toISOString().split('T')[0];
+}
+
+async function loadTrialBalance() {
+    const asOf = document.getElementById('tbDate').value;
+
+    try {
+        let url = '/api/erp/financials/gl/trial-balance';
+        if (asOf) {
+            url += `?as_of=${asOf}`;
+        }
+
+        const response = await fetch(url);
+        glData.trialBalance = await response.json();
+        renderTrialBalance();
+    } catch (error) {
+        console.error('Error loading trial balance:', error);
+    }
+}
+
+function loadJournalEntries() {
+    loadGLData();
+}
+
+async function loadBalanceSheet() {
+    const asOf = document.getElementById('bsDate').value;
+    // Balance sheet would be a custom report combining assets, liabilities, equity
+    // For now, we'll use the trial balance data grouped by type
+
+    const assetsContainer = document.getElementById('bsAssets');
+    const liabEquityContainer = document.getElementById('bsLiabilitiesEquity');
+
+    const tb = glData.trialBalance;
+    if (!tb || !tb.accounts) {
+        assetsContainer.innerHTML = '<div class="text-muted">No data</div>';
+        liabEquityContainer.innerHTML = '<div class="text-muted">No data</div>';
+        return;
+    }
+
+    const assets = tb.accounts.filter(a => a.type === 'asset');
+    const liabilities = tb.accounts.filter(a => a.type === 'liability');
+    const equity = tb.accounts.filter(a => a.type === 'equity');
+
+    const totalAssets = assets.reduce((sum, a) => sum + (a.balance || 0), 0);
+    const totalLiabilities = liabilities.reduce((sum, a) => sum + (a.balance || 0), 0);
+    const totalEquity = equity.reduce((sum, a) => sum + (a.balance || 0), 0);
+
+    assetsContainer.innerHTML = `
+        ${assets.map(a => `
+            <div class="d-flex justify-content-between py-1">
+                <span>${a.name}</span>
+                <span>${formatCurrency(a.balance)}</span>
+            </div>
+        `).join('') || '<div class="text-muted">No assets</div>'}
+        <div class="d-flex justify-content-between py-2 border-top mt-2">
+            <strong>Total Assets</strong>
+            <strong>${formatCurrency(totalAssets)}</strong>
+        </div>
+    `;
+
+    liabEquityContainer.innerHTML = `
+        <strong class="d-block mb-2">Liabilities</strong>
+        ${liabilities.map(a => `
+            <div class="d-flex justify-content-between py-1">
+                <span>${a.name}</span>
+                <span>${formatCurrency(a.balance)}</span>
+            </div>
+        `).join('') || '<div class="text-muted">No liabilities</div>'}
+        <div class="d-flex justify-content-between py-2 border-top mt-2">
+            <strong>Total Liabilities</strong>
+            <strong>${formatCurrency(totalLiabilities)}</strong>
+        </div>
+
+        <strong class="d-block mb-2 mt-3">Equity</strong>
+        ${equity.map(a => `
+            <div class="d-flex justify-content-between py-1">
+                <span>${a.name}</span>
+                <span>${formatCurrency(a.balance)}</span>
+            </div>
+        `).join('') || '<div class="text-muted">No equity accounts</div>'}
+        <div class="d-flex justify-content-between py-2 border-top mt-2">
+            <strong>Total Equity</strong>
+            <strong>${formatCurrency(totalEquity)}</strong>
+        </div>
+
+        <div class="d-flex justify-content-between py-2 border-top border-dark mt-3">
+            <strong>Total Liabilities & Equity</strong>
+            <strong>${formatCurrency(totalLiabilities + totalEquity)}</strong>
+        </div>
+    `;
+}
+
+function selectAccount(accountNumber) {
+    // Highlight selected account
+    document.querySelectorAll('.chart-of-accounts-item').forEach(item => {
+        item.classList.remove('active');
+    });
+    event.currentTarget?.classList.add('active');
+
+    // Switch to activity tab and load
+    document.getElementById('activityAccount').value = accountNumber;
+    document.querySelector('a[href="#accountActivity"]').click();
+    loadAccountActivity();
+}
+
+async function loadAccountActivity() {
+    const account = document.getElementById('activityAccount').value;
+    const container = document.getElementById('accountActivityContent');
+
+    if (!account) {
+        container.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-journal-text fs-1 d-block mb-3"></i>
+                Select an account to view activity
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <span class="ms-2">Loading activity...</span>
+        </div>
+    `;
+
+    // For now, show journal entries filtered by account
+    const accountInfo = glData.accounts.find(a => a.account_number === account);
+
+    container.innerHTML = `
+        <div class="alert alert-light">
+            <div class="d-flex justify-content-between">
+                <span><strong>${account}</strong> - ${accountInfo?.name || 'Unknown Account'}</span>
+                <span>Current Balance: <strong>${formatCurrency(accountInfo?.balance || 0)}</strong></span>
+            </div>
+        </div>
+        <p class="text-muted">Detailed account activity view would show all transactions affecting this account.</p>
+    `;
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} position-fixed top-0 end-0 m-3`;
+    toast.style.zIndex = '9999';
+    toast.innerHTML = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// Stub functions for future implementation
+function setTBPeriod(period) {
+    document.querySelectorAll('.period-selector .btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    loadTrialBalance();
+}
+
+function setISPeriod(period) {
+    const today = new Date();
+    let start, end;
+
+    switch(period) {
+        case 'month':
+            start = new Date(today.getFullYear(), today.getMonth(), 1);
+            end = today;
+            break;
+        case 'quarter':
+            const quarter = Math.floor(today.getMonth() / 3);
+            start = new Date(today.getFullYear(), quarter * 3, 1);
+            end = today;
+            break;
+        case 'year':
+            start = new Date(today.getFullYear(), 0, 1);
+            end = today;
+            break;
+    }
+
+    document.getElementById('isStartDate').value = start.toISOString().split('T')[0];
+    document.getElementById('isEndDate').value = end.toISOString().split('T')[0];
+    loadIncomeStatement();
+}
+
+function exportGLData() { showToast('Exporting GL data...', 'info'); }
+function exportTrialBalance() { showToast('Exporting trial balance...', 'info'); }
+function exportIncomeStatement() { showToast('Exporting income statement...', 'info'); }
+function exportBalanceSheet() { showToast('Exporting balance sheet...', 'info'); }
+function runPeriodClose() { showToast('Period close wizard coming soon', 'info'); }
+function showNewAccountModal() { showToast('Account creation coming soon', 'info'); }
+function saveJEDraft() { showToast('Draft saved', 'success'); }
+function reverseJournalEntry() { showToast('Reversing entry...', 'info'); }
+function confirmReverseJE(entryId) { showToast('Confirm reverse coming soon', 'info'); }
+</script>
+{% endblock %}

@@ -1,0 +1,1712 @@
+{% extends "base.html" %}
+
+{% block title %}Model Comparison - Research Platform{% endblock %}
+
+{% block head %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+<style>
+    :root {
+        --rc-primary: #8b5cf6;
+        --rc-secondary: #06b6d4;
+        --rc-accent: #f59e0b;
+        --rc-success: #10b981;
+        --rc-warning: #f59e0b;
+        --rc-danger: #ef4444;
+        --rc-info: #3b82f6;
+        --rc-dark: #0f172a;
+        --rc-darker: #020617;
+        --rc-card: #1e293b;
+        --rc-border: #334155;
+        --rc-text: #f1f5f9;
+        --rc-text-muted: #94a3b8;
+        --rc-model-a: #8b5cf6;
+        --rc-model-b: #06b6d4;
+        --rc-model-c: #f59e0b;
+        --rc-winner: #10b981;
+        --rc-loser: #ef4444;
+    }
+
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        background: linear-gradient(135deg, var(--rc-darker) 0%, var(--rc-dark) 100%);
+        color: var(--rc-text);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        min-height: 100vh;
+    }
+
+    .rc-container {
+        padding: 1.5rem;
+        max-width: 1800px;
+        margin: 0 auto;
+    }
+
+    /* Header */
+    .rc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .rc-title-section h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--rc-primary), var(--rc-secondary));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .rc-title-section p {
+        color: var(--rc-text-muted);
+        margin-top: 0.25rem;
+        font-size: 0.875rem;
+    }
+
+    .rc-connection-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--rc-card);
+        border-radius: 9999px;
+        font-size: 0.75rem;
+    }
+
+    .rc-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--rc-danger);
+        animation: pulse 2s infinite;
+    }
+
+    .rc-status-dot.connected {
+        background: var(--rc-success);
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    /* Model Selector */
+    .rc-selector-bar {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        background: var(--rc-card);
+        padding: 1rem 1.5rem;
+        border-radius: 12px;
+        border: 1px solid var(--rc-border);
+    }
+
+    .rc-model-select-group {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex: 1;
+        min-width: 250px;
+    }
+
+    .rc-model-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--rc-text-muted);
+        white-space: nowrap;
+    }
+
+    .rc-model-select {
+        flex: 1;
+        padding: 0.625rem 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--rc-border);
+        background: var(--rc-dark);
+        color: var(--rc-text);
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .rc-model-select:hover {
+        border-color: var(--rc-primary);
+    }
+
+    .rc-model-select:focus {
+        outline: none;
+        border-color: var(--rc-primary);
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+    }
+
+    .rc-vs-badge {
+        background: linear-gradient(135deg, var(--rc-primary), var(--rc-secondary));
+        color: white;
+        padding: 0.375rem 0.75rem;
+        border-radius: 9999px;
+        font-weight: 700;
+        font-size: 0.75rem;
+    }
+
+    .rc-action-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .rc-btn {
+        padding: 0.625rem 1rem;
+        border-radius: 8px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .rc-btn-primary {
+        background: linear-gradient(135deg, var(--rc-primary), #7c3aed);
+        color: white;
+    }
+
+    .rc-btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    }
+
+    .rc-btn-secondary {
+        background: var(--rc-dark);
+        color: var(--rc-text);
+        border: 1px solid var(--rc-border);
+    }
+
+    .rc-btn-secondary:hover {
+        background: var(--rc-border);
+    }
+
+    .rc-btn-success {
+        background: linear-gradient(135deg, var(--rc-success), #059669);
+        color: white;
+    }
+
+    /* KPI Summary Cards */
+    .rc-kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1400px) {
+        .rc-kpi-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @media (max-width: 768px) {
+        .rc-kpi-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    .rc-kpi-card {
+        background: var(--rc-card);
+        border-radius: 12px;
+        padding: 1.25rem;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--rc-border);
+        transition: all 0.3s;
+    }
+
+    .rc-kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .rc-kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--rc-primary), var(--rc-secondary));
+    }
+
+    .rc-kpi-card.winner::before {
+        background: linear-gradient(90deg, var(--rc-success), #34d399);
+    }
+
+    .rc-kpi-card.improved::before {
+        background: linear-gradient(90deg, var(--rc-success), #34d399);
+    }
+
+    .rc-kpi-card.degraded::before {
+        background: linear-gradient(90deg, var(--rc-danger), #f87171);
+    }
+
+    .rc-kpi-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .rc-kpi-label {
+        font-size: 0.75rem;
+        color: var(--rc-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .rc-kpi-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+    }
+
+    .rc-kpi-icon.accuracy { background: rgba(139, 92, 246, 0.2); color: var(--rc-primary); }
+    .rc-kpi-icon.f1 { background: rgba(6, 182, 212, 0.2); color: var(--rc-secondary); }
+    .rc-kpi-icon.precision { background: rgba(59, 130, 246, 0.2); color: var(--rc-info); }
+    .rc-kpi-icon.recall { background: rgba(245, 158, 11, 0.2); color: var(--rc-warning); }
+    .rc-kpi-icon.latency { background: rgba(16, 185, 129, 0.2); color: var(--rc-success); }
+    .rc-kpi-icon.size { background: rgba(239, 68, 68, 0.2); color: var(--rc-danger); }
+
+    .rc-kpi-values {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+    }
+
+    .rc-kpi-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .rc-kpi-change {
+        font-size: 0.75rem;
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .rc-kpi-change.positive {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--rc-success);
+    }
+
+    .rc-kpi-change.negative {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--rc-danger);
+    }
+
+    .rc-kpi-change.neutral {
+        background: rgba(148, 163, 184, 0.2);
+        color: var(--rc-text-muted);
+    }
+
+    .rc-kpi-sparkline {
+        height: 40px;
+        margin-top: 0.5rem;
+    }
+
+    /* Main Content Grid */
+    .rc-main-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .rc-main-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Model Cards */
+    .rc-model-card {
+        background: var(--rc-card);
+        border-radius: 16px;
+        padding: 1.5rem;
+        position: relative;
+        border: 1px solid var(--rc-border);
+        transition: all 0.3s;
+    }
+
+    .rc-model-card:hover {
+        border-color: var(--rc-primary);
+    }
+
+    .rc-model-card.model-a {
+        border-left: 4px solid var(--rc-model-a);
+    }
+
+    .rc-model-card.model-b {
+        border-left: 4px solid var(--rc-model-b);
+    }
+
+    .rc-model-card.winner {
+        border: 2px solid var(--rc-winner);
+        box-shadow: 0 0 24px rgba(16, 185, 129, 0.2);
+    }
+
+    .rc-winner-badge {
+        position: absolute;
+        top: -12px;
+        right: 20px;
+        background: linear-gradient(135deg, var(--rc-success), #34d399);
+        color: white;
+        padding: 0.375rem 1rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+    }
+
+    .rc-model-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.25rem;
+    }
+
+    .rc-model-info h3 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .rc-model-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: var(--rc-text-muted);
+        font-size: 0.875rem;
+    }
+
+    .rc-model-stage {
+        padding: 0.25rem 0.625rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .rc-stage-production {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--rc-success);
+    }
+
+    .rc-stage-staging {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--rc-warning);
+    }
+
+    .rc-stage-development {
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--rc-info);
+    }
+
+    .rc-stage-archived {
+        background: rgba(148, 163, 184, 0.2);
+        color: var(--rc-text-muted);
+    }
+
+    .rc-metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .rc-metric-item {
+        background: var(--rc-dark);
+        padding: 0.875rem;
+        border-radius: 10px;
+        text-align: center;
+        border: 1px solid var(--rc-border);
+        transition: all 0.2s;
+    }
+
+    .rc-metric-item:hover {
+        border-color: var(--rc-primary);
+    }
+
+    .rc-metric-item.better {
+        border-color: var(--rc-success);
+        background: rgba(16, 185, 129, 0.05);
+    }
+
+    .rc-metric-item.worse {
+        border-color: var(--rc-danger);
+        background: rgba(239, 68, 68, 0.05);
+    }
+
+    .rc-metric-label {
+        font-size: 0.7rem;
+        color: var(--rc-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.375rem;
+    }
+
+    .rc-metric-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .rc-metric-delta {
+        font-size: 0.7rem;
+        margin-top: 0.25rem;
+    }
+
+    .rc-metric-delta.positive { color: var(--rc-success); }
+    .rc-metric-delta.negative { color: var(--rc-danger); }
+
+    /* Hyperparameters */
+    .rc-params-section {
+        border-top: 1px solid var(--rc-border);
+        padding-top: 1rem;
+    }
+
+    .rc-params-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .rc-params-header h4 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--rc-text-muted);
+    }
+
+    .rc-params-toggle {
+        background: none;
+        border: none;
+        color: var(--rc-primary);
+        cursor: pointer;
+        font-size: 0.75rem;
+    }
+
+    .rc-params-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
+    .rc-param-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.375rem 0.5rem;
+        background: var(--rc-dark);
+        border-radius: 6px;
+        font-size: 0.8rem;
+    }
+
+    .rc-param-key {
+        color: var(--rc-text-muted);
+    }
+
+    .rc-param-value {
+        font-weight: 600;
+    }
+
+    .rc-param-diff {
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        margin-left: 0.375rem;
+    }
+
+    .rc-param-diff.changed {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--rc-warning);
+    }
+
+    /* Chart Section */
+    .rc-chart-section {
+        background: var(--rc-card);
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 1px solid var(--rc-border);
+        grid-column: span 2;
+    }
+
+    @media (max-width: 1200px) {
+        .rc-chart-section {
+            grid-column: span 1;
+        }
+    }
+
+    .rc-chart-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        border-bottom: 1px solid var(--rc-border);
+        padding-bottom: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .rc-chart-tab {
+        padding: 0.5rem 1rem;
+        border-radius: 8px 8px 0 0;
+        border: none;
+        background: none;
+        color: var(--rc-text-muted);
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+    }
+
+    .rc-chart-tab:hover {
+        color: var(--rc-text);
+        background: var(--rc-dark);
+    }
+
+    .rc-chart-tab.active {
+        background: linear-gradient(135deg, var(--rc-primary), var(--rc-secondary));
+        color: white;
+    }
+
+    .rc-chart-container {
+        height: 400px;
+        position: relative;
+    }
+
+    /* Statistical Significance Panel */
+    .rc-stats-section {
+        background: var(--rc-card);
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 1px solid var(--rc-border);
+        grid-column: span 2;
+    }
+
+    .rc-stats-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .rc-stats-header h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .rc-significance-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .rc-significance-badge.significant {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--rc-success);
+    }
+
+    .rc-significance-badge.not-significant {
+        background: rgba(148, 163, 184, 0.2);
+        color: var(--rc-text-muted);
+    }
+
+    .rc-stats-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .rc-stats-table th,
+    .rc-stats-table td {
+        padding: 0.875rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--rc-border);
+        font-size: 0.875rem;
+    }
+
+    .rc-stats-table th {
+        background: var(--rc-dark);
+        font-weight: 600;
+        color: var(--rc-text-muted);
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.05em;
+    }
+
+    .rc-stats-table tbody tr:hover {
+        background: var(--rc-dark);
+    }
+
+    .rc-stats-table .model-a { color: var(--rc-model-a); font-weight: 600; }
+    .rc-stats-table .model-b { color: var(--rc-model-b); font-weight: 600; }
+    .rc-stats-table .better { color: var(--rc-success); }
+    .rc-stats-table .worse { color: var(--rc-danger); }
+
+    .rc-pvalue {
+        font-family: monospace;
+    }
+
+    .rc-pvalue.significant {
+        color: var(--rc-success);
+        font-weight: 600;
+    }
+
+    .rc-ci-range {
+        font-size: 0.75rem;
+        color: var(--rc-text-muted);
+    }
+
+    /* Environment Comparison */
+    .rc-env-section {
+        background: var(--rc-card);
+        border-radius: 16px;
+        padding: 1.5rem;
+        border: 1px solid var(--rc-border);
+    }
+
+    .rc-env-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .rc-env-column h4 {
+        font-size: 0.875rem;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--rc-border);
+    }
+
+    .rc-env-column.model-a h4 { color: var(--rc-model-a); }
+    .rc-env-column.model-b h4 { color: var(--rc-model-b); }
+
+    .rc-env-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .rc-env-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.375rem 0;
+        font-size: 0.8rem;
+    }
+
+    /* Toast Notifications */
+    .rc-toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .rc-toast {
+        background: var(--rc-card);
+        border: 1px solid var(--rc-border);
+        border-radius: 10px;
+        padding: 1rem 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        animation: slideIn 0.3s ease;
+        min-width: 300px;
+    }
+
+    .rc-toast.success { border-left: 4px solid var(--rc-success); }
+    .rc-toast.error { border-left: 4px solid var(--rc-danger); }
+    .rc-toast.warning { border-left: 4px solid var(--rc-warning); }
+    .rc-toast.info { border-left: 4px solid var(--rc-info); }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .rc-toast-icon {
+        font-size: 1.25rem;
+    }
+
+    .rc-toast.success .rc-toast-icon { color: var(--rc-success); }
+    .rc-toast.error .rc-toast-icon { color: var(--rc-danger); }
+    .rc-toast.warning .rc-toast-icon { color: var(--rc-warning); }
+    .rc-toast.info .rc-toast-icon { color: var(--rc-info); }
+
+    .rc-toast-content {
+        flex: 1;
+    }
+
+    .rc-toast-title {
+        font-weight: 600;
+        margin-bottom: 0.125rem;
+    }
+
+    .rc-toast-message {
+        font-size: 0.8rem;
+        color: var(--rc-text-muted);
+    }
+
+    .rc-toast-close {
+        background: none;
+        border: none;
+        color: var(--rc-text-muted);
+        cursor: pointer;
+        padding: 0.25rem;
+    }
+
+    /* Loading Overlay */
+    .rc-loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 16px;
+        z-index: 10;
+    }
+
+    .rc-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid var(--rc-border);
+        border-top-color: var(--rc-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Export Panel */
+    .rc-export-panel {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        background: var(--rc-card);
+        border: 1px solid var(--rc-border);
+        border-radius: 12px;
+        padding: 1rem;
+        display: flex;
+        gap: 0.5rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+
+    .rc-export-btn {
+        padding: 0.5rem 0.875rem;
+        border-radius: 8px;
+        border: none;
+        background: var(--rc-dark);
+        color: var(--rc-text);
+        cursor: pointer;
+        font-size: 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 0.375rem;
+        transition: all 0.2s;
+    }
+
+    .rc-export-btn:hover {
+        background: var(--rc-primary);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .rc-container {
+            padding: 1rem;
+        }
+
+        .rc-selector-bar {
+            flex-direction: column;
+        }
+
+        .rc-model-select-group {
+            width: 100%;
+        }
+
+        .rc-metrics-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .rc-params-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .rc-env-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .rc-stats-table {
+            display: block;
+            overflow-x: auto;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rc-container">
+    <!-- Toast Container -->
+    <div class="rc-toast-container" id="toastContainer"></div>
+
+    <!-- Header -->
+    <div class="rc-header">
+        <div class="rc-title-section">
+            <h1><i class="bi bi-bar-chart-line"></i> Model Comparison</h1>
+            <p>Compare ML model performance with statistical rigor</p>
+        </div>
+        <div class="rc-connection-status">
+            <span class="rc-status-dot" id="connectionDot"></span>
+            <span id="connectionText">Connecting...</span>
+        </div>
+    </div>
+
+    <!-- Model Selector Bar -->
+    <div class="rc-selector-bar">
+        <div class="rc-model-select-group">
+            <span class="rc-model-label" style="color: var(--rc-model-a);">Model A:</span>
+            <select class="rc-model-select" id="modelASelect" onchange="updateComparison()">
+                <option value="quality_v2.1">Quality Classifier v2.1.0 (Staging)</option>
+                <option value="quality_v1.5">Quality Classifier v1.5.0 (Production)</option>
+                <option value="defect_v2.0">Defect Detector v2.0.0 (Staging)</option>
+                <option value="defect_v1.2">Defect Detector v1.2.0 (Production)</option>
+                <option value="maintenance_v3.1">Maintenance Predictor v3.1.2</option>
+            </select>
+        </div>
+        <span class="rc-vs-badge">VS</span>
+        <div class="rc-model-select-group">
+            <span class="rc-model-label" style="color: var(--rc-model-b);">Model B:</span>
+            <select class="rc-model-select" id="modelBSelect" onchange="updateComparison()">
+                <option value="quality_v1.5">Quality Classifier v1.5.0 (Production)</option>
+                <option value="quality_v2.1">Quality Classifier v2.1.0 (Staging)</option>
+                <option value="defect_v1.2">Defect Detector v1.2.0 (Production)</option>
+                <option value="defect_v2.0">Defect Detector v2.0.0 (Staging)</option>
+                <option value="maintenance_v3.0">Maintenance Predictor v3.0.0</option>
+            </select>
+        </div>
+        <div class="rc-action-buttons">
+            <button class="rc-btn rc-btn-primary" onclick="runComparison()">
+                <i class="bi bi-play-fill"></i> Run Comparison
+            </button>
+            <button class="rc-btn rc-btn-secondary" onclick="addModel()">
+                <i class="bi bi-plus-lg"></i> Add Model
+            </button>
+            <button class="rc-btn rc-btn-secondary" onclick="exportReport()">
+                <i class="bi bi-download"></i> Export
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="rc-kpi-grid">
+        <div class="rc-kpi-card improved">
+            <div class="rc-kpi-header">
+                <span class="rc-kpi-label">Accuracy</span>
+                <div class="rc-kpi-icon accuracy"><i class="bi bi-bullseye"></i></div>
+            </div>
+            <div class="rc-kpi-values">
+                <span class="rc-kpi-value" id="kpiAccuracy">96.8%</span>
+                <span class="rc-kpi-change positive" id="kpiAccuracyChange">+2.3%</span>
+            </div>
+            <div class="rc-kpi-sparkline" id="sparklineAccuracy"></div>
+        </div>
+        <div class="rc-kpi-card improved">
+            <div class="rc-kpi-header">
+                <span class="rc-kpi-label">F1 Score</span>
+                <div class="rc-kpi-icon f1"><i class="bi bi-graph-up"></i></div>
+            </div>
+            <div class="rc-kpi-values">
+                <span class="rc-kpi-value" id="kpiF1">0.954</span>
+                <span class="rc-kpi-change positive" id="kpiF1Change">+0.028</span>
+            </div>
+            <div class="rc-kpi-sparkline" id="sparklineF1"></div>
+        </div>
+        <div class="rc-kpi-card improved">
+            <div class="rc-kpi-header">
+                <span class="rc-kpi-label">Precision</span>
+                <div class="rc-kpi-icon precision"><i class="bi bi-crosshair"></i></div>
+            </div>
+            <div class="rc-kpi-values">
+                <span class="rc-kpi-value" id="kpiPrecision">97.2%</span>
+                <span class="rc-kpi-change positive" id="kpiPrecisionChange">+1.8%</span>
+            </div>
+            <div class="rc-kpi-sparkline" id="sparklinePrecision"></div>
+        </div>
+        <div class="rc-kpi-card improved">
+            <div class="rc-kpi-header">
+                <span class="rc-kpi-label">Recall</span>
+                <div class="rc-kpi-icon recall"><i class="bi bi-search"></i></div>
+            </div>
+            <div class="rc-kpi-values">
+                <span class="rc-kpi-value" id="kpiRecall">93.6%</span>
+                <span class="rc-kpi-change positive" id="kpiRecallChange">+3.1%</span>
+            </div>
+            <div class="rc-kpi-sparkline" id="sparklineRecall"></div>
+        </div>
+        <div class="rc-kpi-card improved">
+            <div class="rc-kpi-header">
+                <span class="rc-kpi-label">Inference</span>
+                <div class="rc-kpi-icon latency"><i class="bi bi-lightning"></i></div>
+            </div>
+            <div class="rc-kpi-values">
+                <span class="rc-kpi-value" id="kpiLatency">12ms</span>
+                <span class="rc-kpi-change positive" id="kpiLatencyChange">-3ms</span>
+            </div>
+            <div class="rc-kpi-sparkline" id="sparklineLatency"></div>
+        </div>
+        <div class="rc-kpi-card degraded">
+            <div class="rc-kpi-header">
+                <span class="rc-kpi-label">Model Size</span>
+                <div class="rc-kpi-icon size"><i class="bi bi-hdd"></i></div>
+            </div>
+            <div class="rc-kpi-values">
+                <span class="rc-kpi-value" id="kpiSize">45MB</span>
+                <span class="rc-kpi-change negative" id="kpiSizeChange">+5MB</span>
+            </div>
+            <div class="rc-kpi-sparkline" id="sparklineSize"></div>
+        </div>
+    </div>
+
+    <!-- Model Cards Grid -->
+    <div class="rc-main-grid">
+        <!-- Model A Card -->
+        <div class="rc-model-card model-a winner" id="modelACard">
+            <div class="rc-winner-badge"><i class="bi bi-trophy-fill"></i> WINNER</div>
+            <div class="rc-model-header">
+                <div class="rc-model-info">
+                    <h3>Quality Classifier</h3>
+                    <div class="rc-model-meta">
+                        <span>v2.1.0</span>
+                        <span>Experiment #142</span>
+                    </div>
+                </div>
+                <span class="rc-model-stage rc-stage-staging">Staging</span>
+            </div>
+            <div class="rc-metrics-grid" id="modelAMetrics">
+                <div class="rc-metric-item better">
+                    <div class="rc-metric-label">Accuracy</div>
+                    <div class="rc-metric-value">96.8%</div>
+                    <div class="rc-metric-delta positive">+2.3%</div>
+                </div>
+                <div class="rc-metric-item better">
+                    <div class="rc-metric-label">F1 Score</div>
+                    <div class="rc-metric-value">0.954</div>
+                    <div class="rc-metric-delta positive">+0.028</div>
+                </div>
+                <div class="rc-metric-item better">
+                    <div class="rc-metric-label">Precision</div>
+                    <div class="rc-metric-value">97.2%</div>
+                    <div class="rc-metric-delta positive">+1.8%</div>
+                </div>
+                <div class="rc-metric-item better">
+                    <div class="rc-metric-label">Recall</div>
+                    <div class="rc-metric-value">93.6%</div>
+                    <div class="rc-metric-delta positive">+3.1%</div>
+                </div>
+                <div class="rc-metric-item better">
+                    <div class="rc-metric-label">AUC-ROC</div>
+                    <div class="rc-metric-value">0.989</div>
+                    <div class="rc-metric-delta positive">+0.013</div>
+                </div>
+                <div class="rc-metric-item worse">
+                    <div class="rc-metric-label">Size</div>
+                    <div class="rc-metric-value">45MB</div>
+                    <div class="rc-metric-delta negative">+5MB</div>
+                </div>
+            </div>
+            <div class="rc-params-section">
+                <div class="rc-params-header">
+                    <h4><i class="bi bi-sliders"></i> Hyperparameters</h4>
+                    <button class="rc-params-toggle" onclick="toggleParams('A')">Show Diff</button>
+                </div>
+                <div class="rc-params-grid" id="modelAParams">
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Learning Rate</span>
+                        <span class="rc-param-value">0.001 <span class="rc-param-diff changed">+0.0005</span></span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Batch Size</span>
+                        <span class="rc-param-value">32 <span class="rc-param-diff changed">+16</span></span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Epochs</span>
+                        <span class="rc-param-value">50 <span class="rc-param-diff changed">+20</span></span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Dropout</span>
+                        <span class="rc-param-value">0.3 <span class="rc-param-diff changed">+0.1</span></span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Architecture</span>
+                        <span class="rc-param-value">ResNet50 <span class="rc-param-diff changed">new</span></span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Optimizer</span>
+                        <span class="rc-param-value">AdamW <span class="rc-param-diff changed">new</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Model B Card -->
+        <div class="rc-model-card model-b" id="modelBCard">
+            <div class="rc-model-header">
+                <div class="rc-model-info">
+                    <h3>Quality Classifier</h3>
+                    <div class="rc-model-meta">
+                        <span>v1.5.0</span>
+                        <span>Experiment #128</span>
+                    </div>
+                </div>
+                <span class="rc-model-stage rc-stage-production">Production</span>
+            </div>
+            <div class="rc-metrics-grid" id="modelBMetrics">
+                <div class="rc-metric-item">
+                    <div class="rc-metric-label">Accuracy</div>
+                    <div class="rc-metric-value">94.5%</div>
+                    <div class="rc-metric-delta">Baseline</div>
+                </div>
+                <div class="rc-metric-item">
+                    <div class="rc-metric-label">F1 Score</div>
+                    <div class="rc-metric-value">0.926</div>
+                    <div class="rc-metric-delta">Baseline</div>
+                </div>
+                <div class="rc-metric-item">
+                    <div class="rc-metric-label">Precision</div>
+                    <div class="rc-metric-value">95.4%</div>
+                    <div class="rc-metric-delta">Baseline</div>
+                </div>
+                <div class="rc-metric-item">
+                    <div class="rc-metric-label">Recall</div>
+                    <div class="rc-metric-value">90.5%</div>
+                    <div class="rc-metric-delta">Baseline</div>
+                </div>
+                <div class="rc-metric-item">
+                    <div class="rc-metric-label">AUC-ROC</div>
+                    <div class="rc-metric-value">0.976</div>
+                    <div class="rc-metric-delta">Baseline</div>
+                </div>
+                <div class="rc-metric-item">
+                    <div class="rc-metric-label">Size</div>
+                    <div class="rc-metric-value">40MB</div>
+                    <div class="rc-metric-delta">Baseline</div>
+                </div>
+            </div>
+            <div class="rc-params-section">
+                <div class="rc-params-header">
+                    <h4><i class="bi bi-sliders"></i> Hyperparameters</h4>
+                    <button class="rc-params-toggle" onclick="toggleParams('B')">Show Diff</button>
+                </div>
+                <div class="rc-params-grid" id="modelBParams">
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Learning Rate</span>
+                        <span class="rc-param-value">0.0005</span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Batch Size</span>
+                        <span class="rc-param-value">16</span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Epochs</span>
+                        <span class="rc-param-value">30</span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Dropout</span>
+                        <span class="rc-param-value">0.2</span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Architecture</span>
+                        <span class="rc-param-value">ResNet34</span>
+                    </div>
+                    <div class="rc-param-item">
+                        <span class="rc-param-key">Optimizer</span>
+                        <span class="rc-param-value">Adam</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div class="rc-chart-section">
+            <div class="rc-chart-tabs">
+                <button class="rc-chart-tab active" onclick="showChart('radar')">
+                    <i class="bi bi-radar"></i> Radar
+                </button>
+                <button class="rc-chart-tab" onclick="showChart('training')">
+                    <i class="bi bi-graph-up-arrow"></i> Training Curves
+                </button>
+                <button class="rc-chart-tab" onclick="showChart('confusion')">
+                    <i class="bi bi-grid-3x3"></i> Confusion Matrix
+                </button>
+                <button class="rc-chart-tab" onclick="showChart('roc')">
+                    <i class="bi bi-bezier2"></i> ROC Curves
+                </button>
+                <button class="rc-chart-tab" onclick="showChart('calibration')">
+                    <i class="bi bi-rulers"></i> Calibration
+                </button>
+            </div>
+            <div class="rc-chart-container" id="mainChart"></div>
+        </div>
+
+        <!-- Statistical Significance -->
+        <div class="rc-stats-section">
+            <div class="rc-stats-header">
+                <h3><i class="bi bi-calculator"></i> Statistical Analysis</h3>
+                <span class="rc-significance-badge significant" id="overallSignificance">
+                    <i class="bi bi-check-circle"></i> Statistically Significant
+                </span>
+            </div>
+            <table class="rc-stats-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+                        <th>Model A</th>
+                        <th>Model B</th>
+                        <th>Difference</th>
+                        <th>95% CI</th>
+                        <th>P-Value</th>
+                        <th>Effect Size</th>
+                    </tr>
+                </thead>
+                <tbody id="statsTableBody">
+                    <tr>
+                        <td>Accuracy</td>
+                        <td class="model-a better">96.8%</td>
+                        <td class="model-b">94.5%</td>
+                        <td class="better">+2.3%</td>
+                        <td class="rc-ci-range">[1.8%, 2.8%]</td>
+                        <td class="rc-pvalue significant">p < 0.001</td>
+                        <td>d = 0.72 (Medium)</td>
+                    </tr>
+                    <tr>
+                        <td>F1 Score</td>
+                        <td class="model-a better">0.954</td>
+                        <td class="model-b">0.926</td>
+                        <td class="better">+0.028</td>
+                        <td class="rc-ci-range">[0.021, 0.035]</td>
+                        <td class="rc-pvalue significant">p < 0.001</td>
+                        <td>d = 0.68 (Medium)</td>
+                    </tr>
+                    <tr>
+                        <td>Precision</td>
+                        <td class="model-a better">97.2%</td>
+                        <td class="model-b">95.4%</td>
+                        <td class="better">+1.8%</td>
+                        <td class="rc-ci-range">[1.2%, 2.4%]</td>
+                        <td class="rc-pvalue significant">p < 0.01</td>
+                        <td>d = 0.54 (Medium)</td>
+                    </tr>
+                    <tr>
+                        <td>Recall</td>
+                        <td class="model-a better">93.6%</td>
+                        <td class="model-b">90.5%</td>
+                        <td class="better">+3.1%</td>
+                        <td class="rc-ci-range">[2.4%, 3.8%]</td>
+                        <td class="rc-pvalue significant">p < 0.001</td>
+                        <td>d = 0.81 (Large)</td>
+                    </tr>
+                    <tr>
+                        <td>AUC-ROC</td>
+                        <td class="model-a better">0.989</td>
+                        <td class="model-b">0.976</td>
+                        <td class="better">+0.013</td>
+                        <td class="rc-ci-range">[0.008, 0.018]</td>
+                        <td class="rc-pvalue significant">p < 0.05</td>
+                        <td>d = 0.45 (Small)</td>
+                    </tr>
+                    <tr>
+                        <td>Inference Time</td>
+                        <td class="model-a better">12ms</td>
+                        <td class="model-b">15ms</td>
+                        <td class="better">-3ms</td>
+                        <td class="rc-ci-range">[-4ms, -2ms]</td>
+                        <td class="rc-pvalue">-</td>
+                        <td>-20%</td>
+                    </tr>
+                    <tr>
+                        <td>Model Size</td>
+                        <td class="model-a worse">45MB</td>
+                        <td class="model-b">40MB</td>
+                        <td class="worse">+5MB</td>
+                        <td class="rc-ci-range">-</td>
+                        <td class="rc-pvalue">-</td>
+                        <td>+12.5%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Environment Comparison -->
+        <div class="rc-env-section">
+            <h3 style="margin-bottom: 1rem;"><i class="bi bi-cpu"></i> Environment Comparison</h3>
+            <div class="rc-env-grid">
+                <div class="rc-env-column model-a">
+                    <h4><i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> Model A Environment</h4>
+                    <div class="rc-env-items">
+                        <div class="rc-env-item"><span>Python</span><span>3.10.12</span></div>
+                        <div class="rc-env-item"><span>PyTorch</span><span>2.1.0</span></div>
+                        <div class="rc-env-item"><span>CUDA</span><span>12.1</span></div>
+                        <div class="rc-env-item"><span>GPU</span><span>RTX 4090</span></div>
+                        <div class="rc-env-item"><span>Training Time</span><span>2.5 hours</span></div>
+                        <div class="rc-env-item"><span>Git Commit</span><span><code>abc123d</code></span></div>
+                    </div>
+                </div>
+                <div class="rc-env-column model-b">
+                    <h4><i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> Model B Environment</h4>
+                    <div class="rc-env-items">
+                        <div class="rc-env-item"><span>Python</span><span>3.10.10</span></div>
+                        <div class="rc-env-item"><span>PyTorch</span><span>2.0.1</span></div>
+                        <div class="rc-env-item"><span>CUDA</span><span>11.8</span></div>
+                        <div class="rc-env-item"><span>GPU</span><span>RTX 3090</span></div>
+                        <div class="rc-env-item"><span>Training Time</span><span>1.2 hours</span></div>
+                        <div class="rc-env-item"><span>Git Commit</span><span><code>def456a</code></span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Panel -->
+    <div class="rc-export-panel">
+        <button class="rc-export-btn" onclick="exportPDF()">
+            <i class="bi bi-file-pdf"></i> PDF
+        </button>
+        <button class="rc-export-btn" onclick="exportCSV()">
+            <i class="bi bi-file-spreadsheet"></i> CSV
+        </button>
+        <button class="rc-export-btn" onclick="exportLaTeX()">
+            <i class="bi bi-file-code"></i> LaTeX
+        </button>
+        <button class="rc-export-btn" onclick="promoteModel()">
+            <i class="bi bi-arrow-up-circle"></i> Promote
+        </button>
+    </div>
+</div>
+
+<script>
+// Socket.IO Connection
+let socket;
+let isConnected = false;
+
+function initSocket() {
+    socket = io('/research', {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+    });
+
+    socket.on('connect', () => {
+        isConnected = true;
+        updateConnectionStatus(true);
+        showToast('success', 'Connected', 'Real-time updates enabled');
+    });
+
+    socket.on('disconnect', () => {
+        isConnected = false;
+        updateConnectionStatus(false);
+    });
+
+    socket.on('comparison_update', (data) => {
+        updateComparisonData(data);
+    });
+
+    socket.on('model_promoted', (data) => {
+        showToast('success', 'Model Promoted', `${data.model} promoted to ${data.stage}`);
+    });
+}
+
+function updateConnectionStatus(connected) {
+    const dot = document.getElementById('connectionDot');
+    const text = document.getElementById('connectionText');
+
+    if (connected) {
+        dot.classList.add('connected');
+        text.textContent = 'Connected';
+    } else {
+        dot.classList.remove('connected');
+        text.textContent = 'Disconnected';
+    }
+}
+
+// Toast Notifications
+function showToast(type, title, message) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `rc-toast ${type}`;
+
+    const icons = {
+        success: 'bi-check-circle-fill',
+        error: 'bi-x-circle-fill',
+        warning: 'bi-exclamation-triangle-fill',
+        info: 'bi-info-circle-fill'
+    };
+
+    toast.innerHTML = `
+        <i class="bi ${icons[type]} rc-toast-icon"></i>
+        <div class="rc-toast-content">
+            <div class="rc-toast-title">${title}</div>
+            <div class="rc-toast-message">${message}</div>
+        </div>
+        <button class="rc-toast-close" onclick="this.parentElement.remove()">
+            <i class="bi bi-x"></i>
+        </button>
+    `;
+
+    container.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000);
+}
+
+// Chart Rendering
+let currentChart = 'radar';
+
+function showChart(type) {
+    currentChart = type;
+
+    // Update tab states
+    document.querySelectorAll('.rc-chart-tab').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    event.target.closest('.rc-chart-tab').classList.add('active');
+
+    // Render chart
+    const container = document.getElementById('mainChart');
+
+    switch(type) {
+        case 'radar':
+            renderRadarChart(container);
+            break;
+        case 'training':
+            renderTrainingCurves(container);
+            break;
+        case 'confusion':
+            renderConfusionMatrix(container);
+            break;
+        case 'roc':
+            renderROCCurves(container);
+            break;
+        case 'calibration':
+            renderCalibrationPlot(container);
+            break;
+    }
+}
+
+function renderRadarChart(container) {
+    const data = [{
+        type: 'scatterpolar',
+        r: [96.8, 95.4, 97.2, 93.6, 98.9, 80],
+        theta: ['Accuracy', 'F1', 'Precision', 'Recall', 'AUC', 'Speed'],
+        fill: 'toself',
+        name: 'Model A (v2.1.0)',
+        line: { color: '#8b5cf6' },
+        fillcolor: 'rgba(139, 92, 246, 0.2)'
+    }, {
+        type: 'scatterpolar',
+        r: [94.5, 92.6, 95.4, 90.5, 97.6, 70],
+        theta: ['Accuracy', 'F1', 'Precision', 'Recall', 'AUC', 'Speed'],
+        fill: 'toself',
+        name: 'Model B (v1.5.0)',
+        line: { color: '#06b6d4' },
+        fillcolor: 'rgba(6, 182, 212, 0.2)'
+    }];
+
+    const layout = {
+        polar: {
+            radialaxis: {
+                visible: true,
+                range: [0, 100]
+            },
+            bgcolor: 'rgba(0,0,0,0)'
+        },
+        showlegend: true,
+        legend: { x: 0, y: 1.1, orientation: 'h' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { color: '#f1f5f9' },
+        margin: { t: 40, b: 40 }
+    };
+
+    Plotly.newPlot(container, data, layout, { responsive: true });
+}
+
+function renderTrainingCurves(container) {
+    const epochs = Array.from({length: 50}, (_, i) => i + 1);
+
+    // Sinusoidal micro-variation instead of random noise (deterministic curves)
+    const lossA = epochs.map(e => 0.5 * Math.exp(-0.08 * e) + 0.02 + Math.sin(e * 0.5) * 0.01);
+    const lossB = epochs.map(e => 0.6 * Math.exp(-0.1 * e) + 0.05 + Math.sin(e * 0.7) * 0.015);
+    const accA = epochs.map(e => 100 - 50 * Math.exp(-0.1 * e) + Math.sin(e * 0.4) * 1);
+    const accB = epochs.map(e => 100 - 55 * Math.exp(-0.12 * e) + Math.sin(e * 0.6) * 1);
+
+    const data = [
+        { x: epochs, y: lossA, name: 'Model A Loss', line: { color: '#8b5cf6' }, yaxis: 'y' },
+        { x: epochs, y: lossB, name: 'Model B Loss', line: { color: '#06b6d4' }, yaxis: 'y' },
+        { x: epochs, y: accA, name: 'Model A Accuracy', line: { color: '#8b5cf6', dash: 'dash' }, yaxis: 'y2' },
+        { x: epochs, y: accB, name: 'Model B Accuracy', line: { color: '#06b6d4', dash: 'dash' }, yaxis: 'y2' }
+    ];
+
+    const layout = {
+        showlegend: true,
+        legend: { x: 0, y: 1.15, orientation: 'h' },
+        xaxis: { title: 'Epoch', gridcolor: '#334155' },
+        yaxis: { title: 'Loss', side: 'left', gridcolor: '#334155' },
+        yaxis2: { title: 'Accuracy (%)', side: 'right', overlaying: 'y', gridcolor: '#334155' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { color: '#f1f5f9' },
+        margin: { t: 60, b: 60 }
+    };
+
+    Plotly.newPlot(container, data, layout, { responsive: true });
+}
+
+function renderConfusionMatrix(container) {
+    const z = [[980, 12, 8], [5, 985, 10], [3, 8, 989]];
+    const labels = ['Good', 'Defect A', 'Defect B'];
+
+    const data = [{
+        z: z,
+        x: labels,
+        y: labels,
+        type: 'heatmap',
+        colorscale: [
+            [0, '#1e293b'],
+            [0.5, '#8b5cf6'],
+            [1, '#10b981']
+        ],
+        showscale: true,
+        text: z.map(row => row.map(val => val.toString())),
+        texttemplate: '%{text}',
+        textfont: { size: 14, color: 'white' }
+    }];
+
+    const layout = {
+        title: { text: 'Model A Confusion Matrix', font: { color: '#f1f5f9' } },
+        xaxis: { title: 'Predicted', gridcolor: '#334155' },
+        yaxis: { title: 'Actual', gridcolor: '#334155' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { color: '#f1f5f9' }
+    };
+
+    Plotly.newPlot(container, data, layout, { responsive: true });
+}
+
+function renderROCCurves(container) {
+    const fprA = [0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1];
+    const tprA = [0, 0.85, 0.92, 0.96, 0.98, 0.99, 0.995, 1];
+    const fprB = [0, 0.02, 0.04, 0.08, 0.15, 0.25, 0.55, 1];
+    const tprB = [0, 0.80, 0.88, 0.93, 0.96, 0.98, 0.99, 1];
+
+    const data = [
+        { x: fprA, y: tprA, name: 'Model A (AUC=0.989)', line: { color: '#8b5cf6', width: 2 } },
+        { x: fprB, y: tprB, name: 'Model B (AUC=0.976)', line: { color: '#06b6d4', width: 2 } },
+        { x: [0, 1], y: [0, 1], name: 'Random', line: { color: '#475569', dash: 'dash' } }
+    ];
+
+    const layout = {
+        showlegend: true,
+        legend: { x: 0.6, y: 0.2 },
+        xaxis: { title: 'False Positive Rate', range: [0, 1], gridcolor: '#334155' },
+        yaxis: { title: 'True Positive Rate', range: [0, 1], gridcolor: '#334155' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { color: '#f1f5f9' }
+    };
+
+    Plotly.newPlot(container, data, layout, { responsive: true });
+}
+
+function renderCalibrationPlot(container) {
+    const bins = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+    const actualA = [0.08, 0.19, 0.31, 0.42, 0.51, 0.58, 0.72, 0.79, 0.91, 0.98];
+    const actualB = [0.12, 0.25, 0.28, 0.35, 0.48, 0.62, 0.68, 0.82, 0.88, 0.95];
+
+    const data = [
+        { x: bins, y: actualA, name: 'Model A', mode: 'markers+lines', marker: { size: 10 }, line: { color: '#8b5cf6' } },
+        { x: bins, y: actualB, name: 'Model B', mode: 'markers+lines', marker: { size: 10 }, line: { color: '#06b6d4' } },
+        { x: [0, 1], y: [0, 1], name: 'Perfect', line: { color: '#10b981', dash: 'dash' } }
+    ];
+
+    const layout = {
+        showlegend: true,
+        legend: { x: 0.1, y: 0.9 },
+        xaxis: { title: 'Predicted Probability', range: [0, 1], gridcolor: '#334155' },
+        yaxis: { title: 'Actual Probability', range: [0, 1], gridcolor: '#334155' },
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        font: { color: '#f1f5f9' }
+    };
+
+    Plotly.newPlot(container, data, layout, { responsive: true });
+}
+
+// Initialize Sparklines
+function initSparklines() {
+    const metrics = ['Accuracy', 'F1', 'Precision', 'Recall', 'Latency', 'Size'];
+    const colors = ['#8b5cf6', '#06b6d4', '#3b82f6', '#f59e0b', '#10b981', '#ef4444'];
+
+    metrics.forEach((metric, i) => {
+        const container = document.getElementById(`sparkline${metric}`);
+        if (!container) return;
+
+        // Deterministic sparkline data based on metric type
+        const values = Array.from({length: 20}, (_, j) => 85 + 7.5 + Math.sin((j + i * 3) * 0.5) * 7.5);
+
+        Plotly.newPlot(container, [{
+            y: values,
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: colors[i], width: 2 },
+            fill: 'tozeroy',
+            fillcolor: colors[i] + '20'
+        }], {
+            margin: { t: 0, b: 0, l: 0, r: 0 },
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)'
+        }, {
+            displayModeBar: false,
+            responsive: true
+        });
+    });
+}
+
+// Actions
+function updateComparison() {
+    showToast('info', 'Updating', 'Fetching comparison data...');
+    // Would fetch new data from API
+}
+
+function runComparison() {
+    const modelA = document.getElementById('modelASelect').value;
+    const modelB = document.getElementById('modelBSelect').value;
+
+    showToast('info', 'Running Comparison', `Comparing ${modelA} vs ${modelB}...`);
+
+    fetch('/api/v6/research/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model_a: modelA, model_b: modelB })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast('success', 'Comparison Complete', 'Results updated');
+            updateComparisonData(data.comparison);
+        }
+    })
+    .catch(err => {
+        showToast('error', 'Error', 'Failed to run comparison');
+    });
+}
+
+function addModel() {
+    showToast('info', 'Add Model', 'Model selector dialog would open');
+}
+
+function exportReport() {
+    showToast('info', 'Exporting', 'Generating comparison report...');
+}
+
+function exportPDF() {
+    showToast('info', 'PDF Export', 'Generating PDF report...');
+    window.open('/api/v6/research/export/pdf?comparison=current', '_blank');
+}
+
+function exportCSV() {
+    showToast('info', 'CSV Export', 'Generating CSV data...');
+    window.open('/api/v6/research/export/csv?comparison=current', '_blank');
+}
+
+function exportLaTeX() {
+    showToast('info', 'LaTeX Export', 'Generating LaTeX tables...');
+    window.open('/api/v6/research/export/latex?comparison=current', '_blank');
+}
+
+function promoteModel() {
+    if (confirm('Promote Model A (v2.1.0) to Production?')) {
+        fetch('/api/v6/research/models/quality_predictor/promote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                version: '2.1.0',
+                from_stage: 'Staging',
+                to_stage: 'Production'
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', 'Model Promoted', 'v2.1.0 is now in Production');
+            }
+        });
+    }
+}
+
+function toggleParams(model) {
+    const paramsEl = document.getElementById(`model${model}Params`);
+    paramsEl.classList.toggle('show-diff');
+}
+
+function updateComparisonData(data) {
+    // Update KPIs and charts with new data
+    console.log('Updating with:', data);
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    initSocket();
+    initSparklines();
+    showChart('radar');
+
+    // Demo: Show connected after delay
+    setTimeout(() => {
+        updateConnectionStatus(true);
+    }, 1000);
+});
+</script>
+{% endblock %}

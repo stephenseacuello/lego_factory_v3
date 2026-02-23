@@ -1,0 +1,1685 @@
+{% extends "base.html" %}
+{% block title %}Causal AI Analysis - LEGO MCP v6.0{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --causal-primary: #4CAF50;
+        --causal-secondary: #2196F3;
+        --causal-tertiary: #9C27B0;
+        --causal-warning: #ff9800;
+        --causal-danger: #f44336;
+        --causal-dark: #1a1a2e;
+        --causal-darker: #0f0f1a;
+    }
+
+    .causal-page {
+        background: linear-gradient(135deg, var(--causal-darker) 0%, var(--causal-dark) 100%);
+        min-height: 100vh;
+        color: #e0e0e0;
+    }
+
+    .page-header-section {
+        background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(33, 150, 243, 0.1) 100%);
+        border-bottom: 1px solid rgba(76, 175, 80, 0.3);
+        padding: 25px 30px;
+        margin-bottom: 25px;
+    }
+
+    .page-header-section h1 {
+        font-size: 1.8rem;
+        font-weight: 700;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .page-header-section h1 i {
+        color: var(--causal-primary);
+    }
+
+    .page-header-section p {
+        margin: 8px 0 0 0;
+        color: #888;
+        font-size: 0.95rem;
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 15px;
+        padding: 0 25px;
+        margin-bottom: 25px;
+    }
+
+    .kpi-card {
+        background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 12px;
+        padding: 18px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--causal-primary);
+    }
+
+    .kpi-card.secondary::before { background: var(--causal-secondary); }
+    .kpi-card.tertiary::before { background: var(--causal-tertiary); }
+    .kpi-card.warning::before { background: var(--causal-warning); }
+
+    .kpi-value {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #fff;
+        line-height: 1.2;
+    }
+
+    .kpi-label {
+        font-size: 0.75rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-top: 6px;
+    }
+
+    .kpi-trend {
+        font-size: 0.7rem;
+        margin-top: 5px;
+        padding: 3px 8px;
+        border-radius: 10px;
+        display: inline-block;
+    }
+
+    .kpi-trend.up { background: rgba(76, 175, 80, 0.2); color: #4CAF50; }
+    .kpi-trend.down { background: rgba(244, 67, 54, 0.2); color: #f44336; }
+    .kpi-trend.neutral { background: rgba(158, 158, 158, 0.2); color: #9e9e9e; }
+
+    /* Main Layout */
+    .causal-layout {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 20px;
+        padding: 0 25px;
+    }
+
+    .panel {
+        background: linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        padding: 20px;
+    }
+
+    .panel-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 18px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .panel-header i {
+        color: var(--causal-primary);
+        font-size: 1.1rem;
+    }
+
+    /* Control Panel */
+    .control-group {
+        margin-bottom: 18px;
+    }
+
+    .control-group label {
+        display: block;
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        color: #aaa;
+    }
+
+    .control-group select,
+    .control-group input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 8px;
+        background: rgba(0,0,0,0.3);
+        color: #fff;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+
+    .control-group select:focus,
+    .control-group input:focus {
+        outline: none;
+        border-color: var(--causal-primary);
+        box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+    }
+
+    .btn {
+        padding: 10px 18px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, var(--causal-primary) 0%, #388E3C 100%);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+    }
+
+    .btn-secondary {
+        background: rgba(255,255,255,0.1);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(255,255,255,0.15);
+    }
+
+    .btn-full {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Result Cards */
+    .result-card {
+        background: rgba(0,0,0,0.2);
+        border-left: 3px solid var(--causal-primary);
+        padding: 14px;
+        border-radius: 0 8px 8px 0;
+        margin-bottom: 12px;
+    }
+
+    .result-card.warning { border-left-color: var(--causal-warning); }
+    .result-card.error { border-left-color: var(--causal-danger); }
+    .result-card.info { border-left-color: var(--causal-secondary); }
+
+    .result-metric {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--causal-primary);
+    }
+
+    .result-label {
+        font-size: 0.75rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* Counterfactual Section */
+    .counterfactual-section {
+        background: linear-gradient(135deg, rgba(33, 150, 243, 0.1) 0%, rgba(33, 150, 243, 0.05) 100%);
+        border: 1px solid rgba(33, 150, 243, 0.3);
+        border-radius: 10px;
+        padding: 16px;
+        margin-top: 20px;
+    }
+
+    .counterfactual-section h4 {
+        color: var(--causal-secondary);
+        font-size: 0.95rem;
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .query-result {
+        background: rgba(0,0,0,0.3);
+        border-radius: 8px;
+        padding: 14px;
+        margin-top: 12px;
+    }
+
+    /* Explanation Box */
+    .explanation-box {
+        background: linear-gradient(135deg, rgba(255, 152, 0, 0.1) 0%, rgba(255, 152, 0, 0.05) 100%);
+        border: 1px solid rgba(255, 152, 0, 0.3);
+        border-radius: 10px;
+        padding: 16px;
+        margin-top: 20px;
+    }
+
+    .explanation-box h4 {
+        color: var(--causal-warning);
+        font-size: 0.95rem;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* Graph Container */
+    .graph-container {
+        min-height: 450px;
+        background: rgba(0,0,0,0.2);
+        border-radius: 10px;
+        border: 1px solid rgba(255,255,255,0.05);
+        position: relative;
+    }
+
+    /* Legend */
+    .graph-legend {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        margin-bottom: 15px;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+    }
+
+    .legend-color {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+    }
+
+    /* Tabs */
+    .analysis-tabs {
+        display: flex;
+        gap: 5px;
+        margin-top: 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .analysis-tab {
+        padding: 10px 18px;
+        background: transparent;
+        border: none;
+        color: #888;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+        font-size: 0.9rem;
+    }
+
+    .analysis-tab.active {
+        color: var(--causal-primary);
+        border-bottom-color: var(--causal-primary);
+    }
+
+    .analysis-tab:hover:not(.active) {
+        color: #fff;
+    }
+
+    .tab-content {
+        display: none;
+        padding: 20px 0;
+    }
+
+    .tab-content.active {
+        display: block;
+    }
+
+    /* Path List */
+    .path-list {
+        max-height: 180px;
+        overflow-y: auto;
+    }
+
+    .path-item {
+        padding: 10px 12px;
+        background: rgba(0,0,0,0.2);
+        border-radius: 6px;
+        margin-bottom: 6px;
+        font-family: 'Fira Code', monospace;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .path-item i {
+        color: var(--causal-secondary);
+    }
+
+    .path-item.backdoor {
+        border-left: 3px solid #E91E63;
+    }
+
+    /* D-Separation */
+    .dsep-result {
+        padding: 12px;
+        border-radius: 8px;
+        margin-top: 12px;
+    }
+
+    .dsep-result.blocked {
+        background: rgba(76, 175, 80, 0.15);
+        border: 1px solid rgba(76, 175, 80, 0.3);
+    }
+
+    .dsep-result.open {
+        background: rgba(244, 67, 54, 0.15);
+        border: 1px solid rgba(244, 67, 54, 0.3);
+    }
+
+    /* Adjustment Sets */
+    .adjustment-set {
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+    }
+
+    .adjustment-set .set-name {
+        font-weight: 600;
+        color: #fff;
+        margin-bottom: 6px;
+    }
+
+    .adjustment-set .variables {
+        font-family: 'Fira Code', monospace;
+        color: var(--causal-secondary);
+        font-size: 0.9rem;
+    }
+
+    .adjustment-set .set-type {
+        font-size: 0.75rem;
+        color: #888;
+        margin-top: 6px;
+    }
+
+    /* Root Cause Analysis Section */
+    .rca-section {
+        margin: 25px;
+    }
+
+    .rca-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+    }
+
+    .rca-panel h4 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .rca-panel h4 i {
+        color: var(--causal-primary);
+    }
+
+    /* Defect Cards */
+    .defect-card {
+        background: rgba(0,0,0,0.2);
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 12px;
+        border-left: 3px solid var(--causal-danger);
+    }
+
+    .defect-card .defect-id {
+        font-weight: 700;
+        color: #fff;
+    }
+
+    .defect-card .defect-type {
+        color: #888;
+        font-size: 0.85rem;
+        margin-top: 4px;
+    }
+
+    .defect-card .defect-time {
+        color: #666;
+        font-size: 0.8rem;
+        margin-top: 8px;
+    }
+
+    /* Root Cause Bars */
+    .root-cause-item {
+        margin-bottom: 14px;
+    }
+
+    .root-cause-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+    }
+
+    .root-cause-name {
+        font-size: 0.9rem;
+    }
+
+    .root-cause-score {
+        font-weight: 700;
+    }
+
+    .root-cause-bar {
+        height: 8px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .root-cause-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .root-cause-fill.high { background: linear-gradient(90deg, var(--causal-primary), #8BC34A); }
+    .root-cause-fill.medium { background: linear-gradient(90deg, var(--causal-warning), #FFC107); }
+    .root-cause-fill.low { background: linear-gradient(90deg, var(--causal-secondary), #03A9F4); }
+
+    /* Recommendation Cards */
+    .recommendation-card {
+        background: rgba(0,0,0,0.2);
+        border-radius: 8px;
+        padding: 14px;
+        margin-bottom: 12px;
+        display: flex;
+        gap: 12px;
+    }
+
+    .recommendation-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .recommendation-icon.action {
+        background: rgba(76, 175, 80, 0.2);
+        color: var(--causal-primary);
+    }
+
+    .recommendation-icon.investigate {
+        background: rgba(33, 150, 243, 0.2);
+        color: var(--causal-secondary);
+    }
+
+    .recommendation-icon.alert {
+        background: rgba(255, 152, 0, 0.2);
+        color: var(--causal-warning);
+    }
+
+    .recommendation-content h5 {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .recommendation-content p {
+        font-size: 0.85rem;
+        color: #888;
+        margin: 0;
+    }
+
+    /* SHAP Visualization */
+    .shap-container {
+        margin-top: 20px;
+        padding: 20px;
+        background: rgba(0,0,0,0.2);
+        border-radius: 10px;
+    }
+
+    .shap-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    .shap-feature {
+        width: 140px;
+        font-size: 0.85rem;
+        text-align: right;
+    }
+
+    .shap-bar-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        position: relative;
+        height: 24px;
+    }
+
+    .shap-bar-center {
+        position: absolute;
+        left: 50%;
+        width: 1px;
+        height: 100%;
+        background: rgba(255,255,255,0.3);
+    }
+
+    .shap-bar-fill {
+        position: absolute;
+        height: 20px;
+        border-radius: 4px;
+    }
+
+    .shap-bar-fill.positive {
+        left: 50%;
+        background: linear-gradient(90deg, var(--causal-primary), #8BC34A);
+    }
+
+    .shap-bar-fill.negative {
+        right: 50%;
+        background: linear-gradient(90deg, var(--causal-danger), #E91E63);
+    }
+
+    .shap-value {
+        width: 60px;
+        font-size: 0.85rem;
+        font-family: 'Fira Code', monospace;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1050;
+    }
+
+    .toast {
+        background: var(--causal-dark);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 14px 18px;
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 300px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast.success { border-left: 3px solid var(--causal-primary); }
+    .toast.info { border-left: 3px solid var(--causal-secondary); }
+    .toast.warning { border-left: 3px solid var(--causal-warning); }
+    .toast.error { border-left: 3px solid var(--causal-danger); }
+
+    /* D3 Graph Styles */
+    .node circle {
+        stroke: #fff;
+        stroke-width: 2px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .node:hover circle {
+        filter: brightness(1.2);
+    }
+
+    .node.treatment circle { fill: var(--causal-secondary); }
+    .node.outcome circle { fill: #FF5722; }
+    .node.confounder circle { fill: var(--causal-tertiary); }
+    .node.mediator circle { fill: var(--causal-primary); }
+    .node.other circle { fill: #607D8B; }
+
+    .node text {
+        font-size: 11px;
+        font-weight: 500;
+        fill: #fff;
+    }
+
+    .link {
+        stroke: #666;
+        stroke-opacity: 0.8;
+        fill: none;
+        stroke-width: 2px;
+    }
+
+    .link.causal { stroke: var(--causal-primary); }
+    .link.backdoor { stroke: #E91E63; stroke-dasharray: 5,5; }
+    .link.highlighted { stroke-width: 3px; stroke-opacity: 1; }
+
+    /* Intervention Slider */
+    .intervention-slider {
+        margin-top: 15px;
+    }
+
+    .slider-container {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .slider-container input[type="range"] {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(255,255,255,0.1);
+        -webkit-appearance: none;
+    }
+
+    .slider-container input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--causal-primary);
+        cursor: pointer;
+    }
+
+    .slider-value {
+        font-family: 'Fira Code', monospace;
+        font-size: 1rem;
+        min-width: 60px;
+        text-align: center;
+    }
+
+    /* Live Status Indicator */
+    .live-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+    }
+
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--causal-primary);
+        animation: livePulse 2s infinite;
+    }
+
+    @keyframes livePulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .kpi-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        .causal-layout {
+            grid-template-columns: 1fr;
+        }
+        .rca-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="causal-page">
+    <!-- Header -->
+    <div class="page-header-section">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1><i class="fas fa-project-diagram"></i> Causal AI Analysis</h1>
+                <p>Structural Causal Models, Counterfactual Reasoning, and Explainable Root Cause Analysis</p>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="live-indicator">
+                    <span class="live-dot"></span>
+                    <span>Real-time Analysis</span>
+                </div>
+                <button class="btn btn-secondary" onclick="exportAnalysis()">
+                    <i class="fas fa-download"></i> Export
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-value" id="kpi-queries">1,247</div>
+            <div class="kpi-label">Causal Queries</div>
+            <div class="kpi-trend up">+15% this week</div>
+        </div>
+        <div class="kpi-card secondary">
+            <div class="kpi-value" id="kpi-effects">89</div>
+            <div class="kpi-label">Effects Identified</div>
+            <div class="kpi-trend up">+8 new</div>
+        </div>
+        <div class="kpi-card tertiary">
+            <div class="kpi-value" id="kpi-counterfactuals">342</div>
+            <div class="kpi-label">Counterfactuals</div>
+            <div class="kpi-trend neutral">Steady</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-value" id="kpi-rca">27</div>
+            <div class="kpi-label">Root Causes Found</div>
+            <div class="kpi-trend up">+5 today</div>
+        </div>
+        <div class="kpi-card warning">
+            <div class="kpi-value" id="kpi-accuracy">94.2%</div>
+            <div class="kpi-label">Prediction Accuracy</div>
+            <div class="kpi-trend up">+1.2%</div>
+        </div>
+        <div class="kpi-card secondary">
+            <div class="kpi-value" id="kpi-interventions">12</div>
+            <div class="kpi-label">Active Interventions</div>
+            <div class="kpi-trend neutral">In progress</div>
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div class="causal-layout">
+        <!-- Left Panel: Controls -->
+        <div class="panel">
+            <div class="panel-header">
+                <i class="fas fa-sliders-h"></i>
+                <span>Causal Analysis Controls</span>
+            </div>
+
+            <div class="control-group">
+                <label>Treatment Variable (Cause)</label>
+                <select id="treatment-var">
+                    <option value="nozzle_temperature">Nozzle Temperature</option>
+                    <option value="print_speed">Print Speed</option>
+                    <option value="layer_height">Layer Height</option>
+                    <option value="flow_rate">Flow Rate</option>
+                    <option value="bed_temperature">Bed Temperature</option>
+                    <option value="retraction_distance">Retraction Distance</option>
+                    <option value="cooling_fan">Cooling Fan Speed</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>Outcome Variable (Effect)</label>
+                <select id="outcome-var">
+                    <option value="defect_rate">Defect Rate</option>
+                    <option value="dimensional_accuracy">Dimensional Accuracy</option>
+                    <option value="surface_quality">Surface Quality</option>
+                    <option value="layer_adhesion">Layer Adhesion</option>
+                    <option value="clutch_power">Clutch Power</option>
+                    <option value="print_time">Print Time</option>
+                    <option value="material_usage">Material Usage</option>
+                </select>
+            </div>
+
+            <button class="btn btn-primary btn-full" onclick="analyzeEffect()">
+                <i class="fas fa-search"></i> Analyze Causal Effect
+            </button>
+
+            <!-- Results -->
+            <div id="effect-results" style="margin-top: 20px;">
+                <div class="result-card">
+                    <div class="result-label">Average Treatment Effect (ATE)</div>
+                    <div class="result-metric" id="ate-value">-0.23</div>
+                    <small style="color: #888;">Per unit change in treatment</small>
+                </div>
+                <div class="result-card info">
+                    <div class="result-label">95% Confidence Interval</div>
+                    <div id="ci-value" style="font-size: 1.1rem; font-weight: 600;">(-0.31, -0.15)</div>
+                </div>
+                <div class="result-card">
+                    <div class="result-label">Identifiability Status</div>
+                    <div id="identifiable-value" style="color: #4CAF50;">
+                        <i class="fas fa-check-circle"></i> Identifiable via Backdoor Criterion
+                    </div>
+                </div>
+                <div class="result-card warning">
+                    <div class="result-label">Effect Strength</div>
+                    <div id="effect-strength" style="font-size: 1.1rem; font-weight: 600;">
+                        <span style="color: #ff9800;">Moderate</span>
+                        <span style="color: #888; font-size: 0.85rem;">(Cohen's d = 0.45)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Intervention Slider -->
+            <div class="intervention-slider">
+                <label style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: #aaa;">
+                    Simulate Intervention
+                </label>
+                <div class="slider-container">
+                    <span style="font-size: 0.8rem; color: #666;">180°C</span>
+                    <input type="range" id="intervention-value" min="180" max="250" value="200"
+                           oninput="updateIntervention(this.value)">
+                    <span style="font-size: 0.8rem; color: #666;">250°C</span>
+                </div>
+                <div style="text-align: center; margin-top: 8px;">
+                    <span class="slider-value" id="intervention-display">200°C</span>
+                </div>
+            </div>
+
+            <!-- Counterfactual Section -->
+            <div class="counterfactual-section">
+                <h4><i class="fas fa-question-circle"></i> Counterfactual Query</h4>
+                <p style="font-size: 0.85rem; color: #888; margin-bottom: 12px;">
+                    "What would have happened if...?"
+                </p>
+
+                <div class="control-group">
+                    <label>Observed Value</label>
+                    <input type="number" id="observed-value" placeholder="Current value" value="200">
+                </div>
+
+                <div class="control-group">
+                    <label>Counterfactual Value</label>
+                    <input type="number" id="counterfactual-value" placeholder="What if value" value="220">
+                </div>
+
+                <button class="btn btn-secondary btn-full" onclick="queryCounterfactual()">
+                    <i class="fas fa-lightbulb"></i> Query Counterfactual
+                </button>
+
+                <div id="counterfactual-result" class="query-result" style="display: none;">
+                    <div style="font-weight: 600; margin-bottom: 8px;">
+                        <i class="fas fa-chart-line" style="color: #2196F3;"></i> Prediction:
+                    </div>
+                    <p id="cf-prediction" style="margin: 0;"></p>
+                </div>
+            </div>
+
+            <!-- SHAP Explanation -->
+            <div class="explanation-box">
+                <h4><i class="fas fa-brain"></i> AI Explanation (SHAP)</h4>
+                <div id="explanation-text" style="font-size: 0.9rem;">
+                    Select variables and run analysis to see AI-generated explanations.
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Graph Visualization -->
+        <div class="panel" style="flex: 1;">
+            <div class="panel-header">
+                <i class="fas fa-sitemap"></i>
+                <span>Causal Graph Visualization</span>
+                <div style="margin-left: auto; display: flex; gap: 8px;">
+                    <button class="btn btn-secondary" onclick="resetGraph()" style="padding: 6px 12px;">
+                        <i class="fas fa-redo"></i>
+                    </button>
+                    <button class="btn btn-secondary" onclick="fullscreenGraph()" style="padding: 6px 12px;">
+                        <i class="fas fa-expand"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="graph-legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #2196F3;"></div>
+                    <span>Treatment</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #FF5722;"></div>
+                    <span>Outcome</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #9C27B0;"></div>
+                    <span>Confounder</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4CAF50;"></div>
+                    <span>Mediator</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #607D8B;"></div>
+                    <span>Other</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 30px; height: 3px; background: #E91E63; opacity: 0.8;"></div>
+                    <span>Backdoor Path</span>
+                </div>
+            </div>
+
+            <div id="causal-graph" class="graph-container"></div>
+
+            <!-- Analysis Tabs -->
+            <div class="analysis-tabs">
+                <button class="analysis-tab active" onclick="showTab('paths')">
+                    <i class="fas fa-route"></i> Causal Paths
+                </button>
+                <button class="analysis-tab" onclick="showTab('dsep')">
+                    <i class="fas fa-cut"></i> D-Separation
+                </button>
+                <button class="analysis-tab" onclick="showTab('adjustment')">
+                    <i class="fas fa-balance-scale"></i> Adjustment Sets
+                </button>
+                <button class="analysis-tab" onclick="showTab('shap')">
+                    <i class="fas fa-chart-bar"></i> SHAP Values
+                </button>
+            </div>
+
+            <div id="paths-tab" class="tab-content active">
+                <h5 style="margin-bottom: 12px;"><i class="fas fa-arrow-left" style="color: #E91E63;"></i> Backdoor Paths</h5>
+                <div id="backdoor-paths" class="path-list">
+                    <div class="path-item backdoor">
+                        <i class="fas fa-exclamation-triangle" style="color: #E91E63;"></i>
+                        <span>nozzle_temp ← ambient_temp → defect_rate</span>
+                    </div>
+                    <div class="path-item backdoor">
+                        <i class="fas fa-exclamation-triangle" style="color: #E91E63;"></i>
+                        <span>nozzle_temp ← humidity → defect_rate</span>
+                    </div>
+                </div>
+
+                <h5 style="margin: 20px 0 12px;"><i class="fas fa-arrow-right" style="color: #4CAF50;"></i> Direct Causal Paths</h5>
+                <div id="direct-paths" class="path-list">
+                    <div class="path-item">
+                        <i class="fas fa-check-circle" style="color: #4CAF50;"></i>
+                        <span>nozzle_temp → layer_adhesion → defect_rate</span>
+                    </div>
+                    <div class="path-item">
+                        <i class="fas fa-check-circle" style="color: #4CAF50;"></i>
+                        <span>nozzle_temp → viscosity → surface_quality</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dsep-tab" class="tab-content">
+                <h5 style="margin-bottom: 15px;">D-Separation Analysis</h5>
+                <p style="font-size: 0.9rem; color: #888; margin-bottom: 15px;">
+                    Select conditioning variables to check if treatment and outcome are d-separated:
+                </p>
+
+                <div class="control-group">
+                    <label>Conditioning Variables</label>
+                    <select id="conditioning-vars" multiple style="height: 100px;">
+                        <option value="ambient_temp">Ambient Temperature</option>
+                        <option value="humidity">Humidity</option>
+                        <option value="material_batch">Material Batch</option>
+                        <option value="machine_age">Machine Age</option>
+                        <option value="operator">Operator</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-secondary" onclick="checkDSeparation()">
+                    <i class="fas fa-check-double"></i> Check D-Separation
+                </button>
+
+                <div id="dsep-result" class="dsep-result blocked" style="margin-top: 15px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <i class="fas fa-check-circle" style="color: #4CAF50;"></i>
+                        <strong>D-Separated</strong>
+                    </div>
+                    <p style="margin: 0; font-size: 0.9rem; color: #aaa;">
+                        Treatment and Outcome are d-separated given {ambient_temp, humidity}.
+                        All backdoor paths are blocked.
+                    </p>
+                </div>
+            </div>
+
+            <div id="adjustment-tab" class="tab-content">
+                <h5 style="margin-bottom: 15px;">Valid Adjustment Sets</h5>
+                <p style="font-size: 0.9rem; color: #888; margin-bottom: 15px;">
+                    These variable sets satisfy the backdoor criterion for causal effect identification:
+                </p>
+
+                <div class="adjustment-set">
+                    <div class="set-name">Minimal Set 1 (Recommended)</div>
+                    <div class="variables">{ambient_temp, humidity}</div>
+                    <div class="set-type">
+                        <i class="fas fa-star" style="color: #ffc107;"></i> Optimal - Fewest variables, highest precision
+                    </div>
+                </div>
+
+                <div class="adjustment-set">
+                    <div class="set-name">Minimal Set 2</div>
+                    <div class="variables">{material_batch}</div>
+                    <div class="set-type">Alternative - Single variable adjustment</div>
+                </div>
+
+                <div class="adjustment-set">
+                    <div class="set-name">Full Set</div>
+                    <div class="variables">{ambient_temp, humidity, material_batch, machine_age}</div>
+                    <div class="set-type">
+                        <i class="fas fa-exclamation-triangle" style="color: #ff9800;"></i>
+                        Caution - May increase variance
+                    </div>
+                </div>
+            </div>
+
+            <div id="shap-tab" class="tab-content">
+                <h5 style="margin-bottom: 15px;">SHAP Feature Importance</h5>
+                <p style="font-size: 0.9rem; color: #888; margin-bottom: 15px;">
+                    Contribution of each feature to the causal effect prediction:
+                </p>
+
+                <div class="shap-container">
+                    <div class="shap-bar">
+                        <div class="shap-feature">Nozzle Temp</div>
+                        <div class="shap-bar-container">
+                            <div class="shap-bar-center"></div>
+                            <div class="shap-bar-fill positive" style="width: 35%;"></div>
+                        </div>
+                        <div class="shap-value" style="color: #4CAF50;">+0.35</div>
+                    </div>
+                    <div class="shap-bar">
+                        <div class="shap-feature">Print Speed</div>
+                        <div class="shap-bar-container">
+                            <div class="shap-bar-center"></div>
+                            <div class="shap-bar-fill negative" style="width: 25%;"></div>
+                        </div>
+                        <div class="shap-value" style="color: #f44336;">-0.25</div>
+                    </div>
+                    <div class="shap-bar">
+                        <div class="shap-feature">Layer Height</div>
+                        <div class="shap-bar-container">
+                            <div class="shap-bar-center"></div>
+                            <div class="shap-bar-fill positive" style="width: 20%;"></div>
+                        </div>
+                        <div class="shap-value" style="color: #4CAF50;">+0.20</div>
+                    </div>
+                    <div class="shap-bar">
+                        <div class="shap-feature">Humidity</div>
+                        <div class="shap-bar-container">
+                            <div class="shap-bar-center"></div>
+                            <div class="shap-bar-fill negative" style="width: 18%;"></div>
+                        </div>
+                        <div class="shap-value" style="color: #f44336;">-0.18</div>
+                    </div>
+                    <div class="shap-bar">
+                        <div class="shap-feature">Flow Rate</div>
+                        <div class="shap-bar-container">
+                            <div class="shap-bar-center"></div>
+                            <div class="shap-bar-fill positive" style="width: 12%;"></div>
+                        </div>
+                        <div class="shap-value" style="color: #4CAF50;">+0.12</div>
+                    </div>
+                    <div class="shap-bar">
+                        <div class="shap-feature">Ambient Temp</div>
+                        <div class="shap-bar-container">
+                            <div class="shap-bar-center"></div>
+                            <div class="shap-bar-fill negative" style="width: 8%;"></div>
+                        </div>
+                        <div class="shap-value" style="color: #f44336;">-0.08</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Root Cause Analysis Section -->
+    <div class="rca-section">
+        <div class="panel">
+            <div class="panel-header">
+                <i class="fas fa-search-location"></i>
+                <span>Root Cause Analysis Engine</span>
+                <button class="btn btn-secondary" style="margin-left: auto; padding: 6px 12px;" onclick="refreshRCA()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+
+            <div class="rca-grid">
+                <!-- Recent Defects -->
+                <div class="rca-panel">
+                    <h4><i class="fas fa-exclamation-circle"></i> Recent Defects</h4>
+
+                    <div class="defect-card" onclick="analyzeRootCause('DEF-001')">
+                        <div class="defect-id">DEF-001</div>
+                        <div class="defect-type">Surface Roughness Exceeded (Ra 2.1 μm)</div>
+                        <div class="defect-time">
+                            <i class="fas fa-clock"></i> Detected 2 hours ago
+                        </div>
+                        <button class="btn btn-secondary" style="margin-top: 10px; padding: 6px 12px; font-size: 0.85rem;">
+                            <i class="fas fa-search"></i> Analyze
+                        </button>
+                    </div>
+
+                    <div class="defect-card" onclick="analyzeRootCause('DEF-002')">
+                        <div class="defect-id">DEF-002</div>
+                        <div class="defect-type">Dimensional Deviation (+0.15mm on stud)</div>
+                        <div class="defect-time">
+                            <i class="fas fa-clock"></i> Detected 5 hours ago
+                        </div>
+                        <button class="btn btn-secondary" style="margin-top: 10px; padding: 6px 12px; font-size: 0.85rem;">
+                            <i class="fas fa-search"></i> Analyze
+                        </button>
+                    </div>
+
+                    <div class="defect-card" onclick="analyzeRootCause('DEF-003')">
+                        <div class="defect-id">DEF-003</div>
+                        <div class="defect-type">Layer Adhesion Failure (7% weak bonds)</div>
+                        <div class="defect-time">
+                            <i class="fas fa-clock"></i> Detected 1 day ago
+                        </div>
+                        <button class="btn btn-secondary" style="margin-top: 10px; padding: 6px 12px; font-size: 0.85rem;">
+                            <i class="fas fa-search"></i> Analyze
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Root Cause Ranking -->
+                <div class="rca-panel">
+                    <h4><i class="fas fa-sort-amount-down"></i> Root Cause Ranking</h4>
+
+                    <div class="root-cause-item">
+                        <div class="root-cause-header">
+                            <span class="root-cause-name">1. Nozzle Temperature Drift</span>
+                            <span class="root-cause-score" style="color: #4CAF50;">87%</span>
+                        </div>
+                        <div class="root-cause-bar">
+                            <div class="root-cause-fill high" style="width: 87%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="root-cause-item">
+                        <div class="root-cause-header">
+                            <span class="root-cause-name">2. Material Moisture Content</span>
+                            <span class="root-cause-score" style="color: #ff9800;">62%</span>
+                        </div>
+                        <div class="root-cause-bar">
+                            <div class="root-cause-fill medium" style="width: 62%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="root-cause-item">
+                        <div class="root-cause-header">
+                            <span class="root-cause-name">3. Print Speed Variation</span>
+                            <span class="root-cause-score" style="color: #2196F3;">34%</span>
+                        </div>
+                        <div class="root-cause-bar">
+                            <div class="root-cause-fill low" style="width: 34%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="root-cause-item">
+                        <div class="root-cause-header">
+                            <span class="root-cause-name">4. Ambient Humidity</span>
+                            <span class="root-cause-score" style="color: #2196F3;">28%</span>
+                        </div>
+                        <div class="root-cause-bar">
+                            <div class="root-cause-fill low" style="width: 28%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="root-cause-item">
+                        <div class="root-cause-header">
+                            <span class="root-cause-name">5. Bed Leveling Drift</span>
+                            <span class="root-cause-score" style="color: #2196F3;">15%</span>
+                        </div>
+                        <div class="root-cause-bar">
+                            <div class="root-cause-fill low" style="width: 15%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recommended Actions -->
+                <div class="rca-panel">
+                    <h4><i class="fas fa-tasks"></i> Recommended Actions</h4>
+
+                    <div class="recommendation-card">
+                        <div class="recommendation-icon action">
+                            <i class="fas fa-wrench"></i>
+                        </div>
+                        <div class="recommendation-content">
+                            <h5>Calibrate Temperature Sensor</h5>
+                            <p>Temperature readings show 3°C drift from baseline. Recommend immediate recalibration.</p>
+                        </div>
+                    </div>
+
+                    <div class="recommendation-card">
+                        <div class="recommendation-icon investigate">
+                            <i class="fas fa-box"></i>
+                        </div>
+                        <div class="recommendation-content">
+                            <h5>Check Material Drying</h5>
+                            <p>Humidity exposure may have affected filament. Run drying cycle before next batch.</p>
+                        </div>
+                    </div>
+
+                    <div class="recommendation-card">
+                        <div class="recommendation-icon alert">
+                            <i class="fas fa-tachometer-alt"></i>
+                        </div>
+                        <div class="recommendation-content">
+                            <h5>Review Speed Settings</h5>
+                            <p>Speed variations correlating with defects. Consider reducing by 5-10%.</p>
+                        </div>
+                    </div>
+
+                    <div class="recommendation-card">
+                        <div class="recommendation-icon action">
+                            <i class="fas fa-level-up-alt"></i>
+                        </div>
+                        <div class="recommendation-content">
+                            <h5>Verify Bed Level</h5>
+                            <p>Run auto-bed leveling routine. First layer issues may indicate drift.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+// Global variables
+let causalGraph = null;
+let socket = null;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initCausalGraph();
+    initWebSocket();
+    loadInitialData();
+});
+
+// WebSocket Connection
+function initWebSocket() {
+    if (typeof io !== 'undefined') {
+        socket = io();
+        socket.on('connect', () => {
+            console.log('Connected to Causal AI WebSocket');
+            showToast('Connected to real-time causal analysis', 'success');
+        });
+        socket.on('causal_update', (data) => {
+            console.log('Causal update:', data);
+            updateKPIs(data);
+        });
+        socket.on('rca_alert', (data) => {
+            console.log('RCA alert:', data);
+            showToast(`New root cause identified: ${data.cause}`, 'info');
+        });
+    }
+}
+
+// Load Initial Data
+function loadInitialData() {
+    // Simulate loading data
+    setTimeout(() => {
+        showToast('Causal model loaded successfully', 'success');
+    }, 500);
+}
+
+// Initialize D3 Causal Graph
+function initCausalGraph() {
+    const container = document.getElementById('causal-graph');
+    const width = container.clientWidth;
+    const height = 450;
+
+    // Clear existing
+    d3.select('#causal-graph').selectAll('*').remove();
+
+    const svg = d3.select('#causal-graph')
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    // Define arrow marker
+    const defs = svg.append('defs');
+
+    defs.append('marker')
+        .attr('id', 'arrowhead')
+        .attr('viewBox', '-0 -5 10 10')
+        .attr('refX', 25)
+        .attr('refY', 0)
+        .attr('orient', 'auto')
+        .attr('markerWidth', 8)
+        .attr('markerHeight', 8)
+        .append('path')
+        .attr('d', 'M 0,-5 L 10,0 L 0,5')
+        .attr('fill', '#666');
+
+    defs.append('marker')
+        .attr('id', 'arrowhead-causal')
+        .attr('viewBox', '-0 -5 10 10')
+        .attr('refX', 25)
+        .attr('refY', 0)
+        .attr('orient', 'auto')
+        .attr('markerWidth', 8)
+        .attr('markerHeight', 8)
+        .append('path')
+        .attr('d', 'M 0,-5 L 10,0 L 0,5')
+        .attr('fill', '#4CAF50');
+
+    defs.append('marker')
+        .attr('id', 'arrowhead-backdoor')
+        .attr('viewBox', '-0 -5 10 10')
+        .attr('refX', 25)
+        .attr('refY', 0)
+        .attr('orient', 'auto')
+        .attr('markerWidth', 8)
+        .attr('markerHeight', 8)
+        .append('path')
+        .attr('d', 'M 0,-5 L 10,0 L 0,5')
+        .attr('fill', '#E91E63');
+
+    // Causal graph data
+    const nodes = [
+        { id: 'nozzle_temp', label: 'Nozzle Temp', type: 'treatment', x: 100, y: 225 },
+        { id: 'defect_rate', label: 'Defect Rate', type: 'outcome', x: width - 100, y: 225 },
+        { id: 'ambient_temp', label: 'Ambient Temp', type: 'confounder', x: width/2 - 100, y: 80 },
+        { id: 'humidity', label: 'Humidity', type: 'confounder', x: 100, y: 80 },
+        { id: 'layer_adhesion', label: 'Layer Adhesion', type: 'mediator', x: width/2, y: 225 },
+        { id: 'print_speed', label: 'Print Speed', type: 'other', x: width/2 - 50, y: 370 },
+        { id: 'surface_quality', label: 'Surface Quality', type: 'other', x: width/2 + 100, y: 370 },
+        { id: 'viscosity', label: 'Viscosity', type: 'mediator', x: 250, y: 150 }
+    ];
+
+    const links = [
+        { source: 'nozzle_temp', target: 'layer_adhesion', type: 'causal' },
+        { source: 'layer_adhesion', target: 'defect_rate', type: 'causal' },
+        { source: 'nozzle_temp', target: 'viscosity', type: 'causal' },
+        { source: 'viscosity', target: 'surface_quality', type: 'causal' },
+        { source: 'ambient_temp', target: 'nozzle_temp', type: 'backdoor' },
+        { source: 'ambient_temp', target: 'defect_rate', type: 'backdoor' },
+        { source: 'humidity', target: 'nozzle_temp', type: 'backdoor' },
+        { source: 'humidity', target: 'defect_rate', type: 'backdoor' },
+        { source: 'print_speed', target: 'layer_adhesion', type: 'causal' },
+        { source: 'surface_quality', target: 'defect_rate', type: 'causal' }
+    ];
+
+    // Draw links
+    const linkGroup = svg.append('g').attr('class', 'links');
+
+    linkGroup.selectAll('.link')
+        .data(links)
+        .enter()
+        .append('path')
+        .attr('class', d => `link ${d.type}`)
+        .attr('d', d => {
+            const source = nodes.find(n => n.id === d.source);
+            const target = nodes.find(n => n.id === d.target);
+            const dx = target.x - source.x;
+            const dy = target.y - source.y;
+            const dr = Math.sqrt(dx * dx + dy * dy) * 0.8;
+            return `M${source.x},${source.y}A${dr},${dr} 0 0,1 ${target.x},${target.y}`;
+        })
+        .attr('marker-end', d => d.type === 'backdoor' ? 'url(#arrowhead-backdoor)' : 'url(#arrowhead-causal)');
+
+    // Draw nodes
+    const nodeGroup = svg.append('g').attr('class', 'nodes');
+
+    const nodeElements = nodeGroup.selectAll('.node')
+        .data(nodes)
+        .enter()
+        .append('g')
+        .attr('class', d => `node ${d.type}`)
+        .attr('transform', d => `translate(${d.x},${d.y})`)
+        .style('cursor', 'pointer')
+        .on('click', (event, d) => selectNode(d))
+        .on('mouseover', (event, d) => highlightPaths(d))
+        .on('mouseout', resetHighlight);
+
+    nodeElements.append('circle')
+        .attr('r', 22);
+
+    nodeElements.append('text')
+        .attr('dy', 38)
+        .attr('text-anchor', 'middle')
+        .text(d => d.label);
+
+    causalGraph = { nodes, links, svg };
+}
+
+function selectNode(node) {
+    showToast(`Selected: ${node.label}`, 'info');
+    // Update treatment or outcome selection based on node type
+    if (node.type === 'treatment' || node.type === 'mediator' || node.type === 'other') {
+        document.getElementById('treatment-var').value = node.id;
+    }
+    if (node.type === 'outcome') {
+        document.getElementById('outcome-var').value = node.id;
+    }
+}
+
+function highlightPaths(node) {
+    // Highlight connected paths
+    d3.selectAll('.link')
+        .style('opacity', d => (d.source === node.id || d.target === node.id) ? 1 : 0.2)
+        .classed('highlighted', d => d.source === node.id || d.target === node.id);
+}
+
+function resetHighlight() {
+    d3.selectAll('.link')
+        .style('opacity', 0.8)
+        .classed('highlighted', false);
+}
+
+function resetGraph() {
+    initCausalGraph();
+    showToast('Graph reset', 'info');
+}
+
+function fullscreenGraph() {
+    const container = document.getElementById('causal-graph');
+    if (container.requestFullscreen) {
+        container.requestFullscreen();
+    }
+}
+
+// Tab Navigation
+function showTab(tabName) {
+    document.querySelectorAll('.analysis-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+    document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+}
+
+// Causal Analysis Functions
+function analyzeEffect() {
+    const treatment = document.getElementById('treatment-var').value;
+    const outcome = document.getElementById('outcome-var').value;
+
+    showToast(`Analyzing causal effect: ${treatment} → ${outcome}`, 'info');
+
+    // Simulate API call with deterministic results based on variable combination
+    setTimeout(() => {
+        // Hash the treatment+outcome combination for deterministic but varied results
+        const hash = (treatment + outcome).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+        const ate = (-0.15 - (hash % 20) * 0.01).toFixed(3);
+        const ciLow = (parseFloat(ate) - 0.08).toFixed(3);
+        const ciHigh = (parseFloat(ate) + 0.08).toFixed(3);
+
+        document.getElementById('ate-value').textContent = ate;
+        document.getElementById('ci-value').textContent = `(${ciLow}, ${ciHigh})`;
+
+        document.getElementById('explanation-text').innerHTML = `
+            <p><strong>Analysis Complete:</strong></p>
+            <p>Increasing <strong>${treatment.replace(/_/g, ' ')}</strong> by 1 unit is estimated to
+            <strong>${ate < 0 ? 'decrease' : 'increase'}</strong>
+            <strong>${outcome.replace(/_/g, ' ')}</strong> by ${Math.abs(ate)} units.</p>
+            <p style="margin-top: 10px; padding: 10px; background: rgba(76,175,80,0.1); border-radius: 6px;">
+                <strong>Key Insight:</strong> This effect is confounded by ambient temperature and humidity.
+                After adjusting for these variables, the causal effect remains statistically significant (p < 0.001).
+            </p>
+        `;
+
+        showToast('Causal analysis complete', 'success');
+    }, 1000);
+}
+
+function queryCounterfactual() {
+    const observed = document.getElementById('observed-value').value;
+    const counterfactual = document.getElementById('counterfactual-value').value;
+    const treatment = document.getElementById('treatment-var').value;
+    const outcome = document.getElementById('outcome-var').value;
+
+    const resultDiv = document.getElementById('counterfactual-result');
+    resultDiv.style.display = 'block';
+
+    // Calculate counterfactual prediction
+    const diff = counterfactual - observed;
+    const effect = (diff * -0.023).toFixed(2);
+    const newDefect = (3.8 + parseFloat(effect)).toFixed(1);
+
+    document.getElementById('cf-prediction').innerHTML = `
+        If <strong>${treatment.replace(/_/g, ' ')}</strong> had been <strong>${counterfactual}</strong>
+        instead of <strong>${observed}</strong>,
+        the <strong>${outcome.replace(/_/g, ' ')}</strong> would have been approximately
+        <strong>${newDefect}%</strong> instead of <strong>3.8%</strong>.
+        <br><br>
+        <div style="display: flex; gap: 20px; margin-top: 10px;">
+            <div style="padding: 8px 12px; background: rgba(33,150,243,0.1); border-radius: 6px;">
+                <small style="color: #888;">Confidence</small><br>
+                <strong style="color: #2196F3;">85%</strong>
+            </div>
+            <div style="padding: 8px 12px; background: rgba(76,175,80,0.1); border-radius: 6px;">
+                <small style="color: #888;">Based on</small><br>
+                <strong style="color: #4CAF50;">1,234 observations</strong>
+            </div>
+        </div>
+    `;
+
+    showToast('Counterfactual query processed', 'success');
+}
+
+function updateIntervention(value) {
+    document.getElementById('intervention-display').textContent = value + '°C';
+}
+
+function checkDSeparation() {
+    const selected = Array.from(document.getElementById('conditioning-vars').selectedOptions)
+        .map(o => o.value);
+
+    const resultDiv = document.getElementById('dsep-result');
+
+    if (selected.length === 0) {
+        resultDiv.className = 'dsep-result open';
+        resultDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <i class="fas fa-times-circle" style="color: #f44336;"></i>
+                <strong>Not D-Separated</strong>
+            </div>
+            <p style="margin: 0; font-size: 0.9rem; color: #aaa;">
+                Without conditioning variables, backdoor paths remain open.
+                Select variables to condition on.
+            </p>
+        `;
+        return;
+    }
+
+    // Check if conditioning set blocks all backdoor paths
+    const blocksAll = selected.includes('ambient_temp') || selected.includes('humidity');
+
+    if (blocksAll) {
+        resultDiv.className = 'dsep-result blocked';
+        resultDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <i class="fas fa-check-circle" style="color: #4CAF50;"></i>
+                <strong>D-Separated</strong>
+            </div>
+            <p style="margin: 0; font-size: 0.9rem; color: #aaa;">
+                Treatment and Outcome are d-separated given {${selected.join(', ')}}.
+                All backdoor paths are blocked.
+            </p>
+        `;
+    } else {
+        resultDiv.className = 'dsep-result open';
+        resultDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                <i class="fas fa-exclamation-circle" style="color: #ff9800;"></i>
+                <strong>Partially Blocked</strong>
+            </div>
+            <p style="margin: 0; font-size: 0.9rem; color: #aaa;">
+                Some backdoor paths remain open. Consider adding ambient_temp or humidity
+                to fully block confounding.
+            </p>
+        `;
+    }
+
+    showToast('D-Separation check complete', 'info');
+}
+
+function analyzeRootCause(defectId) {
+    showToast(`Analyzing root cause for ${defectId}...`, 'info');
+
+    // Simulate analysis
+    setTimeout(() => {
+        showToast(`Root cause analysis complete for ${defectId}`, 'success');
+    }, 1500);
+}
+
+function refreshRCA() {
+    showToast('Refreshing root cause analysis...', 'info');
+    // Simulate refresh
+    setTimeout(() => {
+        showToast('Root cause data updated', 'success');
+    }, 1000);
+}
+
+function exportAnalysis() {
+    showToast('Exporting causal analysis report...', 'info');
+    // Simulate export
+    setTimeout(() => {
+        showToast('Report exported to causal_analysis_report.pdf', 'success');
+    }, 2000);
+}
+
+function updateKPIs(data) {
+    if (data.queries) document.getElementById('kpi-queries').textContent = data.queries;
+    if (data.effects) document.getElementById('kpi-effects').textContent = data.effects;
+    if (data.counterfactuals) document.getElementById('kpi-counterfactuals').textContent = data.counterfactuals;
+    if (data.rca) document.getElementById('kpi-rca').textContent = data.rca;
+    if (data.accuracy) document.getElementById('kpi-accuracy').textContent = data.accuracy + '%';
+    if (data.interventions) document.getElementById('kpi-interventions').textContent = data.interventions;
+}
+
+// Toast Notifications
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    const icon = {
+        success: 'fa-check-circle',
+        error: 'fa-times-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+    }[type];
+
+    toast.innerHTML = `
+        <i class="fas ${icon}"></i>
+        <span>${message}</span>
+    `;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+// Window resize handler
+window.addEventListener('resize', () => {
+    if (causalGraph) {
+        initCausalGraph();
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,2131 @@
+{% extends "base.html" %}
+
+{% block title %}Sustainability & Carbon - LegoMCP Manufacturing{% endblock %}
+
+{% block extra_css %}
+<style>
+    .sustainability-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-title h1 {
+        font-size: 1.75rem;
+        margin: 0 0 0.25rem 0;
+        color: var(--text-primary);
+    }
+
+    .header-subtitle {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .net-zero-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1.25rem;
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(52, 211, 153, 0.1));
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 12px;
+    }
+
+    .net-zero-icon {
+        width: 40px;
+        height: 40px;
+        background: rgba(16, 185, 129, 0.2);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .net-zero-info {
+        text-align: left;
+    }
+
+    .net-zero-title {
+        font-weight: 600;
+        color: #10b981;
+        font-size: 0.875rem;
+    }
+
+    .net-zero-progress {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    /* Carbon Summary Cards */
+    .carbon-summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .carbon-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .carbon-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .carbon-card.scope1::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .carbon-card.scope2::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+    .carbon-card.scope3::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .carbon-card.total::before { background: linear-gradient(90deg, #10b981, #34d399); }
+
+    .carbon-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .carbon-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .carbon-scope-badge {
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.6rem;
+        font-weight: 600;
+    }
+
+    .carbon-scope-badge.scope1 { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .carbon-scope-badge.scope2 { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+    .carbon-scope-badge.scope3 { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+
+    .carbon-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .carbon-unit {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-left: 0.25rem;
+    }
+
+    .carbon-trend {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .carbon-trend.down { color: #10b981; }
+    .carbon-trend.up { color: #ef4444; }
+
+    /* Main Content Grid */
+    .sustainability-content {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Emissions Chart */
+    .emissions-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .section-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .chart-container {
+        height: 300px;
+    }
+
+    /* LCA Breakdown */
+    .lca-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .lca-chart {
+        height: 200px;
+        margin-bottom: 1rem;
+    }
+
+    .lca-legend {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .lca-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .lca-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+    }
+
+    .lca-name {
+        flex: 1;
+        font-size: 0.8rem;
+        color: var(--text-primary);
+    }
+
+    .lca-value {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .lca-percent {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        width: 40px;
+        text-align: right;
+    }
+
+    /* Energy & Circularity */
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .metric-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    /* Energy Mix */
+    .energy-mix {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .energy-bar-container {
+        margin-bottom: 0.5rem;
+    }
+
+    .energy-bar-labels {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .energy-bar-title {
+        font-size: 0.8rem;
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    .energy-bar-value {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .energy-bar {
+        height: 24px;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        overflow: hidden;
+        display: flex;
+    }
+
+    .energy-segment {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        color: white;
+        font-weight: 600;
+        transition: width 0.5s ease;
+    }
+
+    .energy-segment.solar { background: #f59e0b; }
+    .energy-segment.wind { background: #3b82f6; }
+    .energy-segment.hydro { background: #06b6d4; }
+    .energy-segment.grid { background: #6b7280; }
+
+    .energy-legend {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .energy-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .energy-legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    /* Circularity Gauge */
+    .circularity-gauge {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .gauge-container {
+        position: relative;
+        width: 180px;
+        height: 180px;
+        margin-bottom: 1rem;
+    }
+
+    .gauge-svg {
+        transform: rotate(-90deg);
+    }
+
+    .gauge-bg {
+        fill: none;
+        stroke: rgba(0, 0, 0, 0.1);
+        stroke-width: 20;
+    }
+
+    .gauge-fill {
+        fill: none;
+        stroke: url(#circularityGradient);
+        stroke-width: 20;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 1s ease;
+    }
+
+    .gauge-center {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+    }
+
+    .gauge-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .gauge-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .circularity-metrics {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        width: 100%;
+    }
+
+    .circ-metric {
+        text-align: center;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 8px;
+    }
+
+    .circ-metric-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .circ-metric-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Water & Waste */
+    .bottom-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+
+    .resource-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .resource-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .resource-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .resource-icon.water { background: rgba(6, 182, 212, 0.15); }
+    .resource-icon.waste { background: rgba(245, 158, 11, 0.15); }
+    .resource-icon.materials { background: rgba(139, 92, 246, 0.15); }
+
+    .resource-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .resource-stats {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .resource-stat {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .stat-label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .stat-value {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .stat-bar {
+        height: 6px;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 0.25rem;
+    }
+
+    .stat-bar-fill {
+        height: 100%;
+        border-radius: 3px;
+    }
+
+    .stat-bar-fill.good { background: #10b981; }
+    .stat-bar-fill.warning { background: #f59e0b; }
+    .stat-bar-fill.critical { background: #ef4444; }
+
+    /* ESG Score Card */
+    .esg-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .esg-scores {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .esg-score-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .esg-letter {
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.25rem;
+        color: white;
+    }
+
+    .esg-letter.e { background: #10b981; }
+    .esg-letter.s { background: #3b82f6; }
+    .esg-letter.g { background: #8b5cf6; }
+
+    .esg-details {
+        flex: 1;
+    }
+
+    .esg-category {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .esg-rating {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .esg-score-value {
+        text-align: right;
+    }
+
+    .esg-number {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .esg-max {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal {
+        background: var(--card-bg);
+        border-radius: 16px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 85vh;
+        overflow-y: auto;
+        transform: scale(0.9) translateY(20px);
+        transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal {
+        transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        position: sticky;
+        top: 0;
+        background: var(--card-bg);
+        z-index: 10;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .modal-close {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: var(--text-secondary);
+        transition: all 0.2s ease;
+    }
+
+    .modal-close:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .toast {
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        animation: slideIn 0.3s ease;
+        min-width: 300px;
+    }
+
+    .toast.success { border-left: 4px solid #10b981; }
+    .toast.error { border-left: 4px solid #ef4444; }
+    .toast.warning { border-left: 4px solid #f59e0b; }
+    .toast.info { border-left: 4px solid #3b82f6; }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Form Styles */
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        transition: border-color 0.2s ease;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+    }
+
+    .form-textarea {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    /* LCA Detailed Breakdown */
+    .lca-detailed-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .lca-detail-card {
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 10px;
+        border-left: 4px solid;
+    }
+
+    .lca-detail-card.gwp { border-color: #ef4444; }
+    .lca-detail-card.acidification { border-color: #3b82f6; }
+    .lca-detail-card.eutrophication { border-color: #10b981; }
+    .lca-detail-card.ozone { border-color: #8b5cf6; }
+    .lca-detail-card.resource { border-color: #f59e0b; }
+    .lca-detail-card.water { border-color: #06b6d4; }
+
+    .lca-detail-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .lca-detail-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .lca-detail-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .lca-detail-unit {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .lca-detail-bar {
+        height: 6px;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 0.5rem;
+    }
+
+    .lca-detail-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    /* Carbon Offset Card */
+    .carbon-offset-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .offset-project {
+        padding: 1rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .offset-project:hover {
+        border-color: #10b981;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+    }
+
+    .offset-project.selected {
+        border-color: #10b981;
+        background: rgba(16, 185, 129, 0.05);
+    }
+
+    .offset-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .offset-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .offset-location {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .offset-price {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #10b981;
+    }
+
+    /* SDG Goals */
+    .sdg-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .sdg-badge {
+        width: 50px;
+        height: 50px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        color: white;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+    }
+
+    .sdg-badge:hover {
+        transform: scale(1.1);
+    }
+
+    .sdg-badge.active {
+        box-shadow: 0 0 0 3px white, 0 0 0 5px currentColor;
+    }
+
+    /* Progress Tracker */
+    .progress-tracker {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .progress-step {
+        flex: 1;
+        text-align: center;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 8px;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        position: relative;
+    }
+
+    .progress-step.completed {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .progress-step.current {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+    }
+
+    /* Carbon Credits Table */
+    .credits-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .credits-table th,
+    .credits-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .credits-table th {
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        text-transform: uppercase;
+    }
+
+    .credits-table td {
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .credit-status {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .credit-status.verified { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .credit-status.pending { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .credit-status.retired { background: rgba(107, 114, 128, 0.15); color: #6b7280; }
+
+    /* Clickable Cards */
+    .carbon-card, .lca-item, .esg-score-item, .circ-metric, .resource-section {
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .carbon-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Action Buttons */
+    .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #10b981, #34d399);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #059669, #10b981);
+        transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+        border-color: #10b981;
+        color: #10b981;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .carbon-summary {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .sustainability-content {
+            grid-template-columns: 1fr;
+        }
+
+        .metrics-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .bottom-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .lca-detailed-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .carbon-offset-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- SVG Gradients -->
+<svg width="0" height="0" style="position: absolute;">
+    <defs>
+        <linearGradient id="circularityGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" style="stop-color:#10b981"/>
+            <stop offset="100%" style="stop-color:#34d399"/>
+        </linearGradient>
+    </defs>
+</svg>
+
+<div class="sustainability-header">
+    <div>
+        <div class="header-title">
+            <h1>🌱 Sustainability & Carbon Dashboard</h1>
+        </div>
+        <div class="header-subtitle">ISO 14001 Environmental Management • ESG Reporting • Net Zero 2030</div>
+    </div>
+    <div class="net-zero-badge">
+        <div class="net-zero-icon">🎯</div>
+        <div class="net-zero-info">
+            <div class="net-zero-title">Net Zero Progress: 67%</div>
+            <div class="net-zero-progress">On track for 2030 target</div>
+        </div>
+    </div>
+    <div class="header-controls">
+        <select class="filter-dropdown">
+            <option>This Month</option>
+            <option>This Quarter</option>
+            <option>This Year</option>
+            <option>Last 12 Months</option>
+        </select>
+        <button class="btn btn-primary" onclick="exportESGReport()">📥 ESG Report</button>
+    </div>
+</div>
+
+<!-- Carbon Summary -->
+<div class="carbon-summary">
+    <div class="carbon-card scope1">
+        <div class="carbon-card-header">
+            <span class="carbon-label">Scope 1 Emissions</span>
+            <span class="carbon-scope-badge scope1">Direct</span>
+        </div>
+        <div>
+            <span class="carbon-value">12.4</span>
+            <span class="carbon-unit">tCO2e</span>
+        </div>
+        <div class="carbon-trend down">↓ 8.2% vs last month</div>
+    </div>
+    <div class="carbon-card scope2">
+        <div class="carbon-card-header">
+            <span class="carbon-label">Scope 2 Emissions</span>
+            <span class="carbon-scope-badge scope2">Energy</span>
+        </div>
+        <div>
+            <span class="carbon-value">28.7</span>
+            <span class="carbon-unit">tCO2e</span>
+        </div>
+        <div class="carbon-trend down">↓ 15.4% vs last month</div>
+    </div>
+    <div class="carbon-card scope3">
+        <div class="carbon-card-header">
+            <span class="carbon-label">Scope 3 Emissions</span>
+            <span class="carbon-scope-badge scope3">Value Chain</span>
+        </div>
+        <div>
+            <span class="carbon-value">156.2</span>
+            <span class="carbon-unit">tCO2e</span>
+        </div>
+        <div class="carbon-trend down">↓ 5.1% vs last month</div>
+    </div>
+    <div class="carbon-card total">
+        <div class="carbon-card-header">
+            <span class="carbon-label">Total Carbon Footprint</span>
+        </div>
+        <div>
+            <span class="carbon-value">197.3</span>
+            <span class="carbon-unit">tCO2e</span>
+        </div>
+        <div class="carbon-trend down">↓ 9.8% vs last month</div>
+    </div>
+</div>
+
+<!-- Emissions Chart & LCA -->
+<div class="sustainability-content">
+    <div class="emissions-section">
+        <div class="section-header">
+            <div class="section-title">📈 Monthly Emissions Trend</div>
+            <div class="chart-legend" style="display: flex; gap: 1rem; font-size: 0.75rem;">
+                <span style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="width: 12px; height: 12px; background: #3b82f6; border-radius: 3px;"></span>
+                    Scope 1
+                </span>
+                <span style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="width: 12px; height: 12px; background: #8b5cf6; border-radius: 3px;"></span>
+                    Scope 2
+                </span>
+                <span style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="width: 12px; height: 12px; background: #f59e0b; border-radius: 3px;"></span>
+                    Scope 3
+                </span>
+            </div>
+        </div>
+        <div class="chart-container">
+            <canvas id="emissionsChart"></canvas>
+        </div>
+    </div>
+
+    <div class="lca-section">
+        <div class="section-header">
+            <div class="section-title">🔄 LCA Impact Categories</div>
+        </div>
+        <div class="lca-chart">
+            <canvas id="lcaChart"></canvas>
+        </div>
+        <div class="lca-legend">
+            <div class="lca-item">
+                <span class="lca-color" style="background: #ef4444;"></span>
+                <span class="lca-name">Climate Change (GWP)</span>
+                <span class="lca-value">197.3</span>
+                <span class="lca-percent">42%</span>
+            </div>
+            <div class="lca-item">
+                <span class="lca-color" style="background: #3b82f6;"></span>
+                <span class="lca-name">Acidification</span>
+                <span class="lca-value">45.2</span>
+                <span class="lca-percent">22%</span>
+            </div>
+            <div class="lca-item">
+                <span class="lca-color" style="background: #10b981;"></span>
+                <span class="lca-name">Eutrophication</span>
+                <span class="lca-value">38.1</span>
+                <span class="lca-percent">18%</span>
+            </div>
+            <div class="lca-item">
+                <span class="lca-color" style="background: #f59e0b;"></span>
+                <span class="lca-name">Resource Depletion</span>
+                <span class="lca-value">28.4</span>
+                <span class="lca-percent">14%</span>
+            </div>
+            <div class="lca-item">
+                <span class="lca-color" style="background: #8b5cf6;"></span>
+                <span class="lca-name">Other</span>
+                <span class="lca-value">8.5</span>
+                <span class="lca-percent">4%</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Energy Mix & Circularity -->
+<div class="metrics-grid">
+    <div class="metric-section">
+        <div class="section-header">
+            <div class="section-title">⚡ Energy Mix</div>
+        </div>
+        <div class="energy-mix">
+            <div class="energy-bar-container">
+                <div class="energy-bar-labels">
+                    <span class="energy-bar-title">Current Energy Sources</span>
+                    <span class="energy-bar-value">72% Renewable</span>
+                </div>
+                <div class="energy-bar">
+                    <div class="energy-segment solar" style="width: 35%">35%</div>
+                    <div class="energy-segment wind" style="width: 25%">25%</div>
+                    <div class="energy-segment hydro" style="width: 12%">12%</div>
+                    <div class="energy-segment grid" style="width: 28%">28%</div>
+                </div>
+            </div>
+            <div class="energy-legend">
+                <div class="energy-legend-item">
+                    <span class="energy-legend-dot" style="background: #f59e0b;"></span>
+                    Solar PV
+                </div>
+                <div class="energy-legend-item">
+                    <span class="energy-legend-dot" style="background: #3b82f6;"></span>
+                    Wind
+                </div>
+                <div class="energy-legend-item">
+                    <span class="energy-legend-dot" style="background: #06b6d4;"></span>
+                    Hydro
+                </div>
+                <div class="energy-legend-item">
+                    <span class="energy-legend-dot" style="background: #6b7280;"></span>
+                    Grid
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1rem;">
+                <div style="text-align: center; padding: 0.75rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                    <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">45.2</div>
+                    <div style="font-size: 0.65rem; color: var(--text-secondary);">MWh Today</div>
+                </div>
+                <div style="text-align: center; padding: 0.75rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                    <div style="font-size: 1.25rem; font-weight: 700; color: #10b981;">-12%</div>
+                    <div style="font-size: 0.65rem; color: var(--text-secondary);">vs Baseline</div>
+                </div>
+                <div style="text-align: center; padding: 0.75rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                    <div style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);">0.42</div>
+                    <div style="font-size: 0.65rem; color: var(--text-secondary);">kWh/Unit</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="metric-section">
+        <div class="section-header">
+            <div class="section-title">♻️ Circular Economy Index</div>
+        </div>
+        <div class="circularity-gauge">
+            <div class="gauge-container">
+                <svg class="gauge-svg" width="180" height="180" viewBox="0 0 180 180">
+                    <circle class="gauge-bg" cx="90" cy="90" r="70"/>
+                    <circle class="gauge-fill" cx="90" cy="90" r="70"
+                        stroke-dasharray="439.82"
+                        stroke-dashoffset="132"/>
+                </svg>
+                <div class="gauge-center">
+                    <div class="gauge-value">70%</div>
+                    <div class="gauge-label">Circularity</div>
+                </div>
+            </div>
+            <div class="circularity-metrics">
+                <div class="circ-metric">
+                    <div class="circ-metric-value">85%</div>
+                    <div class="circ-metric-label">Recycled Input</div>
+                </div>
+                <div class="circ-metric">
+                    <div class="circ-metric-value">92%</div>
+                    <div class="circ-metric-label">Recyclable Output</div>
+                </div>
+                <div class="circ-metric">
+                    <div class="circ-metric-value">2.3%</div>
+                    <div class="circ-metric-label">Waste to Landfill</div>
+                </div>
+                <div class="circ-metric">
+                    <div class="circ-metric-value">4.2x</div>
+                    <div class="circ-metric-label">Material Loops</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Grid: Water, Waste, ESG -->
+<div class="bottom-grid">
+    <div class="resource-section">
+        <div class="resource-header">
+            <div class="resource-icon water">💧</div>
+            <div class="resource-title">Water Management</div>
+        </div>
+        <div class="resource-stats">
+            <div class="resource-stat">
+                <span class="stat-label">Water Consumption</span>
+                <span class="stat-value">1,245 m³</span>
+            </div>
+            <div class="stat-bar">
+                <div class="stat-bar-fill good" style="width: 65%;"></div>
+            </div>
+            <div class="resource-stat">
+                <span class="stat-label">Water Recycled</span>
+                <span class="stat-value">78%</span>
+            </div>
+            <div class="stat-bar">
+                <div class="stat-bar-fill good" style="width: 78%;"></div>
+            </div>
+            <div class="resource-stat">
+                <span class="stat-label">Water Intensity</span>
+                <span class="stat-value">0.12 m³/unit</span>
+            </div>
+            <div class="stat-bar">
+                <div class="stat-bar-fill good" style="width: 45%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="resource-section">
+        <div class="resource-header">
+            <div class="resource-icon waste">🗑️</div>
+            <div class="resource-title">Waste Management</div>
+        </div>
+        <div class="resource-stats">
+            <div class="resource-stat">
+                <span class="stat-label">Total Waste Generated</span>
+                <span class="stat-value">8.4 tonnes</span>
+            </div>
+            <div class="stat-bar">
+                <div class="stat-bar-fill warning" style="width: 35%;"></div>
+            </div>
+            <div class="resource-stat">
+                <span class="stat-label">Recycling Rate</span>
+                <span class="stat-value">89%</span>
+            </div>
+            <div class="stat-bar">
+                <div class="stat-bar-fill good" style="width: 89%;"></div>
+            </div>
+            <div class="resource-stat">
+                <span class="stat-label">Hazardous Waste</span>
+                <span class="stat-value">0.2 tonnes</span>
+            </div>
+            <div class="stat-bar">
+                <div class="stat-bar-fill good" style="width: 8%;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="esg-section">
+        <div class="section-header">
+            <div class="section-title">📊 ESG Score</div>
+        </div>
+        <div class="esg-scores">
+            <div class="esg-score-item">
+                <div class="esg-letter e">E</div>
+                <div class="esg-details">
+                    <div class="esg-category">Environmental</div>
+                    <div class="esg-rating">Carbon, Water, Waste</div>
+                </div>
+                <div class="esg-score-value">
+                    <div class="esg-number">82</div>
+                    <div class="esg-max">/100</div>
+                </div>
+            </div>
+            <div class="esg-score-item">
+                <div class="esg-letter s">S</div>
+                <div class="esg-details">
+                    <div class="esg-category">Social</div>
+                    <div class="esg-rating">Safety, Diversity, Community</div>
+                </div>
+                <div class="esg-score-value">
+                    <div class="esg-number">88</div>
+                    <div class="esg-max">/100</div>
+                </div>
+            </div>
+            <div class="esg-score-item">
+                <div class="esg-letter g">G</div>
+                <div class="esg-details">
+                    <div class="esg-category">Governance</div>
+                    <div class="esg-rating">Ethics, Compliance, Risk</div>
+                </div>
+                <div class="esg-score-value">
+                    <div class="esg-number">91</div>
+                    <div class="esg-max">/100</div>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color); text-align: center;">
+            <div style="font-size: 2rem; font-weight: 700; color: #10b981;">A</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">Overall ESG Rating</div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- LCA Detail Modal -->
+<div id="lcaModal" class="modal-overlay" onclick="if(event.target===this)closeModal('lcaModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">🔄 Life Cycle Assessment Details</div>
+            <button class="modal-close" onclick="closeModal('lcaModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="progress-tracker">
+                <div class="progress-step completed">✓ Extraction</div>
+                <div class="progress-step completed">✓ Production</div>
+                <div class="progress-step current">⟳ Use Phase</div>
+                <div class="progress-step">End of Life</div>
+            </div>
+
+            <h4 style="margin-bottom: 1rem; color: var(--text-primary);">ISO 14040/14044 Impact Categories</h4>
+            <div class="lca-detailed-grid">
+                <div class="lca-detail-card gwp">
+                    <div class="lca-detail-header">
+                        <span class="lca-detail-name">Global Warming Potential</span>
+                        <span class="lca-detail-value">197.3<span class="lca-detail-unit"> kg CO2-eq</span></span>
+                    </div>
+                    <div class="lca-detail-bar">
+                        <div class="lca-detail-fill" style="width: 42%; background: #ef4444;"></div>
+                    </div>
+                </div>
+                <div class="lca-detail-card acidification">
+                    <div class="lca-detail-header">
+                        <span class="lca-detail-name">Acidification Potential</span>
+                        <span class="lca-detail-value">45.2<span class="lca-detail-unit"> mol H+-eq</span></span>
+                    </div>
+                    <div class="lca-detail-bar">
+                        <div class="lca-detail-fill" style="width: 22%; background: #3b82f6;"></div>
+                    </div>
+                </div>
+                <div class="lca-detail-card eutrophication">
+                    <div class="lca-detail-header">
+                        <span class="lca-detail-name">Eutrophication Potential</span>
+                        <span class="lca-detail-value">38.1<span class="lca-detail-unit"> kg P-eq</span></span>
+                    </div>
+                    <div class="lca-detail-bar">
+                        <div class="lca-detail-fill" style="width: 18%; background: #10b981;"></div>
+                    </div>
+                </div>
+                <div class="lca-detail-card ozone">
+                    <div class="lca-detail-header">
+                        <span class="lca-detail-name">Ozone Depletion</span>
+                        <span class="lca-detail-value">0.0012<span class="lca-detail-unit"> kg CFC-11-eq</span></span>
+                    </div>
+                    <div class="lca-detail-bar">
+                        <div class="lca-detail-fill" style="width: 8%; background: #8b5cf6;"></div>
+                    </div>
+                </div>
+                <div class="lca-detail-card resource">
+                    <div class="lca-detail-header">
+                        <span class="lca-detail-name">Abiotic Depletion</span>
+                        <span class="lca-detail-value">28.4<span class="lca-detail-unit"> kg Sb-eq</span></span>
+                    </div>
+                    <div class="lca-detail-bar">
+                        <div class="lca-detail-fill" style="width: 14%; background: #f59e0b;"></div>
+                    </div>
+                </div>
+                <div class="lca-detail-card water">
+                    <div class="lca-detail-header">
+                        <span class="lca-detail-name">Water Scarcity</span>
+                        <span class="lca-detail-value">124.6<span class="lca-detail-unit"> m³ world-eq</span></span>
+                    </div>
+                    <div class="lca-detail-bar">
+                        <div class="lca-detail-fill" style="width: 32%; background: #06b6d4;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--text-primary);">Hotspot Analysis</h4>
+            <div style="background: rgba(239, 68, 68, 0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                <div style="font-weight: 600; color: #ef4444; margin-bottom: 0.5rem;">⚠️ Primary Hotspot: ABS Plastic Production</div>
+                <div style="font-size: 0.875rem; color: var(--text-secondary);">
+                    ABS plastic accounts for 42% of total GWP. Consider switching to recycled ABS or bio-based alternatives.
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('lcaModal')">Close</button>
+            <button class="btn btn-primary" onclick="runLCACalculation()">🔄 Recalculate LCA</button>
+            <button class="btn btn-primary" onclick="exportLCAReport()">📥 Export Report</button>
+        </div>
+    </div>
+</div>
+
+<!-- Carbon Offset Modal -->
+<div id="carbonOffsetModal" class="modal-overlay" onclick="if(event.target===this)closeModal('carbonOffsetModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">🌳 Purchase Carbon Offsets</div>
+            <button class="modal-close" onclick="closeModal('carbonOffsetModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div style="background: rgba(16, 185, 129, 0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <div style="font-size: 0.875rem; color: var(--text-secondary);">Residual emissions to offset:</div>
+                <div style="font-size: 1.75rem; font-weight: 700; color: #10b981;">197.3 tCO2e</div>
+            </div>
+
+            <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Select Offset Projects</h4>
+            <div class="carbon-offset-grid">
+                <div class="offset-project" onclick="selectOffsetProject(this, 'forest')">
+                    <div class="offset-icon">🌲</div>
+                    <div class="offset-name">Amazon Forest Conservation</div>
+                    <div class="offset-location">Brazil • Gold Standard</div>
+                    <div class="offset-price">$18/tCO2e</div>
+                </div>
+                <div class="offset-project selected" onclick="selectOffsetProject(this, 'wind')">
+                    <div class="offset-icon">🌬️</div>
+                    <div class="offset-name">Wind Farm Development</div>
+                    <div class="offset-location">India • VCS Verified</div>
+                    <div class="offset-price">$12/tCO2e</div>
+                </div>
+                <div class="offset-project" onclick="selectOffsetProject(this, 'mangrove')">
+                    <div class="offset-icon">🏝️</div>
+                    <div class="offset-name">Mangrove Restoration</div>
+                    <div class="offset-location">Indonesia • Plan Vivo</div>
+                    <div class="offset-price">$24/tCO2e</div>
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 1.5rem;">
+                <label class="form-label">Amount to Offset (tCO2e)</label>
+                <input type="number" class="form-input" id="offsetAmount" value="197.3" min="1" max="1000">
+            </div>
+
+            <div style="background: rgba(0, 0, 0, 0.03); padding: 1rem; border-radius: 8px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                    <span>197.3 tCO2e × $12/tCO2e</span>
+                    <span style="font-weight: 600;">$2,367.60</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span>Service Fee (5%)</span>
+                    <span style="font-weight: 600;">$118.38</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color);">
+                    <span style="font-weight: 700;">Total</span>
+                    <span style="font-weight: 700; font-size: 1.25rem; color: #10b981;">$2,485.98</span>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('carbonOffsetModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="purchaseOffsets()">🛒 Purchase Offsets</button>
+        </div>
+    </div>
+</div>
+
+<!-- ESG Report Modal -->
+<div id="esgReportModal" class="modal-overlay" onclick="if(event.target===this)closeModal('esgReportModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">📊 Generate ESG Report</div>
+            <button class="modal-close" onclick="closeModal('esgReportModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Report Framework</label>
+                <select class="form-select" id="esgFramework">
+                    <option value="gri">GRI Standards (Global Reporting Initiative)</option>
+                    <option value="sasb">SASB Standards (Sustainability Accounting)</option>
+                    <option value="tcfd">TCFD (Task Force on Climate-related Disclosures)</option>
+                    <option value="cdp">CDP (Carbon Disclosure Project)</option>
+                    <option value="custom">Custom Report</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Reporting Period</label>
+                <select class="form-select" id="esgPeriod">
+                    <option value="q4-2024">Q4 2024</option>
+                    <option value="fy-2024">FY 2024</option>
+                    <option value="ytd">Year-to-Date</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--text-primary);">Include Sections</h4>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" checked> Carbon Footprint (Scope 1-3)
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" checked> LCA Impact Categories
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" checked> Energy & Renewables
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" checked> Water & Waste
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" checked> Circularity Metrics
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" checked> SDG Alignment
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" checked> Net Zero Progress
+                </label>
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox"> Third-party Verification
+                </label>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem; color: var(--text-primary);">SDG Alignment</h4>
+            <div class="sdg-grid">
+                <div class="sdg-badge active" style="background: #e5243b;" onclick="toggleSDG(this)" title="SDG 1: No Poverty">1</div>
+                <div class="sdg-badge" style="background: #dda63a;" onclick="toggleSDG(this)" title="SDG 2: Zero Hunger">2</div>
+                <div class="sdg-badge" style="background: #4c9f38;" onclick="toggleSDG(this)" title="SDG 3: Good Health">3</div>
+                <div class="sdg-badge" style="background: #c5192d;" onclick="toggleSDG(this)" title="SDG 4: Quality Education">4</div>
+                <div class="sdg-badge" style="background: #ff3a21;" onclick="toggleSDG(this)" title="SDG 5: Gender Equality">5</div>
+                <div class="sdg-badge active" style="background: #26bde2;" onclick="toggleSDG(this)" title="SDG 6: Clean Water">6</div>
+                <div class="sdg-badge active" style="background: #fcc30b;" onclick="toggleSDG(this)" title="SDG 7: Clean Energy">7</div>
+                <div class="sdg-badge active" style="background: #a21942;" onclick="toggleSDG(this)" title="SDG 8: Decent Work">8</div>
+                <div class="sdg-badge active" style="background: #fd6925;" onclick="toggleSDG(this)" title="SDG 9: Industry & Innovation">9</div>
+                <div class="sdg-badge" style="background: #dd1367;" onclick="toggleSDG(this)" title="SDG 10: Reduced Inequalities">10</div>
+                <div class="sdg-badge active" style="background: #fd9d24;" onclick="toggleSDG(this)" title="SDG 11: Sustainable Cities">11</div>
+                <div class="sdg-badge active" style="background: #bf8b2e;" onclick="toggleSDG(this)" title="SDG 12: Responsible Consumption">12</div>
+                <div class="sdg-badge active" style="background: #3f7e44;" onclick="toggleSDG(this)" title="SDG 13: Climate Action">13</div>
+                <div class="sdg-badge" style="background: #0a97d9;" onclick="toggleSDG(this)" title="SDG 14: Life Below Water">14</div>
+                <div class="sdg-badge active" style="background: #56c02b;" onclick="toggleSDG(this)" title="SDG 15: Life on Land">15</div>
+                <div class="sdg-badge" style="background: #00689d;" onclick="toggleSDG(this)" title="SDG 16: Peace & Justice">16</div>
+                <div class="sdg-badge" style="background: #19486a;" onclick="toggleSDG(this)" title="SDG 17: Partnerships">17</div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('esgReportModal')">Cancel</button>
+            <button class="btn btn-outline" onclick="previewESGReport()">👁️ Preview</button>
+            <button class="btn btn-primary" onclick="generateESGReport()">📥 Generate PDF</button>
+        </div>
+    </div>
+</div>
+
+<!-- Carbon Credits Modal -->
+<div id="creditsModal" class="modal-overlay" onclick="if(event.target===this)closeModal('creditsModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">💳 Carbon Credits Portfolio</div>
+            <button class="modal-close" onclick="closeModal('creditsModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #10b981;">524</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Credits Owned</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;">197</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Retired YTD</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #f59e0b;">327</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Available</div>
+                </div>
+            </div>
+
+            <table class="credits-table">
+                <thead>
+                    <tr>
+                        <th>Project</th>
+                        <th>Registry</th>
+                        <th>Vintage</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Amazon REDD+</td>
+                        <td>VCS</td>
+                        <td>2023</td>
+                        <td>150 tCO2e</td>
+                        <td><span class="credit-status verified">Verified</span></td>
+                    </tr>
+                    <tr>
+                        <td>Wind Farm Gujarat</td>
+                        <td>Gold Standard</td>
+                        <td>2024</td>
+                        <td>200 tCO2e</td>
+                        <td><span class="credit-status verified">Verified</span></td>
+                    </tr>
+                    <tr>
+                        <td>Solar Cookstoves Kenya</td>
+                        <td>Plan Vivo</td>
+                        <td>2024</td>
+                        <td>77 tCO2e</td>
+                        <td><span class="credit-status pending">Pending</span></td>
+                    </tr>
+                    <tr>
+                        <td>Mangrove Blue Carbon</td>
+                        <td>Verra</td>
+                        <td>2023</td>
+                        <td>97 tCO2e</td>
+                        <td><span class="credit-status retired">Retired</span></td>
+                    </tr>
+                    <tr>
+                        <td>Biochar Production</td>
+                        <td>Puro.earth</td>
+                        <td>2024</td>
+                        <td>100 tCO2e</td>
+                        <td><span class="credit-status verified">Verified</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('creditsModal')">Close</button>
+            <button class="btn btn-outline" onclick="retireCredits()">🔥 Retire Credits</button>
+            <button class="btn btn-primary" onclick="openModal('carbonOffsetModal')">➕ Buy More</button>
+        </div>
+    </div>
+</div>
+
+<!-- Scope Detail Modal -->
+<div id="scopeModal" class="modal-overlay" onclick="if(event.target===this)closeModal('scopeModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title" id="scopeModalTitle">📊 Scope 1 Emissions Detail</div>
+            <button class="modal-close" onclick="closeModal('scopeModal')">×</button>
+        </div>
+        <div class="modal-body" id="scopeModalContent">
+            <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('scopeModal')">Close</button>
+            <button class="btn btn-primary" onclick="exportScopeReport()">📥 Export</button>
+        </div>
+    </div>
+</div>
+
+<!-- Net Zero Modal -->
+<div id="netZeroModal" class="modal-overlay" onclick="if(event.target===this)closeModal('netZeroModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">🎯 Net Zero 2030 Roadmap</div>
+            <button class="modal-close" onclick="closeModal('netZeroModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(52, 211, 153, 0.1)); padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; text-align: center;">
+                <div style="font-size: 3rem; font-weight: 700; color: #10b981;">67%</div>
+                <div style="font-size: 1rem; color: var(--text-secondary);">Progress to Net Zero by 2030</div>
+            </div>
+
+            <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Milestone Timeline</h4>
+            <div style="position: relative; padding-left: 2rem; margin-bottom: 1.5rem;">
+                <div style="position: absolute; left: 0.5rem; top: 0; bottom: 0; width: 2px; background: linear-gradient(to bottom, #10b981 67%, var(--border-color) 67%);"></div>
+
+                <div style="position: relative; padding: 0.75rem 0 0.75rem 1.5rem;">
+                    <div style="position: absolute; left: -0.5rem; top: 1rem; width: 16px; height: 16px; border-radius: 50%; background: #10b981; border: 3px solid var(--card-bg);"></div>
+                    <div style="font-weight: 600; color: #10b981;">2022 - Energy Audit ✓</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary);">Completed comprehensive energy assessment</div>
+                </div>
+
+                <div style="position: relative; padding: 0.75rem 0 0.75rem 1.5rem;">
+                    <div style="position: absolute; left: -0.5rem; top: 1rem; width: 16px; height: 16px; border-radius: 50%; background: #10b981; border: 3px solid var(--card-bg);"></div>
+                    <div style="font-weight: 600; color: #10b981;">2023 - Solar Installation ✓</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary);">500kW rooftop solar array installed</div>
+                </div>
+
+                <div style="position: relative; padding: 0.75rem 0 0.75rem 1.5rem;">
+                    <div style="position: absolute; left: -0.5rem; top: 1rem; width: 16px; height: 16px; border-radius: 50%; background: #3b82f6; border: 3px solid var(--card-bg);"></div>
+                    <div style="font-weight: 600; color: #3b82f6;">2024 - 70% Renewable (Current)</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary);">Transitioning to 100% renewable energy</div>
+                </div>
+
+                <div style="position: relative; padding: 0.75rem 0 0.75rem 1.5rem;">
+                    <div style="position: absolute; left: -0.5rem; top: 1rem; width: 16px; height: 16px; border-radius: 50%; background: var(--border-color); border: 3px solid var(--card-bg);"></div>
+                    <div style="font-weight: 600; color: var(--text-secondary);">2026 - Electric Fleet</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary);">Full electrification of company vehicles</div>
+                </div>
+
+                <div style="position: relative; padding: 0.75rem 0 0.75rem 1.5rem;">
+                    <div style="position: absolute; left: -0.5rem; top: 1rem; width: 16px; height: 16px; border-radius: 50%; background: var(--border-color); border: 3px solid var(--card-bg);"></div>
+                    <div style="font-weight: 600; color: var(--text-secondary);">2028 - Scope 3 Reduction</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary);">50% reduction in supply chain emissions</div>
+                </div>
+
+                <div style="position: relative; padding: 0.75rem 0 0.75rem 1.5rem;">
+                    <div style="position: absolute; left: -0.5rem; top: 1rem; width: 16px; height: 16px; border-radius: 50%; background: var(--border-color); border: 3px solid var(--card-bg);"></div>
+                    <div style="font-weight: 600; color: var(--text-secondary);">2030 - Net Zero 🎯</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary);">Achieve carbon neutrality with verified offsets</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('netZeroModal')">Close</button>
+            <button class="btn btn-primary" onclick="downloadRoadmap()">📥 Download Roadmap</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    function initEmissionsChart() {
+        const ctx = document.getElementById('emissionsChart').getContext('2d');
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                datasets: [
+                    {
+                        label: 'Scope 1',
+                        data: [18, 16, 15, 14, 13, 12.5, 12.2, 12, 11.8, 12.1, 12.3, 12.4],
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 4,
+                    },
+                    {
+                        label: 'Scope 2',
+                        data: [42, 40, 38, 36, 34, 32, 30, 29, 28.5, 28.8, 28.5, 28.7],
+                        backgroundColor: '#8b5cf6',
+                        borderRadius: 4,
+                    },
+                    {
+                        label: 'Scope 3',
+                        data: [180, 175, 172, 168, 165, 162, 160, 158, 157, 156.5, 156.3, 156.2],
+                        backgroundColor: '#f59e0b',
+                        borderRadius: 4,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        stacked: true,
+                        title: {
+                            display: true,
+                            text: 'tCO2e'
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        stacked: true,
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function initLCAChart() {
+        const ctx = document.getElementById('lcaChart').getContext('2d');
+
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Climate Change', 'Acidification', 'Eutrophication', 'Resource Depletion', 'Other'],
+                datasets: [{
+                    data: [42, 22, 18, 14, 4],
+                    backgroundColor: [
+                        '#ef4444',
+                        '#3b82f6',
+                        '#10b981',
+                        '#f59e0b',
+                        '#8b5cf6'
+                    ],
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '65%',
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+
+    function exportESGReport() {
+        openModal('esgReportModal');
+    }
+
+    // Modal Functions
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // Close modals with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+        }
+    });
+
+    // Toast Notification
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+        toast.innerHTML = `<span style="font-size: 1.25rem;">${icons[type]}</span><span>${message}</span>`;
+
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
+    }
+
+    // Scope Detail Data
+    const scopeData = {
+        scope1: {
+            title: '📊 Scope 1 Emissions Detail',
+            description: 'Direct emissions from owned or controlled sources',
+            total: 12.4,
+            categories: [
+                { name: 'Natural Gas (Heating)', value: 5.8, percent: 47 },
+                { name: 'Company Vehicles', value: 4.2, percent: 34 },
+                { name: 'Refrigerants', value: 1.6, percent: 13 },
+                { name: 'On-site Fuel', value: 0.8, percent: 6 }
+            ]
+        },
+        scope2: {
+            title: '📊 Scope 2 Emissions Detail',
+            description: 'Indirect emissions from purchased electricity, steam, heating & cooling',
+            total: 28.7,
+            categories: [
+                { name: 'Electricity (Grid)', value: 18.5, percent: 64 },
+                { name: 'Purchased Heat', value: 6.2, percent: 22 },
+                { name: 'Cooling', value: 4.0, percent: 14 }
+            ]
+        },
+        scope3: {
+            title: '📊 Scope 3 Emissions Detail',
+            description: 'All indirect emissions in the value chain',
+            total: 156.2,
+            categories: [
+                { name: 'Purchased Goods & Services', value: 68.4, percent: 44 },
+                { name: 'Transportation & Distribution', value: 32.1, percent: 21 },
+                { name: 'Business Travel', value: 18.7, percent: 12 },
+                { name: 'Employee Commuting', value: 14.5, percent: 9 },
+                { name: 'Waste Generated', value: 12.3, percent: 8 },
+                { name: 'Other', value: 10.2, percent: 6 }
+            ]
+        }
+    };
+
+    function showScopeDetail(scope) {
+        const data = scopeData[scope];
+        document.getElementById('scopeModalTitle').textContent = data.title;
+
+        let html = `
+            <div style="background: rgba(0, 0, 0, 0.03); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                <div style="font-size: 0.875rem; color: var(--text-secondary);">${data.description}</div>
+                <div style="font-size: 2rem; font-weight: 700; color: var(--text-primary); margin-top: 0.5rem;">${data.total} <span style="font-size: 1rem;">tCO2e</span></div>
+            </div>
+            <h4 style="margin-bottom: 1rem; color: var(--text-primary);">Emission Sources</h4>
+        `;
+
+        data.categories.forEach(cat => {
+            html += `
+                <div style="margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                        <span style="font-size: 0.875rem; color: var(--text-primary);">${cat.name}</span>
+                        <span style="font-size: 0.875rem; font-weight: 600; color: var(--text-primary);">${cat.value} tCO2e</span>
+                    </div>
+                    <div style="height: 8px; background: rgba(0, 0, 0, 0.1); border-radius: 4px; overflow: hidden;">
+                        <div style="height: 100%; width: ${cat.percent}%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 4px;"></div>
+                    </div>
+                    <div style="text-align: right; font-size: 0.75rem; color: var(--text-secondary);">${cat.percent}%</div>
+                </div>
+            `;
+        });
+
+        document.getElementById('scopeModalContent').innerHTML = html;
+        openModal('scopeModal');
+    }
+
+    // Carbon Card Click Handlers
+    document.querySelectorAll('.carbon-card').forEach((card, index) => {
+        card.addEventListener('click', () => {
+            const scopes = ['scope1', 'scope2', 'scope3', 'total'];
+            if (index < 3) {
+                showScopeDetail(scopes[index]);
+            } else {
+                openModal('creditsModal');
+            }
+        });
+    });
+
+    // LCA Section Click Handler
+    document.querySelector('.lca-section').addEventListener('click', () => {
+        openModal('lcaModal');
+    });
+
+    // Net Zero Badge Click
+    document.querySelector('.net-zero-badge').addEventListener('click', () => {
+        openModal('netZeroModal');
+    });
+
+    // Offset Project Selection
+    let selectedProject = 'wind';
+    const projectPrices = { forest: 18, wind: 12, mangrove: 24 };
+
+    function selectOffsetProject(element, project) {
+        document.querySelectorAll('.offset-project').forEach(p => p.classList.remove('selected'));
+        element.classList.add('selected');
+        selectedProject = project;
+        updateOffsetCalculation();
+    }
+
+    function updateOffsetCalculation() {
+        const amount = parseFloat(document.getElementById('offsetAmount').value) || 0;
+        const price = projectPrices[selectedProject];
+        const subtotal = amount * price;
+        const fee = subtotal * 0.05;
+        const total = subtotal + fee;
+
+        showToast(`Price updated: $${total.toFixed(2)} for ${amount} tCO2e`, 'info');
+    }
+
+    function purchaseOffsets() {
+        const amount = document.getElementById('offsetAmount').value;
+        closeModal('carbonOffsetModal');
+        showToast(`Successfully purchased ${amount} tCO2e in carbon offsets!`, 'success');
+    }
+
+    // SDG Toggle
+    function toggleSDG(element) {
+        element.classList.toggle('active');
+    }
+
+    // ESG Report Functions
+    function previewESGReport() {
+        showToast('Generating preview...', 'info');
+        setTimeout(() => {
+            showToast('ESG Report preview ready', 'success');
+        }, 1500);
+    }
+
+    function generateESGReport() {
+        const framework = document.getElementById('esgFramework').value;
+        const period = document.getElementById('esgPeriod').value;
+        closeModal('esgReportModal');
+        showToast(`Generating ${framework.toUpperCase()} ESG Report for ${period}...`, 'info');
+        setTimeout(() => {
+            showToast('ESG Report generated successfully!', 'success');
+        }, 2000);
+    }
+
+    // LCA Functions
+    function runLCACalculation() {
+        showToast('Running LCA calculation with Ecoinvent database...', 'info');
+        setTimeout(() => {
+            showToast('LCA calculation complete. Results updated.', 'success');
+        }, 3000);
+    }
+
+    function exportLCAReport() {
+        closeModal('lcaModal');
+        showToast('Exporting ISO 14040 compliant LCA report...', 'info');
+        setTimeout(() => {
+            showToast('LCA Report exported as PDF', 'success');
+        }, 1500);
+    }
+
+    function exportScopeReport() {
+        closeModal('scopeModal');
+        showToast('Exporting scope emissions report...', 'info');
+        setTimeout(() => {
+            showToast('Scope report exported', 'success');
+        }, 1000);
+    }
+
+    function retireCredits() {
+        showToast('Opening credit retirement workflow...', 'info');
+    }
+
+    function downloadRoadmap() {
+        closeModal('netZeroModal');
+        showToast('Downloading Net Zero 2030 Roadmap...', 'info');
+        setTimeout(() => {
+            showToast('Roadmap downloaded successfully', 'success');
+        }, 1000);
+    }
+
+    // Real-time Updates with pattern-based simulation
+    function updateSustainabilityMetrics() {
+        // Pattern-based carbon values (vary by time of day and production cycle)
+        const hour = new Date().getHours();
+        const minute = new Date().getMinutes();
+        const timePhase = (hour * 60 + minute) / 1440; // 0-1 daily cycle
+
+        // Production drives emissions - higher during day shift
+        const dayShiftFactor = (hour >= 6 && hour < 22) ? 1.05 : 0.92;
+        const scope1 = 12.4 * dayShiftFactor + Math.sin(timePhase * Math.PI * 4) * 0.1;
+        const scope2 = 28.7 * dayShiftFactor + Math.sin(timePhase * Math.PI * 6) * 0.15;
+        const scope3 = 156.2 + Math.sin(timePhase * Math.PI * 2) * 0.25; // Supply chain - slower cycle
+        const total = scope1 + scope2 + scope3;
+
+        document.querySelectorAll('.carbon-value')[0].textContent = scope1.toFixed(1);
+        document.querySelectorAll('.carbon-value')[1].textContent = scope2.toFixed(1);
+        document.querySelectorAll('.carbon-value')[2].textContent = scope3.toFixed(1);
+        document.querySelectorAll('.carbon-value')[3].textContent = total.toFixed(1);
+
+        // Circularity gauge - gradual improvement trend with daily variation
+        const baseLine = 70;
+        const improvement = Math.floor(Date.now() / 86400000) * 0.01; // 0.01% per day
+        const circularity = baseLine + improvement + Math.sin(timePhase * Math.PI * 2) * 1;
+        document.querySelector('.gauge-value').textContent = Math.round(circularity) + '%';
+
+        // Update gauge fill
+        const circumference = 439.82;
+        const offset = circumference - (circumference * circularity / 100);
+        document.querySelector('.gauge-fill').style.strokeDashoffset = offset;
+    }
+
+    function updateEnergyMix() {
+        // Energy mix varies by time - solar peaks midday, wind varies seasonally
+        const hour = new Date().getHours();
+        const solarFactor = Math.max(0, Math.sin((hour - 6) * Math.PI / 12)); // Peaks at noon
+        const solar = 30 + Math.round(solarFactor * 15); // 30-45% during day, 30% at night (stored)
+        const wind = 25 + Math.round(Math.sin(Date.now() / 3600000) * 3); // Hourly variation
+        const hydro = 12 + Math.round(Math.sin(Date.now() / 7200000) * 2); // Slower variation
+        const grid = 100 - solar - wind - hydro;
+
+        const segments = document.querySelectorAll('.energy-segment');
+        if (segments.length >= 4) {
+            segments[0].style.width = solar + '%';
+            segments[0].textContent = solar + '%';
+            segments[1].style.width = wind + '%';
+            segments[1].textContent = wind + '%';
+            segments[2].style.width = hydro + '%';
+            segments[2].textContent = hydro + '%';
+            segments[3].style.width = grid + '%';
+            segments[3].textContent = grid + '%';
+        }
+
+        const renewable = solar + wind + hydro;
+        document.querySelector('.energy-bar-value').textContent = renewable + '% Renewable';
+    }
+
+    function startLiveUpdates() {
+        setInterval(updateSustainabilityMetrics, 15000);
+        setInterval(updateEnergyMix, 20000);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        initEmissionsChart();
+        initLCAChart();
+        startLiveUpdates();
+
+        // Make ESG scores clickable
+        document.querySelectorAll('.esg-score-item').forEach(item => {
+            item.addEventListener('click', () => {
+                openModal('esgReportModal');
+            });
+        });
+
+        // Make resource sections clickable for detail views
+        document.querySelectorAll('.resource-section').forEach((section, index) => {
+            section.addEventListener('click', () => {
+                const titles = ['Water Management Details', 'Waste Management Details', 'ESG Score Details'];
+                if (index === 2) {
+                    openModal('esgReportModal');
+                } else {
+                    showToast(`Opening ${titles[index]}...`, 'info');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

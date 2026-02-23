@@ -1,0 +1,100 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: legomcp
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: LegoMCP PhD-Level Manufacturing Platform
+
+  # Source repositories
+  sourceRepos:
+    - 'https://github.com/your-org/lego_factory.git'
+    - 'https://github.com/your-org/lego-mcp-infra.git'
+
+  # Destination clusters and namespaces
+  destinations:
+    - namespace: legomcp-dev
+      server: https://kubernetes.default.svc
+    - namespace: legomcp-staging
+      server: https://kubernetes.default.svc
+    - namespace: legomcp-prod
+      server: https://kubernetes.default.svc
+
+  # Allowed cluster resources
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+    - group: 'apiextensions.k8s.io'
+      kind: CustomResourceDefinition
+    - group: 'admissionregistration.k8s.io'
+      kind: ValidatingWebhookConfiguration
+    - group: 'admissionregistration.k8s.io'
+      kind: MutatingWebhookConfiguration
+
+  # Namespace-scoped resources
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: '*'
+    - group: 'apps'
+      kind: '*'
+    - group: 'batch'
+      kind: '*'
+    - group: 'networking.k8s.io'
+      kind: '*'
+    - group: 'autoscaling'
+      kind: '*'
+    - group: 'policy'
+      kind: '*'
+
+  # Roles for team access
+  roles:
+    - name: admin
+      description: Full access to LegoMCP project
+      policies:
+        - p, proj:legomcp:admin, applications, *, legomcp/*, allow
+        - p, proj:legomcp:admin, clusters, get, *, allow
+        - p, proj:legomcp:admin, repositories, get, *, allow
+        - p, proj:legomcp:admin, repositories, create, *, allow
+        - p, proj:legomcp:admin, repositories, update, *, allow
+        - p, proj:legomcp:admin, repositories, delete, *, allow
+      groups:
+        - legomcp-admins
+
+    - name: developer
+      description: Read access and sync for dev environment
+      policies:
+        - p, proj:legomcp:developer, applications, get, legomcp/*, allow
+        - p, proj:legomcp:developer, applications, sync, legomcp/*-dev, allow
+        - p, proj:legomcp:developer, applications, action/*, legomcp/*-dev, allow
+      groups:
+        - legomcp-developers
+
+    - name: viewer
+      description: Read-only access
+      policies:
+        - p, proj:legomcp:viewer, applications, get, legomcp/*, allow
+      groups:
+        - legomcp-viewers
+
+  # Sync windows (optional maintenance windows)
+  syncWindows:
+    - kind: deny
+      schedule: '0 22 * * 5'  # Friday 10 PM
+      duration: 36h           # Until Sunday 10 AM
+      applications:
+        - '*-prod'
+      manualSync: true
+
+  # Orphaned resources monitoring
+  orphanedResources:
+    warn: true
+    ignore:
+      - group: ''
+        kind: ConfigMap
+        name: kube-root-ca.crt

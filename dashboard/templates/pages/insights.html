@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+
+{% block title %}Insights - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📊 Collection Insights</h1>
+</div>
+
+<!-- Overview Stats -->
+<div class="card-grid card-grid-4">
+    <div class="card stat-card">
+        <div class="stat-value">{{ stats.total_pieces | default(0) }}</div>
+        <div class="stat-label">Total Pieces</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-value">{{ stats.unique_types | default(0) }}</div>
+        <div class="stat-label">Unique Types</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-value">${{ stats.estimated_value | default(0) }}</div>
+        <div class="stat-label">Est. Value</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-value">{{ suggestions | length }}</div>
+        <div class="stat-label">Buildable Sets</div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="insights-charts">
+    <!-- Color Distribution -->
+    <div class="card chart-card">
+        <h3>Collection by Color</h3>
+        <div class="chart-container">
+            <canvas id="colorChart"></canvas>
+        </div>
+        <div class="chart-legend" id="colorLegend">
+            {% for item in color_data %}
+            <div class="legend-item">
+                <span class="legend-color color-{{ item.color }}"></span>
+                <span class="legend-label">{{ item.color | replace('_', ' ') | title }}</span>
+                <span class="legend-value">{{ item.count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Category Distribution -->
+    <div class="card chart-card">
+        <h3>Collection by Category</h3>
+        <div class="chart-container">
+            <canvas id="categoryChart"></canvas>
+        </div>
+        <div class="category-bars">
+            {% for item in category_data %}
+            <div class="category-bar">
+                <span class="bar-label">{{ item.category | title }}</span>
+                <div class="bar-track">
+                    <div class="bar-fill" style="width: {{ (item.count / stats.total_pieces * 100) | round }}%"></div>
+                </div>
+                <span class="bar-value">{{ item.count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Top Bricks -->
+<section class="section">
+    <h2 class="section-title">Most Common Bricks</h2>
+    <div class="top-bricks-list">
+        {% for name, count in top_bricks %}
+        <div class="top-brick-item">
+            <span class="rank">{{ loop.index }}</span>
+            <span class="brick-icon">🧱</span>
+            <span class="brick-name">{{ name }}</span>
+            <span class="brick-count">{{ count }}</span>
+        </div>
+        {% else %}
+        <p class="empty-message">No bricks in collection yet</p>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- Recommendations -->
+<section class="section">
+    <h2 class="section-title">Recommendations</h2>
+    <div class="recommendations-list">
+        {% for rec in recommendations %}
+        <div class="recommendation-card priority-{{ rec.priority }}">
+            <span class="rec-icon">{{ rec.icon }}</span>
+            <div class="rec-content">
+                <strong>{{ rec.title }}</strong>
+                <p>{{ rec.message }}</p>
+            </div>
+            {% if rec.action %}
+            <a href="{{ rec.action }}" class="btn btn-small btn-secondary">View</a>
+            {% endif %}
+        </div>
+        {% else %}
+        <p class="empty-message">Start adding bricks to get personalized recommendations!</p>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- Build Suggestions -->
+<section class="section">
+    <h2 class="section-title">Build Suggestions</h2>
+    <p class="section-description">Sets you can build or almost build</p>
+    <div class="build-suggestions">
+        {% for item in suggestions %}
+        <div class="suggestion-card">
+            <div class="suggestion-header">
+                <h4>{{ item.build.name }}</h4>
+                {% if item.check.can_build %}
+                <span class="badge badge-success">Ready!</span>
+                {% else %}
+                <span class="badge badge-warning">{{ item.check.parts_missing }} missing</span>
+                {% endif %}
+            </div>
+            <div class="suggestion-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ item.check.completion_percent }}%"></div>
+                </div>
+                <span>{{ item.check.completion_percent }}%</span>
+            </div>
+            <a href="/builds/{{ item.build.id }}" class="btn btn-small btn-primary">View Build</a>
+        </div>
+        {% else %}
+        <p class="empty-message">Create builds to see suggestions</p>
+        {% endfor %}
+    </div>
+</section>
+
+<!-- Quick Actions -->
+<div class="insights-actions">
+    <a href="{{ url_for('collection.export_collection', format='csv') }}" class="btn btn-secondary">📤 Export Collection</a>
+    <a href="{{ url_for('scan.scan_page') }}" class="btn btn-primary">📷 Scan More Bricks</a>
+    <a href="{{ url_for('builds.builds_page') }}" class="btn btn-secondary">🏗️ Plan a Build</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Color data
+const colorData = {{ color_data | tojson }};
+const categoryData = {{ category_data | tojson }};
+
+// Color mapping for chart
+const colorMap = {
+    'red': '#c91a09',
+    'blue': '#0057a8',
+    'yellow': '#f7d117',
+    'green': '#00852b',
+    'white': '#f0f0f0',
+    'black': '#1b2a34',
+    'orange': '#fe8a18',
+    'light_gray': '#a0a5a9',
+    'dark_gray': '#5b6770',
+    'brown': '#583927',
+    'tan': '#e4cd9e',
+    'pink': '#ffc0cb',
+    'purple': '#68258a'
+};
+
+// Color Distribution Chart
+if (colorData.length > 0) {
+    const colorCtx = document.getElementById('colorChart').getContext('2d');
+    new Chart(colorCtx, {
+        type: 'doughnut',
+        data: {
+            labels: colorData.map(d => d.color.replace('_', ' ')),
+            datasets: [{
+                data: colorData.map(d => d.count),
+                backgroundColor: colorData.map(d => colorMap[d.color] || '#888'),
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+// Category Distribution Chart
+if (categoryData.length > 0) {
+    const catCtx = document.getElementById('categoryChart').getContext('2d');
+    new Chart(catCtx, {
+        type: 'bar',
+        data: {
+            labels: categoryData.map(d => d.category),
+            datasets: [{
+                data: categoryData.map(d => d.count),
+                backgroundColor: '#e3000b',
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+</script>
+
+<style>
+.insights-charts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.chart-card {
+    padding: var(--spacing-lg);
+}
+
+.chart-card h3 {
+    margin-bottom: var(--spacing-md);
+}
+
+.chart-container {
+    height: 200px;
+    margin-bottom: var(--spacing-md);
+}
+
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: 12px;
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.category-bars {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.category-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.bar-label {
+    width: 80px;
+    font-size: 12px;
+}
+
+.bar-track {
+    flex: 1;
+    height: 16px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.bar-fill {
+    height: 100%;
+    background: var(--accent-primary);
+    border-radius: 8px;
+}
+
+.bar-value {
+    width: 40px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.top-bricks-list {
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.top-brick-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.top-brick-item:last-child {
+    border-bottom: none;
+}
+
+.rank {
+    width: 24px;
+    height: 24px;
+    background: var(--bg-tertiary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.brick-name {
+    flex: 1;
+}
+
+.brick-count {
+    font-weight: 600;
+    color: var(--accent-primary);
+}
+
+.recommendations-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+
+.recommendation-card {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    border-left: 4px solid var(--border-color);
+}
+
+.recommendation-card.priority-high {
+    border-left-color: var(--accent-primary);
+}
+
+.recommendation-card.priority-medium {
+    border-left-color: var(--warning);
+}
+
+.rec-icon {
+    font-size: 24px;
+}
+
+.rec-content {
+    flex: 1;
+}
+
+.rec-content strong {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+}
+
+.rec-content p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.build-suggestions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: var(--spacing-md);
+}
+
+.suggestion-card {
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+}
+
+.suggestion-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    margin-bottom: var(--spacing-sm);
+}
+
+.suggestion-header h4 {
+    margin: 0;
+}
+
+.suggestion-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.suggestion-progress .progress-bar {
+    flex: 1;
+}
+
+.insights-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+    margin-top: var(--spacing-xl);
+}
+
+/* Color classes */
+.color-red { background: #c91a09; }
+.color-blue { background: #0057a8; }
+.color-yellow { background: #f7d117; }
+.color-green { background: #00852b; }
+.color-white { background: #f0f0f0; border: 1px solid #ddd; }
+.color-black { background: #1b2a34; }
+.color-orange { background: #fe8a18; }
+.color-light_gray { background: #a0a5a9; }
+.color-dark_gray { background: #5b6770; }
+</style>
+{% endblock %}

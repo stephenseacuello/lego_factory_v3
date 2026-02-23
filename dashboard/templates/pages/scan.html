@@ -1,0 +1,526 @@
+{% extends "base.html" %}
+
+{% block title %}Scan & Sort - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📦 Scan & Sort</h1>
+    <div class="page-actions">
+        <span class="session-info">Session: {{ scan_session.total_scanned }} scanned, {{ scan_session.total_added }} added</span>
+        <button class="btn btn-secondary" id="exportSessionBtn">📥 Export</button>
+        <button class="btn btn-secondary" id="clearSessionBtn">🗑️ Clear Session</button>
+    </div>
+</div>
+
+<div class="scan-layout">
+    <!-- Instructions -->
+    <div class="scan-instructions card">
+        <h3>How to Scan</h3>
+        <ol>
+            <li>Place bricks on your baseplate</li>
+            <li>Click "Scan" to detect bricks</li>
+            <li>Review and confirm detections</li>
+            <li>Click "Add to Collection" to save</li>
+            <li>Clear plate and repeat</li>
+        </ol>
+    </div>
+    
+    <!-- Camera View -->
+    <div class="scan-camera">
+        <div class="camera-container">
+            <div class="camera-feed" id="cameraFeed">
+                <img id="cameraImage" src="" alt="Camera Feed" style="display: none;">
+                <div class="camera-placeholder" id="cameraPlaceholder">
+                    <p>📷 Camera Feed</p>
+                    <button class="btn btn-primary" id="startCameraBtn">Start Camera</button>
+                </div>
+                <canvas id="detectionOverlay"></canvas>
+            </div>
+            
+            <div class="camera-controls">
+                <button class="btn btn-primary btn-large" id="scanBtn" disabled>
+                    🔍 Scan Bricks
+                </button>
+                <button class="btn btn-secondary" id="stopCameraBtn" style="display: none;">
+                    ⏹ Stop
+                </button>
+            </div>
+        </div>
+        
+        <!-- Or upload image -->
+        <div class="upload-section">
+            <p>Or upload an image:</p>
+            <input type="file" id="imageUpload" accept="image/*">
+        </div>
+    </div>
+    
+    <!-- Detection Results -->
+    <div class="scan-results">
+        <div class="results-header">
+            <h3>Detected Bricks</h3>
+            <div class="results-stats">
+                <span class="stat confirmed">✓ <span id="confirmedCount">0</span></span>
+                <span class="stat review">? <span id="reviewCount">0</span></span>
+            </div>
+        </div>
+        
+        <div class="detection-list" id="detectionList">
+            <p class="empty-message">Click "Scan" to detect bricks</p>
+        </div>
+        
+        <div class="results-actions">
+            <button class="btn btn-primary btn-block" id="confirmAllBtn" disabled>
+                ✓ Confirm All & Add to Collection
+            </button>
+            <button class="btn btn-secondary btn-block" id="rescanBtn" disabled>
+                🔄 Rescan
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Session Summary -->
+<div class="session-summary card">
+    <h3>Session Summary</h3>
+    <div class="summary-stats">
+        <div class="stat-item">
+            <span class="stat-value">{{ scan_session.batches|length }}</span>
+            <span class="stat-label">Batches</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ scan_session.total_scanned }}</span>
+            <span class="stat-label">Scanned</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ scan_session.total_added }}</span>
+            <span class="stat-label">Added</span>
+        </div>
+    </div>
+    
+    {% if scan_session.batches %}
+    <div class="batch-history">
+        <h4>Recent Batches</h4>
+        <ul>
+            {% for batch in scan_session.batches[-5:]|reverse %}
+            <li>{{ batch.timestamp|truncate(19, true, '') }} - {{ batch.count }} bricks</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Quick Add Modal -->
+<div class="modal-overlay" id="quickAddModal" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Quick Add</h3>
+            <button class="modal-close" onclick="closeQuickAdd()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Add multiple of the same brick:</p>
+            <div class="form-group">
+                <label>Brick ID</label>
+                <input type="text" id="quickBrickId" class="form-input" placeholder="e.g., brick_2x4">
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <select id="quickColor" class="form-select">
+                    <option value="red">Red</option>
+                    <option value="blue">Blue</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="green">Green</option>
+                    <option value="white">White</option>
+                    <option value="black">Black</option>
+                    <option value="light_gray">Light Gray</option>
+                    <option value="dark_gray">Dark Gray</option>
+                    <option value="orange">Orange</option>
+                    <option value="brown">Brown</option>
+                    <option value="tan">Tan</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Quantity</label>
+                <input type="number" id="quickQuantity" class="form-input" value="1" min="1">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeQuickAdd()">Cancel</button>
+            <button class="btn btn-primary" onclick="submitQuickAdd()">Add</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Detection Modal -->
+<div class="modal-overlay" id="editModal" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Edit Detection</h3>
+            <button class="modal-close" onclick="closeEditModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Brick Type</label>
+                <input type="text" id="editBrickId" class="form-input">
+            </div>
+            <div class="form-group">
+                <label>Color</label>
+                <select id="editColor" class="form-select">
+                    <option value="red">Red</option>
+                    <option value="blue">Blue</option>
+                    <option value="yellow">Yellow</option>
+                    <option value="green">Green</option>
+                    <option value="white">White</option>
+                    <option value="black">Black</option>
+                    <option value="light_gray">Light Gray</option>
+                    <option value="dark_gray">Dark Gray</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="saveEdit()">Save</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let cameraActive = false;
+let currentDetections = [];
+let editingDetection = null;
+
+// Start camera
+document.getElementById('startCameraBtn').addEventListener('click', startCamera);
+document.getElementById('stopCameraBtn').addEventListener('click', stopCamera);
+
+function startCamera() {
+    fetch('/workspace/camera/0/open', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                cameraActive = true;
+                document.getElementById('cameraPlaceholder').style.display = 'none';
+                document.getElementById('startCameraBtn').style.display = 'none';
+                document.getElementById('stopCameraBtn').style.display = 'inline-block';
+                document.getElementById('scanBtn').disabled = false;
+                updateCameraFeed();
+            }
+        });
+}
+
+function stopCamera() {
+    cameraActive = false;
+    document.getElementById('stopCameraBtn').style.display = 'none';
+    document.getElementById('cameraPlaceholder').style.display = 'flex';
+    document.getElementById('startCameraBtn').style.display = 'inline-block';
+    document.getElementById('scanBtn').disabled = true;
+    
+    fetch('/workspace/camera/close', { method: 'POST' });
+}
+
+function updateCameraFeed() {
+    if (!cameraActive) return;
+    
+    const img = document.getElementById('cameraImage');
+    img.src = '/workspace/frame?' + Date.now();
+    img.style.display = 'block';
+    
+    setTimeout(updateCameraFeed, 100); // 10 FPS preview
+}
+
+// Scan bricks
+document.getElementById('scanBtn').addEventListener('click', scanBricks);
+document.getElementById('rescanBtn').addEventListener('click', scanBricks);
+
+function scanBricks() {
+    document.getElementById('scanBtn').disabled = true;
+    document.getElementById('scanBtn').textContent = '🔄 Scanning...';
+    
+    fetch('/scan/detect', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('scanBtn').textContent = '🔍 Scan Bricks';
+            
+            if (data.success) {
+                currentDetections = data.detections;
+                renderDetections(data.detections);
+                updateOverlay(data.detections);
+                
+                document.getElementById('confirmedCount').textContent = data.high_confidence;
+                document.getElementById('reviewCount').textContent = data.low_confidence;
+                document.getElementById('confirmAllBtn').disabled = data.total === 0;
+                document.getElementById('rescanBtn').disabled = false;
+            } else {
+                App.toast('Detection failed: ' + (data.error || 'Unknown error'), 'error');
+            }
+        })
+        .catch(err => {
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('scanBtn').textContent = '🔍 Scan Bricks';
+            App.toast('Scan error: ' + err.message, 'error');
+        });
+}
+
+function renderDetections(detections) {
+    const list = document.getElementById('detectionList');
+    
+    if (detections.length === 0) {
+        list.innerHTML = '<p class="empty-message">No bricks detected. Try adjusting camera or lighting.</p>';
+        return;
+    }
+    
+    list.innerHTML = detections.map((det, i) => `
+        <div class="detection-item ${det.status}" data-index="${i}">
+            <div class="detection-info">
+                <span class="detection-color" style="background: rgb(${det.color_rgb.join(',')})"></span>
+                <div class="detection-details">
+                    <strong>${det.brick_name}</strong>
+                    <span class="detection-meta">${det.color} • ${Math.round(det.confidence * 100)}%</span>
+                </div>
+            </div>
+            <div class="detection-actions">
+                ${det.status === 'review' ? `
+                    <button class="btn btn-small btn-primary" onclick="confirmDetection(${i})">✓</button>
+                ` : ''}
+                <button class="btn btn-small btn-secondary" onclick="editDetection(${i})">✏️</button>
+                <button class="btn btn-small btn-danger" onclick="rejectDetection(${i})">✗</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function updateOverlay(detections) {
+    const canvas = document.getElementById('detectionOverlay');
+    const img = document.getElementById('cameraImage');
+    
+    if (!img.complete || img.naturalWidth === 0) return;
+    
+    canvas.width = img.clientWidth;
+    canvas.height = img.clientHeight;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const scaleX = canvas.width / img.naturalWidth;
+    const scaleY = canvas.height / img.naturalHeight;
+    
+    detections.forEach(det => {
+        const [x1, y1, x2, y2] = det.bbox;
+        const sx1 = x1 * scaleX;
+        const sy1 = y1 * scaleY;
+        const sw = (x2 - x1) * scaleX;
+        const sh = (y2 - y1) * scaleY;
+        
+        // Color based on status
+        const color = det.status === 'confirmed' ? 'lime' : 'yellow';
+        
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx1, sy1, sw, sh);
+        
+        // Status indicator
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(sx1 + 10, sy1 + 10, 6, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
+function confirmDetection(index) {
+    const det = currentDetections[index];
+    
+    fetch('/scan/confirm-item', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ brick_id: det.brick_id, color: det.color })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            currentDetections[index].status = 'confirmed';
+            renderDetections(currentDetections);
+            updateCounts();
+        }
+    });
+}
+
+function rejectDetection(index) {
+    const det = currentDetections[index];
+    
+    fetch('/scan/reject-item', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ brick_id: det.brick_id, color: det.color })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            currentDetections.splice(index, 1);
+            renderDetections(currentDetections);
+            updateCounts();
+        }
+    });
+}
+
+function editDetection(index) {
+    editingDetection = index;
+    const det = currentDetections[index];
+    
+    document.getElementById('editBrickId').value = det.brick_id;
+    document.getElementById('editColor').value = det.color;
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('editModal').style.display = 'none';
+    editingDetection = null;
+}
+
+function saveEdit() {
+    if (editingDetection === null) return;
+    
+    const det = currentDetections[editingDetection];
+    const newBrickId = document.getElementById('editBrickId').value;
+    const newColor = document.getElementById('editColor').value;
+    
+    fetch('/scan/update-item', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            old_brick_id: det.brick_id,
+            old_color: det.color,
+            brick_id: newBrickId,
+            color: newColor
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            currentDetections[editingDetection].brick_id = newBrickId;
+            currentDetections[editingDetection].color = newColor;
+            currentDetections[editingDetection].brick_name = newBrickId.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            currentDetections[editingDetection].status = 'confirmed';
+            renderDetections(currentDetections);
+            closeEditModal();
+        }
+    });
+}
+
+function updateCounts() {
+    const confirmed = currentDetections.filter(d => d.status === 'confirmed').length;
+    const review = currentDetections.filter(d => d.status === 'review').length;
+    
+    document.getElementById('confirmedCount').textContent = confirmed;
+    document.getElementById('reviewCount').textContent = review;
+}
+
+// Confirm all and add to collection
+document.getElementById('confirmAllBtn').addEventListener('click', function() {
+    const confirmed = currentDetections.filter(d => d.status === 'confirmed');
+    
+    if (confirmed.length === 0) {
+        App.toast('No confirmed bricks to add', 'warning');
+        return;
+    }
+    
+    this.disabled = true;
+    this.textContent = 'Adding...';
+    
+    fetch('/scan/confirm', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ bricks: confirmed })
+    })
+    .then(r => r.json())
+    .then(data => {
+        this.disabled = false;
+        this.textContent = '✓ Confirm All & Add to Collection';
+        
+        if (data.success) {
+            App.toast(`Added ${data.added} bricks to collection!`, 'success');
+            currentDetections = [];
+            renderDetections([]);
+            updateCounts();
+            
+            // Update session display
+            location.reload();
+        }
+    });
+});
+
+// Image upload
+document.getElementById('imageUpload').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('image', file);
+    
+    fetch('/scan/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            currentDetections = data.detections;
+            renderDetections(data.detections);
+            updateCounts();
+            document.getElementById('confirmAllBtn').disabled = data.total === 0;
+            document.getElementById('rescanBtn').disabled = false;
+            
+            App.toast(`Detected ${data.total} bricks`, 'success');
+        }
+    });
+});
+
+// Clear session
+document.getElementById('clearSessionBtn').addEventListener('click', function() {
+    if (confirm('Clear session? This will reset all session stats.')) {
+        fetch('/scan/session/clear', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            });
+    }
+});
+
+// Export session
+document.getElementById('exportSessionBtn').addEventListener('click', function() {
+    window.location.href = '/scan/session/export';
+});
+
+// Quick add modal
+function openQuickAdd() {
+    document.getElementById('quickAddModal').style.display = 'flex';
+}
+
+function closeQuickAdd() {
+    document.getElementById('quickAddModal').style.display = 'none';
+}
+
+function submitQuickAdd() {
+    const brickId = document.getElementById('quickBrickId').value;
+    const color = document.getElementById('quickColor').value;
+    const quantity = parseInt(document.getElementById('quickQuantity').value);
+    
+    fetch('/scan/quick-add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ brick_id: brickId, color: color, quantity: quantity })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            App.toast(`Added ${quantity}x ${brickId} (${color})`, 'success');
+            closeQuickAdd();
+            location.reload();
+        }
+    });
+}
+</script>
+{% endblock %}

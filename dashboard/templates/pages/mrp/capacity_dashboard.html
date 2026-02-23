@@ -1,0 +1,870 @@
+{% extends "base.html" %}
+{% block title %}Capacity Planning - LEGO MCP v6.0{% endblock %}
+
+{% block styles %}
+<style>
+    .capacity-dashboard {
+        padding: 1.5rem;
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 600;
+    }
+
+    .header-controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .date-range {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--bg-secondary);
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .date-input {
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+
+    /* Capacity Overview */
+    .capacity-overview {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .capacity-card {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+        text-align: center;
+    }
+
+    .capacity-gauge {
+        width: 120px;
+        height: 120px;
+        margin: 0 auto 1rem;
+        position: relative;
+    }
+
+    .gauge-circle {
+        fill: none;
+        stroke-width: 10;
+    }
+
+    .gauge-bg {
+        stroke: var(--bg-tertiary);
+    }
+
+    .gauge-fill {
+        stroke-linecap: round;
+        transform: rotate(-90deg);
+        transform-origin: center;
+        transition: stroke-dashoffset 0.5s ease;
+    }
+
+    .gauge-fill.green { stroke: #22c55e; }
+    .gauge-fill.amber { stroke: #f59e0b; }
+    .gauge-fill.red { stroke: #ef4444; }
+
+    .gauge-value {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .capacity-label {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .capacity-sublabel {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    /* Work Center Grid */
+    .workcenter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .panel {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .panel-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .panel-body {
+        padding: 1.25rem;
+    }
+
+    /* Timeline Bars */
+    .timeline-container {
+        overflow-x: auto;
+    }
+
+    .timeline-header {
+        display: flex;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .timeline-label {
+        width: 150px;
+        flex-shrink: 0;
+        font-weight: 600;
+        font-size: 0.875rem;
+    }
+
+    .timeline-days {
+        display: flex;
+        flex: 1;
+    }
+
+    .timeline-day {
+        flex: 1;
+        text-align: center;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        min-width: 60px;
+    }
+
+    .timeline-row {
+        display: flex;
+        margin-bottom: 0.75rem;
+        align-items: center;
+    }
+
+    .timeline-row-label {
+        width: 150px;
+        flex-shrink: 0;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .timeline-bars {
+        display: flex;
+        flex: 1;
+        gap: 2px;
+    }
+
+    .timeline-bar {
+        flex: 1;
+        min-width: 60px;
+        height: 32px;
+        border-radius: 0.25rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .timeline-bar-fill {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        transition: height 0.3s ease;
+    }
+
+    .timeline-bar-fill.low { background: linear-gradient(180deg, #22c55e, #16a34a); }
+    .timeline-bar-fill.medium { background: linear-gradient(180deg, #f59e0b, #d97706); }
+    .timeline-bar-fill.high { background: linear-gradient(180deg, #ef4444, #dc2626); }
+    .timeline-bar-fill.over { background: linear-gradient(180deg, #7c3aed, #6d28d9); }
+
+    .timeline-bar-bg {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: var(--bg-tertiary);
+    }
+
+    .timeline-bar-value {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 0.625rem;
+        font-weight: 600;
+        color: white;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    /* Resource Allocation */
+    .resource-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .resource-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        background: var(--bg-secondary);
+        border-radius: 0.5rem;
+    }
+
+    .resource-icon {
+        font-size: 1.5rem;
+    }
+
+    .resource-info {
+        flex: 1;
+    }
+
+    .resource-name {
+        font-weight: 500;
+    }
+
+    .resource-status {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .resource-bar {
+        width: 100px;
+        height: 8px;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .resource-bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+
+    .resource-bar-fill.green { background: #22c55e; }
+    .resource-bar-fill.amber { background: #f59e0b; }
+    .resource-bar-fill.red { background: #ef4444; }
+
+    .resource-percent {
+        font-weight: 600;
+        width: 50px;
+        text-align: right;
+    }
+
+    /* Bottleneck Analysis */
+    .bottleneck-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-secondary);
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-left: 4px solid;
+    }
+
+    .bottleneck-item.critical { border-left-color: #ef4444; }
+    .bottleneck-item.warning { border-left-color: #f59e0b; }
+    .bottleneck-item.info { border-left-color: #3b82f6; }
+
+    .bottleneck-icon {
+        font-size: 1.25rem;
+    }
+
+    .bottleneck-content {
+        flex: 1;
+    }
+
+    .bottleneck-title {
+        font-weight: 500;
+    }
+
+    .bottleneck-desc {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .bottleneck-action {
+        padding: 0.375rem 0.75rem;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    /* Shift Schedule */
+    .shift-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+    }
+
+    .shift-card {
+        padding: 0.75rem;
+        background: var(--bg-secondary);
+        border-radius: 0.5rem;
+        text-align: center;
+    }
+
+    .shift-name {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .shift-time {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .shift-workers {
+        display: flex;
+        justify-content: center;
+        gap: -0.5rem;
+    }
+
+    .worker-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        color: white;
+        font-weight: 600;
+        border: 2px solid var(--bg-secondary);
+        margin-left: -8px;
+    }
+
+    .worker-avatar:first-child {
+        margin-left: 0;
+    }
+
+    .shift-utilization {
+        margin-top: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    /* Demand vs Capacity Chart */
+    .chart-container {
+        height: 250px;
+        display: flex;
+        align-items: flex-end;
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .chart-bar-group {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .chart-bars {
+        display: flex;
+        gap: 4px;
+        align-items: flex-end;
+        height: 180px;
+    }
+
+    .chart-bar {
+        width: 24px;
+        border-radius: 0.25rem 0.25rem 0 0;
+        transition: height 0.5s ease;
+    }
+
+    .chart-bar.demand { background: linear-gradient(180deg, #3b82f6, #1d4ed8); }
+    .chart-bar.capacity { background: linear-gradient(180deg, #22c55e, #16a34a); }
+
+    .chart-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .chart-legend {
+        display: flex;
+        justify-content: center;
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+    }
+
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 0.25rem;
+    }
+
+    .legend-dot.demand { background: #3b82f6; }
+    .legend-dot.capacity { background: #22c55e; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="capacity-dashboard">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1 class="page-title">Capacity Planning</h1>
+        <div class="header-controls">
+            <div class="date-range">
+                <span>From:</span>
+                <input type="date" class="date-input" value="2026-01-06">
+                <span>To:</span>
+                <input type="date" class="date-input" value="2026-01-12">
+            </div>
+            <button class="btn btn-primary" onclick="runCapacityAnalysis()">
+                Run Analysis
+            </button>
+        </div>
+    </div>
+
+    <!-- Capacity Overview Gauges -->
+    <div class="capacity-overview">
+        <div class="capacity-card">
+            <div class="capacity-gauge">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                    <circle class="gauge-circle gauge-bg" cx="60" cy="60" r="50"/>
+                    <circle class="gauge-circle gauge-fill green" cx="60" cy="60" r="50"
+                            stroke-dasharray="314" stroke-dashoffset="69"/>
+                </svg>
+                <div class="gauge-value">78%</div>
+            </div>
+            <div class="capacity-label">Overall Utilization</div>
+            <div class="capacity-sublabel">Target: 85%</div>
+        </div>
+
+        <div class="capacity-card">
+            <div class="capacity-gauge">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                    <circle class="gauge-circle gauge-bg" cx="60" cy="60" r="50"/>
+                    <circle class="gauge-circle gauge-fill amber" cx="60" cy="60" r="50"
+                            stroke-dasharray="314" stroke-dashoffset="31"/>
+                </svg>
+                <div class="gauge-value">90%</div>
+            </div>
+            <div class="capacity-label">Printer Farm</div>
+            <div class="capacity-sublabel">Near capacity</div>
+        </div>
+
+        <div class="capacity-card">
+            <div class="capacity-gauge">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                    <circle class="gauge-circle gauge-bg" cx="60" cy="60" r="50"/>
+                    <circle class="gauge-circle gauge-fill green" cx="60" cy="60" r="50"
+                            stroke-dasharray="314" stroke-dashoffset="126"/>
+                </svg>
+                <div class="gauge-value">60%</div>
+            </div>
+            <div class="capacity-label">Assembly</div>
+            <div class="capacity-sublabel">Available capacity</div>
+        </div>
+
+        <div class="capacity-card">
+            <div class="capacity-gauge">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                    <circle class="gauge-circle gauge-bg" cx="60" cy="60" r="50"/>
+                    <circle class="gauge-circle gauge-fill green" cx="60" cy="60" r="50"
+                            stroke-dasharray="314" stroke-dashoffset="110"/>
+                </svg>
+                <div class="gauge-value">65%</div>
+            </div>
+            <div class="capacity-label">Quality Control</div>
+            <div class="capacity-sublabel">Good headroom</div>
+        </div>
+
+        <div class="capacity-card">
+            <div class="capacity-gauge">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                    <circle class="gauge-circle gauge-bg" cx="60" cy="60" r="50"/>
+                    <circle class="gauge-circle gauge-fill red" cx="60" cy="60" r="50"
+                            stroke-dasharray="314" stroke-dashoffset="0"/>
+                </svg>
+                <div class="gauge-value">100%</div>
+            </div>
+            <div class="capacity-label">Packaging</div>
+            <div class="capacity-sublabel">At capacity!</div>
+        </div>
+    </div>
+
+    <!-- Work Center Grid -->
+    <div class="workcenter-grid">
+        <!-- Weekly Capacity Timeline -->
+        <div class="panel" style="grid-column: span 2;">
+            <div class="panel-header">
+                <h2 class="panel-title">Weekly Capacity Timeline</h2>
+                <select class="date-input" style="background: var(--bg-secondary); padding: 0.5rem; border-radius: 0.375rem; border: 1px solid var(--border-color);">
+                    <option>All Work Centers</option>
+                    <option>Printer Farm</option>
+                    <option>Assembly</option>
+                    <option>Quality Control</option>
+                </select>
+            </div>
+            <div class="panel-body">
+                <div class="timeline-container">
+                    <div class="timeline-header">
+                        <div class="timeline-label">Work Center</div>
+                        <div class="timeline-days">
+                            <div class="timeline-day">Mon<br>Jan 6</div>
+                            <div class="timeline-day">Tue<br>Jan 7</div>
+                            <div class="timeline-day">Wed<br>Jan 8</div>
+                            <div class="timeline-day">Thu<br>Jan 9</div>
+                            <div class="timeline-day">Fri<br>Jan 10</div>
+                            <div class="timeline-day">Sat<br>Jan 11</div>
+                            <div class="timeline-day">Sun<br>Jan 12</div>
+                        </div>
+                    </div>
+
+                    <div class="timeline-row">
+                        <div class="timeline-row-label">
+                            <span>🖨️</span> Printer Farm
+                        </div>
+                        <div class="timeline-bars">
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill medium" style="height: 85%;"></div><span class="timeline-bar-value">85%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill high" style="height: 95%;"></div><span class="timeline-bar-value">95%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill medium" style="height: 90%;"></div><span class="timeline-bar-value">90%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill medium" style="height: 88%;"></div><span class="timeline-bar-value">88%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill high" style="height: 92%;"></div><span class="timeline-bar-value">92%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 45%;"></div><span class="timeline-bar-value">45%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 30%;"></div><span class="timeline-bar-value">30%</span></div>
+                        </div>
+                    </div>
+
+                    <div class="timeline-row">
+                        <div class="timeline-row-label">
+                            <span>🔧</span> Assembly
+                        </div>
+                        <div class="timeline-bars">
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 60%;"></div><span class="timeline-bar-value">60%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 65%;"></div><span class="timeline-bar-value">65%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 58%;"></div><span class="timeline-bar-value">58%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 62%;"></div><span class="timeline-bar-value">62%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 55%;"></div><span class="timeline-bar-value">55%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 20%;"></div><span class="timeline-bar-value">20%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 0%;"></div><span class="timeline-bar-value">0%</span></div>
+                        </div>
+                    </div>
+
+                    <div class="timeline-row">
+                        <div class="timeline-row-label">
+                            <span>🔍</span> Quality Control
+                        </div>
+                        <div class="timeline-bars">
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 70%;"></div><span class="timeline-bar-value">70%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 75%;"></div><span class="timeline-bar-value">75%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 68%;"></div><span class="timeline-bar-value">68%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 72%;"></div><span class="timeline-bar-value">72%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 65%;"></div><span class="timeline-bar-value">65%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 25%;"></div><span class="timeline-bar-value">25%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 0%;"></div><span class="timeline-bar-value">0%</span></div>
+                        </div>
+                    </div>
+
+                    <div class="timeline-row">
+                        <div class="timeline-row-label">
+                            <span>📦</span> Packaging
+                        </div>
+                        <div class="timeline-bars">
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill high" style="height: 100%;"></div><span class="timeline-bar-value">100%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill over" style="height: 100%;"></div><span class="timeline-bar-value">110%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill high" style="height: 98%;"></div><span class="timeline-bar-value">98%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill high" style="height: 95%;"></div><span class="timeline-bar-value">95%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill high" style="height: 100%;"></div><span class="timeline-bar-value">100%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 40%;"></div><span class="timeline-bar-value">40%</span></div>
+                            <div class="timeline-bar"><div class="timeline-bar-bg"></div><div class="timeline-bar-fill low" style="height: 0%;"></div><span class="timeline-bar-value">0%</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottleneck Analysis -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Bottleneck Analysis</h2>
+            </div>
+            <div class="panel-body">
+                <div class="bottleneck-item critical">
+                    <span class="bottleneck-icon">🚨</span>
+                    <div class="bottleneck-content">
+                        <div class="bottleneck-title">Packaging Overloaded</div>
+                        <div class="bottleneck-desc">110% capacity on Tuesday</div>
+                    </div>
+                    <button class="bottleneck-action" onclick="resolveBottleneck('packaging')">Resolve</button>
+                </div>
+                <div class="bottleneck-item warning">
+                    <span class="bottleneck-icon">⚠️</span>
+                    <div class="bottleneck-content">
+                        <div class="bottleneck-title">Printer Farm Near Limit</div>
+                        <div class="bottleneck-desc">Avg 90% for next week</div>
+                    </div>
+                    <button class="bottleneck-action" onclick="resolveBottleneck('printer')">Optimize</button>
+                </div>
+                <div class="bottleneck-item info">
+                    <span class="bottleneck-icon">ℹ️</span>
+                    <div class="bottleneck-content">
+                        <div class="bottleneck-title">Assembly Underutilized</div>
+                        <div class="bottleneck-desc">Only 60% average usage</div>
+                    </div>
+                    <button class="bottleneck-action" onclick="resolveBottleneck('assembly')">Balance</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resource Allocation -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Machine Resources</h2>
+            </div>
+            <div class="panel-body">
+                <div class="resource-list">
+                    <div class="resource-item">
+                        <span class="resource-icon">🖨️</span>
+                        <div class="resource-info">
+                            <div class="resource-name">Prusa MK4 #1</div>
+                            <div class="resource-status">Running - WO-1042</div>
+                        </div>
+                        <div class="resource-bar">
+                            <div class="resource-bar-fill green" style="width: 75%;"></div>
+                        </div>
+                        <div class="resource-percent">75%</div>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-icon">🖨️</span>
+                        <div class="resource-info">
+                            <div class="resource-name">Prusa MK4 #2</div>
+                            <div class="resource-status">Running - WO-1043</div>
+                        </div>
+                        <div class="resource-bar">
+                            <div class="resource-bar-fill amber" style="width: 92%;"></div>
+                        </div>
+                        <div class="resource-percent">92%</div>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-icon">🖨️</span>
+                        <div class="resource-info">
+                            <div class="resource-name">Bambu X1C</div>
+                            <div class="resource-status">Running - WO-1044</div>
+                        </div>
+                        <div class="resource-bar">
+                            <div class="resource-bar-fill red" style="width: 98%;"></div>
+                        </div>
+                        <div class="resource-percent">98%</div>
+                    </div>
+                    <div class="resource-item">
+                        <span class="resource-icon">🔧</span>
+                        <div class="resource-info">
+                            <div class="resource-name">Assembly Station</div>
+                            <div class="resource-status">Idle - Available</div>
+                        </div>
+                        <div class="resource-bar">
+                            <div class="resource-bar-fill green" style="width: 45%;"></div>
+                        </div>
+                        <div class="resource-percent">45%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Demand vs Capacity Chart -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Demand vs Capacity</h2>
+            </div>
+            <div class="panel-body">
+                <div class="chart-container">
+                    <div class="chart-bar-group">
+                        <div class="chart-bars">
+                            <div class="chart-bar demand" style="height: 140px;"></div>
+                            <div class="chart-bar capacity" style="height: 160px;"></div>
+                        </div>
+                        <div class="chart-label">Week 1</div>
+                    </div>
+                    <div class="chart-bar-group">
+                        <div class="chart-bars">
+                            <div class="chart-bar demand" style="height: 165px;"></div>
+                            <div class="chart-bar capacity" style="height: 160px;"></div>
+                        </div>
+                        <div class="chart-label">Week 2</div>
+                    </div>
+                    <div class="chart-bar-group">
+                        <div class="chart-bars">
+                            <div class="chart-bar demand" style="height: 150px;"></div>
+                            <div class="chart-bar capacity" style="height: 160px;"></div>
+                        </div>
+                        <div class="chart-label">Week 3</div>
+                    </div>
+                    <div class="chart-bar-group">
+                        <div class="chart-bars">
+                            <div class="chart-bar demand" style="height: 175px;"></div>
+                            <div class="chart-bar capacity" style="height: 160px;"></div>
+                        </div>
+                        <div class="chart-label">Week 4</div>
+                    </div>
+                </div>
+                <div class="chart-legend">
+                    <div class="legend-item">
+                        <div class="legend-dot demand"></div>
+                        <span>Demand</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot capacity"></div>
+                        <span>Capacity</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Shift Schedule -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">Shift Schedule - Today</h2>
+            </div>
+            <div class="panel-body">
+                <div class="shift-grid">
+                    <div class="shift-card">
+                        <div class="shift-name">Morning</div>
+                        <div class="shift-time">6:00 AM - 2:00 PM</div>
+                        <div class="shift-workers">
+                            <div class="worker-avatar">JD</div>
+                            <div class="worker-avatar">MK</div>
+                            <div class="worker-avatar">AL</div>
+                        </div>
+                        <div class="shift-utilization" style="color: #22c55e;">85% Utilized</div>
+                    </div>
+                    <div class="shift-card">
+                        <div class="shift-name">Afternoon</div>
+                        <div class="shift-time">2:00 PM - 10:00 PM</div>
+                        <div class="shift-workers">
+                            <div class="worker-avatar">RS</div>
+                            <div class="worker-avatar">TW</div>
+                        </div>
+                        <div class="shift-utilization" style="color: #f59e0b;">92% Utilized</div>
+                    </div>
+                    <div class="shift-card">
+                        <div class="shift-name">Night</div>
+                        <div class="shift-time">10:00 PM - 6:00 AM</div>
+                        <div class="shift-workers">
+                            <div class="worker-avatar">BN</div>
+                        </div>
+                        <div class="shift-utilization" style="color: #22c55e;">60% Utilized</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function runCapacityAnalysis() {
+        console.log('Running capacity analysis...');
+        // Call API to run capacity analysis
+        fetch('/api/mrp/capacity/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Analysis results:', data);
+            // Update dashboard with results
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    function resolveBottleneck(type) {
+        console.log('Resolving bottleneck:', type);
+        // Show resolution options modal
+    }
+
+    // Initialize gauges animation
+    document.addEventListener('DOMContentLoaded', function() {
+        // Animate gauge circles on load
+        const gauges = document.querySelectorAll('.gauge-fill');
+        gauges.forEach(gauge => {
+            const offset = gauge.getAttribute('stroke-dashoffset');
+            gauge.style.strokeDashoffset = '314';
+            setTimeout(() => {
+                gauge.style.strokeDashoffset = offset;
+            }, 100);
+        });
+    });
+</script>
+{% endblock %}

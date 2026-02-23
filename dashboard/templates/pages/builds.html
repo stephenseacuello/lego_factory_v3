@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+
+{% block title %}Build Planner - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🏗️ Build Planner</h1>
+    <div class="page-actions">
+        <button class="btn btn-primary" onclick="showCreateModal()">➕ New Build</button>
+        <button class="btn btn-secondary" onclick="showImportModal()">📥 Import</button>
+    </div>
+</div>
+
+<!-- Build Cards -->
+<div class="builds-grid">
+    {% for item in builds %}
+    <div class="build-card {{ 'can-build' if item.check and item.check.can_build else 'missing-parts' }}">
+        <div class="build-image">
+            {% if item.build.image_url %}
+            <img src="{{ item.build.image_url }}" alt="{{ item.build.name }}">
+            {% else %}
+            <div class="build-placeholder">🧱</div>
+            {% endif %}
+        </div>
+        
+        <div class="build-info">
+            <h3>{{ item.build.name }}</h3>
+            <p class="build-description">{{ item.build.description or 'Custom build' }}</p>
+            
+            {% if item.check %}
+            <div class="build-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ item.check.completion_percent }}%"></div>
+                </div>
+                <span class="progress-text">{{ item.check.completion_percent }}%</span>
+            </div>
+            
+            <div class="build-status">
+                {% if item.check.can_build %}
+                <span class="badge badge-success">✓ Ready to Build</span>
+                {% else %}
+                <span class="badge badge-warning">Missing {{ item.check.parts_missing }} parts</span>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <div class="build-meta">
+                <span>{{ item.build.total_parts }} parts</span>
+                <span>{{ item.build.source }}</span>
+            </div>
+        </div>
+        
+        <div class="build-actions">
+            <a href="{{ url_for('builds.build_detail', build_id=item.build.id) }}" class="btn btn-primary">View Details</a>
+            <button class="btn btn-secondary" onclick="deleteBuild('{{ item.build.id }}')">🗑️</button>
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state full-width">
+        <h3>No builds yet</h3>
+        <p>Create a custom build or import from BrickLink/Rebrickable</p>
+        <button class="btn btn-primary" onclick="showCreateModal()">Create Build</button>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Suggestions Section -->
+<section class="section">
+    <h2 class="section-title">What Can I Build?</h2>
+    <p class="section-description">Based on your current collection</p>
+    
+    <div class="suggestions-list" id="suggestionsList">
+        <p class="loading">Loading suggestions...</p>
+    </div>
+</section>
+
+<!-- Create Build Modal -->
+<div class="modal-overlay" id="createModal" style="display: none;">
+    <div class="modal modal-large">
+        <div class="modal-header">
+            <h3>Create New Build</h3>
+            <button class="modal-close" onclick="closeCreateModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Build Name</label>
+                <input type="text" id="buildName" class="form-input" placeholder="My Awesome Build">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="buildDescription" class="form-textarea" rows="2" placeholder="What are you building?"></textarea>
+            </div>
+            
+            <h4>Parts List</h4>
+            <div class="parts-editor" id="partsEditor">
+                <div class="part-row">
+                    <select class="form-select part-brick">
+                        <option value="brick_2x4">Brick 2x4</option>
+                        <option value="brick_2x2">Brick 2x2</option>
+                        <option value="brick_1x4">Brick 1x4</option>
+                        <option value="plate_2x4">Plate 2x4</option>
+                        <option value="plate_4x4">Plate 4x4</option>
+                        <option value="tile_2x2">Tile 2x2</option>
+                        <option value="slope_45_2x2">Slope 2x2</option>
+                    </select>
+                    <select class="form-select part-color">
+                        <option value="red">Red</option>
+                        <option value="blue">Blue</option>
+                        <option value="yellow">Yellow</option>
+                        <option value="white">White</option>
+                        <option value="black">Black</option>
+                    </select>
+                    <input type="number" class="form-input part-qty" value="1" min="1">
+                    <button class="btn btn-secondary" onclick="removePartRow(this)">✗</button>
+                </div>
+            </div>
+            <button class="btn btn-secondary" onclick="addPartRow()">+ Add Part</button>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="createBuild()">Create Build</button>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal-overlay" id="importModal" style="display: none;">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Import Build</h3>
+            <button class="modal-close" onclick="closeImportModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Build Name</label>
+                <input type="text" id="importName" class="form-input" placeholder="Optional - auto-detected">
+            </div>
+            <div class="form-group">
+                <label>Format</label>
+                <select id="importFormat" class="form-select">
+                    <option value="rebrickable">Rebrickable CSV</option>
+                    <option value="bricklink">BrickLink XML</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>File</label>
+                <input type="file" id="importFile" class="form-input">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="importBuild()">Import</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load suggestions
+document.addEventListener('DOMContentLoaded', function() {
+    loadSuggestions();
+});
+
+function loadSuggestions() {
+    fetch('/builds/suggest?max_missing=5')
+        .then(r => r.json())
+        .then(data => {
+            const list = document.getElementById('suggestionsList');
+            
+            if (data.suggestions && data.suggestions.length > 0) {
+                list.innerHTML = data.suggestions.slice(0, 5).map(s => `
+                    <div class="suggestion-item">
+                        <div class="suggestion-info">
+                            <strong>${s.build.name}</strong>
+                            <span>${s.check.completion_percent}% complete</span>
+                        </div>
+                        <div class="suggestion-status">
+                            ${s.check.can_build ? 
+                                '<span class="badge badge-success">Ready!</span>' :
+                                `<span class="badge badge-warning">Need ${s.check.parts_missing} parts</span>`
+                            }
+                        </div>
+                        <a href="/builds/${s.build.id}" class="btn btn-small">View</a>
+                    </div>
+                `).join('');
+            } else {
+                list.innerHTML = '<p class="empty-message">Create some builds to see suggestions!</p>';
+            }
+        });
+}
+
+// Create build modal
+function showCreateModal() {
+    document.getElementById('createModal').style.display = 'flex';
+}
+
+function closeCreateModal() {
+    document.getElementById('createModal').style.display = 'none';
+}
+
+function addPartRow() {
+    const editor = document.getElementById('partsEditor');
+    const row = editor.querySelector('.part-row').cloneNode(true);
+    row.querySelector('.part-qty').value = 1;
+    editor.appendChild(row);
+}
+
+function removePartRow(btn) {
+    const editor = document.getElementById('partsEditor');
+    if (editor.querySelectorAll('.part-row').length > 1) {
+        btn.closest('.part-row').remove();
+    }
+}
+
+function createBuild() {
+    const name = document.getElementById('buildName').value;
+    const description = document.getElementById('buildDescription').value;
+    
+    if (!name) {
+        App.toast('Please enter a build name', 'warning');
+        return;
+    }
+    
+    const parts = [];
+    document.querySelectorAll('.part-row').forEach(row => {
+        parts.push({
+            brick_id: row.querySelector('.part-brick').value,
+            color: row.querySelector('.part-color').value,
+            quantity: parseInt(row.querySelector('.part-qty').value)
+        });
+    });
+    
+    fetch('/builds/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, description, parts })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            App.toast('Build created!', 'success');
+            closeCreateModal();
+            location.reload();
+        }
+    });
+}
+
+// Import modal
+function showImportModal() {
+    document.getElementById('importModal').style.display = 'flex';
+}
+
+function closeImportModal() {
+    document.getElementById('importModal').style.display = 'none';
+}
+
+function importBuild() {
+    const format = document.getElementById('importFormat').value;
+    const file = document.getElementById('importFile').files[0];
+    const name = document.getElementById('importName').value;
+    
+    if (!file) {
+        App.toast('Please select a file', 'warning');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('format', format);
+    if (name) formData.append('name', name);
+    
+    fetch('/builds/import', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            App.toast('Build imported!', 'success');
+            closeImportModal();
+            location.reload();
+        } else {
+            App.toast(data.error, 'error');
+        }
+    });
+}
+
+// Delete build
+function deleteBuild(buildId) {
+    if (confirm('Delete this build?')) {
+        fetch(`/builds/${buildId}/delete`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    App.toast('Build deleted', 'success');
+                    location.reload();
+                }
+            });
+    }
+}
+</script>
+
+<style>
+.builds-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: var(--spacing-lg);
+    margin-bottom: var(--spacing-xl);
+}
+
+.build-card {
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+    border: 2px solid transparent;
+}
+
+.build-card.can-build {
+    border-color: var(--success);
+}
+
+.build-image {
+    height: 150px;
+    background: var(--bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.build-placeholder {
+    font-size: 48px;
+}
+
+.build-info {
+    padding: var(--spacing-md);
+}
+
+.build-info h3 {
+    margin: 0 0 var(--spacing-xs);
+}
+
+.build-description {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: var(--spacing-sm);
+}
+
+.build-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--accent-primary);
+    transition: width 0.3s;
+}
+
+.build-meta {
+    display: flex;
+    gap: var(--spacing-md);
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.build-actions {
+    padding: var(--spacing-md);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.suggestions-list {
+    background: var(--bg-primary);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-md);
+}
+
+.suggestion-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm) 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-info {
+    flex: 1;
+}
+
+.suggestion-info strong {
+    display: block;
+}
+
+.suggestion-info span {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.parts-editor {
+    margin-bottom: var(--spacing-md);
+}
+
+.part-row {
+    display: flex;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+}
+
+.part-row .form-select,
+.part-row .form-input {
+    flex: 1;
+}
+
+.part-row .part-qty {
+    width: 80px;
+    flex: none;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}Files - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Files</h1>
+    <div class="page-actions">
+        <button class="btn btn-secondary" id="newFolderBtn">📁 New Folder</button>
+        <button class="btn btn-secondary" id="refreshBtn">↻ Refresh</button>
+    </div>
+</div>
+
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+    <a href="{{ url_for('files.browse') }}">output</a>
+    {% if current_path %}
+        {% set path_parts = current_path.split('/') %}
+        {% for part in path_parts %}
+            {% if part %}
+            <span class="separator">/</span>
+            <a href="{{ url_for('files.browse', directory='/'.join(path_parts[:loop.index])) }}">{{ part }}</a>
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+</div>
+
+<div class="files-layout">
+    <!-- Directory Tree Sidebar -->
+    <aside class="files-sidebar">
+        <h3>Folders</h3>
+        <div class="folder-tree" id="folderTree">
+            {% macro render_tree(node, depth=0) %}
+            <div class="tree-item" style="padding-left: {{ depth * 16 }}px">
+                {% if node.type == 'directory' %}
+                <a href="{{ url_for('files.browse', directory=node.path) }}" 
+                   class="{{ 'active' if node.path == current_path else '' }}">
+                    📁 {{ node.name }}
+                </a>
+                {% if node.children %}
+                <div class="tree-children">
+                    {% for child in node.children %}
+                        {% if child.type == 'directory' %}
+                        {{ render_tree(child, depth + 1) }}
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% endmacro %}
+            {{ render_tree(tree) }}
+        </div>
+        
+        <div class="storage-info">
+            <h4>Storage</h4>
+            <p>{{ stats.total_files }} files</p>
+            <p>{{ stats.total_size_formatted }} used</p>
+            <button class="btn btn-danger btn-small" id="clearAllBtn">Clear All</button>
+        </div>
+    </aside>
+    
+    <!-- File List -->
+    <div class="files-content">
+        <!-- Filter Bar -->
+        <div class="files-toolbar">
+            <div class="file-type-filter">
+                <button class="filter-btn {{ 'active' if not file_type else '' }}" data-type="">All</button>
+                <button class="filter-btn {{ 'active' if file_type == 'stl' else '' }}" data-type="stl">STL</button>
+                <button class="filter-btn {{ 'active' if file_type == 'gcode' else '' }}" data-type="gcode">G-code</button>
+                <button class="filter-btn {{ 'active' if file_type == 'image' else '' }}" data-type="image">Images</button>
+            </div>
+            
+            <div class="sort-controls">
+                <select id="sortSelect">
+                    <option value="name" {{ 'selected' if sort_by == 'name' else '' }}>Name</option>
+                    <option value="size" {{ 'selected' if sort_by == 'size' else '' }}>Size</option>
+                    <option value="modified" {{ 'selected' if sort_by == 'modified' else '' }}>Modified</option>
+                    <option value="type" {{ 'selected' if sort_by == 'type' else '' }}>Type</option>
+                </select>
+                <button class="sort-order-btn" id="sortOrderBtn" data-order="{{ sort_order }}">
+                    {{ '↑' if sort_order == 'asc' else '↓' }}
+                </button>
+            </div>
+        </div>
+        
+        <!-- Parent Directory -->
+        {% if parent_path is not none %}
+        <a href="{{ url_for('files.browse', directory=parent_path) }}" class="file-item parent-dir">
+            <span class="file-icon">📁</span>
+            <span class="file-name">..</span>
+        </a>
+        {% endif %}
+        
+        <!-- Directories -->
+        {% for dir in directories %}
+        <a href="{{ url_for('files.browse', directory=dir.path) }}" class="file-item directory">
+            <span class="file-icon">{{ dir.icon }}</span>
+            <span class="file-name">{{ dir.name }}</span>
+        </a>
+        {% endfor %}
+        
+        <!-- Files -->
+        {% if files %}
+        <div class="file-list" id="fileList">
+            {% for file in files %}
+            <div class="file-item" data-path="{{ file.path }}" data-type="{{ file.file_type }}">
+                <input type="checkbox" class="file-checkbox">
+                <span class="file-icon">{{ file.icon }}</span>
+                <span class="file-name">{{ file.name }}</span>
+                <span class="file-size">{{ file.size_formatted }}</span>
+                <span class="file-modified">{{ file.modified_formatted }}</span>
+                <div class="file-actions">
+                    {% if file.can_preview %}
+                    <button class="file-action-btn preview-btn" title="Preview">👁</button>
+                    {% endif %}
+                    <a href="{{ url_for('files.download', file_path=file.path) }}" class="file-action-btn" title="Download">⬇</a>
+                    <button class="file-action-btn delete-btn" title="Delete">🗑</button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="files-footer">
+            <span>{{ total_files }} files, {{ total_size }}</span>
+            <div class="batch-actions" id="batchActions" style="display: none;">
+                <button class="btn btn-secondary" id="downloadSelectedBtn">Download Selected</button>
+                <button class="btn btn-danger" id="deleteSelectedBtn">Delete Selected</button>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No files in this directory</p>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Preview Panel -->
+    <aside class="files-preview" id="previewPanel">
+        <div class="preview-placeholder">
+            <p>Select a file to preview</p>
+        </div>
+    </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// File type filter
+document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const type = this.dataset.type;
+        const url = new URL(window.location);
+        if (type) {
+            url.searchParams.set('type', type);
+        } else {
+            url.searchParams.delete('type');
+        }
+        window.location = url;
+    });
+});
+
+// Sort controls
+document.getElementById('sortSelect').addEventListener('change', function() {
+    const url = new URL(window.location);
+    url.searchParams.set('sort', this.value);
+    window.location = url;
+});
+
+document.getElementById('sortOrderBtn').addEventListener('click', function() {
+    const url = new URL(window.location);
+    const newOrder = this.dataset.order === 'asc' ? 'desc' : 'asc';
+    url.searchParams.set('order', newOrder);
+    window.location = url;
+});
+
+// File selection
+const checkboxes = document.querySelectorAll('.file-checkbox');
+const batchActions = document.getElementById('batchActions');
+
+checkboxes.forEach(cb => {
+    cb.addEventListener('change', function() {
+        const selected = document.querySelectorAll('.file-checkbox:checked').length;
+        batchActions.style.display = selected > 0 ? 'flex' : 'none';
+    });
+});
+
+// Preview
+document.querySelectorAll('.preview-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const item = this.closest('.file-item');
+        const path = item.dataset.path;
+        const type = item.dataset.type;
+        
+        const panel = document.getElementById('previewPanel');
+        
+        if (type === 'stl') {
+            panel.innerHTML = `
+                <div class="stl-preview" id="stlPreview"></div>
+                <p class="preview-path">${path}</p>
+            `;
+            // Load STL viewer
+            loadSTLPreview('/files/preview/' + path);
+        } else if (type === 'image') {
+            panel.innerHTML = `
+                <img src="/files/preview/${path}" class="image-preview">
+                <p class="preview-path">${path}</p>
+            `;
+        } else if (type === 'gcode') {
+            panel.innerHTML = `
+                <div class="gcode-preview">G-code preview not available</div>
+                <p class="preview-path">${path}</p>
+            `;
+        }
+    });
+});
+
+// Delete file
+document.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const item = this.closest('.file-item');
+        const path = item.dataset.path;
+        
+        if (confirm('Delete this file?')) {
+            fetch('/files/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({path: path})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    item.remove();
+                    App.toast('File deleted', 'success');
+                } else {
+                    App.toast('Failed to delete: ' + data.error, 'error');
+                }
+            });
+        }
+    });
+});
+
+// New folder
+document.getElementById('newFolderBtn').addEventListener('click', function() {
+    const name = prompt('Folder name:');
+    if (name) {
+        const currentPath = '{{ current_path }}';
+        const newPath = currentPath ? currentPath + '/' + name : name;
+        
+        fetch('/files/mkdir', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({path: newPath})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                App.toast('Failed: ' + data.error, 'error');
+            }
+        });
+    }
+});
+
+// Refresh
+document.getElementById('refreshBtn').addEventListener('click', function() {
+    window.location.reload();
+});
+
+// Clear all
+document.getElementById('clearAllBtn').addEventListener('click', function() {
+    if (confirm('Delete ALL files? This cannot be undone.')) {
+        fetch('/files/clear', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(r => r.json())
+        .then(data => {
+            App.toast(`Deleted ${data.deleted} files`, 'success');
+            window.location.reload();
+        });
+    }
+});
+
+// STL preview loader
+function loadSTLPreview(url) {
+    const container = document.getElementById('stlPreview');
+    if (!container) return;
+    
+    // Simple placeholder for now
+    container.innerHTML = '<p>STL viewer loading...</p>';
+    
+    // Would initialize Three.js STL viewer here
+}
+</script>
+{% endblock %}

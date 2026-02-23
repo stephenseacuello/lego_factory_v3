@@ -1,0 +1,1696 @@
+{% extends "base.html" %}
+{% block title %}Predictive Maintenance - LEGO MCP v6.0{% endblock %}
+
+{% block styles %}
+<style>
+    .maintenance-dashboard {
+        padding: 1.5rem;
+        max-width: 1800px;
+        margin: 0 auto;
+    }
+
+    /* Header */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .live-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: #22c55e;
+        background: rgba(34, 197, 94, 0.1);
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+    }
+
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background: #22c55e;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+        font-size: 0.875rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-warning {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: white;
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    /* Health Summary Cards */
+    .health-summary {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1400px) {
+        .health-summary { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 900px) {
+        .health-summary { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .health-card {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .health-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .health-card.excellent::before { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .health-card.good::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .health-card.warning::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .health-card.critical::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .health-card.maintenance::before { background: linear-gradient(90deg, #8b5cf6, #a78bfa); }
+
+    .health-icon {
+        font-size: 2.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .health-score {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .health-label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .health-status {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .health-status.excellent { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .health-status.good { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .health-status.warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .health-status.critical { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .health-status.maintenance { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+
+    /* Main Grid Layout */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Panels */
+    .panel {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+
+    .panel-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .panel-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .panel-badge {
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.65rem;
+        font-weight: 600;
+        background: rgba(139, 92, 246, 0.15);
+        color: #8b5cf6;
+    }
+
+    .panel-body {
+        padding: 1.25rem;
+    }
+
+    /* AI Predictions Panel */
+    .prediction-grid {
+        display: grid;
+        gap: 1rem;
+    }
+
+    .prediction-card {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 0.75rem;
+        border-left: 4px solid;
+        transition: all 0.2s;
+    }
+
+    .prediction-card:hover {
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .prediction-card.critical { border-left-color: #ef4444; }
+    .prediction-card.warning { border-left-color: #f59e0b; }
+    .prediction-card.info { border-left-color: #3b82f6; }
+
+    .prediction-icon {
+        font-size: 2rem;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.5rem;
+        flex-shrink: 0;
+    }
+
+    .prediction-icon.critical { background: rgba(239, 68, 68, 0.15); }
+    .prediction-icon.warning { background: rgba(245, 158, 11, 0.15); }
+    .prediction-icon.info { background: rgba(59, 130, 246, 0.15); }
+
+    .prediction-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .prediction-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.5rem;
+    }
+
+    .prediction-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .prediction-time {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+
+    .prediction-desc {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+    }
+
+    .prediction-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .confidence-meter {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 1;
+    }
+
+    .confidence-bar {
+        flex: 1;
+        height: 6px;
+        background: var(--bg-tertiary);
+        border-radius: 3px;
+        overflow: hidden;
+        max-width: 120px;
+    }
+
+    .confidence-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    .confidence-fill.high { background: linear-gradient(90deg, #ef4444, #f87171); }
+    .confidence-fill.medium { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .confidence-fill.low { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+
+    .confidence-value {
+        font-size: 0.75rem;
+        font-weight: 600;
+        min-width: 35px;
+    }
+
+    .action-btn {
+        padding: 0.375rem 0.75rem;
+        border-radius: 0.375rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .action-btn:hover {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    /* Sensor Data Panel */
+    .sensor-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .sensor-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .sensor-card {
+        background: var(--bg-secondary);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        position: relative;
+    }
+
+    .sensor-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .sensor-name {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+    }
+
+    .sensor-status {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .sensor-status.normal { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
+    .sensor-status.elevated { background: #f59e0b; box-shadow: 0 0 8px rgba(245, 158, 11, 0.5); }
+    .sensor-status.critical { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.5); animation: pulse 1s infinite; }
+
+    .sensor-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: baseline;
+        gap: 0.25rem;
+    }
+
+    .sensor-unit {
+        font-size: 0.875rem;
+        font-weight: 400;
+        color: var(--text-secondary);
+    }
+
+    .sensor-chart {
+        height: 40px;
+        margin-top: 0.75rem;
+        display: flex;
+        align-items: flex-end;
+        gap: 2px;
+    }
+
+    .chart-bar {
+        flex: 1;
+        background: linear-gradient(180deg, rgba(59, 130, 246, 0.8), rgba(59, 130, 246, 0.3));
+        border-radius: 2px 2px 0 0;
+        transition: height 0.3s ease;
+    }
+
+    .sensor-trend {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        margin-top: 0.5rem;
+    }
+
+    .sensor-trend.up { color: #ef4444; }
+    .sensor-trend.down { color: #22c55e; }
+    .sensor-trend.stable { color: var(--text-secondary); }
+
+    /* Equipment Cards */
+    .equipment-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    @media (max-width: 600px) {
+        .equipment-grid { grid-template-columns: 1fr; }
+    }
+
+    .equipment-card {
+        background: var(--bg-secondary);
+        border-radius: 0.75rem;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+    }
+
+    .equipment-card:hover {
+        border-color: var(--primary-color);
+        transform: translateY(-2px);
+    }
+
+    .equipment-card.selected {
+        border-color: var(--primary-color);
+        background: rgba(59, 130, 246, 0.05);
+    }
+
+    .equipment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .equipment-info {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .equipment-icon {
+        font-size: 1.5rem;
+    }
+
+    .equipment-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .equipment-model {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .equipment-status {
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.65rem;
+        font-weight: 600;
+    }
+
+    .equipment-status.healthy { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .equipment-status.warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .equipment-status.critical { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .equipment-status.maintenance { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+
+    .equipment-metrics {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .equipment-metric {
+        flex: 1;
+        text-align: center;
+    }
+
+    .metric-value {
+        font-size: 1rem;
+        font-weight: 700;
+    }
+
+    .metric-label {
+        font-size: 0.625rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .equipment-progress {
+        height: 4px;
+        background: var(--bg-tertiary);
+        border-radius: 2px;
+        overflow: hidden;
+    }
+
+    .equipment-progress-fill {
+        height: 100%;
+        border-radius: 2px;
+        transition: width 0.5s ease;
+    }
+
+    .equipment-progress-fill.healthy { background: #22c55e; }
+    .equipment-progress-fill.warning { background: #f59e0b; }
+    .equipment-progress-fill.critical { background: #ef4444; }
+
+    /* Work Orders Table */
+    .work-orders-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .work-orders-table th,
+    .work-orders-table td {
+        padding: 0.875rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .work-orders-table th {
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        background: var(--bg-secondary);
+    }
+
+    .work-orders-table tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .work-orders-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .wo-priority {
+        width: 4px;
+        height: 32px;
+        border-radius: 2px;
+        display: inline-block;
+        margin-right: 0.75rem;
+    }
+
+    .wo-priority.urgent { background: #ef4444; }
+    .wo-priority.high { background: #f59e0b; }
+    .wo-priority.medium { background: #3b82f6; }
+    .wo-priority.low { background: #22c55e; }
+
+    .wo-status {
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .wo-status.open { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .wo-status.in-progress { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .wo-status.completed { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .wo-status.overdue { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+    /* Spare Parts Inventory */
+    .parts-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .part-card {
+        background: var(--bg-secondary);
+        border-radius: 0.5rem;
+        padding: 0.875rem;
+        text-align: center;
+        transition: all 0.2s;
+    }
+
+    .part-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .part-card.low-stock {
+        border: 1px solid rgba(245, 158, 11, 0.5);
+    }
+
+    .part-card.out-of-stock {
+        border: 1px solid rgba(239, 68, 68, 0.5);
+    }
+
+    .part-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .part-name {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .part-stock {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.375rem;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .stock-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+    }
+
+    .stock-dot.good { background: #22c55e; }
+    .stock-dot.low { background: #f59e0b; }
+    .stock-dot.out { background: #ef4444; }
+
+    /* Maintenance Calendar */
+    .calendar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .calendar-nav {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .calendar-nav-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-primary);
+    }
+
+    .calendar-month {
+        font-weight: 600;
+        min-width: 140px;
+        text-align: center;
+    }
+
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.25rem;
+    }
+
+    .calendar-day-header {
+        text-align: center;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        padding: 0.5rem;
+    }
+
+    .calendar-day {
+        aspect-ratio: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+    }
+
+    .calendar-day:hover {
+        background: var(--bg-secondary);
+    }
+
+    .calendar-day.today {
+        background: var(--primary-color);
+        color: white;
+        font-weight: 600;
+    }
+
+    .calendar-day.has-event::after {
+        content: '';
+        position: absolute;
+        bottom: 4px;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+    }
+
+    .calendar-day.has-event.preventive::after { background: #3b82f6; }
+    .calendar-day.has-event.corrective::after { background: #f59e0b; }
+    .calendar-day.has-event.overdue::after { background: #ef4444; }
+
+    .calendar-day.other-month {
+        color: var(--text-secondary);
+        opacity: 0.5;
+    }
+
+    /* KPI Stats Row */
+    .kpi-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+        .kpi-row { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .kpi-card {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .kpi-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .kpi-label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .kpi-trend {
+        font-size: 0.75rem;
+        padding: 0.125rem 0.375rem;
+        border-radius: 0.25rem;
+    }
+
+    .kpi-trend.positive { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .kpi-trend.negative { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .kpi-trend.neutral { background: rgba(156, 163, 175, 0.15); color: #9ca3af; }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .kpi-subtext {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        width: 90%;
+        max-width: 700px;
+        max-height: 85vh;
+        overflow: hidden;
+        transform: scale(0.95);
+        transition: transform 0.3s;
+    }
+
+    .modal-overlay.active .modal {
+        transform: scale(1);
+    }
+
+    .modal-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    .modal-close {
+        width: 32px;
+        height: 32px;
+        border-radius: 0.5rem;
+        border: none;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        cursor: pointer;
+        font-size: 1.25rem;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+        max-height: 60vh;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1100;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .toast {
+        padding: 0.875rem 1.25rem;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        color: white;
+        font-size: 0.875rem;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast.success { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .toast.error { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .toast.warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .toast.info { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="maintenance-dashboard">
+    <!-- Page Header -->
+    <div class="page-header">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <h1 class="page-title">Predictive Maintenance</h1>
+            <div class="live-indicator">
+                <span class="live-dot"></span>
+                <span>Live Monitoring</span>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="exportReport()">
+                Export Report
+            </button>
+            <button class="btn btn-warning" onclick="openScheduleModal()">
+                Schedule Maintenance
+            </button>
+            <button class="btn btn-primary" onclick="runDiagnostics()">
+                Run AI Diagnostics
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Row -->
+    <div class="kpi-row">
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-label">Overall Equipment Health</span>
+                <span class="kpi-trend positive">+2.3%</span>
+            </div>
+            <div class="kpi-value">94.7%</div>
+            <div class="kpi-subtext">Across 12 active machines</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-label">MTBF</span>
+                <span class="kpi-trend positive">+15h</span>
+            </div>
+            <div class="kpi-value">287h</div>
+            <div class="kpi-subtext">Mean Time Between Failures</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-label">MTTR</span>
+                <span class="kpi-trend positive">-0.3h</span>
+            </div>
+            <div class="kpi-value">1.8h</div>
+            <div class="kpi-subtext">Mean Time To Repair</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-header">
+                <span class="kpi-label">Unplanned Downtime</span>
+                <span class="kpi-trend negative">+1.2h</span>
+            </div>
+            <div class="kpi-value">4.2h</div>
+            <div class="kpi-subtext">This month</div>
+        </div>
+    </div>
+
+    <!-- Equipment Health Summary -->
+    <div class="health-summary">
+        <div class="health-card excellent" onclick="selectEquipment('prusa1')">
+            <div class="health-icon">🖨️</div>
+            <div class="health-score">98%</div>
+            <div class="health-label">Prusa MK4 #1</div>
+            <span class="health-status excellent">Excellent</span>
+        </div>
+        <div class="health-card warning" onclick="selectEquipment('prusa2')">
+            <div class="health-icon">🖨️</div>
+            <div class="health-score">72%</div>
+            <div class="health-label">Prusa MK4 #2</div>
+            <span class="health-status warning">Needs Attention</span>
+        </div>
+        <div class="health-card excellent" onclick="selectEquipment('bambu')">
+            <div class="health-icon">🖨️</div>
+            <div class="health-score">96%</div>
+            <div class="health-label">Bambu X1C</div>
+            <span class="health-status excellent">Excellent</span>
+        </div>
+        <div class="health-card maintenance" onclick="selectEquipment('robot')">
+            <div class="health-icon">🤖</div>
+            <div class="health-score">--</div>
+            <div class="health-label">Assembly Robot</div>
+            <span class="health-status maintenance">In Maintenance</span>
+        </div>
+        <div class="health-card good" onclick="selectEquipment('cnc')">
+            <div class="health-icon">🔧</div>
+            <div class="health-score">89%</div>
+            <div class="health-label">CNC Mill</div>
+            <span class="health-status good">Good</span>
+        </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="main-grid">
+        <!-- Left Column -->
+        <div>
+            <!-- AI Predictions Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>🤖 AI Failure Predictions</span>
+                        <span class="panel-badge">ML-Powered</span>
+                    </div>
+                    <span style="font-size: 0.75rem; color: var(--text-secondary);">Updated 2 min ago</span>
+                </div>
+                <div class="panel-body">
+                    <div class="prediction-grid">
+                        <div class="prediction-card critical">
+                            <div class="prediction-icon critical">⚠️</div>
+                            <div class="prediction-content">
+                                <div class="prediction-header">
+                                    <span class="prediction-title">Extruder Motor Failure Imminent</span>
+                                    <span class="prediction-time">~120 print hours</span>
+                                </div>
+                                <div class="prediction-desc">Prusa MK4 #2 - Increased torque variance detected. Motor winding resistance 12% above baseline.</div>
+                                <div class="prediction-footer">
+                                    <div class="confidence-meter">
+                                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Confidence:</span>
+                                        <div class="confidence-bar">
+                                            <div class="confidence-fill high" style="width: 92%;"></div>
+                                        </div>
+                                        <span class="confidence-value" style="color: #ef4444;">92%</span>
+                                    </div>
+                                    <button class="action-btn" onclick="createWorkOrder('extruder-motor')">Create WO</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="prediction-card warning">
+                            <div class="prediction-icon warning">🔧</div>
+                            <div class="prediction-content">
+                                <div class="prediction-header">
+                                    <span class="prediction-title">Bed Leveling Calibration Drift</span>
+                                    <span class="prediction-time">~50 print hours</span>
+                                </div>
+                                <div class="prediction-desc">Bambu X1C - Z-offset variance increasing. First layer adhesion may be affected.</div>
+                                <div class="prediction-footer">
+                                    <div class="confidence-meter">
+                                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Confidence:</span>
+                                        <div class="confidence-bar">
+                                            <div class="confidence-fill medium" style="width: 78%;"></div>
+                                        </div>
+                                        <span class="confidence-value" style="color: #f59e0b;">78%</span>
+                                    </div>
+                                    <button class="action-btn" onclick="scheduleCalibration('bambu')">Schedule</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="prediction-card info">
+                            <div class="prediction-icon info">🌡️</div>
+                            <div class="prediction-content">
+                                <div class="prediction-header">
+                                    <span class="prediction-title">Heater Cartridge Degradation</span>
+                                    <span class="prediction-time">~300 print hours</span>
+                                </div>
+                                <div class="prediction-desc">Prusa MK4 #1 - Temperature response time +8% slower. Replace at next scheduled maintenance.</div>
+                                <div class="prediction-footer">
+                                    <div class="confidence-meter">
+                                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Confidence:</span>
+                                        <div class="confidence-bar">
+                                            <div class="confidence-fill low" style="width: 65%;"></div>
+                                        </div>
+                                        <span class="confidence-value" style="color: #3b82f6;">65%</span>
+                                    </div>
+                                    <button class="action-btn" onclick="addToSchedule('heater')">Add to PM</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-Time Sensor Data -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>📊 Real-Time Sensor Data</span>
+                    </div>
+                    <select id="sensorEquipment" onchange="updateSensorDisplay()" style="padding: 0.375rem 0.75rem; border-radius: 0.375rem; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 0.875rem;">
+                        <option value="prusa2">Prusa MK4 #2 (Warning)</option>
+                        <option value="prusa1">Prusa MK4 #1</option>
+                        <option value="bambu">Bambu X1C</option>
+                        <option value="cnc">CNC Mill</option>
+                    </select>
+                </div>
+                <div class="panel-body">
+                    <div class="sensor-grid" id="sensorGrid">
+                        <div class="sensor-card">
+                            <div class="sensor-header">
+                                <span class="sensor-name">Hotend Temperature</span>
+                                <span class="sensor-status normal"></span>
+                            </div>
+                            <div class="sensor-value">215<span class="sensor-unit">°C</span></div>
+                            <div class="sensor-chart" id="tempChart"></div>
+                            <div class="sensor-trend stable">→ Target: 215°C</div>
+                        </div>
+                        <div class="sensor-card">
+                            <div class="sensor-header">
+                                <span class="sensor-name">Bed Temperature</span>
+                                <span class="sensor-status normal"></span>
+                            </div>
+                            <div class="sensor-value">60<span class="sensor-unit">°C</span></div>
+                            <div class="sensor-chart" id="bedChart"></div>
+                            <div class="sensor-trend stable">→ Target: 60°C</div>
+                        </div>
+                        <div class="sensor-card">
+                            <div class="sensor-header">
+                                <span class="sensor-name">Extruder Current</span>
+                                <span class="sensor-status elevated"></span>
+                            </div>
+                            <div class="sensor-value">0.92<span class="sensor-unit">A</span></div>
+                            <div class="sensor-chart" id="currentChart"></div>
+                            <div class="sensor-trend up">↑ +15% above baseline</div>
+                        </div>
+                        <div class="sensor-card">
+                            <div class="sensor-header">
+                                <span class="sensor-name">Vibration Level</span>
+                                <span class="sensor-status elevated"></span>
+                            </div>
+                            <div class="sensor-value">3.8<span class="sensor-unit">mm/s</span></div>
+                            <div class="sensor-chart" id="vibrationChart"></div>
+                            <div class="sensor-trend up">↑ +22% elevated</div>
+                        </div>
+                        <div class="sensor-card">
+                            <div class="sensor-header">
+                                <span class="sensor-name">Filament Tension</span>
+                                <span class="sensor-status normal"></span>
+                            </div>
+                            <div class="sensor-value">1.2<span class="sensor-unit">N</span></div>
+                            <div class="sensor-chart" id="tensionChart"></div>
+                            <div class="sensor-trend stable">→ Optimal range</div>
+                        </div>
+                        <div class="sensor-card">
+                            <div class="sensor-header">
+                                <span class="sensor-name">Fan Speed</span>
+                                <span class="sensor-status normal"></span>
+                            </div>
+                            <div class="sensor-value">4,850<span class="sensor-unit">RPM</span></div>
+                            <div class="sensor-chart" id="fanChart"></div>
+                            <div class="sensor-trend stable">→ 100% speed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Maintenance Work Orders -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>📋 Active Work Orders</span>
+                    </div>
+                    <button class="btn btn-secondary" style="padding: 0.375rem 0.75rem; font-size: 0.875rem;" onclick="openNewWorkOrderModal()">+ New Work Order</button>
+                </div>
+                <div class="panel-body" style="padding: 0;">
+                    <table class="work-orders-table">
+                        <thead>
+                            <tr>
+                                <th>Work Order</th>
+                                <th>Equipment</th>
+                                <th>Type</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                                <th>Assigned</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <span class="wo-priority urgent"></span>
+                                    <strong>WO-2026-042</strong>
+                                </td>
+                                <td>Prusa MK4 #2</td>
+                                <td>Corrective</td>
+                                <td>Today</td>
+                                <td><span class="wo-status overdue">Overdue</span></td>
+                                <td>John D.</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="wo-priority high"></span>
+                                    <strong>WO-2026-043</strong>
+                                </td>
+                                <td>All Printers</td>
+                                <td>Preventive</td>
+                                <td>Jan 8</td>
+                                <td><span class="wo-status in-progress">In Progress</span></td>
+                                <td>Mike T.</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="wo-priority medium"></span>
+                                    <strong>WO-2026-044</strong>
+                                </td>
+                                <td>Bambu X1C</td>
+                                <td>Preventive</td>
+                                <td>Jan 10</td>
+                                <td><span class="wo-status open">Open</span></td>
+                                <td>Sarah K.</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="wo-priority low"></span>
+                                    <strong>WO-2026-045</strong>
+                                </td>
+                                <td>CNC Mill</td>
+                                <td>Preventive</td>
+                                <td>Jan 15</td>
+                                <td><span class="wo-status open">Open</span></td>
+                                <td>Unassigned</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <span class="wo-priority low"></span>
+                                    <strong>WO-2026-041</strong>
+                                </td>
+                                <td>Prusa MK4 #1</td>
+                                <td>Corrective</td>
+                                <td>Jan 2</td>
+                                <td><span class="wo-status completed">Completed</span></td>
+                                <td>John D.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div>
+            <!-- Maintenance Calendar -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>📅 Maintenance Calendar</span>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="calendar-header">
+                        <div class="calendar-nav">
+                            <button class="calendar-nav-btn" onclick="prevMonth()">◀</button>
+                            <span class="calendar-month" id="calendarMonth">January 2026</span>
+                            <button class="calendar-nav-btn" onclick="nextMonth()">▶</button>
+                        </div>
+                    </div>
+                    <div class="calendar-grid" id="calendarGrid">
+                        <!-- Calendar will be rendered by JS -->
+                    </div>
+                    <div style="display: flex; gap: 1rem; margin-top: 1rem; justify-content: center;">
+                        <div style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #3b82f6;"></span>
+                            Preventive
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
+                            Corrective
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444;"></span>
+                            Overdue
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Spare Parts Inventory -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>🔩 Spare Parts Inventory</span>
+                    </div>
+                    <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="openPartsModal()">Manage</button>
+                </div>
+                <div class="panel-body">
+                    <div class="parts-grid">
+                        <div class="part-card">
+                            <div class="part-icon">🔩</div>
+                            <div class="part-name">Nozzles 0.4mm</div>
+                            <div class="part-stock">
+                                <span class="stock-dot good"></span>
+                                12 in stock
+                            </div>
+                        </div>
+                        <div class="part-card low-stock">
+                            <div class="part-icon">⚙️</div>
+                            <div class="part-name">Extruder Gears</div>
+                            <div class="part-stock">
+                                <span class="stock-dot low"></span>
+                                2 in stock
+                            </div>
+                        </div>
+                        <div class="part-card">
+                            <div class="part-icon">🔗</div>
+                            <div class="part-name">GT2 Belts</div>
+                            <div class="part-stock">
+                                <span class="stock-dot good"></span>
+                                8 in stock
+                            </div>
+                        </div>
+                        <div class="part-card">
+                            <div class="part-icon">🌡️</div>
+                            <div class="part-name">Heater Cartridge</div>
+                            <div class="part-stock">
+                                <span class="stock-dot good"></span>
+                                6 in stock
+                            </div>
+                        </div>
+                        <div class="part-card">
+                            <div class="part-icon">🔌</div>
+                            <div class="part-name">Thermistors</div>
+                            <div class="part-stock">
+                                <span class="stock-dot good"></span>
+                                10 in stock
+                            </div>
+                        </div>
+                        <div class="part-card out-of-stock">
+                            <div class="part-icon">🎯</div>
+                            <div class="part-name">Linear Bearings</div>
+                            <div class="part-stock">
+                                <span class="stock-dot out"></span>
+                                0 in stock
+                            </div>
+                        </div>
+                        <div class="part-card">
+                            <div class="part-icon">🔧</div>
+                            <div class="part-name">Stepper Motors</div>
+                            <div class="part-stock">
+                                <span class="stock-dot good"></span>
+                                4 in stock
+                            </div>
+                        </div>
+                        <div class="part-card low-stock">
+                            <div class="part-icon">🖥️</div>
+                            <div class="part-name">Control Boards</div>
+                            <div class="part-stock">
+                                <span class="stock-dot low"></span>
+                                1 in stock
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>📈 This Month's Summary</span>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div style="display: flex; flex-direction: column; gap: 0.875rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-secondary); border-radius: 0.5rem;">
+                            <span>Preventive Maintenance</span>
+                            <strong style="color: #22c55e;">8 completed</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-secondary); border-radius: 0.5rem;">
+                            <span>Corrective Maintenance</span>
+                            <strong style="color: #f59e0b;">2 completed</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-secondary); border-radius: 0.5rem;">
+                            <span>AI Predictions Accuracy</span>
+                            <strong style="color: #3b82f6;">94.2%</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-secondary); border-radius: 0.5rem;">
+                            <span>Failures Prevented</span>
+                            <strong style="color: #22c55e;">5 this month</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-secondary); border-radius: 0.5rem;">
+                            <span>Cost Savings</span>
+                            <strong style="color: #22c55e;">$12,450</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Schedule Maintenance Modal -->
+<div class="modal-overlay" id="scheduleModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2 class="modal-title">📅 Schedule Maintenance</h2>
+            <button class="modal-close" onclick="closeModal('scheduleModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display: grid; gap: 1rem;">
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Equipment</label>
+                    <select style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary);">
+                        <option>Prusa MK4 #1</option>
+                        <option selected>Prusa MK4 #2</option>
+                        <option>Bambu X1C</option>
+                        <option>Assembly Robot</option>
+                        <option>CNC Mill</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Maintenance Type</label>
+                    <select style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary);">
+                        <option>Preventive - Scheduled</option>
+                        <option selected>Corrective - AI Recommended</option>
+                        <option>Emergency - Breakdown</option>
+                    </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Date</label>
+                        <input type="date" style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary);" value="2026-01-04">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Time</label>
+                        <input type="time" style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary);" value="09:00">
+                    </div>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Assigned Technician</label>
+                    <select style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary);">
+                        <option>John D.</option>
+                        <option>Mike T.</option>
+                        <option>Sarah K.</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Description</label>
+                    <textarea style="width: 100%; padding: 0.625rem; border: 1px solid var(--border-color); border-radius: 0.5rem; background: var(--bg-secondary); color: var(--text-primary); min-height: 80px; resize: vertical;">Replace extruder motor - AI prediction indicates imminent failure (92% confidence)</textarea>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('scheduleModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitMaintenance()">Schedule Maintenance</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Toast notification system
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        const icons = { success: '✓', error: '✗', warning: '⚠', info: 'ℹ' };
+        toast.innerHTML = `<span>${icons[type] || 'ℹ'}</span> ${message}`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // Modal functions
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    function openScheduleModal() {
+        openModal('scheduleModal');
+    }
+
+    function submitMaintenance() {
+        closeModal('scheduleModal');
+        showToast('Maintenance scheduled successfully - WO-2026-046 created', 'success');
+    }
+
+    // Equipment selection
+    let selectedEquipment = 'prusa2';
+
+    function selectEquipment(equipmentId) {
+        selectedEquipment = equipmentId;
+        document.getElementById('sensorEquipment').value = equipmentId;
+        updateSensorDisplay();
+        showToast(`Selected ${equipmentId} for monitoring`, 'info');
+    }
+
+    // Sensor data simulation
+    function updateSensorDisplay() {
+        const equipment = document.getElementById('sensorEquipment').value;
+        // In production, this would fetch real sensor data
+        renderSensorCharts();
+    }
+
+    function renderSensorCharts() {
+        const chartIds = ['tempChart', 'bedChart', 'currentChart', 'vibrationChart', 'tensionChart', 'fanChart'];
+        chartIds.forEach((id, chartIndex) => {
+            const chart = document.getElementById(id);
+            if (chart) {
+                chart.innerHTML = '';
+                for (let i = 0; i < 20; i++) {
+                    const bar = document.createElement('div');
+                    bar.className = 'chart-bar';
+                    // Deterministic wave pattern unique to each chart
+                    const height = 20 + 40 + Math.sin((i + chartIndex * 5) * 0.4) * 40;
+                    bar.style.height = height + '%';
+                    chart.appendChild(bar);
+                }
+            }
+        });
+    }
+
+    // Calendar rendering
+    const maintenanceEvents = {
+        3: 'overdue',
+        5: 'preventive',
+        8: 'corrective',
+        10: 'preventive',
+        15: 'preventive',
+        22: 'preventive',
+        28: 'preventive'
+    };
+
+    function renderCalendar() {
+        const grid = document.getElementById('calendarGrid');
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        let html = days.map(d => `<div class="calendar-day-header">${d}</div>`).join('');
+
+        // January 2026 starts on Thursday (index 4)
+        const startDay = 4;
+        const daysInMonth = 31;
+        const today = 3; // January 3rd
+
+        // Previous month days
+        for (let i = 0; i < startDay; i++) {
+            html += `<div class="calendar-day other-month">${28 + i}</div>`;
+        }
+
+        // Current month days
+        for (let day = 1; day <= daysInMonth; day++) {
+            const isToday = day === today;
+            const event = maintenanceEvents[day];
+            let classes = 'calendar-day';
+            if (isToday) classes += ' today';
+            if (event) classes += ` has-event ${event}`;
+
+            html += `<div class="${classes}" onclick="showDayDetails(${day})">${day}</div>`;
+        }
+
+        // Next month days
+        const totalCells = startDay + daysInMonth;
+        const remainingCells = 7 - (totalCells % 7);
+        if (remainingCells < 7) {
+            for (let i = 1; i <= remainingCells; i++) {
+                html += `<div class="calendar-day other-month">${i}</div>`;
+            }
+        }
+
+        grid.innerHTML = html;
+    }
+
+    function showDayDetails(day) {
+        const event = maintenanceEvents[day];
+        if (event) {
+            showToast(`January ${day}: ${event.charAt(0).toUpperCase() + event.slice(1)} maintenance scheduled`, 'info');
+        }
+    }
+
+    function prevMonth() {
+        showToast('Navigated to December 2025', 'info');
+    }
+
+    function nextMonth() {
+        showToast('Navigated to February 2026', 'info');
+    }
+
+    // Action functions
+    function runDiagnostics() {
+        showToast('Running AI diagnostics on all equipment...', 'info');
+        setTimeout(() => {
+            showToast('Diagnostics complete - 2 issues detected, 1 critical', 'warning');
+        }, 2000);
+    }
+
+    function exportReport() {
+        showToast('Generating maintenance report...', 'info');
+        setTimeout(() => {
+            showToast('Report exported to maintenance_report_jan2026.pdf', 'success');
+        }, 1500);
+    }
+
+    function createWorkOrder(type) {
+        openScheduleModal();
+    }
+
+    function scheduleCalibration(equipment) {
+        showToast(`Calibration scheduled for ${equipment}`, 'success');
+    }
+
+    function addToSchedule(item) {
+        showToast(`${item} replacement added to next PM schedule`, 'success');
+    }
+
+    function openNewWorkOrderModal() {
+        openScheduleModal();
+    }
+
+    function openPartsModal() {
+        showToast('Opening parts inventory management...', 'info');
+    }
+
+    // Real-time data simulation
+    function startRealTimeUpdates() {
+        setInterval(() => {
+            // Update sensor values with sinusoidal variations
+            const sensorCards = document.querySelectorAll('.sensor-card');
+            const updateTime = Date.now() / 1000;
+            sensorCards.forEach((card, idx) => {
+                const valueEl = card.querySelector('.sensor-value');
+                if (valueEl) {
+                    const currentValue = parseFloat(valueEl.textContent);
+                    if (!isNaN(currentValue) && currentValue < 1000) {
+                        // Sinusoidal variation unique to each sensor
+                        const variation = Math.sin(updateTime * 0.5 + idx) * 1;
+                        valueEl.innerHTML = (currentValue + variation).toFixed(currentValue < 10 ? 2 : 0) +
+                            `<span class="sensor-unit">${valueEl.querySelector('.sensor-unit')?.textContent || ''}</span>`;
+                    }
+                }
+            });
+
+            // Update chart bars with time-based pattern
+            const barTime = Math.floor(Date.now() / 3000);
+            document.querySelectorAll('.chart-bar').forEach((bar, idx) => {
+                const height = 20 + 40 + Math.sin((barTime + idx) * 0.3) * 40;
+                bar.style.height = height + '%';
+            });
+        }, 3000);
+    }
+
+    // WebSocket connection for real-time updates
+    function initWebSocket() {
+        if (typeof io !== 'undefined') {
+            const socket = io();
+
+            socket.on('connect', () => {
+                console.log('Connected to maintenance WebSocket');
+            });
+
+            socket.on('sensor_update', (data) => {
+                // Handle real sensor updates
+                console.log('Sensor update:', data);
+            });
+
+            socket.on('prediction_update', (data) => {
+                // Handle new AI predictions
+                showToast('New AI prediction received', 'info');
+            });
+
+            socket.on('equipment_alert', (data) => {
+                showToast(data.message, data.severity);
+            });
+        }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        renderCalendar();
+        renderSensorCharts();
+        startRealTimeUpdates();
+        initWebSocket();
+
+        setTimeout(() => {
+            showToast('Predictive Maintenance Dashboard loaded - AI monitoring active', 'success');
+        }, 500);
+    });
+
+    // Close modal on backdrop click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+        }
+    });
+</script>
+{% endblock %}

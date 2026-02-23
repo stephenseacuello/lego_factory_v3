@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ session.get('theme', 'auto') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LEGO MCP Dashboard{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧱</text></svg>">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/hmi-components.css') }}">
+    {% block styles %}{% endblock %}
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-left">
+            <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <a href="{{ url_for('main.index') }}" class="logo">
+                <span class="logo-icon">🧱</span>
+                <span class="logo-text">LEGO MCP</span>
+            </a>
+        </div>
+        
+        <div class="header-center">
+            <div class="search-box">
+                <input type="text" id="globalSearch" placeholder="Search bricks..." autocomplete="off">
+                <div class="search-results" id="searchResults"></div>
+            </div>
+        </div>
+        
+        <div class="header-right">
+            <div class="status-indicators">
+                <span class="status-dot {{ 'connected' if services_status.get('fusion360') == 'connected' else 'disconnected' }}" 
+                      title="Fusion 360: {{ services_status.get('fusion360', 'unknown') }}"></span>
+                <span class="status-dot {{ 'connected' if services_status.get('slicer') == 'connected' else 'disconnected' }}"
+                      title="Slicer: {{ services_status.get('slicer', 'unknown') }}"></span>
+            </div>
+            <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                <span class="theme-icon">🌓</span>
+            </button>
+        </div>
+    </header>
+    
+    <!-- Main Layout -->
+    <div class="layout">
+        <!-- Sidebar - LEGO MCP v5.0 World-Class Manufacturing Platform -->
+        <nav class="sidebar" id="sidebar">
+            <ul class="nav-list">
+                <li class="nav-item {{ 'active' if request.endpoint == 'main.index' else '' }}">
+                    <a href="{{ url_for('main.index') }}">
+                        <span class="nav-icon">🏠</span>
+                        <span class="nav-text">Dashboard</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     V8 Command Center - Unified Control
+                     ======================================== -->
+                <li class="nav-section" style="background: linear-gradient(90deg, #3b82f620, transparent); padding: 0.5rem; border-radius: 4px;">
+                    ⚡ V8 Command Center
+                </li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and 'command_center' in request.endpoint else '' }}">
+                    <a href="/command-center/">
+                        <span class="nav-icon">🎛️</span>
+                        <span class="nav-text">Control Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/command-center/actions">
+                        <span class="nav-icon">⚡</span>
+                        <span class="nav-text">Action Console</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/command-center/alerts">
+                        <span class="nav-icon">🔔</span>
+                        <span class="nav-text">Alert Center</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/command-center/cosim">
+                        <span class="nav-icon">🔬</span>
+                        <span class="nav-text">Co-Simulation</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     Manufacturing (MES) - Phases 2-3
+                     ======================================== -->
+                <li class="nav-section">Manufacturing (MES)</li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and 'shop_floor' in request.endpoint else '' }}">
+                    <a href="/api/mes/shop-floor/page">
+                        <span class="nav-icon">🏭</span>
+                        <span class="nav-text">Shop Floor</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'work_orders' in request.endpoint else '' }}">
+                    <a href="/api/mes/work-orders/page">
+                        <span class="nav-icon">📋</span>
+                        <span class="nav-text">Work Orders</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'work_centers' in request.endpoint else '' }}">
+                    <a href="/api/mes/work-centers/page">
+                        <span class="nav-icon">🖨️</span>
+                        <span class="nav-text">Work Centers</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'oee' in request.endpoint else '' }}">
+                    <a href="/api/mes/oee">
+                        <span class="nav-icon">📈</span>
+                        <span class="nav-text">OEE Dashboard</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     Quality Management - Phases 3, 10, 13, 14, 21
+                     ======================================== -->
+                <li class="nav-section">Quality Management</li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and 'inspections' in request.endpoint else '' }}">
+                    <a href="/api/quality/inspections/page">
+                        <span class="nav-icon">🔍</span>
+                        <span class="nav-text">Inspections</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'spc' in request.endpoint else '' }}">
+                    <a href="/api/quality/spc/page">
+                        <span class="nav-icon">📉</span>
+                        <span class="nav-text">SPC Charts</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'fmea' in request.endpoint else '' }}">
+                    <a href="/api/quality/fmea/page">
+                        <span class="nav-icon">⚠️</span>
+                        <span class="nav-text">FMEA</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'hoq' in request.endpoint else '' }}">
+                    <a href="/api/quality/hoq/page">
+                        <span class="nav-icon">🏠</span>
+                        <span class="nav-text">House of Quality</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'lego_testing' in request.endpoint else '' }}">
+                    <a href="/api/quality/lego/page">
+                        <span class="nav-icon">🧱</span>
+                        <span class="nav-text">LEGO Testing</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     ERP & Planning - Phases 4, 5, 8
+                     ======================================== -->
+                <li class="nav-section">ERP & Planning</li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and 'bom' in request.endpoint else '' }}">
+                    <a href="/api/erp/bom/page">
+                        <span class="nav-icon">📦</span>
+                        <span class="nav-text">Bill of Materials</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'costing' in request.endpoint else '' }}">
+                    <a href="/api/erp/costing/page">
+                        <span class="nav-icon">💰</span>
+                        <span class="nav-text">Costing</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'scheduling' in request.endpoint else '' }}">
+                    <a href="/api/scheduling/optimize/page">
+                        <span class="nav-icon">📅</span>
+                        <span class="nav-text">Scheduling</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'capacity' in request.endpoint else '' }}">
+                    <a href="/api/mrp/capacity/page">
+                        <span class="nav-icon">⚖️</span>
+                        <span class="nav-text">Capacity</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     Digital Twin - Phase 6
+                     ======================================== -->
+                <li class="nav-section">Digital Twin</li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('workspace') else '' }}">
+                    <a href="{{ url_for('workspace.workspace') }}">
+                        <span class="nav-icon">🎯</span>
+                        <span class="nav-text">Workspace</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'ai' in request.endpoint else '' }}">
+                    <a href="/api/ai/copilot/page">
+                        <span class="nav-icon">🤖</span>
+                        <span class="nav-text">AI Copilot</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'maintenance' in request.endpoint else '' }}">
+                    <a href="/api/twin/maintenance/page">
+                        <span class="nav-icon">🔧</span>
+                        <span class="nav-text">Maintenance</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('scan') else '' }}">
+                    <a href="{{ url_for('scan.scan_page') }}">
+                        <span class="nav-icon">📷</span>
+                        <span class="nav-text">Scan</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('collection') else '' }}">
+                    <a href="{{ url_for('collection.collection_page') }}">
+                        <span class="nav-icon">🗃️</span>
+                        <span class="nav-text">My Collection</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('builds') else '' }}">
+                    <a href="{{ url_for('builds.builds_page') }}">
+                        <span class="nav-icon">🏗️</span>
+                        <span class="nav-text">Builds</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('insights') else '' }}">
+                    <a href="{{ url_for('insights.insights_page') }}">
+                        <span class="nav-icon">📊</span>
+                        <span class="nav-text">Insights</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     MCP Tools - Original
+                     ======================================== -->
+                <li class="nav-section">MCP Tools</li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('catalog') else '' }}">
+                    <a href="{{ url_for('catalog.list_bricks') }}">
+                        <span class="nav-icon">📚</span>
+                        <span class="nav-text">Brick Catalog</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('builder') else '' }}">
+                    <a href="{{ url_for('builder.builder') }}">
+                        <span class="nav-icon">🔨</span>
+                        <span class="nav-text">Builder</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('files') else '' }}">
+                    <a href="{{ url_for('files.browse') }}">
+                        <span class="nav-icon">📁</span>
+                        <span class="nav-text">Files</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('history') else '' }}">
+                    <a href="{{ url_for('history.history_list') }}">
+                        <span class="nav-icon">📜</span>
+                        <span class="nav-text">History</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('tools') else '' }}">
+                    <a href="{{ url_for('tools.playground') }}">
+                        <span class="nav-icon">🧪</span>
+                        <span class="nav-text">Tools</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('status') else '' }}">
+                    <a href="{{ url_for('status.status_page') }}">
+                        <span class="nav-icon">⚡</span>
+                        <span class="nav-text">Status</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     Supply Chain - Phase 22
+                     ======================================== -->
+                <li class="nav-section">Supply Chain</li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and 'suppliers' in request.endpoint else '' }}">
+                    <a href="/api/supply-chain/suppliers/dashboard">
+                        <span class="nav-icon">🚚</span>
+                        <span class="nav-text">Supply Chain</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/api/supply-chain/suppliers/inventory">
+                        <span class="nav-icon">📦</span>
+                        <span class="nav-text">Inventory</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     Sustainability - Phase 19
+                     ======================================== -->
+                <li class="nav-section">Sustainability</li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and 'carbon' in request.endpoint else '' }}">
+                    <a href="/api/sustainability/carbon/dashboard">
+                        <span class="nav-icon">🌱</span>
+                        <span class="nav-text">Sustainability</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     Compliance - Phase 24
+                     ======================================== -->
+                <li class="nav-section">Compliance</li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and 'audit' in request.endpoint else '' }}">
+                    <a href="/api/compliance/audit/dashboard">
+                        <span class="nav-icon">📋</span>
+                        <span class="nav-text">Compliance</span>
+                    </a>
+                </li>
+
+                <!-- ========================================
+                     AI & Research - v6.0 Extensions
+                     ======================================== -->
+                <li class="nav-section">AI & Research (v6.0)</li>
+
+                <li class="nav-item {{ 'active' if request.endpoint and 'orchestration' in request.endpoint else '' }}">
+                    <a href="/api/v6/agents/page">
+                        <span class="nav-icon">🤝</span>
+                        <span class="nav-text">Agent Orchestration</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'causal' in request.endpoint else '' }}">
+                    <a href="/api/v6/causal/page">
+                        <span class="nav-icon">🔗</span>
+                        <span class="nav-text">Causal AI</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'generative' in request.endpoint else '' }}">
+                    <a href="/api/v6/generative/page">
+                        <span class="nav-icon">🎨</span>
+                        <span class="nav-text">Generative Design</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'closed_loop' in request.endpoint else '' }}">
+                    <a href="/api/v6/closed-loop/page">
+                        <span class="nav-icon">🔄</span>
+                        <span class="nav-text">Closed-Loop Learning</span>
+                    </a>
+                </li>
+                <li class="nav-item {{ 'active' if request.endpoint and 'research' in request.endpoint else '' }}">
+                    <a href="/api/v6/research/page">
+                        <span class="nav-icon">🔬</span>
+                        <span class="nav-text">Research Platform</span>
+                    </a>
+                </li>
+
+                <li class="nav-divider"></li>
+
+                <!-- ========================================
+                     System - Settings & API Health
+                     ======================================== -->
+                <li class="nav-item {{ 'active' if request.endpoint and request.endpoint.startswith('settings') else '' }}">
+                    <a href="{{ url_for('settings.settings_page') }}">
+                        <span class="nav-icon">⚙️</span>
+                        <span class="nav-text">Settings</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/api/v5/health">
+                        <span class="nav-icon">💚</span>
+                        <span class="nav-text">API Health</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <!-- Modal Container -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle"></h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <!-- Socket.IO for real-time updates -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <!-- Three.js from CDN for 3D preview -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

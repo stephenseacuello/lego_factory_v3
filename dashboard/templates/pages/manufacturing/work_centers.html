@@ -1,0 +1,2213 @@
+{% extends "base.html" %}
+
+{% block title %}Work Centers - LegoMCP Manufacturing{% endblock %}
+
+{% block extra_css %}
+<style>
+    .work-centers-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-title {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .header-title h1 {
+        font-size: 1.75rem;
+        margin: 0;
+        color: var(--text-primary);
+    }
+
+    .header-title .status-badge {
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .status-badge.online {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .header-controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .view-toggle {
+        display: flex;
+        background: var(--card-bg);
+        border-radius: 8px;
+        padding: 0.25rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .view-toggle button {
+        padding: 0.5rem 1rem;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-radius: 6px;
+        transition: all 0.2s;
+        font-size: 0.875rem;
+    }
+
+    .view-toggle button.active {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .filter-dropdown {
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--card-bg);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+        cursor: pointer;
+    }
+
+    /* Summary Cards */
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .summary-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .summary-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .summary-icon.running { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .summary-icon.idle { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .summary-icon.down { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .summary-icon.maintenance { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+
+    .summary-content h3 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+        color: var(--text-primary);
+    }
+
+    .summary-content p {
+        margin: 0;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    /* Work Centers Grid */
+    .work-centers-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .work-center-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .work-center-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
+
+    .wc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        background: rgba(0, 0, 0, 0.02);
+    }
+
+    .wc-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .wc-status-indicator {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        position: relative;
+    }
+
+    .wc-status-indicator.running {
+        background: #10b981;
+        box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+        animation: pulse 2s infinite;
+    }
+
+    .wc-status-indicator.idle {
+        background: #f59e0b;
+        box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.2);
+    }
+
+    .wc-status-indicator.down {
+        background: #ef4444;
+        box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+        animation: blink 1s infinite;
+    }
+
+    .wc-status-indicator.maintenance {
+        background: #3b82f6;
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+    }
+
+    @keyframes pulse {
+        0%, 100% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2); }
+        50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.1); }
+    }
+
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .wc-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 1rem;
+    }
+
+    .wc-type {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .wc-status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .wc-status-badge.running { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .wc-status-badge.idle { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .wc-status-badge.down { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .wc-status-badge.maintenance { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+
+    .wc-body {
+        padding: 1.25rem;
+    }
+
+    .wc-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .wc-metric {
+        text-align: center;
+    }
+
+    .wc-metric-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .wc-metric-value.good { color: #10b981; }
+    .wc-metric-value.warning { color: #f59e0b; }
+    .wc-metric-value.critical { color: #ef4444; }
+
+    .wc-metric-label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        margin-top: 0.25rem;
+    }
+
+    .wc-current-job {
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 8px;
+        padding: 0.875rem;
+        margin-bottom: 1rem;
+    }
+
+    .wc-job-label {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+    }
+
+    .wc-job-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .wc-job-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .wc-job-progress-text {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .wc-progress-bar {
+        height: 8px;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .wc-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #60a5fa);
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+
+    .wc-details {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .wc-detail {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .wc-detail-label {
+        color: var(--text-secondary);
+    }
+
+    .wc-detail-value {
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    .wc-footer {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.875rem 1.25rem;
+        border-top: 1px solid var(--border-color);
+        background: rgba(0, 0, 0, 0.02);
+    }
+
+    .wc-action-btn {
+        flex: 1;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--card-bg);
+        color: var(--text-primary);
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .wc-action-btn:hover {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .wc-action-btn.primary {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    /* Live Data Panel */
+    .live-data-panel {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .live-panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .live-panel-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .live-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: #10b981;
+    }
+
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background: #10b981;
+        border-radius: 50%;
+        animation: pulse 1.5s infinite;
+    }
+
+    .sensor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .sensor-card {
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .sensor-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .sensor-name {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .sensor-status {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #10b981;
+    }
+
+    .sensor-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .sensor-unit {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-left: 0.25rem;
+    }
+
+    .sensor-trend {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    .sensor-trend.up { color: #10b981; }
+    .sensor-trend.down { color: #ef4444; }
+    .sensor-trend.stable { color: var(--text-secondary); }
+
+    /* Capacity Timeline */
+    .capacity-timeline {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .timeline-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .timeline-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .timeline-legend {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.75rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+    }
+
+    .legend-dot.scheduled { background: #3b82f6; }
+    .legend-dot.available { background: #10b981; }
+    .legend-dot.maintenance { background: #f59e0b; }
+
+    .timeline-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .timeline-row {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .timeline-label {
+        width: 120px;
+        font-size: 0.8rem;
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    .timeline-bar {
+        flex: 1;
+        height: 28px;
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 4px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .timeline-segment {
+        position: absolute;
+        height: 100%;
+        border-radius: 3px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        color: white;
+        font-weight: 500;
+    }
+
+    .timeline-segment.scheduled { background: #3b82f6; }
+    .timeline-segment.available { background: #10b981; }
+    .timeline-segment.maintenance { background: #f59e0b; }
+
+    .timeline-hours {
+        display: flex;
+        margin-left: 136px;
+        margin-top: 0.5rem;
+    }
+
+    .timeline-hour {
+        flex: 1;
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .work-centers-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .wc-metrics {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .header-controls {
+            width: 100%;
+            justify-content: flex-end;
+        }
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        backdrop-filter: blur(4px);
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal {
+        background: var(--card-bg);
+        border-radius: 16px;
+        width: 90%;
+        max-width: 700px;
+        max-height: 90vh;
+        overflow: hidden;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border-color);
+        background: linear-gradient(135deg, #3b82f6, #6366f1);
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        color: white;
+        font-size: 1.25rem;
+    }
+
+    .modal-close {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        cursor: pointer;
+        font-size: 1.25rem;
+    }
+
+    .modal-body {
+        padding: 24px;
+        max-height: 65vh;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        padding: 16px 24px;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+    }
+
+    /* Detail Grid */
+    .wc-detail-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .wc-detail-card {
+        background: rgba(0, 0, 0, 0.2);
+        padding: 16px;
+        border-radius: 12px;
+        text-align: center;
+    }
+
+    .wc-detail-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .wc-detail-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        margin-top: 4px;
+    }
+
+    .sensor-chart {
+        height: 200px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        padding: 16px;
+    }
+
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .info-item {
+        padding: 10px 14px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 8px;
+        font-size: 0.9rem;
+    }
+
+    /* Timeline */
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 10px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border-color);
+    }
+
+    .timeline-item {
+        position: relative;
+        padding-bottom: 16px;
+    }
+
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -24px;
+        top: 4px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #3b82f6;
+    }
+
+    .timeline-item.success::before { background: #10b981; }
+    .timeline-item.warning::before { background: #f59e0b; }
+    .timeline-item.error::before { background: #ef4444; }
+
+    .timeline-time {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .timeline-content {
+        margin-top: 4px;
+        font-size: 0.9rem;
+    }
+
+    /* History */
+    .history-filters {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .history-chart {
+        height: 250px;
+        background: rgba(0, 0, 0, 0.2);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 20px;
+    }
+
+    .history-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .history-table th, .history-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .history-table th {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+    }
+
+    .event-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .event-badge.running { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+    .event-badge.warning { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .event-badge.idle { background: rgba(107, 114, 128, 0.2); color: #6b7280; }
+
+    /* Form Styles */
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        background: rgba(0, 0, 0, 0.2);
+        color: var(--text-primary);
+        font-size: 0.95rem;
+    }
+
+    .form-input:focus, .form-select:focus {
+        outline: none;
+        border-color: var(--primary-color);
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    /* Buttons */
+    .btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6, #6366f1);
+        color: white;
+    }
+
+    .btn-secondary {
+        background: var(--border-color);
+        color: var(--text-primary);
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1100;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .toast {
+        padding: 16px 20px;
+        border-radius: 12px;
+        color: white;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 300px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .toast.success { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .toast.error { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .toast.warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .toast.info { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+
+    .toast-close {
+        margin-left: auto;
+        background: none;
+        border: none;
+        color: white;
+        cursor: pointer;
+    }
+
+    /* Alerts Panel */
+    .alerts-panel {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    .alerts-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .alert-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        background: rgba(0, 0, 0, 0.2);
+    }
+
+    .alert-item.critical { border-left: 3px solid #ef4444; }
+    .alert-item.warning { border-left: 3px solid #f59e0b; }
+    .alert-item.info { border-left: 3px solid #3b82f6; }
+
+    .alert-content { flex: 1; }
+    .alert-title { font-weight: 600; font-size: 0.9rem; }
+    .alert-message { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+    .alert-time { font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px; }
+
+    .alert-dismiss {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 1.25rem;
+    }
+
+    /* OEE Display Styles */
+    .oee-display {
+        text-align: center;
+    }
+
+    .oee-main {
+        font-size: 3rem;
+        font-weight: 700;
+        color: #22c55e;
+        margin-bottom: 1rem;
+    }
+
+    .oee-breakdown {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .oee-item {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .oee-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .oee-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    /* Current Job Display */
+    .current-job-display {
+        padding: 1rem 0;
+    }
+
+    .job-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+    }
+
+    .job-progress-bar {
+        height: 12px;
+        background: var(--border-color);
+        border-radius: 6px;
+        overflow: hidden;
+        margin-bottom: 0.75rem;
+    }
+
+    .job-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #22c55e);
+        border-radius: 6px;
+        transition: width 0.5s ease;
+    }
+
+    .job-stats {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .job-stats strong {
+        color: var(--text-primary);
+    }
+
+    /* Filter Group for History Modal */
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .filter-group label {
+        font-weight: 500;
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+    }
+
+    /* History Table Impact Colors */
+    .positive {
+        color: #22c55e;
+        font-weight: 500;
+    }
+
+    .negative {
+        color: #ef4444;
+        font-weight: 500;
+    }
+
+    .neutral {
+        color: var(--text-secondary);
+    }
+
+    /* Apply History Filters Button */
+    .history-filters .btn {
+        margin-left: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="work-centers-header">
+    <div class="header-title">
+        <h1>🏭 Work Centers</h1>
+        <span class="status-badge online">All Systems Online</span>
+    </div>
+    <div class="header-controls">
+        <div class="view-toggle">
+            <button class="active" onclick="setView('grid')">Grid</button>
+            <button onclick="setView('list')">List</button>
+        </div>
+        <select class="filter-dropdown" onchange="filterWorkCenters(this.value)">
+            <option value="all">All Status</option>
+            <option value="running">Running</option>
+            <option value="idle">Idle</option>
+            <option value="down">Down</option>
+            <option value="maintenance">Maintenance</option>
+        </select>
+        <button class="btn btn-primary" onclick="addWorkCenter()">+ Add Work Center</button>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="summary-cards">
+    <div class="summary-card">
+        <div class="summary-icon running">▶</div>
+        <div class="summary-content">
+            <h3 id="running-count">8</h3>
+            <p>Running</p>
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-icon idle">⏸</div>
+        <div class="summary-content">
+            <h3 id="idle-count">3</h3>
+            <p>Idle</p>
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-icon down">⚠</div>
+        <div class="summary-content">
+            <h3 id="down-count">1</h3>
+            <p>Down</p>
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-icon maintenance">🔧</div>
+        <div class="summary-content">
+            <h3 id="maintenance-count">2</h3>
+            <p>Maintenance</p>
+        </div>
+    </div>
+</div>
+
+<!-- Work Centers Grid -->
+<div class="work-centers-grid" id="work-centers-container">
+    <!-- Work centers will be rendered here by JavaScript -->
+</div>
+
+<!-- Live Sensor Data Panel -->
+<div class="live-data-panel">
+    <div class="live-panel-header">
+        <div class="live-panel-title">
+            📊 Live Sensor Data
+        </div>
+        <div class="live-indicator">
+            <span class="live-dot"></span>
+            Streaming at 1Hz
+        </div>
+    </div>
+    <div class="sensor-grid" id="sensor-grid">
+        <!-- Sensors rendered by JavaScript -->
+    </div>
+</div>
+
+<!-- Capacity Timeline -->
+<div class="capacity-timeline">
+    <div class="timeline-header">
+        <span class="timeline-title">📅 Today's Capacity Schedule</span>
+        <div class="timeline-legend">
+            <div class="legend-item">
+                <span class="legend-dot scheduled"></span>
+                <span>Scheduled</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot available"></span>
+                <span>Available</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot maintenance"></span>
+                <span>Maintenance</span>
+            </div>
+        </div>
+    </div>
+    <div class="timeline-grid" id="timeline-grid">
+        <!-- Timeline rendered by JavaScript -->
+    </div>
+    <div class="timeline-hours" id="timeline-hours">
+        <!-- Hours rendered by JavaScript -->
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- Alerts Panel (Floating) -->
+<div class="alerts-panel" id="alertsPanel">
+    <!-- Alerts rendered by JavaScript -->
+</div>
+
+<!-- Work Center Detail Modal -->
+<div class="modal-overlay" id="wcDetailModal">
+    <div class="modal" style="max-width: 900px;">
+        <div class="modal-header">
+            <h2 id="wcDetailTitle">🏭 Work Center Details</h2>
+            <button class="modal-close" onclick="closeModal('wcDetailModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="wc-detail-grid">
+                <!-- OEE Metrics -->
+                <div class="wc-detail-card">
+                    <h3>📊 OEE Metrics</h3>
+                    <div class="oee-display">
+                        <div class="oee-main" id="wcOeeValue">94.5%</div>
+                        <div class="oee-breakdown">
+                            <div class="oee-item">
+                                <span class="oee-label">Availability</span>
+                                <span class="oee-value" id="wcAvailability">98.0%</span>
+                            </div>
+                            <div class="oee-item">
+                                <span class="oee-label">Performance</span>
+                                <span class="oee-value" id="wcPerformance">97.0%</span>
+                            </div>
+                            <div class="oee-item">
+                                <span class="oee-label">Quality</span>
+                                <span class="oee-value" id="wcQuality">99.5%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Sensor Chart -->
+                <div class="wc-detail-card" style="grid-column: span 2;">
+                    <h3>📈 Live Sensor Data</h3>
+                    <div class="sensor-chart">
+                        <canvas id="wcSensorChart" height="200"></canvas>
+                    </div>
+                </div>
+
+                <!-- Work Center Info -->
+                <div class="wc-detail-card">
+                    <h3>ℹ️ Information</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="info-label">ID</span>
+                            <span class="info-value" id="wcInfoId">WC-001</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Type</span>
+                            <span class="info-value" id="wcInfoType">Injection Molding</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Status</span>
+                            <span class="info-value" id="wcInfoStatus">Running</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Operator</span>
+                            <span class="info-value" id="wcInfoOperator">M. Smith</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Last Maintenance</span>
+                            <span class="info-value" id="wcInfoMaintenance">3 days ago</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Cycle Time</span>
+                            <span class="info-value" id="wcInfoCycle">2.1 min</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Job -->
+                <div class="wc-detail-card">
+                    <h3>🔄 Current Job</h3>
+                    <div class="current-job-display">
+                        <div class="job-name" id="wcCurrentJobName">LEGO 3003 Brick</div>
+                        <div class="job-progress-bar">
+                            <div class="job-progress-fill" id="wcCurrentJobProgress" style="width: 89%"></div>
+                        </div>
+                        <div class="job-stats">
+                            <span>Progress: <strong id="wcCurrentJobPercent">89%</strong></span>
+                            <span>Remaining: <strong id="wcCurrentJobRemaining">0h 15m</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Events -->
+                <div class="wc-detail-card" style="grid-column: span 2;">
+                    <h3>📋 Recent Events</h3>
+                    <div class="timeline" id="wcEventTimeline">
+                        <div class="timeline-item">
+                            <div class="timeline-dot success"></div>
+                            <div class="timeline-content">
+                                <div class="timeline-title">Quality Check Passed</div>
+                                <div class="timeline-time">10 min ago</div>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-dot info"></div>
+                            <div class="timeline-content">
+                                <div class="timeline-title">Job Started: LEGO 3003 Brick</div>
+                                <div class="timeline-time">1h 30m ago</div>
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-dot warning"></div>
+                            <div class="timeline-content">
+                                <div class="timeline-title">Temperature Adjustment</div>
+                                <div class="timeline-time">2h ago</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('wcDetailModal')">Close</button>
+            <button class="btn btn-warning" onclick="scheduleMaintenanceFromModal(currentWcId)">Schedule Maintenance</button>
+            <button class="btn btn-primary" onclick="viewHistory(currentWcId)">View Full History</button>
+        </div>
+    </div>
+</div>
+
+<!-- History Modal -->
+<div class="modal-overlay" id="historyModal">
+    <div class="modal" style="max-width: 1000px;">
+        <div class="modal-header">
+            <h2 id="historyModalTitle">📜 Work Center History</h2>
+            <button class="modal-close" onclick="closeModal('historyModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <!-- History Filters -->
+            <div class="history-filters">
+                <div class="filter-group">
+                    <label>Date Range:</label>
+                    <input type="date" id="historyStartDate" class="form-input">
+                    <span>to</span>
+                    <input type="date" id="historyEndDate" class="form-input">
+                </div>
+                <div class="filter-group">
+                    <label>Event Type:</label>
+                    <select id="historyEventType" class="form-select">
+                        <option value="all">All Events</option>
+                        <option value="job">Jobs</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="alert">Alerts</option>
+                        <option value="quality">Quality</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="applyHistoryFilters()">Apply</button>
+            </div>
+
+            <!-- OEE Trend Chart -->
+            <div class="history-chart">
+                <h3>📈 OEE Trend (Last 30 Days)</h3>
+                <canvas id="historyOeeChart" height="200"></canvas>
+            </div>
+
+            <!-- Event Log Table -->
+            <div class="history-table">
+                <h3>📋 Event Log</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Event Type</th>
+                            <th>Description</th>
+                            <th>Duration</th>
+                            <th>Impact</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr>
+                            <td>2024-01-15 14:32:00</td>
+                            <td><span class="event-badge job">Job</span></td>
+                            <td>Completed: LEGO 3001 Brick (500 units)</td>
+                            <td>2h 15m</td>
+                            <td class="positive">+2.3% OEE</td>
+                        </tr>
+                        <tr>
+                            <td>2024-01-15 12:15:00</td>
+                            <td><span class="event-badge quality">Quality</span></td>
+                            <td>Quality inspection passed - 99.8% yield</td>
+                            <td>15m</td>
+                            <td class="positive">+0.5% Quality</td>
+                        </tr>
+                        <tr>
+                            <td>2024-01-15 09:00:00</td>
+                            <td><span class="event-badge job">Job</span></td>
+                            <td>Started: LEGO 3001 Brick batch</td>
+                            <td>-</td>
+                            <td>-</td>
+                        </tr>
+                        <tr>
+                            <td>2024-01-14 16:45:00</td>
+                            <td><span class="event-badge maintenance">Maintenance</span></td>
+                            <td>Scheduled maintenance completed</td>
+                            <td>45m</td>
+                            <td class="negative">-1.2% Availability</td>
+                        </tr>
+                        <tr>
+                            <td>2024-01-14 10:22:00</td>
+                            <td><span class="event-badge alert">Alert</span></td>
+                            <td>Temperature warning - auto-adjusted</td>
+                            <td>5m</td>
+                            <td class="neutral">No impact</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('historyModal')">Close</button>
+            <button class="btn btn-primary" onclick="exportHistory(currentWcId)">Export to CSV</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Work Center Modal -->
+<div class="modal-overlay" id="addWcModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>➕ Add New Work Center</h2>
+            <button class="modal-close" onclick="closeModal('addWcModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="addWcForm" onsubmit="event.preventDefault(); submitNewWorkCenter();">
+                <div class="form-group">
+                    <label class="form-label">Work Center ID *</label>
+                    <input type="text" id="newWcId" class="form-input" placeholder="e.g., WC-015" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Name *</label>
+                    <input type="text" id="newWcName" class="form-input" placeholder="e.g., 3D Printer Bay 5" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Type *</label>
+                    <select id="newWcType" class="form-select" required>
+                        <option value="">Select type...</option>
+                        <option value="FDM Printer">FDM Printer</option>
+                        <option value="SLA Printer">SLA Printer</option>
+                        <option value="Injection Molding">Injection Molding</option>
+                        <option value="CNC Machine">CNC Machine</option>
+                        <option value="Laser Cutter">Laser Cutter</option>
+                        <option value="Assembly Station">Assembly Station</option>
+                        <option value="Quality Inspection">Quality Inspection</option>
+                        <option value="Packaging">Packaging</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Initial Status</label>
+                    <select id="newWcStatus" class="form-select">
+                        <option value="idle">Idle</option>
+                        <option value="running">Running</option>
+                        <option value="maintenance">Maintenance</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assigned Operator</label>
+                    <input type="text" id="newWcOperator" class="form-input" placeholder="Auto or operator name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Target OEE (%)</label>
+                    <input type="number" id="newWcTargetOee" class="form-input" placeholder="85" min="0" max="100">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('addWcModal')">Cancel</button>
+            <button class="btn btn-success" onclick="submitNewWorkCenter()">Add Work Center</button>
+        </div>
+    </div>
+</div>
+
+<!-- Maintenance Modal -->
+<div class="modal-overlay" id="maintenanceModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>🔧 Schedule Maintenance</h2>
+            <button class="modal-close" onclick="closeModal('maintenanceModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="maintenanceForm" onsubmit="event.preventDefault(); submitMaintenance();">
+                <div class="form-group">
+                    <label class="form-label">Work Center *</label>
+                    <select id="maintWcSelect" class="form-select" required>
+                        <option value="">Select work center...</option>
+                        <option value="WC-001">WC-001 - 3D Printer Bay 1</option>
+                        <option value="WC-002">WC-002 - 3D Printer Bay 2</option>
+                        <option value="WC-003">WC-003 - Injection Mold A</option>
+                        <option value="WC-004">WC-004 - Injection Mold B</option>
+                        <option value="WC-005">WC-005 - CNC Router 1</option>
+                        <option value="WC-006">WC-006 - Laser Cutter</option>
+                        <option value="WC-007">WC-007 - SLA Printer</option>
+                        <option value="WC-008">WC-008 - CNC Mill</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Maintenance Type *</label>
+                    <select id="maintType" class="form-select" required>
+                        <option value="">Select type...</option>
+                        <option value="preventive">Preventive Maintenance</option>
+                        <option value="corrective">Corrective Maintenance</option>
+                        <option value="predictive">Predictive Maintenance</option>
+                        <option value="calibration">Calibration</option>
+                        <option value="inspection">Inspection</option>
+                        <option value="cleaning">Cleaning</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Scheduled Date *</label>
+                    <input type="datetime-local" id="maintDate" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Estimated Duration</label>
+                    <select id="maintDuration" class="form-select">
+                        <option value="30">30 minutes</option>
+                        <option value="60">1 hour</option>
+                        <option value="120">2 hours</option>
+                        <option value="240">4 hours</option>
+                        <option value="480">Full day</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assigned Technician</label>
+                    <input type="text" id="maintTechnician" class="form-input" placeholder="Technician name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea id="maintNotes" class="form-input" rows="3" placeholder="Additional notes..."></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('maintenanceModal')">Cancel</button>
+            <button class="btn btn-warning" onclick="submitMaintenance()">Schedule Maintenance</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Current work center ID for modals
+    let currentWcId = null;
+    let sensorChart = null;
+    let historyChart = null;
+
+    // Sample work center data
+    const workCenters = [
+        {
+            id: 'WC-001',
+            name: '3D Printer Bay 1',
+            type: 'FDM Printer',
+            status: 'running',
+            oee: 87.5,
+            availability: 92.0,
+            performance: 95.0,
+            quality: 99.8,
+            currentJob: { name: 'LEGO 3001 Brick', progress: 67, remaining: '1h 23m' },
+            cycleTime: 4.2,
+            operator: 'Auto',
+            temperature: 215,
+            lastMaintenance: '2 days ago'
+        },
+        {
+            id: 'WC-002',
+            name: '3D Printer Bay 2',
+            type: 'FDM Printer',
+            status: 'running',
+            oee: 91.2,
+            availability: 95.0,
+            performance: 96.0,
+            quality: 99.9,
+            currentJob: { name: 'LEGO 3002 Brick', progress: 34, remaining: '2h 45m' },
+            cycleTime: 3.8,
+            operator: 'Auto',
+            temperature: 218,
+            lastMaintenance: '5 days ago'
+        },
+        {
+            id: 'WC-003',
+            name: 'Injection Mold A',
+            type: 'Injection Molding',
+            status: 'running',
+            oee: 94.5,
+            availability: 98.0,
+            performance: 97.0,
+            quality: 99.5,
+            currentJob: { name: 'LEGO 3003 Brick', progress: 89, remaining: '0h 15m' },
+            cycleTime: 2.1,
+            operator: 'M. Smith',
+            temperature: 240,
+            lastMaintenance: '1 day ago'
+        },
+        {
+            id: 'WC-004',
+            name: 'Quality Station 1',
+            type: 'Vision Inspection',
+            status: 'running',
+            oee: 99.1,
+            availability: 99.5,
+            performance: 99.8,
+            quality: 99.8,
+            currentJob: { name: 'Batch QC-2024-001', progress: 52, remaining: '0h 48m' },
+            cycleTime: 0.5,
+            operator: 'Auto',
+            temperature: 22,
+            lastMaintenance: '12 days ago'
+        },
+        {
+            id: 'WC-005',
+            name: 'Assembly Cell 1',
+            type: 'Manual Assembly',
+            status: 'idle',
+            oee: 78.5,
+            availability: 85.0,
+            performance: 92.0,
+            quality: 99.9,
+            currentJob: null,
+            cycleTime: 0,
+            operator: 'J. Wilson',
+            temperature: 23,
+            lastMaintenance: '3 days ago'
+        },
+        {
+            id: 'WC-006',
+            name: 'Packaging Line 1',
+            type: 'Automated Packaging',
+            status: 'running',
+            oee: 89.2,
+            availability: 94.0,
+            performance: 95.0,
+            quality: 99.7,
+            currentJob: { name: 'Set 60198 Box', progress: 78, remaining: '0h 30m' },
+            cycleTime: 1.2,
+            operator: 'Auto',
+            temperature: 21,
+            lastMaintenance: '7 days ago'
+        },
+        {
+            id: 'WC-007',
+            name: '3D Printer Bay 3',
+            type: 'SLA Printer',
+            status: 'maintenance',
+            oee: 0,
+            availability: 0,
+            performance: 0,
+            quality: 0,
+            currentJob: null,
+            cycleTime: 0,
+            operator: 'Tech Support',
+            temperature: 25,
+            lastMaintenance: 'In Progress'
+        },
+        {
+            id: 'WC-008',
+            name: 'CNC Mill 1',
+            type: 'CNC Machining',
+            status: 'down',
+            oee: 0,
+            availability: 0,
+            performance: 0,
+            quality: 0,
+            currentJob: null,
+            cycleTime: 0,
+            operator: 'N/A',
+            temperature: 45,
+            lastMaintenance: 'Fault Detected'
+        },
+        {
+            id: 'WC-009',
+            name: 'Paint Booth 1',
+            type: 'Surface Finishing',
+            status: 'idle',
+            oee: 82.0,
+            availability: 88.0,
+            performance: 93.0,
+            quality: 99.5,
+            currentJob: null,
+            cycleTime: 0,
+            operator: 'R. Johnson',
+            temperature: 24,
+            lastMaintenance: '4 days ago'
+        },
+        {
+            id: 'WC-010',
+            name: 'Laser Cutter 1',
+            type: 'Laser Cutting',
+            status: 'running',
+            oee: 85.5,
+            availability: 90.0,
+            performance: 95.0,
+            quality: 99.8,
+            currentJob: { name: 'Custom Baseplate', progress: 45, remaining: '1h 10m' },
+            cycleTime: 3.5,
+            operator: 'Auto',
+            temperature: 35,
+            lastMaintenance: '6 days ago'
+        }
+    ];
+
+    // Sensor data
+    const sensors = [
+        { name: 'Avg Temperature', value: 215, unit: '°C', trend: 'stable', change: '+0.5%' },
+        { name: 'Total Power', value: 45.2, unit: 'kW', trend: 'down', change: '-2.1%' },
+        { name: 'Compressed Air', value: 6.2, unit: 'bar', trend: 'stable', change: '+0.1%' },
+        { name: 'Humidity', value: 42, unit: '%', trend: 'up', change: '+3.2%' },
+        { name: 'Vibration', value: 0.12, unit: 'mm/s', trend: 'stable', change: '+0.0%' },
+        { name: 'Cycle Rate', value: 127, unit: '/hr', trend: 'up', change: '+5.3%' }
+    ];
+
+    // Timeline data
+    const timelineData = [
+        { name: 'WC-001', segments: [{ start: 0, end: 35, type: 'scheduled', label: 'Job A' }, { start: 35, end: 50, type: 'scheduled', label: 'Job B' }, { start: 50, end: 70, type: 'available' }, { start: 70, end: 80, type: 'maintenance' }, { start: 80, end: 100, type: 'scheduled', label: 'Job C' }] },
+        { name: 'WC-002', segments: [{ start: 0, end: 60, type: 'scheduled', label: 'Job D' }, { start: 60, end: 100, type: 'available' }] },
+        { name: 'WC-003', segments: [{ start: 0, end: 20, type: 'scheduled', label: 'Job E' }, { start: 20, end: 40, type: 'scheduled', label: 'Job F' }, { start: 40, end: 55, type: 'maintenance' }, { start: 55, end: 100, type: 'scheduled', label: 'Job G' }] },
+        { name: 'WC-004', segments: [{ start: 0, end: 100, type: 'scheduled', label: 'Continuous QC' }] },
+        { name: 'WC-006', segments: [{ start: 0, end: 25, type: 'scheduled', label: 'Pack A' }, { start: 25, end: 50, type: 'scheduled', label: 'Pack B' }, { start: 50, end: 75, type: 'scheduled', label: 'Pack C' }, { start: 75, end: 100, type: 'available' }] }
+    ];
+
+    function getOeeClass(oee) {
+        if (oee >= 85) return 'good';
+        if (oee >= 60) return 'warning';
+        return 'critical';
+    }
+
+    function renderWorkCenters(filter = 'all') {
+        const container = document.getElementById('work-centers-container');
+        const filtered = filter === 'all' ? workCenters : workCenters.filter(wc => wc.status === filter);
+
+        container.innerHTML = filtered.map(wc => `
+            <div class="work-center-card" data-status="${wc.status}">
+                <div class="wc-header">
+                    <div class="wc-info">
+                        <div class="wc-status-indicator ${wc.status}"></div>
+                        <div>
+                            <div class="wc-name">${wc.name}</div>
+                            <div class="wc-type">${wc.type} • ${wc.id}</div>
+                        </div>
+                    </div>
+                    <span class="wc-status-badge ${wc.status}">${wc.status}</span>
+                </div>
+                <div class="wc-body">
+                    <div class="wc-metrics">
+                        <div class="wc-metric">
+                            <div class="wc-metric-value ${getOeeClass(wc.oee)}">${wc.oee.toFixed(1)}%</div>
+                            <div class="wc-metric-label">OEE</div>
+                        </div>
+                        <div class="wc-metric">
+                            <div class="wc-metric-value">${wc.availability.toFixed(1)}%</div>
+                            <div class="wc-metric-label">Availability</div>
+                        </div>
+                        <div class="wc-metric">
+                            <div class="wc-metric-value">${wc.quality.toFixed(1)}%</div>
+                            <div class="wc-metric-label">Quality</div>
+                        </div>
+                    </div>
+                    ${wc.currentJob ? `
+                    <div class="wc-current-job">
+                        <div class="wc-job-label">Current Job</div>
+                        <div class="wc-job-info">
+                            <span class="wc-job-name">${wc.currentJob.name}</span>
+                            <span class="wc-job-progress-text">${wc.currentJob.progress}% • ${wc.currentJob.remaining}</span>
+                        </div>
+                        <div class="wc-progress-bar">
+                            <div class="wc-progress-fill" style="width: ${wc.currentJob.progress}%"></div>
+                        </div>
+                    </div>
+                    ` : `
+                    <div class="wc-current-job">
+                        <div class="wc-job-label">Current Job</div>
+                        <div class="wc-job-info">
+                            <span class="wc-job-name" style="color: var(--text-secondary);">No active job</span>
+                        </div>
+                    </div>
+                    `}
+                    <div class="wc-details">
+                        <div class="wc-detail">
+                            <span class="wc-detail-label">Cycle Time</span>
+                            <span class="wc-detail-value">${wc.cycleTime > 0 ? wc.cycleTime + ' min' : 'N/A'}</span>
+                        </div>
+                        <div class="wc-detail">
+                            <span class="wc-detail-label">Operator</span>
+                            <span class="wc-detail-value">${wc.operator}</span>
+                        </div>
+                        <div class="wc-detail">
+                            <span class="wc-detail-label">Temperature</span>
+                            <span class="wc-detail-value">${wc.temperature}°C</span>
+                        </div>
+                        <div class="wc-detail">
+                            <span class="wc-detail-label">Last Maint.</span>
+                            <span class="wc-detail-value">${wc.lastMaintenance}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="wc-footer">
+                    <button class="wc-action-btn" onclick="viewDetails('${wc.id}')">Details</button>
+                    <button class="wc-action-btn" onclick="viewHistory('${wc.id}')">History</button>
+                    <button class="wc-action-btn primary" onclick="controlWorkCenter('${wc.id}')">${wc.status === 'running' ? 'Stop' : 'Start'}</button>
+                </div>
+            </div>
+        `).join('');
+
+        // Update summary counts
+        const counts = { running: 0, idle: 0, down: 0, maintenance: 0 };
+        workCenters.forEach(wc => counts[wc.status]++);
+        document.getElementById('running-count').textContent = counts.running;
+        document.getElementById('idle-count').textContent = counts.idle;
+        document.getElementById('down-count').textContent = counts.down;
+        document.getElementById('maintenance-count').textContent = counts.maintenance;
+    }
+
+    function renderSensors() {
+        const container = document.getElementById('sensor-grid');
+        container.innerHTML = sensors.map(s => `
+            <div class="sensor-card">
+                <div class="sensor-header">
+                    <span class="sensor-name">${s.name}</span>
+                    <span class="sensor-status"></span>
+                </div>
+                <div>
+                    <span class="sensor-value">${s.value}</span>
+                    <span class="sensor-unit">${s.unit}</span>
+                </div>
+                <div class="sensor-trend ${s.trend}">
+                    ${s.trend === 'up' ? '↑' : s.trend === 'down' ? '↓' : '→'} ${s.change}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderTimeline() {
+        const grid = document.getElementById('timeline-grid');
+        const hours = document.getElementById('timeline-hours');
+
+        grid.innerHTML = timelineData.map(row => `
+            <div class="timeline-row">
+                <div class="timeline-label">${row.name}</div>
+                <div class="timeline-bar">
+                    ${row.segments.map(seg => `
+                        <div class="timeline-segment ${seg.type}" style="left: ${seg.start}%; width: ${seg.end - seg.start}%">
+                            ${seg.label || ''}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+
+        // Render hour markers (6 AM to 6 PM)
+        hours.innerHTML = Array.from({length: 13}, (_, i) => `
+            <span class="timeline-hour">${6 + i}:00</span>
+        `).join('');
+    }
+
+    function filterWorkCenters(status) {
+        renderWorkCenters(status);
+    }
+
+    function setView(view) {
+        document.querySelectorAll('.view-toggle button').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        event.target.classList.add('active');
+        // Implement list view if needed
+    }
+
+    // ============================================
+    // Modal Functions
+    // ============================================
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // Close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) {
+                overlay.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+    });
+
+    // Close modals on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+        }
+    });
+
+    // ============================================
+    // Toast Notifications
+    // ============================================
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        const icons = { success: '✓', error: '✗', warning: '⚠️', info: 'ℹ️' };
+        toast.innerHTML = `
+            <span>${icons[type] || 'ℹ️'}</span>
+            <span>${message}</span>
+            <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+        `;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 5000);
+    }
+
+    // ============================================
+    // Work Center Actions
+    // ============================================
+    function viewDetails(id) {
+        const wc = workCenters.find(w => w.id === id);
+        if (!wc) return;
+
+        document.getElementById('wcDetailTitle').textContent = `${wc.name} (${wc.id})`;
+        document.getElementById('wcDetailBody').innerHTML = `
+            <div class="wc-detail-grid">
+                <div class="wc-detail-card">
+                    <div class="wc-detail-value">${wc.oee.toFixed(1)}%</div>
+                    <div class="wc-detail-label">OEE</div>
+                </div>
+                <div class="wc-detail-card">
+                    <div class="wc-detail-value">${wc.availability.toFixed(1)}%</div>
+                    <div class="wc-detail-label">Availability</div>
+                </div>
+                <div class="wc-detail-card">
+                    <div class="wc-detail-value">${wc.performance.toFixed(1)}%</div>
+                    <div class="wc-detail-label">Performance</div>
+                </div>
+                <div class="wc-detail-card">
+                    <div class="wc-detail-value">${wc.quality.toFixed(1)}%</div>
+                    <div class="wc-detail-label">Quality</div>
+                </div>
+                <div class="wc-detail-card">
+                    <div class="wc-detail-value">${wc.temperature}°C</div>
+                    <div class="wc-detail-label">Temperature</div>
+                </div>
+                <div class="wc-detail-card">
+                    <div class="wc-detail-value">${wc.cycleTime > 0 ? wc.cycleTime + ' min' : 'N/A'}</div>
+                    <div class="wc-detail-label">Cycle Time</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 20px 0 12px;">📊 Real-Time Sensor Data</h4>
+            <div class="sensor-chart">
+                <canvas id="wcSensorChart"></canvas>
+            </div>
+
+            <h4 style="margin: 20px 0 12px;">📋 Work Center Info</h4>
+            <div class="info-grid">
+                <div class="info-item"><strong>Type:</strong> ${wc.type}</div>
+                <div class="info-item"><strong>Status:</strong> <span class="status-badge ${wc.status}">${wc.status}</span></div>
+                <div class="info-item"><strong>Operator:</strong> ${wc.operator}</div>
+                <div class="info-item"><strong>Last Maintenance:</strong> ${wc.lastMaintenance}</div>
+                <div class="info-item"><strong>Current Job:</strong> ${wc.currentJob ? wc.currentJob.name : 'None'}</div>
+                <div class="info-item"><strong>Job Progress:</strong> ${wc.currentJob ? wc.currentJob.progress + '%' : 'N/A'}</div>
+            </div>
+
+            <h4 style="margin: 20px 0 12px;">⏱️ Recent Activity</h4>
+            <div class="timeline">
+                <div class="timeline-item success">
+                    <div class="timeline-time">2 min ago</div>
+                    <div class="timeline-content">Part completed - Quality: Pass</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-time">8 min ago</div>
+                    <div class="timeline-content">Cycle completed - 2.1 min</div>
+                </div>
+                <div class="timeline-item warning">
+                    <div class="timeline-time">15 min ago</div>
+                    <div class="timeline-content">Temperature spike detected - Auto-adjusted</div>
+                </div>
+                <div class="timeline-item success">
+                    <div class="timeline-time">45 min ago</div>
+                    <div class="timeline-content">Job started: ${wc.currentJob ? wc.currentJob.name : 'Previous Job'}</div>
+                </div>
+            </div>
+        `;
+
+        openModal('wcDetailModal');
+
+        // Initialize sensor chart
+        setTimeout(() => {
+            const ctx = document.getElementById('wcSensorChart');
+            if (ctx) {
+                // Generate pattern-based sensor history
+                const now = new Date();
+                const baseSecond = now.getSeconds();
+                const wcPhase = wc.id.charCodeAt(wc.id.length - 1) * 0.1;
+
+                const tempData = Array.from({length: 30}, (_, i) => {
+                    const t = (baseSecond - (29 - i)) / 60;
+                    return wc.temperature + Math.sin((t + wcPhase) * Math.PI * 2) * 2.5;
+                });
+
+                const powerData = Array.from({length: 30}, (_, i) => {
+                    const t = (baseSecond - (29 - i)) / 60;
+                    return 3.5 + Math.sin((t + wcPhase + 0.5) * Math.PI * 4) * 0.8;
+                });
+
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 30}, (_, i) => `${30-i}s`),
+                        datasets: [{
+                            label: 'Temperature (°C)',
+                            data: tempData,
+                            borderColor: '#ef4444',
+                            tension: 0.4,
+                            fill: false
+                        }, {
+                            label: 'Power (kW)',
+                            data: powerData,
+                            borderColor: '#3b82f6',
+                            tension: 0.4,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#94a3b8' } } },
+                        scales: {
+                            x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                            y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+            }
+        }, 100);
+    }
+
+    function viewHistory(id) {
+        const wc = workCenters.find(w => w.id === id);
+        if (!wc) return;
+
+        document.getElementById('historyTitle').textContent = `${wc.name} History`;
+        document.getElementById('historyBody').innerHTML = `
+            <div class="history-filters">
+                <select class="filter-dropdown" id="historyPeriod">
+                    <option value="24h">Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+                <select class="filter-dropdown" id="historyMetric">
+                    <option value="oee">OEE</option>
+                    <option value="availability">Availability</option>
+                    <option value="performance">Performance</option>
+                    <option value="quality">Quality</option>
+                </select>
+                <button class="btn btn-secondary" onclick="exportHistory('${id}')">📥 Export</button>
+            </div>
+
+            <div class="history-chart">
+                <canvas id="historyChart"></canvas>
+            </div>
+
+            <h4 style="margin: 20px 0 12px;">📋 Event Log</h4>
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Event</th>
+                        <th>Details</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>Today 14:32</td><td><span class="event-badge running">Job Complete</span></td><td>LEGO 3001 Brick - Batch 234</td><td>2h 15m</td></tr>
+                    <tr><td>Today 12:15</td><td><span class="event-badge warning">Alert</span></td><td>Temperature deviation +5°C</td><td>3m</td></tr>
+                    <tr><td>Today 10:00</td><td><span class="event-badge running">Job Started</span></td><td>LEGO 3001 Brick - Batch 234</td><td>-</td></tr>
+                    <tr><td>Today 09:45</td><td><span class="event-badge idle">Changeover</span></td><td>Tool change completed</td><td>15m</td></tr>
+                    <tr><td>Today 07:30</td><td><span class="event-badge running">Job Complete</span></td><td>LEGO 3003 Brick - Batch 233</td><td>4h 30m</td></tr>
+                </tbody>
+            </table>
+        `;
+
+        openModal('historyModal');
+
+        // Initialize history chart
+        setTimeout(() => {
+            const ctx = document.getElementById('historyChart');
+            if (ctx) {
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', 'Now'],
+                        datasets: [{
+                            label: 'OEE %',
+                            data: [85, 87, 92, 88, 91, 89, wc.oee],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#94a3b8' } } },
+                        scales: {
+                            x: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                            y: { min: 0, max: 100, grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }
+                        }
+                    }
+                });
+            }
+        }, 100);
+    }
+
+    function controlWorkCenter(id) {
+        const wc = workCenters.find(w => w.id === id);
+        if (!wc) return;
+
+        const action = wc.status === 'running' ? 'Stop' : 'Start';
+        if (confirm(`Are you sure you want to ${action.toLowerCase()} ${wc.name}?`)) {
+            showToast(`${action}ing ${wc.name}...`, 'info');
+
+            setTimeout(() => {
+                wc.status = wc.status === 'running' ? 'idle' : 'running';
+                if (wc.status === 'running') {
+                    // Pattern-based OEE based on work center ID and time
+                    const hour = new Date().getHours();
+                    const shiftBonus = (hour >= 6 && hour < 14) ? 3 : (hour >= 14 && hour < 22) ? 1 : -1;
+                    const wcPhase = wc.id.charCodeAt(wc.id.length - 1) % 10;
+                    wc.oee = 85 + wcPhase * 0.5 + shiftBonus;
+                } else {
+                    wc.oee = 0;
+                    wc.currentJob = null;
+                }
+                renderWorkCenters();
+                showToast(`${wc.name} ${wc.status === 'running' ? 'started' : 'stopped'} successfully`, 'success');
+            }, 1000);
+        }
+    }
+
+    function addWorkCenter() {
+        openModal('addWcModal');
+    }
+
+    function submitNewWorkCenter() {
+        const name = document.getElementById('newWcName').value;
+        const type = document.getElementById('newWcType').value;
+
+        if (!name || !type) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        showToast('Adding work center...', 'info');
+
+        setTimeout(() => {
+            const newId = 'WC-' + String(workCenters.length + 1).padStart(3, '0');
+            workCenters.push({
+                id: newId,
+                name: name,
+                type: type,
+                status: 'idle',
+                oee: 0,
+                availability: 0,
+                performance: 0,
+                quality: 0,
+                currentJob: null,
+                cycleTime: 0,
+                operator: 'Unassigned',
+                temperature: 22,
+                lastMaintenance: 'New'
+            });
+
+            renderWorkCenters();
+            closeModal('addWcModal');
+            document.getElementById('addWcForm').reset();
+            showToast(`Work center ${newId} added successfully`, 'success');
+        }, 1000);
+    }
+
+    function scheduleMaintenanceFromModal(id) {
+        closeModal('wcDetailModal');
+        document.getElementById('maintWcSelect').value = id;
+        openModal('maintenanceModal');
+    }
+
+    function submitMaintenance() {
+        const wcId = document.getElementById('maintWcSelect').value;
+        const type = document.getElementById('maintType').value;
+        const date = document.getElementById('maintDate').value;
+
+        if (!wcId || !type || !date) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        showToast('Scheduling maintenance...', 'info');
+
+        setTimeout(() => {
+            const wc = workCenters.find(w => w.id === wcId);
+            if (wc) {
+                wc.lastMaintenance = 'Scheduled: ' + new Date(date).toLocaleDateString();
+            }
+
+            closeModal('maintenanceModal');
+            document.getElementById('maintenanceForm').reset();
+            showToast(`Maintenance scheduled for ${wcId}`, 'success');
+        }, 1000);
+    }
+
+    function exportHistory(id) {
+        showToast('Exporting history data...', 'info');
+        setTimeout(() => showToast('History exported to CSV', 'success'), 1000);
+    }
+
+    // ============================================
+    // Alerts Panel
+    // ============================================
+    const alerts = [
+        { type: 'critical', title: 'Equipment Fault', message: 'WC-008 CNC Mill - Spindle error detected', time: '5 min ago' },
+        { type: 'warning', title: 'Maintenance Due', message: 'WC-007 SLA Printer - Scheduled maintenance in progress', time: '15 min ago' },
+        { type: 'info', title: 'Job Complete', message: 'WC-003 completed LEGO 3003 batch', time: '32 min ago' }
+    ];
+
+    function renderAlerts() {
+        const container = document.getElementById('alertsPanel');
+        if (!container) return;
+
+        container.innerHTML = alerts.map(alert => `
+            <div class="alert-item ${alert.type}">
+                <div class="alert-icon">${alert.type === 'critical' ? '🔴' : alert.type === 'warning' ? '🟡' : '🔵'}</div>
+                <div class="alert-content">
+                    <div class="alert-title">${alert.title}</div>
+                    <div class="alert-message">${alert.message}</div>
+                    <div class="alert-time">${alert.time}</div>
+                </div>
+                <button class="alert-dismiss" onclick="dismissAlert(this)">×</button>
+            </div>
+        `).join('');
+    }
+
+    function dismissAlert(btn) {
+        btn.parentElement.remove();
+    }
+
+    // ============================================
+    // Initialize
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function() {
+        renderWorkCenters();
+        renderSensors();
+        renderTimeline();
+        renderAlerts();
+
+        // Pattern-based live updates (NOT random)
+        let updateCounter = 0;
+        setInterval(() => {
+            updateCounter++;
+            const time = Date.now() * 0.001;
+
+            // Update sensors with pattern-based variation
+            sensors.forEach((s, idx) => {
+                const phase = idx * 0.3;
+                const variation = Math.sin(time + phase) * s.value * 0.005;
+                s.value = +(s.value + variation).toFixed(2);
+            });
+            renderSensors();
+
+            // Update running work centers with pattern-based progression
+            workCenters.filter(wc => wc.status === 'running').forEach(wc => {
+                const wcPhase = wc.id.charCodeAt(wc.id.length - 1) * 0.1;
+                if (wc.currentJob) {
+                    // Progress advances ~0.3% per update (deterministic)
+                    wc.currentJob.progress = Math.min(100, wc.currentJob.progress + 0.3);
+                }
+                // OEE has subtle oscillation around base value
+                const baseOEE = wc.oee || 87;
+                const oeeVariation = Math.sin(time * 0.5 + wcPhase) * 0.3;
+                wc.oee = Math.max(70, Math.min(100, baseOEE + oeeVariation));
+            });
+            renderWorkCenters();
+        }, 3000);
+    });
+</script>
+{% endblock %}

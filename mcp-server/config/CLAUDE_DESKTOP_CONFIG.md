@@ -22,7 +22,7 @@ This runs the MCP server as a Python process. Simplest setup.
     "lego-brick-maker": {
       "command": "python",
       "args": ["-m", "src.server"],
-      "cwd": "/absolute/path/to/lego-mcp-fusion360/mcp-server",
+      "cwd": "/absolute/path/to/lego_factory/mcp-server",
       "env": {
         "FUSION_API_URL": "http://localhost:8765",
         "SLICER_API_URL": "http://localhost:8766"
@@ -40,9 +40,9 @@ If you installed dependencies in a virtual environment:
 {
   "mcpServers": {
     "lego-brick-maker": {
-      "command": "/absolute/path/to/lego-mcp-fusion360/mcp-server/.venv/bin/python",
+      "command": "/absolute/path/to/lego_factory/mcp-server/.venv/bin/python",
       "args": ["-m", "src.server"],
-      "cwd": "/absolute/path/to/lego-mcp-fusion360/mcp-server",
+      "cwd": "/absolute/path/to/lego_factory/mcp-server",
       "env": {
         "FUSION_API_URL": "http://localhost:8765",
         "SLICER_API_URL": "http://localhost:8766"
@@ -84,7 +84,7 @@ On Windows, use forward slashes or escaped backslashes:
     "lego-brick-maker": {
       "command": "python",
       "args": ["-m", "src.server"],
-      "cwd": "C:/Users/YourName/lego-mcp-fusion360/mcp-server",
+      "cwd": "C:/Users/YourName/lego_factory/mcp-server",
       "env": {
         "FUSION_API_URL": "http://localhost:8765",
         "SLICER_API_URL": "http://localhost:8766"
@@ -102,7 +102,7 @@ Or with `py` launcher:
     "lego-brick-maker": {
       "command": "py",
       "args": ["-3", "-m", "src.server"],
-      "cwd": "C:/Users/YourName/lego-mcp-fusion360/mcp-server",
+      "cwd": "C:/Users/YourName/lego_factory/mcp-server",
       "env": {
         "FUSION_API_URL": "http://localhost:8765",
         "SLICER_API_URL": "http://localhost:8766"

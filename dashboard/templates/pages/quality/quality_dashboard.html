@@ -1,0 +1,2498 @@
+{% extends "base.html" %}
+
+{% block title %}Quality Management - LegoMCP Manufacturing{% endblock %}
+
+{% block extra_css %}
+<style>
+    .quality-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-title h1 {
+        font-size: 1.75rem;
+        margin: 0 0 0.25rem 0;
+        color: var(--text-primary);
+    }
+
+    .header-subtitle {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .quality-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .quality-status-badge.excellent {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .quality-status-badge .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    /* Main Quality KPIs */
+    .quality-kpis {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .quality-kpi-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .quality-kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .quality-kpi-card.excellent::before { background: linear-gradient(90deg, #10b981, #34d399); }
+    .quality-kpi-card.good::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .quality-kpi-card.warning::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+    .quality-kpi-card.critical::before { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+    .kpi-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .kpi-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .kpi-trend {
+        margin-top: 0.5rem;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+
+    .kpi-trend.up { color: #10b981; }
+    .kpi-trend.down { color: #ef4444; }
+    .kpi-trend.stable { color: var(--text-secondary); }
+
+    /* Main Content Grid */
+    .quality-content {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* SPC Chart Section */
+    .spc-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .spc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .spc-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .spc-controls {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .spc-select {
+        padding: 0.4rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--card-bg);
+        color: var(--text-primary);
+        font-size: 0.8rem;
+    }
+
+    .spc-chart-container {
+        height: 280px;
+        position: relative;
+    }
+
+    .spc-limits {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        margin-top: 1rem;
+        font-size: 0.75rem;
+    }
+
+    .limit-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .limit-line {
+        width: 20px;
+        height: 2px;
+    }
+
+    .limit-line.ucl { background: #ef4444; }
+    .limit-line.cl { background: #10b981; }
+    .limit-line.lcl { background: #ef4444; }
+
+    /* Defect Analysis */
+    .defect-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .defect-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .defect-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .defect-total {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .defect-total strong {
+        color: var(--text-primary);
+    }
+
+    .defect-chart {
+        height: 200px;
+    }
+
+    .defect-list {
+        margin-top: 1rem;
+    }
+
+    .defect-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .defect-item:last-child {
+        border-bottom: none;
+    }
+
+    .defect-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+    }
+
+    .defect-name {
+        flex: 1;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+    }
+
+    .defect-count {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .defect-percent {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        width: 40px;
+        text-align: right;
+    }
+
+    /* Recent Inspections */
+    .inspections-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .inspections-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .inspections-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .inspections-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .inspections-table th,
+    .inspections-table td {
+        padding: 0.75rem 0.5rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .inspections-table th {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        font-weight: 600;
+    }
+
+    .inspections-table td {
+        font-size: 0.875rem;
+        color: var(--text-primary);
+    }
+
+    .inspections-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .inspection-result {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .inspection-result.pass {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .inspection-result.fail {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+    }
+
+    .inspection-result.pending {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+
+    /* CAPA Section */
+    .bottom-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .capa-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .capa-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .capa-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .capa-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .capa-stat {
+        text-align: center;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 8px;
+    }
+
+    .capa-stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .capa-stat-value.critical { color: #ef4444; }
+    .capa-stat-value.warning { color: #f59e0b; }
+
+    .capa-stat-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .capa-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .capa-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 6px;
+        font-size: 0.8rem;
+    }
+
+    .capa-priority {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .capa-priority.high { background: #ef4444; }
+    .capa-priority.medium { background: #f59e0b; }
+    .capa-priority.low { background: #10b981; }
+
+    .capa-id {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .capa-desc {
+        flex: 1;
+        color: var(--text-secondary);
+    }
+
+    .capa-due {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    /* Supplier Quality */
+    .supplier-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .supplier-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .supplier-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .supplier-logo {
+        width: 36px;
+        height: 36px;
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .supplier-info {
+        flex: 1;
+    }
+
+    .supplier-name {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .supplier-material {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .supplier-score {
+        text-align: right;
+    }
+
+    .supplier-score-value {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .supplier-score-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Quality Alerts */
+    .alerts-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .alert-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .alert-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+    }
+
+    .alert-item.critical {
+        background: rgba(239, 68, 68, 0.1);
+        border-left: 3px solid #ef4444;
+    }
+
+    .alert-item.warning {
+        background: rgba(245, 158, 11, 0.1);
+        border-left: 3px solid #f59e0b;
+    }
+
+    .alert-item.info {
+        background: rgba(59, 130, 246, 0.1);
+        border-left: 3px solid #3b82f6;
+    }
+
+    .alert-icon {
+        font-size: 1rem;
+    }
+
+    .alert-content {
+        flex: 1;
+    }
+
+    .alert-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .alert-desc {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .alert-time {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .quality-kpis {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .quality-content {
+            grid-template-columns: 1fr;
+        }
+
+        .bottom-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .quality-kpis {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    /* Vision AI Section */
+    .vision-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .vision-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .vision-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .vision-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        background: rgba(139, 92, 246, 0.15);
+        color: #8b5cf6;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .vision-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+    }
+
+    .vision-card {
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 10px;
+        padding: 1rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .vision-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .vision-camera-id {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .vision-status {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #22c55e;
+        animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .vision-status.processing { background: #f59e0b; }
+    .vision-status.error { background: #ef4444; animation: none; }
+
+    .vision-preview {
+        width: 100%;
+        height: 100px;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 0.75rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .vision-preview-text {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.7rem;
+    }
+
+    .vision-overlay {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.65rem;
+    }
+
+    .vision-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        font-size: 0.75rem;
+    }
+
+    .vision-stat {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .vision-stat-label {
+        color: var(--text-secondary);
+    }
+
+    .vision-stat-value {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    /* Detection Boxes */
+    .detection-box {
+        position: absolute;
+        border: 2px solid #22c55e;
+        border-radius: 4px;
+    }
+
+    .detection-box.defect {
+        border-color: #ef4444;
+        box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal {
+        background: var(--card-bg);
+        border-radius: 16px;
+        width: 90%;
+        max-width: 800px;
+        max-height: 85vh;
+        overflow: hidden;
+        transform: scale(0.9) translateY(20px);
+        transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal {
+        transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .modal-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        max-height: 60vh;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    /* Toast Container */
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1100;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .toast {
+        padding: 12px 20px;
+        border-radius: 10px;
+        color: white;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        animation: slideInRight 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .toast.success { background: linear-gradient(135deg, #22c55e, #16a34a); }
+    .toast.error { background: linear-gradient(135deg, #ef4444, #dc2626); }
+    .toast.warning { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .toast.info { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+
+    @keyframes slideInRight {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Form Styles */
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--card-bg);
+        color: var(--text-primary);
+        font-size: 0.875rem;
+    }
+
+    .form-textarea {
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    /* Defect Image Grid */
+    .defect-images {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .defect-image-item {
+        aspect-ratio: 1;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .defect-image-item:hover {
+        transform: scale(1.05);
+        transition: transform 0.2s;
+    }
+
+    .defect-badge {
+        position: absolute;
+        bottom: 4px;
+        left: 4px;
+        background: rgba(239, 68, 68, 0.9);
+        color: white;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.6rem;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="quality-header">
+    <div>
+        <div class="header-title">
+            <h1>🔬 Quality Management Dashboard</h1>
+        </div>
+        <div class="header-subtitle">ISO 9001 • Zero Defect Manufacturing • SPC Monitoring</div>
+    </div>
+    <div class="quality-status-badge excellent">
+        <span class="pulse-dot"></span>
+        Quality Score: 99.6%
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-outline" onclick="openInspection()">📋 New Inspection</button>
+        <button class="btn btn-outline" onclick="openCAPA()">⚠️ Create CAPA</button>
+        <button class="btn btn-primary" onclick="exportReport()">📥 Quality Report</button>
+    </div>
+</div>
+
+<!-- Quality KPIs -->
+<div class="quality-kpis">
+    <div class="quality-kpi-card excellent">
+        <div class="kpi-icon">✓</div>
+        <div class="kpi-value">99.6%</div>
+        <div class="kpi-label">First Pass Yield</div>
+        <div class="kpi-trend up">↑ 0.2% vs last week</div>
+    </div>
+    <div class="quality-kpi-card excellent">
+        <div class="kpi-icon">📊</div>
+        <div class="kpi-value">1.12</div>
+        <div class="kpi-label">Cpk Index</div>
+        <div class="kpi-trend stable">→ On target</div>
+    </div>
+    <div class="quality-kpi-card warning">
+        <div class="kpi-icon">🔍</div>
+        <div class="kpi-value">23</div>
+        <div class="kpi-label">Open NCRs</div>
+        <div class="kpi-trend down">↑ 5 new this week</div>
+    </div>
+    <div class="quality-kpi-card good">
+        <div class="kpi-icon">⚙️</div>
+        <div class="kpi-value">0.4%</div>
+        <div class="kpi-label">Scrap Rate</div>
+        <div class="kpi-trend up">↓ 0.1% improved</div>
+    </div>
+    <div class="quality-kpi-card excellent">
+        <div class="kpi-icon">🎯</div>
+        <div class="kpi-value">142</div>
+        <div class="kpi-label">PPM Defects</div>
+        <div class="kpi-trend up">↓ 18 vs target</div>
+    </div>
+    <div class="quality-kpi-card good">
+        <div class="kpi-icon">📦</div>
+        <div class="kpi-value">98.2%</div>
+        <div class="kpi-label">Supplier Quality</div>
+        <div class="kpi-trend up">↑ 0.5% improved</div>
+    </div>
+</div>
+
+<!-- Vision AI Quality Inspection -->
+<div class="vision-section">
+    <div class="vision-header">
+        <div class="vision-title">
+            🤖 AI Vision Quality Inspection
+            <span class="vision-badge">YOLO11 • Real-time</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-outline btn-sm" onclick="openVisionSettings()">⚙️ Settings</button>
+            <button class="btn btn-outline btn-sm" onclick="viewAllDetections()">View All Detections</button>
+        </div>
+    </div>
+    <div class="vision-grid" id="visionGrid">
+        <!-- Camera 1 -->
+        <div class="vision-card" onclick="openCameraDetail('CAM-001')">
+            <div class="vision-card-header">
+                <span class="vision-camera-id">CAM-001</span>
+                <span class="vision-status"></span>
+            </div>
+            <div class="vision-preview">
+                <span class="vision-preview-text">Live Feed</span>
+                <span class="vision-overlay">30 FPS</span>
+                <div class="detection-box" style="top: 20%; left: 30%; width: 40%; height: 50%;"></div>
+            </div>
+            <div class="vision-stats">
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Inspected</span>
+                    <span class="vision-stat-value">1,247</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Defects</span>
+                    <span class="vision-stat-value" style="color: #22c55e;">0</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Accuracy</span>
+                    <span class="vision-stat-value">99.2%</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Latency</span>
+                    <span class="vision-stat-value">12ms</span>
+                </div>
+            </div>
+        </div>
+        <!-- Camera 2 -->
+        <div class="vision-card" onclick="openCameraDetail('CAM-002')">
+            <div class="vision-card-header">
+                <span class="vision-camera-id">CAM-002</span>
+                <span class="vision-status processing"></span>
+            </div>
+            <div class="vision-preview">
+                <span class="vision-preview-text">Live Feed</span>
+                <span class="vision-overlay">30 FPS</span>
+                <div class="detection-box defect" style="top: 35%; left: 45%; width: 25%; height: 30%;"></div>
+            </div>
+            <div class="vision-stats">
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Inspected</span>
+                    <span class="vision-stat-value">892</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Defects</span>
+                    <span class="vision-stat-value" style="color: #ef4444;">3</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Accuracy</span>
+                    <span class="vision-stat-value">98.8%</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Latency</span>
+                    <span class="vision-stat-value">15ms</span>
+                </div>
+            </div>
+        </div>
+        <!-- Camera 3 -->
+        <div class="vision-card" onclick="openCameraDetail('CAM-003')">
+            <div class="vision-card-header">
+                <span class="vision-camera-id">CAM-003</span>
+                <span class="vision-status"></span>
+            </div>
+            <div class="vision-preview">
+                <span class="vision-preview-text">Live Feed</span>
+                <span class="vision-overlay">30 FPS</span>
+                <div class="detection-box" style="top: 25%; left: 20%; width: 60%; height: 45%;"></div>
+            </div>
+            <div class="vision-stats">
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Inspected</span>
+                    <span class="vision-stat-value">1,089</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Defects</span>
+                    <span class="vision-stat-value" style="color: #22c55e;">1</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Accuracy</span>
+                    <span class="vision-stat-value">99.5%</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Latency</span>
+                    <span class="vision-stat-value">11ms</span>
+                </div>
+            </div>
+        </div>
+        <!-- Camera 4 -->
+        <div class="vision-card" onclick="openCameraDetail('CAM-004')">
+            <div class="vision-card-header">
+                <span class="vision-camera-id">CAM-004</span>
+                <span class="vision-status"></span>
+            </div>
+            <div class="vision-preview">
+                <span class="vision-preview-text">Live Feed</span>
+                <span class="vision-overlay">30 FPS</span>
+                <div class="detection-box" style="top: 30%; left: 25%; width: 50%; height: 40%;"></div>
+            </div>
+            <div class="vision-stats">
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Inspected</span>
+                    <span class="vision-stat-value">756</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Defects</span>
+                    <span class="vision-stat-value" style="color: #22c55e;">0</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Accuracy</span>
+                    <span class="vision-stat-value">99.7%</span>
+                </div>
+                <div class="vision-stat">
+                    <span class="vision-stat-label">Latency</span>
+                    <span class="vision-stat-value">13ms</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SPC and Defect Analysis -->
+<div class="quality-content">
+    <div class="spc-section">
+        <div class="spc-header">
+            <div class="spc-title">
+                📈 Statistical Process Control (SPC)
+            </div>
+            <div class="spc-controls">
+                <select class="spc-select" id="spc-parameter">
+                    <option>Dimension: Width</option>
+                    <option>Dimension: Height</option>
+                    <option>Dimension: Length</option>
+                    <option>Surface Roughness</option>
+                    <option>Weight</option>
+                </select>
+                <select class="spc-select" id="spc-range">
+                    <option>Last 50 samples</option>
+                    <option>Last 100 samples</option>
+                    <option>Today</option>
+                    <option>This week</option>
+                </select>
+            </div>
+        </div>
+        <div class="spc-chart-container">
+            <canvas id="spcChart"></canvas>
+        </div>
+        <div class="spc-limits">
+            <div class="limit-item">
+                <span class="limit-line ucl"></span>
+                <span>UCL: 8.05 mm</span>
+            </div>
+            <div class="limit-item">
+                <span class="limit-line cl"></span>
+                <span>CL: 8.00 mm</span>
+            </div>
+            <div class="limit-item">
+                <span class="limit-line lcl"></span>
+                <span>LCL: 7.95 mm</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="defect-section">
+        <div class="defect-header">
+            <div class="defect-title">🔴 Defect Pareto Analysis</div>
+            <div class="defect-total">Total: <strong>47</strong> defects</div>
+        </div>
+        <div class="defect-chart">
+            <canvas id="paretoChart"></canvas>
+        </div>
+        <div class="defect-list">
+            <div class="defect-item">
+                <span class="defect-color" style="background: #ef4444;"></span>
+                <span class="defect-name">Surface Imperfection</span>
+                <span class="defect-count">18</span>
+                <span class="defect-percent">38%</span>
+            </div>
+            <div class="defect-item">
+                <span class="defect-color" style="background: #f59e0b;"></span>
+                <span class="defect-name">Dimensional Variance</span>
+                <span class="defect-count">12</span>
+                <span class="defect-percent">26%</span>
+            </div>
+            <div class="defect-item">
+                <span class="defect-color" style="background: #3b82f6;"></span>
+                <span class="defect-name">Color Mismatch</span>
+                <span class="defect-count">9</span>
+                <span class="defect-percent">19%</span>
+            </div>
+            <div class="defect-item">
+                <span class="defect-color" style="background: #8b5cf6;"></span>
+                <span class="defect-name">Structural Defect</span>
+                <span class="defect-count">5</span>
+                <span class="defect-percent">11%</span>
+            </div>
+            <div class="defect-item">
+                <span class="defect-color" style="background: #6b7280;"></span>
+                <span class="defect-name">Other</span>
+                <span class="defect-count">3</span>
+                <span class="defect-percent">6%</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Inspections -->
+<div class="inspections-section">
+    <div class="inspections-header">
+        <div class="inspections-title">📋 Recent Quality Inspections</div>
+        <button class="btn btn-outline btn-sm">View All</button>
+    </div>
+    <table class="inspections-table">
+        <thead>
+            <tr>
+                <th>Inspection ID</th>
+                <th>Part/Batch</th>
+                <th>Type</th>
+                <th>Inspector</th>
+                <th>Date/Time</th>
+                <th>Result</th>
+                <th>Findings</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>QC-2024-0158</strong></td>
+                <td>LEGO 3001 / Batch-2024-0042</td>
+                <td>Dimensional</td>
+                <td>Auto Vision</td>
+                <td>Today, 14:32</td>
+                <td><span class="inspection-result pass">✓ Pass</span></td>
+                <td>All dimensions within spec</td>
+            </tr>
+            <tr>
+                <td><strong>QC-2024-0157</strong></td>
+                <td>LEGO 3002 / Batch-2024-0041</td>
+                <td>Visual</td>
+                <td>J. Smith</td>
+                <td>Today, 13:45</td>
+                <td><span class="inspection-result fail">✗ Fail</span></td>
+                <td>Surface scratch on 2 units</td>
+            </tr>
+            <tr>
+                <td><strong>QC-2024-0156</strong></td>
+                <td>LEGO 3003 / Batch-2024-0040</td>
+                <td>Functional</td>
+                <td>Auto Vision</td>
+                <td>Today, 12:15</td>
+                <td><span class="inspection-result pass">✓ Pass</span></td>
+                <td>Stud connection test passed</td>
+            </tr>
+            <tr>
+                <td><strong>QC-2024-0155</strong></td>
+                <td>Baseplate 32x32 / Batch-2024-0039</td>
+                <td>Incoming</td>
+                <td>M. Johnson</td>
+                <td>Today, 10:30</td>
+                <td><span class="inspection-result pending">⏳ Pending</span></td>
+                <td>Awaiting lab results</td>
+            </tr>
+            <tr>
+                <td><strong>QC-2024-0154</strong></td>
+                <td>LEGO 3001 / Batch-2024-0038</td>
+                <td>Material</td>
+                <td>Lab</td>
+                <td>Yesterday, 16:20</td>
+                <td><span class="inspection-result pass">✓ Pass</span></td>
+                <td>ABS composition verified</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Bottom Grid -->
+<div class="bottom-grid">
+    <!-- CAPA Section -->
+    <div class="capa-section">
+        <div class="capa-header">
+            <div class="capa-title">⚠️ CAPA Tracker</div>
+            <button class="btn btn-outline btn-sm">View All</button>
+        </div>
+        <div class="capa-stats">
+            <div class="capa-stat">
+                <div class="capa-stat-value critical">4</div>
+                <div class="capa-stat-label">Overdue</div>
+            </div>
+            <div class="capa-stat">
+                <div class="capa-stat-value warning">12</div>
+                <div class="capa-stat-label">In Progress</div>
+            </div>
+            <div class="capa-stat">
+                <div class="capa-stat-value">28</div>
+                <div class="capa-stat-label">Closed MTD</div>
+            </div>
+        </div>
+        <div class="capa-list">
+            <div class="capa-item">
+                <span class="capa-priority high"></span>
+                <span class="capa-id">CAPA-2024-089</span>
+                <span class="capa-desc">Surface defect root cause</span>
+                <span class="capa-due">Due: Today</span>
+            </div>
+            <div class="capa-item">
+                <span class="capa-priority high"></span>
+                <span class="capa-id">CAPA-2024-087</span>
+                <span class="capa-desc">Dimension variance WC-003</span>
+                <span class="capa-due">Due: Tomorrow</span>
+            </div>
+            <div class="capa-item">
+                <span class="capa-priority medium"></span>
+                <span class="capa-id">CAPA-2024-085</span>
+                <span class="capa-desc">Color calibration update</span>
+                <span class="capa-due">Due: Jan 25</span>
+            </div>
+            <div class="capa-item">
+                <span class="capa-priority low"></span>
+                <span class="capa-id">CAPA-2024-082</span>
+                <span class="capa-desc">Procedure documentation</span>
+                <span class="capa-due">Due: Jan 30</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supplier Quality -->
+    <div class="supplier-section">
+        <div class="capa-header">
+            <div class="capa-title">📦 Supplier Quality</div>
+            <button class="btn btn-outline btn-sm">Scorecard</button>
+        </div>
+        <div class="supplier-list">
+            <div class="supplier-item">
+                <div class="supplier-logo">AB</div>
+                <div class="supplier-info">
+                    <div class="supplier-name">ABS Polymers Inc.</div>
+                    <div class="supplier-material">ABS Pellets, Raw Material</div>
+                </div>
+                <div class="supplier-score">
+                    <div class="supplier-score-value" style="color: #10b981;">98.5%</div>
+                    <div class="supplier-score-label">Quality Score</div>
+                </div>
+            </div>
+            <div class="supplier-item">
+                <div class="supplier-logo">PL</div>
+                <div class="supplier-info">
+                    <div class="supplier-name">PLA Solutions</div>
+                    <div class="supplier-material">PLA Filament</div>
+                </div>
+                <div class="supplier-score">
+                    <div class="supplier-score-value" style="color: #10b981;">97.2%</div>
+                    <div class="supplier-score-label">Quality Score</div>
+                </div>
+            </div>
+            <div class="supplier-item">
+                <div class="supplier-logo">CP</div>
+                <div class="supplier-info">
+                    <div class="supplier-name">ColorPig Additives</div>
+                    <div class="supplier-material">Color Pigments</div>
+                </div>
+                <div class="supplier-score">
+                    <div class="supplier-score-value" style="color: #3b82f6;">94.8%</div>
+                    <div class="supplier-score-label">Quality Score</div>
+                </div>
+            </div>
+            <div class="supplier-item">
+                <div class="supplier-logo">PK</div>
+                <div class="supplier-info">
+                    <div class="supplier-name">PackRight Solutions</div>
+                    <div class="supplier-material">Packaging Materials</div>
+                </div>
+                <div class="supplier-score">
+                    <div class="supplier-score-value" style="color: #f59e0b;">89.3%</div>
+                    <div class="supplier-score-label">Quality Score</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quality Alerts -->
+    <div class="alerts-section">
+        <div class="capa-header">
+            <div class="capa-title">🔔 Quality Alerts</div>
+            <button class="btn btn-outline btn-sm">Clear All</button>
+        </div>
+        <div class="alert-list">
+            <div class="alert-item critical">
+                <span class="alert-icon">🚨</span>
+                <div class="alert-content">
+                    <div class="alert-title">SPC Out of Control</div>
+                    <div class="alert-desc">WC-003 dimension exceeds UCL</div>
+                </div>
+                <div class="alert-time">5 min ago</div>
+            </div>
+            <div class="alert-item warning">
+                <span class="alert-icon">⚠️</span>
+                <div class="alert-content">
+                    <div class="alert-title">Cpk Trending Down</div>
+                    <div class="alert-desc">Surface roughness approaching limit</div>
+                </div>
+                <div class="alert-time">23 min ago</div>
+            </div>
+            <div class="alert-item info">
+                <span class="alert-icon">ℹ️</span>
+                <div class="alert-content">
+                    <div class="alert-title">Calibration Due</div>
+                    <div class="alert-desc">Vision system QS-001 in 3 days</div>
+                </div>
+                <div class="alert-time">1 hour ago</div>
+            </div>
+            <div class="alert-item info">
+                <span class="alert-icon">ℹ️</span>
+                <div class="alert-content">
+                    <div class="alert-title">New Spec Released</div>
+                    <div class="alert-desc">LEGO 3001 v2.1 specifications</div>
+                </div>
+                <div class="alert-time">2 hours ago</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- Camera Detail Modal -->
+<div class="modal-overlay" id="cameraModal">
+    <div class="modal" style="max-width: 900px;">
+        <div class="modal-header">
+            <h2>📹 <span id="cameraModalTitle">CAM-001</span> - Vision AI Detail</h2>
+            <button class="modal-close" onclick="closeModal('cameraModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 1.5rem;">
+                <!-- Live Feed Preview -->
+                <div>
+                    <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 12px; height: 280px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                        <span style="color: rgba(255,255,255,0.4); font-size: 1.25rem;">AI Vision Feed</span>
+                        <div class="detection-box" style="top: 20%; left: 25%; width: 50%; height: 60%;"></div>
+                        <span style="position: absolute; top: 12px; right: 12px; background: rgba(34, 197, 94, 0.9); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 600;">🟢 LIVE</span>
+                        <span style="position: absolute; bottom: 12px; left: 12px; background: rgba(0,0,0,0.7); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem;">YOLO11 • 30 FPS • 1920x1080</span>
+                    </div>
+                    <!-- Detection History -->
+                    <div style="margin-top: 1rem;">
+                        <div style="font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);">Recent Detections</div>
+                        <div class="defect-images">
+                            <div class="defect-image-item">
+                                <span style="color: rgba(255,255,255,0.4); font-size: 0.6rem;">14:32:01</span>
+                                <span class="defect-badge">OK</span>
+                            </div>
+                            <div class="defect-image-item">
+                                <span style="color: rgba(255,255,255,0.4); font-size: 0.6rem;">14:31:58</span>
+                                <span class="defect-badge" style="background: rgba(34, 197, 94, 0.9);">OK</span>
+                            </div>
+                            <div class="defect-image-item">
+                                <span style="color: rgba(255,255,255,0.4); font-size: 0.6rem;">14:31:55</span>
+                                <span class="defect-badge">DEFECT</span>
+                            </div>
+                            <div class="defect-image-item">
+                                <span style="color: rgba(255,255,255,0.4); font-size: 0.6rem;">14:31:52</span>
+                                <span class="defect-badge" style="background: rgba(34, 197, 94, 0.9);">OK</span>
+                            </div>
+                            <div class="defect-image-item">
+                                <span style="color: rgba(255,255,255,0.4); font-size: 0.6rem;">14:31:49</span>
+                                <span class="defect-badge" style="background: rgba(34, 197, 94, 0.9);">OK</span>
+                            </div>
+                            <div class="defect-image-item">
+                                <span style="color: rgba(255,255,255,0.4); font-size: 0.6rem;">14:31:46</span>
+                                <span class="defect-badge" style="background: rgba(34, 197, 94, 0.9);">OK</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Stats Panel -->
+                <div>
+                    <div style="background: rgba(0,0,0,0.03); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <div style="font-weight: 600; margin-bottom: 1rem; color: var(--text-primary);">Session Statistics</div>
+                        <div style="display: grid; gap: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Total Inspected</span>
+                                <span style="font-weight: 600;" id="camDetailInspected">1,247</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Defects Found</span>
+                                <span style="font-weight: 600; color: #ef4444;" id="camDetailDefects">3</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Accuracy</span>
+                                <span style="font-weight: 600; color: #22c55e;" id="camDetailAccuracy">99.2%</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Avg Latency</span>
+                                <span style="font-weight: 600;" id="camDetailLatency">12 ms</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span style="color: var(--text-secondary);">Confidence Threshold</span>
+                                <span style="font-weight: 600;">85%</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.03); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <div style="font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);">Model Info</div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); display: grid; gap: 0.5rem;">
+                            <div>Model: <strong style="color: var(--text-primary);">YOLO11-m</strong></div>
+                            <div>Classes: <strong style="color: var(--text-primary);">8 defect types</strong></div>
+                            <div>Last Trained: <strong style="color: var(--text-primary);">Jan 15, 2025</strong></div>
+                            <div>Version: <strong style="color: var(--text-primary);">v2.3.1</strong></div>
+                        </div>
+                    </div>
+                    <div style="background: rgba(0,0,0,0.03); border-radius: 10px; padding: 1rem;">
+                        <div style="font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);">Quick Actions</div>
+                        <div style="display: grid; gap: 0.5rem;">
+                            <button class="btn btn-outline btn-sm" onclick="recalibrate()" style="width: 100%;">🎯 Recalibrate</button>
+                            <button class="btn btn-outline btn-sm" onclick="downloadLog()" style="width: 100%;">📥 Download Log</button>
+                            <button class="btn btn-outline btn-sm" onclick="reportIssue()" style="width: 100%;">🐛 Report Issue</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('cameraModal')">Close</button>
+            <button class="btn btn-primary" onclick="openFullscreen()">🖥️ Fullscreen View</button>
+        </div>
+    </div>
+</div>
+
+<!-- New Inspection Modal -->
+<div class="modal-overlay" id="inspectionModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>📋 New Quality Inspection</h2>
+            <button class="modal-close" onclick="closeModal('inspectionModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="inspectionForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Inspection Type</label>
+                        <select class="form-select" name="type" required>
+                            <option value="">Select type...</option>
+                            <option value="dimensional">Dimensional</option>
+                            <option value="visual">Visual</option>
+                            <option value="functional">Functional</option>
+                            <option value="material">Material</option>
+                            <option value="incoming">Incoming</option>
+                            <option value="final">Final</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Part Number</label>
+                        <select class="form-select" name="part" required>
+                            <option value="">Select part...</option>
+                            <option value="3001">LEGO 3001 - 2x4 Brick</option>
+                            <option value="3002">LEGO 3002 - 2x3 Brick</option>
+                            <option value="3003">LEGO 3003 - 2x2 Brick</option>
+                            <option value="3004">LEGO 3004 - 1x2 Brick</option>
+                            <option value="baseplate">Baseplate 32x32</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Batch Number</label>
+                        <input type="text" class="form-input" name="batch" placeholder="e.g., Batch-2024-0042" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Sample Size</label>
+                        <input type="number" class="form-input" name="sampleSize" placeholder="e.g., 50" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Work Center</label>
+                    <select class="form-select" name="workCenter">
+                        <option value="">Select work center...</option>
+                        <option value="WC-001">WC-001 - Injection Molding</option>
+                        <option value="WC-002">WC-002 - Assembly Line A</option>
+                        <option value="WC-003">WC-003 - Packaging</option>
+                        <option value="WC-004">WC-004 - 3D Print Farm</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Parameters to Check</label>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="checkbox" name="params" value="dimension" checked> Dimensions
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="checkbox" name="params" value="surface" checked> Surface Quality
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="checkbox" name="params" value="color"> Color Match
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="checkbox" name="params" value="weight"> Weight
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="checkbox" name="params" value="stud"> Stud Connection
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                            <input type="checkbox" name="params" value="material"> Material Test
+                        </label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-textarea" name="notes" placeholder="Any additional notes or observations..."></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('inspectionModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitInspection()">Start Inspection</button>
+        </div>
+    </div>
+</div>
+
+<!-- CAPA Modal -->
+<div class="modal-overlay" id="capaModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h2>⚠️ Create CAPA (Corrective and Preventive Action)</h2>
+            <button class="modal-close" onclick="closeModal('capaModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="capaForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">CAPA Type</label>
+                        <select class="form-select" name="type" required>
+                            <option value="">Select type...</option>
+                            <option value="corrective">Corrective Action</option>
+                            <option value="preventive">Preventive Action</option>
+                            <option value="both">Both</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Priority</label>
+                        <select class="form-select" name="priority" required>
+                            <option value="">Select priority...</option>
+                            <option value="critical">🔴 Critical</option>
+                            <option value="high">🟠 High</option>
+                            <option value="medium">🟡 Medium</option>
+                            <option value="low">🟢 Low</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Issue Title</label>
+                    <input type="text" class="form-input" name="title" placeholder="Brief description of the issue" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Source/Origin</label>
+                    <select class="form-select" name="source">
+                        <option value="">Select source...</option>
+                        <option value="inspection">Quality Inspection</option>
+                        <option value="customer">Customer Complaint</option>
+                        <option value="audit">Internal Audit</option>
+                        <option value="spc">SPC Out of Control</option>
+                        <option value="supplier">Supplier Issue</option>
+                        <option value="process">Process Deviation</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Problem Description</label>
+                    <textarea class="form-textarea" name="description" placeholder="Detailed description of the problem..." required></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Affected Part(s)</label>
+                        <input type="text" class="form-input" name="parts" placeholder="e.g., LEGO 3001, 3002">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Affected Batch(es)</label>
+                        <input type="text" class="form-input" name="batches" placeholder="e.g., Batch-2024-0042">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Assigned To</label>
+                        <select class="form-select" name="assignee" required>
+                            <option value="">Select team member...</option>
+                            <option value="j.smith">J. Smith - Quality Engineer</option>
+                            <option value="m.johnson">M. Johnson - Process Engineer</option>
+                            <option value="r.chen">R. Chen - Quality Manager</option>
+                            <option value="k.williams">K. Williams - Production Lead</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Due Date</label>
+                        <input type="date" class="form-input" name="dueDate" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Root Cause (5 Why Analysis)</label>
+                    <textarea class="form-textarea" name="rootCause" placeholder="Initial root cause analysis..." style="min-height: 80px;"></textarea>
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('capaModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitCAPA()">Create CAPA</button>
+        </div>
+    </div>
+</div>
+
+<!-- Vision Settings Modal -->
+<div class="modal-overlay" id="visionSettingsModal">
+    <div class="modal" style="max-width: 600px;">
+        <div class="modal-header">
+            <h2>⚙️ Vision AI Settings</h2>
+            <button class="modal-close" onclick="closeModal('visionSettingsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Model Selection</label>
+                <select class="form-select" name="model">
+                    <option value="yolo11-m" selected>YOLO11-m (Recommended)</option>
+                    <option value="yolo11-s">YOLO11-s (Fast)</option>
+                    <option value="yolo11-l">YOLO11-l (High Accuracy)</option>
+                    <option value="custom">Custom Model</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Confidence Threshold: <span id="confValue">85%</span></label>
+                <input type="range" min="50" max="99" value="85" style="width: 100%;" oninput="document.getElementById('confValue').textContent = this.value + '%'">
+            </div>
+            <div class="form-group">
+                <label class="form-label">IOU Threshold: <span id="iouValue">45%</span></label>
+                <input type="range" min="20" max="80" value="45" style="width: 100%;" oninput="document.getElementById('iouValue').textContent = this.value + '%'">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Defect Classes to Detect</label>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Surface Scratch
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Dimensional Error
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Color Mismatch
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Structural Defect
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Surface Bubble
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Warping
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Flash/Burr
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Stud Defect
+                    </label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Alert Settings</label>
+                <div style="display: grid; gap: 0.5rem; margin-top: 0.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Alert on defect detection
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox" checked> Auto-create NCR for critical defects
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                        <input type="checkbox"> Stop line on consecutive defects (3+)
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('visionSettingsModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveVisionSettings()">Save Settings</button>
+        </div>
+    </div>
+</div>
+
+<!-- All Detections Modal -->
+<div class="modal-overlay" id="detectionsModal">
+    <div class="modal" style="max-width: 1000px;">
+        <div class="modal-header">
+            <h2>🔍 All Detections - Today</h2>
+            <button class="modal-close" onclick="closeModal('detectionsModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                <select class="form-select" style="width: auto;">
+                    <option>All Cameras</option>
+                    <option>CAM-001</option>
+                    <option>CAM-002</option>
+                    <option>CAM-003</option>
+                    <option>CAM-004</option>
+                </select>
+                <select class="form-select" style="width: auto;">
+                    <option>All Results</option>
+                    <option>Defects Only</option>
+                    <option>Passed Only</option>
+                </select>
+                <select class="form-select" style="width: auto;">
+                    <option>Today</option>
+                    <option>Last 24 Hours</option>
+                    <option>This Week</option>
+                    <option>Custom Range</option>
+                </select>
+                <button class="btn btn-outline btn-sm">Export CSV</button>
+            </div>
+            <table class="inspections-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Camera</th>
+                        <th>Part</th>
+                        <th>Result</th>
+                        <th>Defect Type</th>
+                        <th>Confidence</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>14:32:15</td>
+                        <td>CAM-002</td>
+                        <td>LEGO 3001</td>
+                        <td><span class="inspection-result fail">✗ Defect</span></td>
+                        <td>Surface Scratch</td>
+                        <td>92.4%</td>
+                        <td><button class="btn btn-outline btn-sm">View</button></td>
+                    </tr>
+                    <tr>
+                        <td>14:31:58</td>
+                        <td>CAM-001</td>
+                        <td>LEGO 3001</td>
+                        <td><span class="inspection-result pass">✓ Pass</span></td>
+                        <td>-</td>
+                        <td>98.1%</td>
+                        <td><button class="btn btn-outline btn-sm">View</button></td>
+                    </tr>
+                    <tr>
+                        <td>14:31:45</td>
+                        <td>CAM-003</td>
+                        <td>LEGO 3002</td>
+                        <td><span class="inspection-result pass">✓ Pass</span></td>
+                        <td>-</td>
+                        <td>99.2%</td>
+                        <td><button class="btn btn-outline btn-sm">View</button></td>
+                    </tr>
+                    <tr>
+                        <td>14:31:32</td>
+                        <td>CAM-002</td>
+                        <td>LEGO 3001</td>
+                        <td><span class="inspection-result fail">✗ Defect</span></td>
+                        <td>Color Mismatch</td>
+                        <td>87.6%</td>
+                        <td><button class="btn btn-outline btn-sm">View</button></td>
+                    </tr>
+                    <tr>
+                        <td>14:31:18</td>
+                        <td>CAM-004</td>
+                        <td>LEGO 3003</td>
+                        <td><span class="inspection-result pass">✓ Pass</span></td>
+                        <td>-</td>
+                        <td>97.8%</td>
+                        <td><button class="btn btn-outline btn-sm">View</button></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                <span style="color: var(--text-secondary); font-size: 0.875rem;">Showing 1-5 of 3,984 detections</span>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="btn btn-outline btn-sm" disabled>← Previous</button>
+                    <button class="btn btn-outline btn-sm">Next →</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('detectionsModal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="exportModal">
+    <div class="modal" style="max-width: 500px;">
+        <div class="modal-header">
+            <h2>📥 Export Quality Report</h2>
+            <button class="modal-close" onclick="closeModal('exportModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Report Type</label>
+                <select class="form-select" name="reportType">
+                    <option value="summary">Quality Summary Report</option>
+                    <option value="spc">SPC Analysis Report</option>
+                    <option value="defect">Defect Pareto Report</option>
+                    <option value="inspection">Inspection Log</option>
+                    <option value="capa">CAPA Status Report</option>
+                    <option value="full">Full Quality Report</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Date Range</label>
+                <div class="form-row">
+                    <input type="date" class="form-input" value="2025-01-01">
+                    <input type="date" class="form-input" value="2025-01-20">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Export Format</label>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
+                    <button class="btn btn-outline" style="display: flex; flex-direction: column; align-items: center; padding: 1rem;" onclick="generateReport('pdf')">
+                        <span style="font-size: 1.5rem;">📄</span>
+                        <span>PDF Report</span>
+                    </button>
+                    <button class="btn btn-outline" style="display: flex; flex-direction: column; align-items: center; padding: 1rem;" onclick="generateReport('excel')">
+                        <span style="font-size: 1.5rem;">📊</span>
+                        <span>Excel (.xlsx)</span>
+                    </button>
+                    <button class="btn btn-outline" style="display: flex; flex-direction: column; align-items: center; padding: 1rem;" onclick="generateReport('csv')">
+                        <span style="font-size: 1.5rem;">📋</span>
+                        <span>CSV Data</span>
+                    </button>
+                    <button class="btn btn-outline" style="display: flex; flex-direction: column; align-items: center; padding: 1rem;" onclick="generateReport('pptx')">
+                        <span style="font-size: 1.5rem;">📽️</span>
+                        <span>PowerPoint</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('exportModal')">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // ============================================
+    // Pattern-Based Quality Simulation
+    // Deterministic patterns instead of random
+    // ============================================
+    const QualityPatterns = {
+        // Generate SPC measurement based on time
+        getSPCMeasurement(sampleIndex) {
+            const now = new Date();
+            const secondFraction = now.getSeconds() / 60;
+            const mean = 8.0;
+            const sigma = 0.015;
+
+            // Base sinusoidal pattern
+            const phaseOffset = sampleIndex * 0.1;
+            const baseVariation = Math.sin((secondFraction + phaseOffset) * Math.PI * 2) * sigma * 2;
+
+            // Occasional special cause (every ~20 samples based on index)
+            const specialCause = (sampleIndex % 23 === 0) ? Math.sin(sampleIndex * 0.5) * 0.04 : 0;
+
+            return mean + baseVariation + specialCause;
+        },
+
+        // Pattern-based vision inspection rate
+        getInspectionIncrement(cameraIndex) {
+            const now = new Date();
+            const secondMod = now.getSeconds() % 10;
+            // Different cameras have different throughput patterns
+            const baseRates = [2, 3, 2, 1];
+            return baseRates[cameraIndex % 4] + (secondMod % 3);
+        },
+
+        // Pattern-based defect probability (deterministic)
+        shouldAddDefect(cameraIndex, inspectionCount) {
+            // Defect every ~50 inspections per camera
+            return inspectionCount % (45 + cameraIndex * 5) === 0;
+        },
+
+        // Pattern-based latency
+        getLatency(cameraIndex, baseLatency) {
+            const now = new Date();
+            const secondFraction = now.getSeconds() / 60;
+            const phaseOffset = cameraIndex * 0.25;
+            const variation = Math.sin((secondFraction + phaseOffset) * Math.PI * 2) * 2;
+            return Math.max(8, Math.min(20, baseLatency + variation));
+        },
+
+        // Pattern-based KPIs
+        getFPY() {
+            const now = new Date();
+            const hourFraction = now.getHours() + now.getMinutes() / 60;
+            // FPY varies slightly with shift (day shift best)
+            const shiftBonus = (now.getHours() >= 6 && now.getHours() < 14) ? 0.2 : 0;
+            const variation = Math.sin(hourFraction * Math.PI / 12) * 0.2;
+            return 99.4 + shiftBonus + variation;
+        },
+
+        getCpk() {
+            const now = new Date();
+            const minuteFraction = now.getMinutes() / 60;
+            const variation = Math.sin(minuteFraction * Math.PI * 2) * 0.04;
+            return 1.08 + variation;
+        },
+
+        getPPM() {
+            const now = new Date();
+            const hourFraction = now.getHours() + now.getMinutes() / 60;
+            const variation = Math.sin(hourFraction * Math.PI / 6) * 7;
+            return Math.floor(142 + variation);
+        }
+    };
+
+    // Generate SPC data using patterns
+    function generateSPCData(count) {
+        const data = [];
+        for (let i = 0; i < count; i++) {
+            data.push(QualityPatterns.getSPCMeasurement(i));
+        }
+        return data;
+    }
+
+    function initSPCChart() {
+        const ctx = document.getElementById('spcChart').getContext('2d');
+        const spcData = generateSPCData(50);
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 50}, (_, i) => i + 1),
+                datasets: [
+                    {
+                        label: 'Measurement',
+                        data: spcData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: spcData.map(v =>
+                            v > 8.05 || v < 7.95 ? '#ef4444' : '#3b82f6'
+                        ),
+                        fill: false,
+                        tension: 0,
+                    },
+                    {
+                        label: 'UCL',
+                        data: Array(50).fill(8.05),
+                        borderColor: '#ef4444',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false,
+                    },
+                    {
+                        label: 'CL',
+                        data: Array(50).fill(8.0),
+                        borderColor: '#10b981',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false,
+                    },
+                    {
+                        label: 'LCL',
+                        data: Array(50).fill(7.95),
+                        borderColor: '#ef4444',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        min: 7.92,
+                        max: 8.08,
+                        ticks: {
+                            callback: value => value.toFixed(2) + ' mm'
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Sample Number'
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function initParetoChart() {
+        const ctx = document.getElementById('paretoChart').getContext('2d');
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Surface', 'Dimension', 'Color', 'Structural', 'Other'],
+                datasets: [{
+                    label: 'Defects',
+                    data: [18, 12, 9, 5, 3],
+                    backgroundColor: [
+                        '#ef4444',
+                        '#f59e0b',
+                        '#3b82f6',
+                        '#8b5cf6',
+                        '#6b7280'
+                    ],
+                    borderRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ========================
+    // Modal Functions
+    // ========================
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // Close modal on backdrop click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+        }
+    });
+
+    // ========================
+    // Toast Notifications
+    // ========================
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const icons = {
+            success: '✓',
+            error: '✗',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+
+        toast.innerHTML = `<span>${icons[type] || icons.info}</span> ${message}`;
+        container.appendChild(toast);
+
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            toast.style.animation = 'slideInRight 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
+    }
+
+    // ========================
+    // Vision AI Functions
+    // ========================
+    const cameraData = {
+        'CAM-001': { inspected: 1247, defects: 0, accuracy: 99.2, latency: 12 },
+        'CAM-002': { inspected: 892, defects: 3, accuracy: 98.8, latency: 15 },
+        'CAM-003': { inspected: 1089, defects: 1, accuracy: 99.5, latency: 11 },
+        'CAM-004': { inspected: 756, defects: 0, accuracy: 99.7, latency: 13 }
+    };
+
+    function openCameraDetail(cameraId) {
+        const data = cameraData[cameraId];
+        document.getElementById('cameraModalTitle').textContent = cameraId;
+        document.getElementById('camDetailInspected').textContent = data.inspected.toLocaleString();
+        document.getElementById('camDetailDefects').textContent = data.defects;
+        document.getElementById('camDetailAccuracy').textContent = data.accuracy + '%';
+        document.getElementById('camDetailLatency').textContent = data.latency + ' ms';
+        openModal('cameraModal');
+    }
+
+    function openVisionSettings() {
+        openModal('visionSettingsModal');
+    }
+
+    function saveVisionSettings() {
+        closeModal('visionSettingsModal');
+        showToast('Vision AI settings saved successfully', 'success');
+    }
+
+    function viewAllDetections() {
+        openModal('detectionsModal');
+    }
+
+    function recalibrate() {
+        showToast('Starting camera recalibration...', 'info');
+        setTimeout(() => {
+            showToast('Camera recalibration completed', 'success');
+        }, 2000);
+    }
+
+    function downloadLog() {
+        showToast('Downloading detection log...', 'info');
+        setTimeout(() => {
+            showToast('Log downloaded successfully', 'success');
+        }, 1500);
+    }
+
+    function reportIssue() {
+        closeModal('cameraModal');
+        openModal('capaModal');
+    }
+
+    function openFullscreen() {
+        showToast('Opening fullscreen view...', 'info');
+    }
+
+    // ========================
+    // Inspection Functions
+    // ========================
+    function openInspection() {
+        openModal('inspectionModal');
+    }
+
+    function submitInspection() {
+        const form = document.getElementById('inspectionForm');
+        const type = form.querySelector('[name="type"]').value;
+        const part = form.querySelector('[name="part"]').value;
+        const batch = form.querySelector('[name="batch"]').value;
+
+        if (!type || !part || !batch) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        closeModal('inspectionModal');
+        showToast('Inspection QC-2024-0159 created successfully', 'success');
+
+        // Reset form
+        form.reset();
+    }
+
+    // ========================
+    // CAPA Functions
+    // ========================
+    function openCAPA() {
+        openModal('capaModal');
+    }
+
+    function submitCAPA() {
+        const form = document.getElementById('capaForm');
+        const type = form.querySelector('[name="type"]').value;
+        const priority = form.querySelector('[name="priority"]').value;
+        const title = form.querySelector('[name="title"]').value;
+
+        if (!type || !priority || !title) {
+            showToast('Please fill in all required fields', 'error');
+            return;
+        }
+
+        closeModal('capaModal');
+        showToast('CAPA-2024-090 created and assigned successfully', 'success');
+
+        // Reset form
+        form.reset();
+    }
+
+    // ========================
+    // Export Functions
+    // ========================
+    function exportReport() {
+        openModal('exportModal');
+    }
+
+    function generateReport(format) {
+        closeModal('exportModal');
+        showToast(`Generating ${format.toUpperCase()} report...`, 'info');
+
+        setTimeout(() => {
+            showToast(`${format.toUpperCase()} report generated and downloaded`, 'success');
+        }, 2000);
+    }
+
+    // ========================
+    // Real-time Updates
+    // ========================
+    function updateVisionStats() {
+        const cameras = ['CAM-001', 'CAM-002', 'CAM-003', 'CAM-004'];
+
+        cameras.forEach((cam, index) => {
+            const card = document.querySelectorAll('.vision-card')[index];
+            if (!card) return;
+
+            const data = cameraData[cam];
+
+            // Increment inspected count using pattern
+            data.inspected += QualityPatterns.getInspectionIncrement(index);
+
+            // Add defect based on deterministic pattern
+            if (QualityPatterns.shouldAddDefect(index, data.inspected)) {
+                data.defects += 1;
+            }
+
+            // Update latency with pattern-based variation
+            data.latency = QualityPatterns.getLatency(index, 12);
+
+            // Update display
+            const stats = card.querySelectorAll('.vision-stat-value');
+            if (stats[0]) stats[0].textContent = data.inspected.toLocaleString();
+            if (stats[1]) {
+                stats[1].textContent = data.defects;
+                stats[1].style.color = data.defects > 0 ? '#ef4444' : '#22c55e';
+            }
+            if (stats[2]) stats[2].textContent = data.accuracy.toFixed(1) + '%';
+            if (stats[3]) stats[3].textContent = Math.round(data.latency) + 'ms';
+        });
+    }
+
+    function updateQualityKPIs() {
+        // Pattern-based KPI variations
+        const kpiCards = document.querySelectorAll('.quality-kpi-card .kpi-value');
+
+        // First Pass Yield - pattern-based
+        if (kpiCards[0]) {
+            const fpy = QualityPatterns.getFPY().toFixed(1);
+            kpiCards[0].textContent = fpy + '%';
+        }
+
+        // Cpk Index - pattern-based
+        if (kpiCards[1]) {
+            const cpk = QualityPatterns.getCpk().toFixed(2);
+            kpiCards[1].textContent = cpk;
+        }
+
+        // PPM Defects - pattern-based
+        if (kpiCards[4]) {
+            const ppm = QualityPatterns.getPPM();
+            kpiCards[4].textContent = ppm;
+        }
+    }
+
+    function startLiveUpdates() {
+        // Update Vision AI stats every 3 seconds
+        setInterval(updateVisionStats, 3000);
+
+        // Update Quality KPIs every 10 seconds
+        setInterval(updateQualityKPIs, 10000);
+    }
+
+    // ========================
+    // SPC Chart Real-time Update
+    // ========================
+    let spcChart = null;
+
+    function initSPCChartEnhanced() {
+        const ctx = document.getElementById('spcChart').getContext('2d');
+        const spcData = generateSPCData(50);
+
+        spcChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array.from({length: 50}, (_, i) => i + 1),
+                datasets: [
+                    {
+                        label: 'Measurement',
+                        data: spcData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        pointBackgroundColor: spcData.map(v =>
+                            v > 8.05 || v < 7.95 ? '#ef4444' : '#3b82f6'
+                        ),
+                        fill: false,
+                        tension: 0,
+                    },
+                    {
+                        label: 'UCL',
+                        data: Array(50).fill(8.05),
+                        borderColor: '#ef4444',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false,
+                    },
+                    {
+                        label: 'CL',
+                        data: Array(50).fill(8.0),
+                        borderColor: '#10b981',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false,
+                    },
+                    {
+                        label: 'LCL',
+                        data: Array(50).fill(7.95),
+                        borderColor: '#ef4444',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        min: 7.92,
+                        max: 8.08,
+                        ticks: {
+                            callback: value => value.toFixed(2) + ' mm'
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Sample Number'
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // Update SPC chart with new data points every 5 seconds
+        let spcSampleCounter = 50;
+        setInterval(() => {
+            spcSampleCounter++;
+            const newValue = QualityPatterns.getSPCMeasurement(spcSampleCounter);
+
+            spcChart.data.datasets[0].data.shift();
+            spcChart.data.datasets[0].data.push(newValue);
+
+            // Update point colors based on control limits
+            spcChart.data.datasets[0].pointBackgroundColor =
+                spcChart.data.datasets[0].data.map(v =>
+                    v > 8.05 || v < 7.95 ? '#ef4444' : '#3b82f6'
+                );
+
+            spcChart.update('none');
+
+            // Check for out of control condition
+            if (newValue > 8.05 || newValue < 7.95) {
+                showToast('SPC Alert: Measurement out of control limits!', 'warning');
+            }
+        }, 5000);
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        initSPCChartEnhanced();
+        initParetoChart();
+        startLiveUpdates();
+
+        // Show initial welcome toast
+        setTimeout(() => {
+            showToast('Quality Dashboard loaded - Vision AI active', 'success');
+        }, 500);
+    });
+</script>
+{% endblock %}

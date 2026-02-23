@@ -1,0 +1,2228 @@
+{% extends "base.html" %}
+
+{% block title %}Real-Time Analytics - LEGO MCP v6.0{% endblock %}
+
+{% block styles %}
+<style>
+    /* =====================================================
+       REAL-TIME ANALYTICS DASHBOARD - WORLD-CLASS HMI
+       LEGO MCP v6.0 Manufacturing Intelligence
+       ===================================================== */
+
+    :root {
+        --an-primary: #00d4ff;
+        --an-secondary: #8b5cf6;
+        --an-success: #10b981;
+        --an-warning: #f59e0b;
+        --an-danger: #ef4444;
+        --an-info: #3b82f6;
+        --an-dark: #0f172a;
+        --an-darker: #020617;
+        --an-card: #1e293b;
+        --an-card-hover: #334155;
+        --an-border: #334155;
+        --an-text: #f8fafc;
+        --an-text-muted: #94a3b8;
+        --an-gradient-primary: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+        --an-gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        --an-gradient-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        --an-gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        --an-gradient-purple: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+        --an-gradient-blue: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    }
+
+    .analytics-container {
+        padding: 1.5rem;
+        background: var(--an-darker);
+        min-height: calc(100vh - 60px);
+    }
+
+    /* Header Section */
+    .analytics-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-left h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--an-text);
+        margin: 0 0 0.25rem 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .header-left h1::before {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 28px;
+        background: var(--an-gradient-primary);
+        border-radius: 2px;
+    }
+
+    .header-subtitle {
+        color: var(--an-text-muted);
+        font-size: 0.9rem;
+        margin: 0;
+    }
+
+    .header-right {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    /* Connection Status */
+    .connection-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--an-card);
+        border-radius: 8px;
+        font-size: 0.85rem;
+        border: 1px solid var(--an-border);
+    }
+
+    .connection-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--an-danger);
+        animation: pulse-dot 2s infinite;
+    }
+
+    .connection-dot.connected {
+        background: var(--an-success);
+    }
+
+    @keyframes pulse-dot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.7; transform: scale(1.1); }
+    }
+
+    /* Time Range Selector */
+    .time-range-selector {
+        display: flex;
+        gap: 0.25rem;
+        background: var(--an-card);
+        padding: 0.25rem;
+        border-radius: 8px;
+        border: 1px solid var(--an-border);
+    }
+
+    .time-btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        background: transparent;
+        color: var(--an-text-muted);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .time-btn:hover {
+        color: var(--an-text);
+        background: var(--an-card-hover);
+    }
+
+    .time-btn.active {
+        background: var(--an-gradient-primary);
+        color: white;
+    }
+
+    /* Live Indicator */
+    .live-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid var(--an-danger);
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: var(--an-danger);
+        font-weight: 600;
+    }
+
+    .live-dot {
+        width: 8px;
+        height: 8px;
+        background: var(--an-danger);
+        border-radius: 50%;
+        animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+        50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+    }
+
+    /* KPI Summary Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1400px) {
+        .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 900px) {
+        .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .kpi-card {
+        background: var(--an-card);
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid var(--an-border);
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+    }
+
+    .kpi-card.primary::before { background: var(--an-gradient-primary); }
+    .kpi-card.success::before { background: var(--an-gradient-success); }
+    .kpi-card.warning::before { background: var(--an-gradient-warning); }
+    .kpi-card.danger::before { background: var(--an-gradient-danger); }
+    .kpi-card.purple::before { background: var(--an-gradient-purple); }
+    .kpi-card.blue::before { background: var(--an-gradient-blue); }
+
+    .kpi-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    }
+
+    .kpi-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .kpi-title {
+        font-size: 0.8rem;
+        color: var(--an-text-muted);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .kpi-trend {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .kpi-trend.up {
+        background: rgba(16, 185, 129, 0.2);
+        color: var(--an-success);
+    }
+
+    .kpi-trend.down {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--an-danger);
+    }
+
+    .kpi-trend.neutral {
+        background: rgba(148, 163, 184, 0.2);
+        color: var(--an-text-muted);
+    }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--an-text);
+        margin-bottom: 0.25rem;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .kpi-subtitle {
+        font-size: 0.75rem;
+        color: var(--an-text-muted);
+    }
+
+    .kpi-sparkline {
+        height: 30px;
+        margin-top: 0.5rem;
+    }
+
+    /* Main Content Grid */
+    .main-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .main-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Chart Cards */
+    .chart-card {
+        background: var(--an-card);
+        border-radius: 12px;
+        border: 1px solid var(--an-border);
+        overflow: hidden;
+    }
+
+    .chart-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--an-border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .chart-header h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--an-text);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .chart-header h3 .icon {
+        font-size: 1.1rem;
+    }
+
+    .chart-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .chart-action-btn {
+        padding: 0.4rem 0.75rem;
+        background: var(--an-card-hover);
+        border: 1px solid var(--an-border);
+        border-radius: 6px;
+        color: var(--an-text-muted);
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+    }
+
+    .chart-action-btn:hover {
+        background: var(--an-primary);
+        color: white;
+        border-color: var(--an-primary);
+    }
+
+    .chart-body {
+        padding: 1rem;
+        min-height: 300px;
+    }
+
+    /* Machine Status Grid */
+    .machine-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+
+    .machine-status-card {
+        background: var(--an-darker);
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .machine-status-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .machine-status-card.running {
+        border-color: var(--an-success);
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, transparent 100%);
+    }
+
+    .machine-status-card.idle {
+        border-color: var(--an-warning);
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, transparent 100%);
+    }
+
+    .machine-status-card.down {
+        border-color: var(--an-danger);
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, transparent 100%);
+    }
+
+    .machine-status-card.maintenance {
+        border-color: var(--an-secondary);
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, transparent 100%);
+    }
+
+    .machine-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .machine-name {
+        font-weight: 600;
+        color: var(--an-text);
+        font-size: 0.95rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .machine-state {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .machine-status-card.running .machine-state { color: var(--an-success); }
+    .machine-status-card.idle .machine-state { color: var(--an-warning); }
+    .machine-status-card.down .machine-state { color: var(--an-danger); }
+    .machine-status-card.maintenance .machine-state { color: var(--an-secondary); }
+
+    .machine-oee {
+        font-size: 1.25rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--an-text);
+    }
+
+    .machine-oee-label {
+        font-size: 0.7rem;
+        color: var(--an-text-muted);
+    }
+
+    /* Events Stream */
+    .events-stream {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .event-item {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem;
+        border-bottom: 1px solid var(--an-border);
+        transition: background 0.2s;
+    }
+
+    .event-item:hover {
+        background: var(--an-card-hover);
+    }
+
+    .event-item:last-child {
+        border-bottom: none;
+    }
+
+    .event-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1.25rem;
+    }
+
+    .event-icon.production {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.05) 100%);
+        color: var(--an-info);
+    }
+
+    .event-icon.quality {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.05) 100%);
+        color: var(--an-success);
+    }
+
+    .event-icon.alert {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.05) 100%);
+        color: var(--an-danger);
+    }
+
+    .event-icon.maintenance {
+        background: linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(139, 92, 246, 0.05) 100%);
+        color: var(--an-secondary);
+    }
+
+    .event-icon.schedule {
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(0, 212, 255, 0.05) 100%);
+        color: var(--an-primary);
+    }
+
+    .event-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .event-title {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--an-text);
+        margin-bottom: 0.25rem;
+    }
+
+    .event-meta {
+        font-size: 0.8rem;
+        color: var(--an-text-muted);
+        display: flex;
+        gap: 1rem;
+    }
+
+    .event-time {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.8rem;
+        color: var(--an-text-muted);
+    }
+
+    /* Secondary Grid */
+    .secondary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .secondary-grid { grid-template-columns: 1fr; }
+    }
+
+    /* OEE Breakdown */
+    .oee-breakdown {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .oee-component {
+        background: var(--an-darker);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .oee-component-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .oee-component-name {
+        font-size: 0.85rem;
+        color: var(--an-text-muted);
+        font-weight: 500;
+    }
+
+    .oee-component-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .oee-progress-bar {
+        height: 8px;
+        background: var(--an-card-hover);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .oee-progress-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .oee-progress-fill.availability { background: var(--an-gradient-primary); }
+    .oee-progress-fill.performance { background: var(--an-gradient-success); }
+    .oee-progress-fill.quality { background: var(--an-gradient-purple); }
+
+    /* Alert Panel */
+    .alert-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .alert-item {
+        display: flex;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--an-darker);
+        border-radius: 8px;
+        border-left: 4px solid;
+    }
+
+    .alert-item.critical {
+        border-left-color: var(--an-danger);
+        background: linear-gradient(90deg, rgba(239, 68, 68, 0.1) 0%, transparent 30%);
+    }
+
+    .alert-item.warning {
+        border-left-color: var(--an-warning);
+        background: linear-gradient(90deg, rgba(245, 158, 11, 0.1) 0%, transparent 30%);
+    }
+
+    .alert-item.info {
+        border-left-color: var(--an-info);
+        background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, transparent 30%);
+    }
+
+    .alert-icon {
+        font-size: 1.5rem;
+    }
+
+    .alert-content {
+        flex: 1;
+    }
+
+    .alert-title {
+        font-weight: 600;
+        color: var(--an-text);
+        margin-bottom: 0.25rem;
+    }
+
+    .alert-description {
+        font-size: 0.85rem;
+        color: var(--an-text-muted);
+    }
+
+    .alert-action {
+        padding: 0.4rem 0.75rem;
+        background: transparent;
+        border: 1px solid var(--an-border);
+        border-radius: 6px;
+        color: var(--an-text-muted);
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+        white-space: nowrap;
+    }
+
+    .alert-action:hover {
+        background: var(--an-primary);
+        color: white;
+        border-color: var(--an-primary);
+    }
+
+    /* Throughput Panel */
+    .throughput-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .throughput-stat {
+        text-align: center;
+        padding: 1rem;
+        background: var(--an-darker);
+        border-radius: 8px;
+    }
+
+    .throughput-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--an-text);
+    }
+
+    .throughput-label {
+        font-size: 0.75rem;
+        color: var(--an-text-muted);
+        text-transform: uppercase;
+    }
+
+    /* Quality Table */
+    .quality-table-wrapper {
+        overflow-x: auto;
+    }
+
+    .quality-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .quality-table th {
+        text-align: left;
+        padding: 1rem;
+        font-size: 0.8rem;
+        color: var(--an-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid var(--an-border);
+        font-weight: 600;
+    }
+
+    .quality-table td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--an-border);
+        color: var(--an-text);
+    }
+
+    .quality-table tr:hover {
+        background: var(--an-card-hover);
+    }
+
+    .quality-table .wc-name {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .quality-table .wc-status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .quality-table .wc-status-dot.running { background: var(--an-success); }
+    .quality-table .wc-status-dot.idle { background: var(--an-warning); }
+    .quality-table .wc-status-dot.down { background: var(--an-danger); }
+
+    .quality-table .good { color: var(--an-success); }
+    .quality-table .scrap { color: var(--an-danger); }
+
+    .yield-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .yield-value {
+        font-weight: 600;
+        font-family: 'JetBrains Mono', monospace;
+        min-width: 50px;
+    }
+
+    .yield-progress {
+        flex: 1;
+        height: 6px;
+        background: var(--an-card-hover);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .yield-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.5s ease;
+    }
+
+    .yield-fill.excellent { background: var(--an-success); }
+    .yield-fill.good { background: var(--an-primary); }
+    .yield-fill.warning { background: var(--an-warning); }
+    .yield-fill.poor { background: var(--an-danger); }
+
+    /* Shift Comparison */
+    .shift-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .shift-tab {
+        padding: 0.5rem 1rem;
+        background: var(--an-darker);
+        border: 1px solid var(--an-border);
+        border-radius: 6px;
+        color: var(--an-text-muted);
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+    }
+
+    .shift-tab.active {
+        background: var(--an-primary);
+        color: white;
+        border-color: var(--an-primary);
+    }
+
+    .shift-comparison {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .shift-metric {
+        text-align: center;
+        padding: 1rem;
+        background: var(--an-darker);
+        border-radius: 8px;
+    }
+
+    .shift-metric-label {
+        font-size: 0.75rem;
+        color: var(--an-text-muted);
+        margin-bottom: 0.25rem;
+    }
+
+    .shift-metric-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--an-text);
+    }
+
+    .shift-metric-change {
+        font-size: 0.75rem;
+        margin-top: 0.25rem;
+    }
+
+    .shift-metric-change.positive { color: var(--an-success); }
+    .shift-metric-change.negative { color: var(--an-danger); }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        max-width: 400px;
+    }
+
+    .toast {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--an-card);
+        border-radius: 10px;
+        border: 1px solid var(--an-border);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast.hiding {
+        animation: slideOut 0.3s ease forwards;
+    }
+
+    @keyframes slideOut {
+        to { transform: translateX(100%); opacity: 0; }
+    }
+
+    .toast-icon {
+        font-size: 1.25rem;
+        flex-shrink: 0;
+    }
+
+    .toast.success .toast-icon { color: var(--an-success); }
+    .toast.error .toast-icon { color: var(--an-danger); }
+    .toast.warning .toast-icon { color: var(--an-warning); }
+    .toast.info .toast-icon { color: var(--an-info); }
+
+    .toast-content {
+        flex: 1;
+    }
+
+    .toast-title {
+        font-weight: 600;
+        color: var(--an-text);
+        margin-bottom: 0.25rem;
+    }
+
+    .toast-message {
+        font-size: 0.85rem;
+        color: var(--an-text-muted);
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: var(--an-text-muted);
+        cursor: pointer;
+        font-size: 1rem;
+        padding: 0;
+    }
+
+    /* Full Width Section */
+    .full-width-section {
+        margin-bottom: 1.5rem;
+    }
+
+    /* Anomaly Detection Panel */
+    .anomaly-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .anomaly-card {
+        background: var(--an-darker);
+        border-radius: 8px;
+        padding: 1rem;
+        border-left: 3px solid var(--an-warning);
+    }
+
+    .anomaly-card.high {
+        border-left-color: var(--an-danger);
+    }
+
+    .anomaly-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .anomaly-type {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--an-text);
+    }
+
+    .anomaly-severity {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 600;
+    }
+
+    .anomaly-severity.high {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--an-danger);
+    }
+
+    .anomaly-severity.medium {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--an-warning);
+    }
+
+    .anomaly-description {
+        font-size: 0.85rem;
+        color: var(--an-text-muted);
+        margin-bottom: 0.5rem;
+    }
+
+    .anomaly-source {
+        font-size: 0.75rem;
+        color: var(--an-text-muted);
+    }
+
+    /* Resource Utilization */
+    .resource-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+    }
+
+    @media (max-width: 1000px) {
+        .resource-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .resource-card {
+        text-align: center;
+        padding: 1rem;
+        background: var(--an-darker);
+        border-radius: 8px;
+    }
+
+    .resource-gauge {
+        width: 100px;
+        height: 100px;
+        margin: 0 auto 0.75rem;
+        position: relative;
+    }
+
+    .resource-gauge svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+    }
+
+    .resource-gauge-bg {
+        fill: none;
+        stroke: var(--an-card-hover);
+        stroke-width: 10;
+    }
+
+    .resource-gauge-fill {
+        fill: none;
+        stroke-width: 10;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.5s ease;
+    }
+
+    .resource-gauge-value {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1.25rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        color: var(--an-text);
+    }
+
+    .resource-label {
+        font-size: 0.85rem;
+        color: var(--an-text-muted);
+    }
+
+    /* Last Update Timer */
+    .last-update {
+        text-align: center;
+        padding: 0.75rem;
+        color: var(--an-text-muted);
+        font-size: 0.8rem;
+    }
+
+    /* Responsive Adjustments */
+    @media (max-width: 768px) {
+        .analytics-container {
+            padding: 1rem;
+        }
+
+        .header-left h1 {
+            font-size: 1.5rem;
+        }
+
+        .kpi-value {
+            font-size: 1.5rem;
+        }
+
+        .machine-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="analytics-container">
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Header -->
+    <div class="analytics-header">
+        <div class="header-left">
+            <h1>Real-Time Analytics</h1>
+            <p class="header-subtitle">Production metrics and performance monitoring - Live manufacturing intelligence</p>
+        </div>
+        <div class="header-right">
+            <div class="connection-status" id="connectionStatus">
+                <span class="connection-dot" id="connectionDot"></span>
+                <span id="connectionText">Connecting...</span>
+            </div>
+            <div class="live-indicator">
+                <span class="live-dot"></span>
+                <span>LIVE</span>
+            </div>
+            <div class="time-range-selector">
+                <button class="time-btn" onclick="setTimeRange('1h')">1H</button>
+                <button class="time-btn active" onclick="setTimeRange('8h')" id="timeBtn8h">8H</button>
+                <button class="time-btn" onclick="setTimeRange('24h')">24H</button>
+                <button class="time-btn" onclick="setTimeRange('7d')">7D</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Summary Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card primary">
+            <div class="kpi-header">
+                <span class="kpi-title">Overall OEE</span>
+                <span class="kpi-trend up" id="oeeTrend">+2.3%</span>
+            </div>
+            <div class="kpi-value" id="kpiOEE">85.2%</div>
+            <div class="kpi-subtitle">Target: 85% | World-class: 85%+</div>
+            <div class="kpi-sparkline" id="oeeSparkline"></div>
+        </div>
+
+        <div class="kpi-card success">
+            <div class="kpi-header">
+                <span class="kpi-title">Quality Rate</span>
+                <span class="kpi-trend up" id="qualityTrend">+0.5%</span>
+            </div>
+            <div class="kpi-value" id="kpiQuality">98.7%</div>
+            <div class="kpi-subtitle">Target: 98% | 6σ Target: 99.99%</div>
+            <div class="kpi-sparkline" id="qualitySparkline"></div>
+        </div>
+
+        <div class="kpi-card blue">
+            <div class="kpi-header">
+                <span class="kpi-title">Parts Produced</span>
+                <span class="kpi-trend up" id="partsTrend">+12%</span>
+            </div>
+            <div class="kpi-value" id="kpiParts">1,247</div>
+            <div class="kpi-subtitle">Today's count | Target: 1,500</div>
+            <div class="kpi-sparkline" id="partsSparkline"></div>
+        </div>
+
+        <div class="kpi-card warning">
+            <div class="kpi-header">
+                <span class="kpi-title">Active Alerts</span>
+                <span class="kpi-trend down" id="alertsTrend">-2</span>
+            </div>
+            <div class="kpi-value" id="kpiAlerts">3</div>
+            <div class="kpi-subtitle">Critical: 1 | Warning: 2</div>
+        </div>
+
+        <div class="kpi-card purple">
+            <div class="kpi-header">
+                <span class="kpi-title">Machine Utilization</span>
+                <span class="kpi-trend up" id="utilTrend">+3.1%</span>
+            </div>
+            <div class="kpi-value" id="kpiUtilization">78.4%</div>
+            <div class="kpi-subtitle">5 running | 1 idle | 0 down</div>
+        </div>
+
+        <div class="kpi-card danger">
+            <div class="kpi-header">
+                <span class="kpi-title">Cycle Time Var</span>
+                <span class="kpi-trend neutral" id="cycleTrend">0%</span>
+            </div>
+            <div class="kpi-value" id="kpiCycleTime">±2.3%</div>
+            <div class="kpi-subtitle">Target: &lt;5% | Cpk: 1.67</div>
+        </div>
+    </div>
+
+    <!-- Main Grid: OEE Trend + Events -->
+    <div class="main-grid">
+        <!-- OEE Trend Chart -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3><span class="icon">📈</span> OEE Trend Analysis</h3>
+                <div class="chart-actions">
+                    <button class="chart-action-btn" onclick="toggleChartView('area')">Area</button>
+                    <button class="chart-action-btn" onclick="toggleChartView('line')">Line</button>
+                    <button class="chart-action-btn" onclick="exportChart('oee')">Export</button>
+                </div>
+            </div>
+            <div class="chart-body">
+                <div id="oeeTrendChart"></div>
+            </div>
+        </div>
+
+        <!-- Live Events Stream -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3><span class="icon">🔔</span> Live Event Stream</h3>
+                <div class="chart-actions">
+                    <button class="chart-action-btn" onclick="filterEvents('all')">All</button>
+                    <button class="chart-action-btn" onclick="filterEvents('alerts')">Alerts</button>
+                </div>
+            </div>
+            <div class="chart-body" style="padding: 0;">
+                <div class="events-stream" id="eventsStream">
+                    <!-- Events populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Secondary Grid: OEE Breakdown, Alerts, Throughput -->
+    <div class="secondary-grid">
+        <!-- OEE Breakdown -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3><span class="icon">⚙️</span> OEE Components</h3>
+            </div>
+            <div class="chart-body">
+                <div class="oee-breakdown">
+                    <div class="oee-component">
+                        <div class="oee-component-header">
+                            <span class="oee-component-name">Availability</span>
+                            <span class="oee-component-value" id="oeeAvailability" style="color: var(--an-primary);">92.5%</span>
+                        </div>
+                        <div class="oee-progress-bar">
+                            <div class="oee-progress-fill availability" id="oeeAvailabilityBar" style="width: 92.5%;"></div>
+                        </div>
+                    </div>
+                    <div class="oee-component">
+                        <div class="oee-component-header">
+                            <span class="oee-component-name">Performance</span>
+                            <span class="oee-component-value" id="oeePerformance" style="color: var(--an-success);">94.2%</span>
+                        </div>
+                        <div class="oee-progress-bar">
+                            <div class="oee-progress-fill performance" id="oeePerformanceBar" style="width: 94.2%;"></div>
+                        </div>
+                    </div>
+                    <div class="oee-component">
+                        <div class="oee-component-header">
+                            <span class="oee-component-name">Quality</span>
+                            <span class="oee-component-value" id="oeeQuality" style="color: var(--an-secondary);">98.1%</span>
+                        </div>
+                        <div class="oee-progress-bar">
+                            <div class="oee-progress-fill quality" id="oeeQualityBar" style="width: 98.1%;"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="oeeDonutChart" style="height: 200px; margin-top: 1rem;"></div>
+            </div>
+        </div>
+
+        <!-- Active Alerts -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3><span class="icon">⚠️</span> Active Alerts</h3>
+                <span class="chart-action-btn" onclick="acknowledgeAllAlerts()">Ack All</span>
+            </div>
+            <div class="chart-body" style="padding: 1rem;">
+                <div class="alert-list" id="alertList">
+                    <div class="alert-item critical">
+                        <span class="alert-icon">🔴</span>
+                        <div class="alert-content">
+                            <div class="alert-title">High nozzle temperature</div>
+                            <div class="alert-description">WC-PRINT-03: 225°C (max: 220°C)</div>
+                        </div>
+                        <button class="alert-action" onclick="acknowledgeAlert('ALT-001')">Ack</button>
+                    </div>
+                    <div class="alert-item warning">
+                        <span class="alert-icon">🟡</span>
+                        <div class="alert-content">
+                            <div class="alert-title">Filament running low</div>
+                            <div class="alert-description">WC-PRINT-01: 15% remaining (~2h)</div>
+                        </div>
+                        <button class="alert-action" onclick="acknowledgeAlert('ALT-002')">Ack</button>
+                    </div>
+                    <div class="alert-item info">
+                        <span class="alert-icon">🔵</span>
+                        <div class="alert-content">
+                            <div class="alert-title">Maintenance due soon</div>
+                            <div class="alert-description">WC-PRINT-02: 48h until scheduled maintenance</div>
+                        </div>
+                        <button class="alert-action" onclick="acknowledgeAlert('ALT-003')">Ack</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Throughput Stats -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3><span class="icon">📊</span> Throughput Analysis</h3>
+            </div>
+            <div class="chart-body">
+                <div class="throughput-stats">
+                    <div class="throughput-stat">
+                        <div class="throughput-value" id="throughputActual">156</div>
+                        <div class="throughput-label">Parts/Hour</div>
+                    </div>
+                    <div class="throughput-stat">
+                        <div class="throughput-value" id="throughputTarget">168</div>
+                        <div class="throughput-label">Target/Hour</div>
+                    </div>
+                    <div class="throughput-stat">
+                        <div class="throughput-value" style="color: var(--an-success);" id="throughputEfficiency">92.8%</div>
+                        <div class="throughput-label">Efficiency</div>
+                    </div>
+                    <div class="throughput-stat">
+                        <div class="throughput-value" id="throughputTakt">23s</div>
+                        <div class="throughput-label">Takt Time</div>
+                    </div>
+                </div>
+                <div id="throughputChart" style="height: 150px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Machine Status Grid -->
+    <div class="chart-card full-width-section">
+        <div class="chart-header">
+            <h3><span class="icon">🖥️</span> Machine Status Overview</h3>
+            <div class="chart-actions">
+                <span style="font-size: 0.85rem; color: var(--an-text-muted);">
+                    <span style="color: var(--an-success);">●</span> Running: <span id="runningCount">5</span> |
+                    <span style="color: var(--an-warning);">●</span> Idle: <span id="idleCount">1</span> |
+                    <span style="color: var(--an-danger);">●</span> Down: <span id="downCount">0</span>
+                </span>
+            </div>
+        </div>
+        <div class="chart-body">
+            <div class="machine-grid" id="machineGrid">
+                <!-- Machines populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Resource Utilization -->
+    <div class="chart-card full-width-section">
+        <div class="chart-header">
+            <h3><span class="icon">📉</span> Resource Utilization</h3>
+        </div>
+        <div class="chart-body">
+            <div class="resource-grid">
+                <div class="resource-card">
+                    <div class="resource-gauge">
+                        <svg viewBox="0 0 100 100">
+                            <circle class="resource-gauge-bg" cx="50" cy="50" r="40"></circle>
+                            <circle class="resource-gauge-fill" cx="50" cy="50" r="40"
+                                    stroke="var(--an-primary)"
+                                    stroke-dasharray="251.2"
+                                    stroke-dashoffset="50" id="cpuGauge"></circle>
+                        </svg>
+                        <div class="resource-gauge-value" id="cpuValue">80%</div>
+                    </div>
+                    <div class="resource-label">CPU Usage</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-gauge">
+                        <svg viewBox="0 0 100 100">
+                            <circle class="resource-gauge-bg" cx="50" cy="50" r="40"></circle>
+                            <circle class="resource-gauge-fill" cx="50" cy="50" r="40"
+                                    stroke="var(--an-success)"
+                                    stroke-dasharray="251.2"
+                                    stroke-dashoffset="87.9" id="memoryGauge"></circle>
+                        </svg>
+                        <div class="resource-gauge-value" id="memoryValue">65%</div>
+                    </div>
+                    <div class="resource-label">Memory Usage</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-gauge">
+                        <svg viewBox="0 0 100 100">
+                            <circle class="resource-gauge-bg" cx="50" cy="50" r="40"></circle>
+                            <circle class="resource-gauge-fill" cx="50" cy="50" r="40"
+                                    stroke="var(--an-secondary)"
+                                    stroke-dasharray="251.2"
+                                    stroke-dashoffset="125.6" id="storageGauge"></circle>
+                        </svg>
+                        <div class="resource-gauge-value" id="storageValue">50%</div>
+                    </div>
+                    <div class="resource-label">Storage Usage</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-gauge">
+                        <svg viewBox="0 0 100 100">
+                            <circle class="resource-gauge-bg" cx="50" cy="50" r="40"></circle>
+                            <circle class="resource-gauge-fill" cx="50" cy="50" r="40"
+                                    stroke="var(--an-warning)"
+                                    stroke-dasharray="251.2"
+                                    stroke-dashoffset="175.8" id="networkGauge"></circle>
+                        </svg>
+                        <div class="resource-gauge-value" id="networkValue">30%</div>
+                    </div>
+                    <div class="resource-label">Network I/O</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quality Metrics Table -->
+    <div class="chart-card full-width-section">
+        <div class="chart-header">
+            <h3><span class="icon">✅</span> Quality Metrics by Work Center</h3>
+            <div class="chart-actions">
+                <button class="chart-action-btn" onclick="exportQualityReport()">Export Report</button>
+            </div>
+        </div>
+        <div class="chart-body">
+            <div class="quality-table-wrapper">
+                <table class="quality-table">
+                    <thead>
+                        <tr>
+                            <th>Work Center</th>
+                            <th>Status</th>
+                            <th>Parts Today</th>
+                            <th>Good Parts</th>
+                            <th>Scrap</th>
+                            <th>Yield %</th>
+                            <th>Cpk</th>
+                        </tr>
+                    </thead>
+                    <tbody id="qualityTableBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shift Comparison -->
+    <div class="chart-card full-width-section">
+        <div class="chart-header">
+            <h3><span class="icon">🔄</span> Shift Comparison</h3>
+        </div>
+        <div class="chart-body">
+            <div class="shift-tabs">
+                <button class="shift-tab active" onclick="selectShift('current')">Current Shift</button>
+                <button class="shift-tab" onclick="selectShift('previous')">Previous Shift</button>
+                <button class="shift-tab" onclick="selectShift('average')">7-Day Average</button>
+            </div>
+            <div class="shift-comparison">
+                <div class="shift-metric">
+                    <div class="shift-metric-label">OEE</div>
+                    <div class="shift-metric-value" id="shiftOEE">85.2%</div>
+                    <div class="shift-metric-change positive" id="shiftOEEChange">+2.3% vs prev</div>
+                </div>
+                <div class="shift-metric">
+                    <div class="shift-metric-label">Parts Produced</div>
+                    <div class="shift-metric-value" id="shiftParts">1,247</div>
+                    <div class="shift-metric-change positive" id="shiftPartsChange">+8% vs prev</div>
+                </div>
+                <div class="shift-metric">
+                    <div class="shift-metric-label">Quality Rate</div>
+                    <div class="shift-metric-value" id="shiftQuality">98.7%</div>
+                    <div class="shift-metric-change positive" id="shiftQualityChange">+0.2% vs prev</div>
+                </div>
+                <div class="shift-metric">
+                    <div class="shift-metric-label">Downtime</div>
+                    <div class="shift-metric-value" id="shiftDowntime">12 min</div>
+                    <div class="shift-metric-change positive" id="shiftDowntimeChange">-45% vs prev</div>
+                </div>
+                <div class="shift-metric">
+                    <div class="shift-metric-label">Scrap Count</div>
+                    <div class="shift-metric-value" id="shiftScrap">16</div>
+                    <div class="shift-metric-change positive" id="shiftScrapChange">-20% vs prev</div>
+                </div>
+                <div class="shift-metric">
+                    <div class="shift-metric-label">Energy (kWh)</div>
+                    <div class="shift-metric-value" id="shiftEnergy">234</div>
+                    <div class="shift-metric-change negative" id="shiftEnergyChange">+3% vs prev</div>
+                </div>
+            </div>
+            <div id="shiftComparisonChart" style="height: 200px; margin-top: 1rem;"></div>
+        </div>
+    </div>
+
+    <!-- Anomaly Detection -->
+    <div class="chart-card full-width-section">
+        <div class="chart-header">
+            <h3><span class="icon">🔍</span> Anomaly Detection</h3>
+            <span style="font-size: 0.85rem; color: var(--an-text-muted);">AI-powered real-time monitoring</span>
+        </div>
+        <div class="chart-body">
+            <div class="anomaly-grid" id="anomalyGrid">
+                <div class="anomaly-card high">
+                    <div class="anomaly-header">
+                        <span class="anomaly-type">Temperature Spike</span>
+                        <span class="anomaly-severity high">HIGH</span>
+                    </div>
+                    <div class="anomaly-description">Unexpected 8°C increase in bed temperature over 2 minutes</div>
+                    <div class="anomaly-source">WC-PRINT-03 | 3 min ago</div>
+                </div>
+                <div class="anomaly-card">
+                    <div class="anomaly-header">
+                        <span class="anomaly-type">Vibration Pattern</span>
+                        <span class="anomaly-severity medium">MEDIUM</span>
+                    </div>
+                    <div class="anomaly-description">Unusual vibration frequency detected during infill</div>
+                    <div class="anomaly-source">WC-PRINT-01 | 8 min ago</div>
+                </div>
+                <div class="anomaly-card">
+                    <div class="anomaly-header">
+                        <span class="anomaly-type">Flow Rate Deviation</span>
+                        <span class="anomaly-severity medium">MEDIUM</span>
+                    </div>
+                    <div class="anomaly-description">Flow rate 12% below expected value</div>
+                    <div class="anomaly-source">WC-PRINT-02 | 15 min ago</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Last Update -->
+    <div class="last-update" id="lastUpdate">
+        Last updated: Just now
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+    // =====================================================
+    // REAL-TIME ANALYTICS DASHBOARD - JAVASCRIPT
+    // =====================================================
+
+    let socket = null;
+    let selectedTimeRange = '8h';
+    let chartData = {
+        oee: [],
+        quality: [],
+        throughput: []
+    };
+    let lastUpdateTime = new Date();
+
+    // Initialize on DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeWebSocket();
+        initializeCharts();
+        loadInitialData();
+        populateMachineGrid();
+        populateQualityTable();
+        populateEventsStream();
+
+        // Update timer
+        setInterval(updateLastUpdateTime, 1000);
+
+        // Simulate live data updates
+        setInterval(simulateLiveUpdates, 3000);
+    });
+
+    // =====================================================
+    // WEBSOCKET CONNECTION
+    // =====================================================
+
+    function initializeWebSocket() {
+        try {
+            socket = io({
+                transports: ['websocket', 'polling'],
+                reconnection: true,
+                reconnectionDelay: 1000,
+                reconnectionAttempts: 10
+            });
+
+            socket.on('connect', () => {
+                updateConnectionStatus(true);
+                showToast('success', 'Connected', 'Real-time data stream established');
+                socket.emit('subscribe', { channels: ['analytics', 'production', 'quality', 'alerts'] });
+            });
+
+            socket.on('disconnect', () => {
+                updateConnectionStatus(false);
+                showToast('warning', 'Disconnected', 'Attempting to reconnect...');
+            });
+
+            socket.on('analytics_update', (data) => {
+                handleAnalyticsUpdate(data);
+            });
+
+            socket.on('production_event', (data) => {
+                addEventToStream(data);
+            });
+
+            socket.on('alert', (data) => {
+                handleAlert(data);
+            });
+
+            socket.on('machine_status', (data) => {
+                updateMachineStatus(data);
+            });
+
+        } catch (error) {
+            console.error('WebSocket initialization failed:', error);
+            updateConnectionStatus(false);
+        }
+    }
+
+    function updateConnectionStatus(connected) {
+        const dot = document.getElementById('connectionDot');
+        const text = document.getElementById('connectionText');
+
+        if (connected) {
+            dot.classList.add('connected');
+            text.textContent = 'Connected';
+        } else {
+            dot.classList.remove('connected');
+            text.textContent = 'Disconnected';
+        }
+    }
+
+    // =====================================================
+    // CHART INITIALIZATION
+    // =====================================================
+
+    function initializeCharts() {
+        initOEETrendChart();
+        initOEEDonutChart();
+        initThroughputChart();
+        initShiftComparisonChart();
+        initSparklines();
+    }
+
+    // Pattern-based data generator for analytics
+    const AnalyticsPatterns = {
+        getOEE(hourOffset) {
+            const now = new Date();
+            const hour = (now.getHours() - hourOffset + 24) % 24;
+            const shiftBonus = (hour >= 6 && hour < 14) ? 5 : (hour >= 14 && hour < 22) ? 2 : 0;
+            return 82 + shiftBonus + Math.sin(hourOffset * 0.5) * 3;
+        },
+        getAvailability(hourOffset) {
+            return 90 + Math.sin(hourOffset * 0.7) * 4;
+        },
+        getPerformance(hourOffset) {
+            return 92 + Math.sin(hourOffset * 0.3 + 1) * 4;
+        },
+        getQuality(hourOffset) {
+            return 97 + Math.sin(hourOffset * 0.2) * 1.5;
+        },
+        getParts(hourOffset) {
+            const hour = (new Date().getHours() - hourOffset + 24) % 24;
+            const shiftMultiplier = (hour >= 6 && hour < 22) ? 1.0 : 0.7;
+            return Math.round((150 + Math.sin(hourOffset * 0.4) * 20) * shiftMultiplier);
+        }
+    };
+
+    function initOEETrendChart() {
+        const now = new Date();
+        const times = [];
+        const oeeValues = [];
+        const availabilityValues = [];
+        const performanceValues = [];
+        const qualityValues = [];
+
+        for (let i = 7; i >= 0; i--) {
+            const time = new Date(now - i * 3600000);
+            times.push(time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }));
+            oeeValues.push(AnalyticsPatterns.getOEE(i));
+            availabilityValues.push(AnalyticsPatterns.getAvailability(i));
+            performanceValues.push(AnalyticsPatterns.getPerformance(i));
+            qualityValues.push(AnalyticsPatterns.getQuality(i));
+        }
+
+        const traces = [
+            {
+                x: times,
+                y: oeeValues,
+                name: 'OEE',
+                type: 'scatter',
+                mode: 'lines+markers',
+                fill: 'tozeroy',
+                line: { color: '#00d4ff', width: 3 },
+                marker: { size: 6 },
+                fillcolor: 'rgba(0, 212, 255, 0.1)'
+            },
+            {
+                x: times,
+                y: availabilityValues,
+                name: 'Availability',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#3b82f6', width: 2, dash: 'dot' }
+            },
+            {
+                x: times,
+                y: performanceValues,
+                name: 'Performance',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#10b981', width: 2, dash: 'dot' }
+            },
+            {
+                x: times,
+                y: qualityValues,
+                name: 'Quality',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#8b5cf6', width: 2, dash: 'dot' }
+            }
+        ];
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            margin: { t: 20, r: 20, b: 40, l: 50 },
+            xaxis: {
+                color: '#94a3b8',
+                gridcolor: '#334155',
+                tickfont: { size: 11 }
+            },
+            yaxis: {
+                color: '#94a3b8',
+                gridcolor: '#334155',
+                tickfont: { size: 11 },
+                range: [70, 105],
+                ticksuffix: '%'
+            },
+            legend: {
+                orientation: 'h',
+                y: -0.15,
+                font: { color: '#94a3b8', size: 11 }
+            },
+            shapes: [{
+                type: 'line',
+                x0: times[0],
+                x1: times[times.length - 1],
+                y0: 85,
+                y1: 85,
+                line: { color: '#f59e0b', width: 2, dash: 'dash' }
+            }],
+            annotations: [{
+                x: times[times.length - 1],
+                y: 85,
+                text: 'Target',
+                showarrow: false,
+                font: { color: '#f59e0b', size: 10 },
+                xanchor: 'left'
+            }]
+        };
+
+        Plotly.newPlot('oeeTrendChart', traces, layout, { responsive: true, displayModeBar: false });
+    }
+
+    function initOEEDonutChart() {
+        const data = [{
+            values: [92.5, 94.2, 98.1],
+            labels: ['Availability', 'Performance', 'Quality'],
+            type: 'pie',
+            hole: 0.6,
+            marker: {
+                colors: ['#00d4ff', '#10b981', '#8b5cf6']
+            },
+            textinfo: 'label+percent',
+            textposition: 'outside',
+            textfont: { color: '#f8fafc', size: 11 }
+        }];
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            margin: { t: 20, r: 20, b: 20, l: 20 },
+            showlegend: false,
+            annotations: [{
+                text: '85.2%<br><span style="font-size:10px">OEE</span>',
+                showarrow: false,
+                font: { size: 18, color: '#f8fafc' }
+            }]
+        };
+
+        Plotly.newPlot('oeeDonutChart', data, layout, { responsive: true, displayModeBar: false });
+    }
+
+    function initThroughputChart() {
+        const times = [];
+        const actual = [];
+        const target = [];
+
+        for (let i = 7; i >= 0; i--) {
+            times.push(`${8 + (7 - i)}:00`);
+            actual.push(AnalyticsPatterns.getParts(i));
+            target.push(168);
+        }
+
+        const traces = [
+            {
+                x: times,
+                y: actual,
+                name: 'Actual',
+                type: 'bar',
+                marker: { color: '#00d4ff' }
+            },
+            {
+                x: times,
+                y: target,
+                name: 'Target',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#f59e0b', width: 2, dash: 'dash' }
+            }
+        ];
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            margin: { t: 10, r: 10, b: 30, l: 40 },
+            xaxis: { color: '#94a3b8', gridcolor: '#334155' },
+            yaxis: { color: '#94a3b8', gridcolor: '#334155' },
+            legend: { orientation: 'h', y: 1.1, font: { color: '#94a3b8', size: 10 } },
+            barmode: 'group'
+        };
+
+        Plotly.newPlot('throughputChart', traces, layout, { responsive: true, displayModeBar: false });
+    }
+
+    function initShiftComparisonChart() {
+        const metrics = ['OEE', 'Quality', 'Parts', 'Uptime'];
+        const currentShift = [85.2, 98.7, 83, 92];
+        const previousShift = [82.9, 98.5, 77, 88];
+        const weekAverage = [84.1, 98.2, 80, 90];
+
+        const traces = [
+            {
+                x: metrics,
+                y: currentShift,
+                name: 'Current Shift',
+                type: 'bar',
+                marker: { color: '#00d4ff' }
+            },
+            {
+                x: metrics,
+                y: previousShift,
+                name: 'Previous Shift',
+                type: 'bar',
+                marker: { color: '#64748b' }
+            },
+            {
+                x: metrics,
+                y: weekAverage,
+                name: '7-Day Avg',
+                type: 'bar',
+                marker: { color: '#8b5cf6' }
+            }
+        ];
+
+        const layout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            margin: { t: 20, r: 20, b: 40, l: 40 },
+            xaxis: { color: '#94a3b8' },
+            yaxis: { color: '#94a3b8', gridcolor: '#334155', ticksuffix: '%' },
+            legend: { orientation: 'h', y: -0.2, font: { color: '#94a3b8', size: 10 } },
+            barmode: 'group'
+        };
+
+        Plotly.newPlot('shiftComparisonChart', traces, layout, { responsive: true, displayModeBar: false });
+    }
+
+    function initSparklines() {
+        const sparklineConfig = {
+            responsive: true,
+            displayModeBar: false
+        };
+
+        const sparklineLayout = {
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            margin: { t: 5, r: 5, b: 5, l: 5 },
+            xaxis: { visible: false },
+            yaxis: { visible: false },
+            showlegend: false
+        };
+
+        // OEE Sparkline (pattern-based)
+        const oeeData = Array.from({ length: 20 }, (_, i) => AnalyticsPatterns.getOEE(19 - i));
+        Plotly.newPlot('oeeSparkline', [{
+            y: oeeData,
+            type: 'scatter',
+            mode: 'lines',
+            fill: 'tozeroy',
+            line: { color: '#00d4ff', width: 1 },
+            fillcolor: 'rgba(0, 212, 255, 0.2)'
+        }], sparklineLayout, sparklineConfig);
+
+        // Quality Sparkline (pattern-based)
+        const qualityData = Array.from({ length: 20 }, (_, i) => AnalyticsPatterns.getQuality(19 - i));
+        Plotly.newPlot('qualitySparkline', [{
+            y: qualityData,
+            type: 'scatter',
+            mode: 'lines',
+            fill: 'tozeroy',
+            line: { color: '#10b981', width: 1 },
+            fillcolor: 'rgba(16, 185, 129, 0.2)'
+        }], sparklineLayout, sparklineConfig);
+
+        // Parts Sparkline (pattern-based)
+        const partsData = Array.from({ length: 20 }, (_, i) => AnalyticsPatterns.getParts(19 - i));
+        Plotly.newPlot('partsSparkline', [{
+            y: partsData,
+            type: 'scatter',
+            mode: 'lines',
+            fill: 'tozeroy',
+            line: { color: '#3b82f6', width: 1 },
+            fillcolor: 'rgba(59, 130, 246, 0.2)'
+        }], sparklineLayout, sparklineConfig);
+    }
+
+    // =====================================================
+    // DATA LOADING AND UPDATES
+    // =====================================================
+
+    async function loadInitialData() {
+        try {
+            // Load OEE data
+            const oeeResponse = await fetch('/api/mes/oee/summary');
+            if (oeeResponse.ok) {
+                const oeeData = await oeeResponse.json();
+                if (oeeData.oee) {
+                    updateOEEDisplay(oeeData);
+                }
+            }
+
+            // Load production summary
+            const prodResponse = await fetch('/api/mes/shop-floor/production-summary?period=shift');
+            if (prodResponse.ok) {
+                const prodData = await prodResponse.json();
+                if (prodData.summary) {
+                    updateProductionStats(prodData.summary);
+                }
+            }
+
+            // Load machine status
+            const machineResponse = await fetch('/api/mes/shop-floor/andon');
+            if (machineResponse.ok) {
+                const machineData = await machineResponse.json();
+                if (machineData.work_centers) {
+                    updateMachineGrid(machineData.work_centers);
+                }
+            }
+
+        } catch (error) {
+            console.error('Error loading initial data:', error);
+        }
+    }
+
+    function handleAnalyticsUpdate(data) {
+        if (data.oee) updateOEEDisplay(data);
+        if (data.production) updateProductionStats(data.production);
+        if (data.machines) updateMachineGrid(data.machines);
+
+        lastUpdateTime = new Date();
+    }
+
+    function updateOEEDisplay(data) {
+        const oee = (data.oee || 0.852) * 100;
+        const availability = (data.availability || 0.925) * 100;
+        const performance = (data.performance || 0.942) * 100;
+        const quality = (data.quality || 0.981) * 100;
+
+        document.getElementById('kpiOEE').textContent = oee.toFixed(1) + '%';
+        document.getElementById('oeeAvailability').textContent = availability.toFixed(1) + '%';
+        document.getElementById('oeePerformance').textContent = performance.toFixed(1) + '%';
+        document.getElementById('oeeQuality').textContent = quality.toFixed(1) + '%';
+
+        document.getElementById('oeeAvailabilityBar').style.width = availability + '%';
+        document.getElementById('oeePerformanceBar').style.width = performance + '%';
+        document.getElementById('oeeQualityBar').style.width = quality + '%';
+    }
+
+    function updateProductionStats(summary) {
+        document.getElementById('kpiParts').textContent = (summary.good_parts || 1247).toLocaleString();
+
+        const qualityRate = summary.yield_percent || 98.7;
+        document.getElementById('kpiQuality').textContent = qualityRate.toFixed(1) + '%';
+    }
+
+    // =====================================================
+    // MACHINE GRID
+    // =====================================================
+
+    function populateMachineGrid() {
+        const machines = [
+            { id: 'WC-PRINT-01', name: 'Prusa MK3S+', status: 'running', oee: 87.5, job: 'LEGO-2x4-001' },
+            { id: 'WC-PRINT-02', name: 'Prusa MK4', status: 'running', oee: 91.2, job: 'LEGO-2x2-004' },
+            { id: 'WC-PRINT-03', name: 'Bambu A1', status: 'idle', oee: 0, job: null },
+            { id: 'WC-PRINT-04', name: 'Ender 3 V3', status: 'running', oee: 82.1, job: 'LEGO-1x4-002' },
+            { id: 'WC-SLA-01', name: 'Elegoo Mars', status: 'running', oee: 89.4, job: 'LEGO-MINIFIG-01' },
+            { id: 'WC-SLA-02', name: 'Anycubic Photon', status: 'maintenance', oee: 0, job: null }
+        ];
+
+        updateMachineGrid(machines);
+    }
+
+    function updateMachineGrid(machines) {
+        const grid = document.getElementById('machineGrid');
+        let running = 0, idle = 0, down = 0;
+
+        grid.innerHTML = machines.map(machine => {
+            const statusClass = machine.status || 'idle';
+            if (statusClass === 'running') running++;
+            else if (statusClass === 'idle') idle++;
+            else down++;
+
+            const icon = statusClass === 'running' ? '🖨️' :
+                        statusClass === 'idle' ? '⏸️' :
+                        statusClass === 'maintenance' ? '🔧' : '⚠️';
+
+            return `
+                <div class="machine-status-card ${statusClass}" onclick="showMachineDetails('${machine.id}')">
+                    <div class="machine-icon">${icon}</div>
+                    <div class="machine-name">${machine.id || machine.code}</div>
+                    <div class="machine-state">${statusClass}</div>
+                    <div class="machine-oee">${machine.oee?.toFixed(1) || 0}%</div>
+                    <div class="machine-oee-label">OEE</div>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('runningCount').textContent = running;
+        document.getElementById('idleCount').textContent = idle;
+        document.getElementById('downCount').textContent = down;
+    }
+
+    // =====================================================
+    // QUALITY TABLE
+    // =====================================================
+
+    function populateQualityTable() {
+        const data = [
+            { wc: 'WC-PRINT-01', status: 'running', parts: 245, good: 242, scrap: 3, yield: 98.8, cpk: 1.72 },
+            { wc: 'WC-PRINT-02', status: 'running', parts: 198, good: 195, scrap: 3, yield: 98.5, cpk: 1.65 },
+            { wc: 'WC-PRINT-03', status: 'idle', parts: 0, good: 0, scrap: 0, yield: 100, cpk: 0 },
+            { wc: 'WC-PRINT-04', status: 'running', parts: 312, good: 308, scrap: 4, yield: 98.7, cpk: 1.68 },
+            { wc: 'WC-SLA-01', status: 'running', parts: 87, good: 86, scrap: 1, yield: 98.9, cpk: 1.78 },
+            { wc: 'WC-SLA-02', status: 'maintenance', parts: 0, good: 0, scrap: 0, yield: 100, cpk: 0 }
+        ];
+
+        const tbody = document.getElementById('qualityTableBody');
+        tbody.innerHTML = data.map(row => {
+            const yieldClass = row.yield >= 99 ? 'excellent' :
+                              row.yield >= 98 ? 'good' :
+                              row.yield >= 95 ? 'warning' : 'poor';
+
+            return `
+                <tr>
+                    <td>
+                        <span class="wc-name">
+                            <span class="wc-status-dot ${row.status}"></span>
+                            ${row.wc}
+                        </span>
+                    </td>
+                    <td style="text-transform: capitalize;">${row.status}</td>
+                    <td>${row.parts.toLocaleString()}</td>
+                    <td class="good">${row.good.toLocaleString()}</td>
+                    <td class="scrap">${row.scrap}</td>
+                    <td>
+                        <div class="yield-bar">
+                            <span class="yield-value" style="color: var(--an-${yieldClass === 'excellent' || yieldClass === 'good' ? 'success' : yieldClass === 'warning' ? 'warning' : 'danger'});">${row.yield.toFixed(1)}%</span>
+                            <div class="yield-progress">
+                                <div class="yield-fill ${yieldClass}" style="width: ${row.yield}%;"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="font-family: 'JetBrains Mono', monospace;">${row.cpk.toFixed(2)}</td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // =====================================================
+    // EVENTS STREAM
+    // =====================================================
+
+    function populateEventsStream() {
+        const events = [
+            { type: 'production', icon: '🏭', title: 'WO-1045 completed', meta: 'WC-PRINT-01 | 2 min ago' },
+            { type: 'quality', icon: '✅', title: 'Quality check passed', meta: 'Batch B-2024 | 5 min ago' },
+            { type: 'alert', icon: '⚠️', title: 'Nozzle temp high on WC-PRINT-03', meta: '225°C (max: 220°C) | 8 min ago' },
+            { type: 'production', icon: '🏭', title: 'WO-1044 started', meta: 'WC-PRINT-02 | 12 min ago' },
+            { type: 'maintenance', icon: '🔧', title: 'Maintenance scheduled', meta: 'WC-SLA-02 | 15 min ago' },
+            { type: 'schedule', icon: '📋', title: 'New job queued', meta: 'WO-1046 priority: high | 18 min ago' },
+            { type: 'quality', icon: '❌', title: 'Defect detected', meta: 'WC-PRINT-04 - Surface issue | 22 min ago' }
+        ];
+
+        const stream = document.getElementById('eventsStream');
+        stream.innerHTML = events.map(event => `
+            <div class="event-item">
+                <div class="event-icon ${event.type}">${event.icon}</div>
+                <div class="event-content">
+                    <div class="event-title">${event.title}</div>
+                    <div class="event-meta">${event.meta}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function addEventToStream(event) {
+        const stream = document.getElementById('eventsStream');
+        const eventEl = document.createElement('div');
+        eventEl.className = 'event-item';
+        eventEl.innerHTML = `
+            <div class="event-icon ${event.type}">${event.icon}</div>
+            <div class="event-content">
+                <div class="event-title">${event.title}</div>
+                <div class="event-meta">${event.meta}</div>
+            </div>
+        `;
+
+        stream.insertBefore(eventEl, stream.firstChild);
+
+        // Keep only last 20 events
+        while (stream.children.length > 20) {
+            stream.removeChild(stream.lastChild);
+        }
+    }
+
+    // =====================================================
+    // INTERACTIONS
+    // =====================================================
+
+    function setTimeRange(range) {
+        selectedTimeRange = range;
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.textContent.toLowerCase() === range);
+        });
+        loadInitialData();
+        showToast('info', 'Time Range', `Showing data for last ${range.toUpperCase()}`);
+    }
+
+    function toggleChartView(view) {
+        showToast('info', 'Chart View', `Switched to ${view} view`);
+    }
+
+    function exportChart(chartId) {
+        showToast('success', 'Export', 'Chart exported successfully');
+    }
+
+    function filterEvents(filter) {
+        showToast('info', 'Filter', `Showing ${filter} events`);
+    }
+
+    function acknowledgeAlert(alertId) {
+        showToast('success', 'Alert Acknowledged', `Alert ${alertId} has been acknowledged`);
+    }
+
+    function acknowledgeAllAlerts() {
+        showToast('success', 'All Alerts Acknowledged', 'All active alerts have been acknowledged');
+    }
+
+    function showMachineDetails(machineId) {
+        showToast('info', 'Machine Details', `Viewing details for ${machineId}`);
+    }
+
+    function exportQualityReport() {
+        showToast('success', 'Export', 'Quality report exported to CSV');
+    }
+
+    function selectShift(shift) {
+        document.querySelectorAll('.shift-tab').forEach(tab => {
+            tab.classList.toggle('active', tab.textContent.toLowerCase().includes(shift));
+        });
+        showToast('info', 'Shift View', `Showing ${shift} shift data`);
+    }
+
+    // =====================================================
+    // LIVE DATA SIMULATION
+    // =====================================================
+
+    let liveUpdateCounter = 0;
+
+    function simulateLiveUpdates() {
+        liveUpdateCounter++;
+        const time = Date.now() * 0.001;
+
+        // Pattern-based OEE update
+        const oee = AnalyticsPatterns.getOEE(0) + Math.sin(time * 0.2) * 1;
+        document.getElementById('kpiOEE').textContent = oee.toFixed(1) + '%';
+
+        // Parts increment (deterministic - add 1 every 2 updates)
+        const partsEl = document.getElementById('kpiParts');
+        const currentParts = parseInt(partsEl.textContent.replace(/,/g, '')) || 0;
+        if (liveUpdateCounter % 2 === 0) {
+            partsEl.textContent = (currentParts + 1).toLocaleString();
+        }
+
+        // Pattern-based resource gauges
+        updateResourceGauge('cpu', 75 + Math.sin(time * 0.3) * 10);
+        updateResourceGauge('memory', 62 + Math.sin(time * 0.2 + 1) * 8);
+        updateResourceGauge('storage', 52 + Math.sin(time * 0.1 + 2) * 5);
+        updateResourceGauge('network', 30 + Math.sin(time * 0.5 + 3) * 12);
+
+        // Pattern-based OEE components
+        const availability = AnalyticsPatterns.getAvailability(0) + Math.sin(time * 0.15) * 1;
+        const performance = AnalyticsPatterns.getPerformance(0) + Math.sin(time * 0.12 + 1) * 1;
+        const quality = AnalyticsPatterns.getQuality(0) + Math.sin(time * 0.1 + 2) * 0.5;
+
+        document.getElementById('oeeAvailability').textContent = availability.toFixed(1) + '%';
+        document.getElementById('oeePerformance').textContent = performance.toFixed(1) + '%';
+        document.getElementById('oeeQuality').textContent = quality.toFixed(1) + '%';
+
+        document.getElementById('oeeAvailabilityBar').style.width = availability + '%';
+        document.getElementById('oeePerformanceBar').style.width = performance + '%';
+        document.getElementById('oeeQualityBar').style.width = quality + '%';
+
+        lastUpdateTime = new Date();
+    }
+
+    function updateResourceGauge(resource, value) {
+        const circumference = 251.2;
+        const offset = circumference - (value / 100) * circumference;
+
+        document.getElementById(`${resource}Gauge`).setAttribute('stroke-dashoffset', offset);
+        document.getElementById(`${resource}Value`).textContent = Math.round(value) + '%';
+    }
+
+    // =====================================================
+    // UTILITY FUNCTIONS
+    // =====================================================
+
+    function updateLastUpdateTime() {
+        const now = new Date();
+        const diff = Math.floor((now - lastUpdateTime) / 1000);
+
+        let text = 'Just now';
+        if (diff >= 60) {
+            const mins = Math.floor(diff / 60);
+            text = `${mins} minute${mins > 1 ? 's' : ''} ago`;
+        } else if (diff >= 5) {
+            text = `${diff} seconds ago`;
+        }
+
+        document.getElementById('lastUpdate').textContent = `Last updated: ${text}`;
+    }
+
+    function handleAlert(alert) {
+        showToast(
+            alert.severity === 'critical' ? 'error' : 'warning',
+            alert.title,
+            alert.message
+        );
+
+        // Add to alert list
+        const alertList = document.getElementById('alertList');
+        const alertEl = document.createElement('div');
+        alertEl.className = `alert-item ${alert.severity}`;
+        alertEl.innerHTML = `
+            <span class="alert-icon">${alert.severity === 'critical' ? '🔴' : '🟡'}</span>
+            <div class="alert-content">
+                <div class="alert-title">${alert.title}</div>
+                <div class="alert-description">${alert.message}</div>
+            </div>
+            <button class="alert-action" onclick="acknowledgeAlert('${alert.id}')">Ack</button>
+        `;
+        alertList.insertBefore(alertEl, alertList.firstChild);
+    }
+
+    // =====================================================
+    // TOAST NOTIFICATIONS
+    // =====================================================
+
+    function showToast(type, title, message) {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const icons = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: 'ℹ️'
+        };
+
+        toast.innerHTML = `
+            <span class="toast-icon">${icons[type]}</span>
+            <div class="toast-content">
+                <div class="toast-title">${title}</div>
+                <div class="toast-message">${message}</div>
+            </div>
+            <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+</script>
+{% endblock %}

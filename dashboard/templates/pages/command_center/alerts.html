@@ -1,0 +1,653 @@
+{% extends "base.html" %}
+
+{% block title %}Alert Management - V8 Command Center{% endblock %}
+
+{% block extra_css %}
+<style>
+    .alerts-container {
+        display: grid;
+        grid-template-columns: 1fr 400px;
+        gap: 1.5rem;
+        height: calc(100vh - 120px);
+    }
+
+    .alerts-main {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .alert-summary {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+    }
+
+    .summary-card {
+        background: var(--card-bg, #1e1e2e);
+        border-radius: 12px;
+        padding: 1.25rem;
+        text-align: center;
+        border-left: 4px solid transparent;
+    }
+
+    .summary-card.critical { border-left-color: #ef4444; }
+    .summary-card.high { border-left-color: #f59e0b; }
+    .summary-card.medium { border-left-color: #3b82f6; }
+    .summary-card.low { border-left-color: #6b7280; }
+    .summary-card.resolved { border-left-color: #22c55e; }
+
+    .summary-value {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+
+    .summary-label {
+        font-size: 0.85rem;
+        color: var(--text-muted, #888);
+        text-transform: uppercase;
+    }
+
+    .alerts-list-container {
+        background: var(--card-bg, #1e1e2e);
+        border-radius: 12px;
+        padding: 1.5rem;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .list-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .list-filters {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .filter-select {
+        background: var(--item-bg, #252535);
+        border: 1px solid var(--border-color, #333);
+        color: var(--text-color, #fff);
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        font-size: 0.9rem;
+    }
+
+    .alerts-table {
+        flex: 1;
+        overflow-y: auto;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    th {
+        text-align: left;
+        padding: 0.75rem 1rem;
+        background: var(--item-bg, #252535);
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        color: var(--text-muted, #888);
+        position: sticky;
+        top: 0;
+    }
+
+    td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color, #333);
+        vertical-align: middle;
+    }
+
+    tr:hover {
+        background: var(--item-hover, #2a2a3a);
+    }
+
+    .severity-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .severity-critical { background: #ef444420; color: #ef4444; }
+    .severity-high { background: #f59e0b20; color: #f59e0b; }
+    .severity-medium { background: #3b82f620; color: #3b82f6; }
+    .severity-low { background: #6b728020; color: #9ca3af; }
+    .severity-info { background: #06b6d420; color: #06b6d4; }
+
+    .status-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+    }
+
+    .status-active { background: #ef444420; color: #ef4444; }
+    .status-acknowledged { background: #f59e0b20; color: #f59e0b; }
+    .status-resolved { background: #22c55e20; color: #22c55e; }
+
+    .alert-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-sm {
+        padding: 0.35rem 0.75rem;
+        border-radius: 4px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: all 0.2s;
+    }
+
+    .btn-ack {
+        background: #f59e0b20;
+        color: #f59e0b;
+    }
+
+    .btn-ack:hover {
+        background: #f59e0b40;
+    }
+
+    .btn-resolve {
+        background: #22c55e20;
+        color: #22c55e;
+    }
+
+    .btn-resolve:hover {
+        background: #22c55e40;
+    }
+
+    .alert-sidebar {
+        background: var(--card-bg, #1e1e2e);
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        overflow-y: auto;
+    }
+
+    .sidebar-section h3 {
+        font-size: 1rem;
+        margin: 0 0 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color, #333);
+    }
+
+    .escalation-item {
+        background: var(--item-bg, #252535);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        border-left: 3px solid #ef4444;
+    }
+
+    .escalation-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .escalation-time {
+        font-size: 0.8rem;
+        color: #ef4444;
+        font-weight: 600;
+    }
+
+    .escalation-title {
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .escalation-meta {
+        font-size: 0.8rem;
+        color: var(--text-muted, #888);
+    }
+
+    .correlation-group {
+        background: var(--item-bg, #252535);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .correlation-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .correlation-count {
+        background: #3b82f620;
+        color: #3b82f6;
+        padding: 0.1rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.75rem;
+    }
+
+    .correlation-alerts {
+        font-size: 0.85rem;
+        color: var(--text-muted, #888);
+    }
+
+    .recent-activity {
+        max-height: 250px;
+        overflow-y: auto;
+    }
+
+    .activity-item {
+        display: flex;
+        gap: 0.75rem;
+        padding: 0.75rem 0;
+        border-bottom: 1px solid var(--border-color, #333);
+    }
+
+    .activity-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+    }
+
+    .activity-icon.created { background: #ef444420; color: #ef4444; }
+    .activity-icon.acknowledged { background: #f59e0b20; color: #f59e0b; }
+    .activity-icon.resolved { background: #22c55e20; color: #22c55e; }
+
+    .activity-content {
+        flex: 1;
+    }
+
+    .activity-text {
+        font-size: 0.85rem;
+    }
+
+    .activity-time {
+        font-size: 0.75rem;
+        color: var(--text-muted, #888);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted, #888);
+    }
+
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Alert Management</h1>
+    <p class="subtitle">Centralized alert monitoring and response</p>
+</div>
+
+<div class="alerts-container">
+    <div class="alerts-main">
+        <!-- Summary Cards -->
+        <div class="alert-summary">
+            <div class="summary-card critical">
+                <div class="summary-value" id="critical-count">0</div>
+                <div class="summary-label">Critical</div>
+            </div>
+            <div class="summary-card high">
+                <div class="summary-value" id="high-count">0</div>
+                <div class="summary-label">High</div>
+            </div>
+            <div class="summary-card medium">
+                <div class="summary-value" id="medium-count">0</div>
+                <div class="summary-label">Medium</div>
+            </div>
+            <div class="summary-card low">
+                <div class="summary-value" id="low-count">0</div>
+                <div class="summary-label">Low</div>
+            </div>
+            <div class="summary-card resolved">
+                <div class="summary-value" id="resolved-count">0</div>
+                <div class="summary-label">Resolved (24h)</div>
+            </div>
+        </div>
+
+        <!-- Alerts List -->
+        <div class="alerts-list-container">
+            <div class="list-header">
+                <h3>Active Alerts</h3>
+                <div class="list-filters">
+                    <select class="filter-select" id="severity-filter">
+                        <option value="">All Severities</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <select class="filter-select" id="status-filter">
+                        <option value="">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="acknowledged">Acknowledged</option>
+                    </select>
+                    <select class="filter-select" id="source-filter">
+                        <option value="">All Sources</option>
+                        <option value="quality">Quality</option>
+                        <option value="equipment">Equipment</option>
+                        <option value="scheduling">Scheduling</option>
+                        <option value="safety">Safety</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="alerts-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Severity</th>
+                            <th>Alert</th>
+                            <th>Source</th>
+                            <th>Status</th>
+                            <th>Time</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alerts-tbody">
+                        <tr>
+                            <td colspan="6" class="empty-state">
+                                <i class="fas fa-check-circle" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
+                                <p>No active alerts</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="alert-sidebar">
+        <!-- Escalations -->
+        <div class="sidebar-section">
+            <h3><i class="fas fa-exclamation-triangle"></i> Pending Escalations</h3>
+            <div id="escalations-list">
+                <div class="empty-state">
+                    <p>No pending escalations</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Correlations -->
+        <div class="sidebar-section">
+            <h3><i class="fas fa-project-diagram"></i> Correlated Alerts</h3>
+            <div id="correlations-list">
+                <div class="empty-state">
+                    <p>No correlated patterns detected</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="sidebar-section">
+            <h3><i class="fas fa-history"></i> Recent Activity</h3>
+            <div class="recent-activity" id="activity-list">
+                <div class="empty-state">
+                    <p>No recent activity</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let alerts = [];
+    let summary = {};
+
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAlerts();
+        setInterval(loadAlerts, 5000);
+
+        // Filter change handlers
+        document.querySelectorAll('.filter-select').forEach(select => {
+            select.addEventListener('change', renderAlerts);
+        });
+    });
+
+    async function loadAlerts() {
+        try {
+            const response = await fetch('/command-center/api/alerts');
+            const data = await response.json();
+
+            if (data.success) {
+                alerts = data.data.alerts;
+                summary = data.data.summary;
+
+                updateSummary();
+                renderAlerts();
+                renderEscalations();
+                renderCorrelations();
+            }
+        } catch (error) {
+            console.error('Failed to load alerts:', error);
+        }
+    }
+
+    function updateSummary() {
+        const bySeverity = summary.by_severity || {};
+        document.getElementById('critical-count').textContent = bySeverity.critical || 0;
+        document.getElementById('high-count').textContent = bySeverity.high || 0;
+        document.getElementById('medium-count').textContent = bySeverity.medium || 0;
+        document.getElementById('low-count').textContent = bySeverity.low || 0;
+        document.getElementById('resolved-count').textContent = summary.resolved_24h || 0;
+    }
+
+    function renderAlerts() {
+        const tbody = document.getElementById('alerts-tbody');
+        const severityFilter = document.getElementById('severity-filter').value;
+        const statusFilter = document.getElementById('status-filter').value;
+        const sourceFilter = document.getElementById('source-filter').value;
+
+        let filtered = alerts.filter(alert => {
+            if (severityFilter && alert.severity !== severityFilter) return false;
+            if (statusFilter && alert.status !== statusFilter) return false;
+            if (sourceFilter && alert.source !== sourceFilter) return false;
+            return true;
+        });
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="empty-state">
+                        <i class="fas fa-check-circle" style="font-size: 2rem; margin-bottom: 0.5rem;"></i>
+                        <p>No alerts match criteria</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(alert => `
+            <tr>
+                <td>
+                    <span class="severity-badge severity-${alert.severity}">
+                        ${alert.severity === 'critical' ? '<i class="fas fa-exclamation-circle pulse"></i> ' : ''}
+                        ${alert.severity}
+                    </span>
+                </td>
+                <td>
+                    <div style="font-weight: 600;">${alert.title}</div>
+                    <div style="font-size: 0.85rem; color: var(--text-muted);">${alert.message || ''}</div>
+                </td>
+                <td>${alert.source}</td>
+                <td><span class="status-badge status-${alert.status}">${alert.status}</span></td>
+                <td>${formatTime(alert.created_at)}</td>
+                <td>
+                    <div class="alert-actions">
+                        ${alert.status === 'active' ? `
+                            <button class="btn-sm btn-ack" onclick="acknowledgeAlert('${alert.id}')">
+                                <i class="fas fa-eye"></i> Ack
+                            </button>
+                        ` : ''}
+                        ${alert.status !== 'resolved' ? `
+                            <button class="btn-sm btn-resolve" onclick="resolveAlert('${alert.id}')">
+                                <i class="fas fa-check"></i> Resolve
+                            </button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function renderEscalations() {
+        const container = document.getElementById('escalations-list');
+        const pendingEscalations = alerts.filter(a =>
+            a.status === 'active' &&
+            a.severity === 'critical' &&
+            !a.acknowledged_at
+        );
+
+        if (pendingEscalations.length === 0) {
+            container.innerHTML = `<div class="empty-state"><p>No pending escalations</p></div>`;
+            return;
+        }
+
+        container.innerHTML = pendingEscalations.slice(0, 5).map(alert => {
+            const age = (Date.now() - new Date(alert.created_at).getTime()) / 60000;
+            const escalationTime = age < 5 ? `${Math.ceil(5 - age)}m to L1` :
+                                  age < 15 ? `${Math.ceil(15 - age)}m to L2` :
+                                  'Escalated';
+            return `
+                <div class="escalation-item">
+                    <div class="escalation-header">
+                        <span class="severity-badge severity-${alert.severity}">${alert.severity}</span>
+                        <span class="escalation-time">${escalationTime}</span>
+                    </div>
+                    <div class="escalation-title">${alert.title}</div>
+                    <div class="escalation-meta">${alert.source} - ${formatTime(alert.created_at)}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function renderCorrelations() {
+        const container = document.getElementById('correlations-list');
+        // Group alerts by source that occurred within 5 minutes
+        const groups = {};
+
+        alerts.forEach(alert => {
+            const key = alert.source;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(alert);
+        });
+
+        const correlatedGroups = Object.entries(groups)
+            .filter(([_, alerts]) => alerts.length > 1)
+            .slice(0, 3);
+
+        if (correlatedGroups.length === 0) {
+            container.innerHTML = `<div class="empty-state"><p>No correlated patterns detected</p></div>`;
+            return;
+        }
+
+        container.innerHTML = correlatedGroups.map(([source, sourceAlerts]) => `
+            <div class="correlation-group">
+                <div class="correlation-title">
+                    ${source}
+                    <span class="correlation-count">${sourceAlerts.length} alerts</span>
+                </div>
+                <div class="correlation-alerts">
+                    ${sourceAlerts.slice(0, 3).map(a => a.title).join(', ')}
+                    ${sourceAlerts.length > 3 ? ` +${sourceAlerts.length - 3} more` : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function acknowledgeAlert(alertId) {
+        try {
+            const response = await fetch(`/command-center/api/alerts/${alertId}/acknowledge`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user: 'operator',
+                    note: 'Acknowledged from Alert Management'
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showNotification('Alert acknowledged', 'success');
+                loadAlerts();
+            } else {
+                showNotification('Failed to acknowledge: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showNotification('Error acknowledging alert', 'error');
+        }
+    }
+
+    async function resolveAlert(alertId) {
+        const resolution = prompt('Resolution notes:');
+        if (resolution === null) return;
+
+        try {
+            const response = await fetch(`/command-center/api/alerts/${alertId}/resolve`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user: 'operator',
+                    resolution: resolution
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showNotification('Alert resolved', 'success');
+                loadAlerts();
+            } else {
+                showNotification('Failed to resolve: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showNotification('Error resolving alert', 'error');
+        }
+    }
+
+    function formatTime(timestamp) {
+        if (!timestamp) return 'N/A';
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = (now - date) / 1000;
+
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return date.toLocaleDateString();
+    }
+
+    function showNotification(message, type) {
+        alert(message);
+    }
+</script>
+{% endblock %}

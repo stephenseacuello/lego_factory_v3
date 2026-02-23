@@ -1,0 +1,1080 @@
+{% extends "base.html" %}
+
+{% block title %}Material Master - LEGO MCP v6.0{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --bg-primary: #0f172a;
+        --bg-secondary: #1e293b;
+        --bg-tertiary: #334155;
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --accent-blue: #3b82f6;
+        --accent-green: #22c55e;
+        --accent-yellow: #eab308;
+        --accent-red: #ef4444;
+        --accent-purple: #a855f7;
+        --accent-cyan: #06b6d4;
+    }
+
+    .material-master-container {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 1.5rem;
+        padding: 1.5rem;
+        min-height: calc(100vh - 60px);
+        background: var(--bg-primary);
+    }
+
+    /* Sidebar */
+    .sidebar {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1.5rem;
+        height: fit-content;
+        position: sticky;
+        top: 80px;
+    }
+
+    .sidebar-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .filter-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .filter-label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .filter-select, .filter-input {
+        width: 100%;
+        padding: 0.6rem;
+        background: var(--bg-tertiary);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+    }
+
+    .filter-select:focus, .filter-input:focus {
+        outline: none;
+        border-color: var(--accent-blue);
+    }
+
+    .quick-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+    }
+
+    .action-btn {
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border: none;
+    }
+
+    .action-btn-primary {
+        background: var(--accent-blue);
+        color: white;
+    }
+
+    .action-btn-primary:hover {
+        background: #2563eb;
+    }
+
+    .action-btn-secondary {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .action-btn-secondary:hover {
+        background: #475569;
+    }
+
+    /* Main Content */
+    .main-content {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+    }
+
+    .stat-card {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1.25rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+    }
+
+    .stat-card.warning::before {
+        background: linear-gradient(90deg, var(--accent-yellow), var(--accent-red));
+    }
+
+    .stat-card.success::before {
+        background: linear-gradient(90deg, var(--accent-green), var(--accent-cyan));
+    }
+
+    .stat-label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0.5rem 0;
+    }
+
+    .stat-trend {
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .stat-trend.up { color: var(--accent-green); }
+    .stat-trend.down { color: var(--accent-red); }
+
+    /* Inventory Table */
+    .inventory-section {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.25rem;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .search-box {
+        display: flex;
+        align-items: center;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem;
+        gap: 0.5rem;
+    }
+
+    .search-box input {
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        font-size: 0.9rem;
+        width: 200px;
+    }
+
+    .search-box input:focus { outline: none; }
+
+    .inventory-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .inventory-table th {
+        text-align: left;
+        padding: 1rem 1.25rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        background: var(--bg-tertiary);
+    }
+
+    .inventory-table td {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+    }
+
+    .inventory-table tr:hover {
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .color-swatch {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        margin-right: 0.5rem;
+        vertical-align: middle;
+        border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .material-badge {
+        display: inline-block;
+        padding: 0.25rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .material-pla { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+    .material-petg { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+    .material-abs { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .material-asa { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+    .material-tpu { background: rgba(6, 182, 212, 0.2); color: #06b6d4; }
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .status-available { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+    .status-in_use { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+    .status-low_stock { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+    .status-empty { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+    .progress-bar {
+        height: 6px;
+        background: var(--bg-tertiary);
+        border-radius: 3px;
+        overflow: hidden;
+        width: 80px;
+    }
+
+    .progress-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.3s;
+    }
+
+    .progress-high { background: var(--accent-green); }
+    .progress-medium { background: var(--accent-yellow); }
+    .progress-low { background: var(--accent-red); }
+
+    /* Charts Section */
+    .charts-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+
+    .chart-card {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+
+    .chart-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+    }
+
+    .chart-placeholder {
+        height: 250px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        color: var(--text-secondary);
+    }
+
+    /* Alerts Panel */
+    .alerts-panel {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .alert-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+    }
+
+    .alert-item:last-child { margin-bottom: 0; }
+
+    .alert-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+    }
+
+    .alert-warning .alert-icon { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+    .alert-critical .alert-icon { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .alert-info .alert-icon { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+
+    .alert-content {
+        flex: 1;
+    }
+
+    .alert-title {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .alert-time {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    /* Modal */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal-overlay.active { display: flex; }
+
+    .modal-content {
+        background: var(--bg-secondary);
+        border-radius: 16px;
+        width: 90%;
+        max-width: 600px;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        font-size: 1.5rem;
+        cursor: pointer;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+    }
+
+    .form-input, .form-select {
+        width: 100%;
+        padding: 0.75rem;
+        background: var(--bg-tertiary);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding: 1.5rem;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+
+    /* LEGO Recommendations Panel */
+    .recommendations-panel {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .rec-card {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        margin-bottom: 0.75rem;
+    }
+
+    .rec-score {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1rem;
+    }
+
+    .rec-score.excellent { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+    .rec-score.good { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+    .rec-score.fair { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+
+    .rec-details {
+        flex: 1;
+    }
+
+    .rec-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .rec-props {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    @media (max-width: 1200px) {
+        .stats-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        .charts-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .material-master-container {
+            grid-template-columns: 1fr;
+        }
+        .sidebar {
+            position: relative;
+            top: 0;
+        }
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="material-master-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <h2 class="sidebar-title">
+            <span>Filters</span>
+        </h2>
+
+        <div class="filter-group">
+            <label class="filter-label">Material Type</label>
+            <select class="filter-select" id="filterMaterial">
+                <option value="">All Materials</option>
+                <option value="pla">PLA</option>
+                <option value="petg">PETG</option>
+                <option value="abs">ABS</option>
+                <option value="asa">ASA</option>
+                <option value="tpu">TPU</option>
+                <option value="nylon">Nylon</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-label">Status</label>
+            <select class="filter-select" id="filterStatus">
+                <option value="">All Status</option>
+                <option value="available">Available</option>
+                <option value="in_use">In Use</option>
+                <option value="low_stock">Low Stock</option>
+                <option value="empty">Empty</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label class="filter-label">Brand</label>
+            <input type="text" class="filter-input" id="filterBrand" placeholder="Filter by brand...">
+        </div>
+
+        <div class="quick-actions">
+            <button class="action-btn action-btn-primary" onclick="openAddSpoolModal()">
+                <span>+</span> Add Spool
+            </button>
+            <button class="action-btn action-btn-secondary" onclick="openWeighingModal()">
+                <span>&#9878;</span> Weigh Spool
+            </button>
+            <button class="action-btn action-btn-secondary" onclick="refreshInventory()">
+                <span>&#8635;</span> Refresh
+            </button>
+            <button class="action-btn action-btn-secondary" onclick="exportInventory()">
+                <span>&#8681;</span> Export CSV
+            </button>
+        </div>
+
+        <!-- LEGO Recommendations -->
+        <div style="margin-top: 2rem;">
+            <h3 class="sidebar-title">LEGO Recommendations</h3>
+            <div class="recommendations-panel" id="legoRecommendations">
+                <!-- Filled by JS -->
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Stats Row -->
+        <section class="stats-grid" id="statsGrid">
+            <div class="stat-card success">
+                <div class="stat-label">Total Spools</div>
+                <div class="stat-value" id="statTotalSpools">0</div>
+                <div class="stat-trend up">Active inventory</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Total Weight</div>
+                <div class="stat-value" id="statTotalWeight">0 kg</div>
+                <div class="stat-trend">Available material</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Inventory Value</div>
+                <div class="stat-value" id="statTotalValue">$0</div>
+                <div class="stat-trend">USD</div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-label">Low Stock</div>
+                <div class="stat-value" id="statLowStock">0</div>
+                <div class="stat-trend down">Need reorder</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Alerts</div>
+                <div class="stat-value" id="statAlerts">0</div>
+                <div class="stat-trend">Active alerts</div>
+            </div>
+        </section>
+
+        <!-- Inventory Table -->
+        <section class="inventory-section">
+            <div class="section-header">
+                <h2 class="section-title">Filament Inventory</h2>
+                <div class="search-box">
+                    <span>&#128269;</span>
+                    <input type="text" id="searchInput" placeholder="Search spools...">
+                </div>
+            </div>
+            <table class="inventory-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Material</th>
+                        <th>Brand / Color</th>
+                        <th>Status</th>
+                        <th>Remaining</th>
+                        <th>Weight</th>
+                        <th>Location</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="inventoryTableBody">
+                    <!-- Filled by JS -->
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Charts -->
+        <section class="charts-grid">
+            <div class="chart-card">
+                <h3 class="chart-title">Material Distribution</h3>
+                <div class="chart-placeholder" id="materialDistChart">
+                    Material distribution chart
+                </div>
+            </div>
+            <div class="chart-card">
+                <h3 class="chart-title">Consumption Trend (30 days)</h3>
+                <div class="chart-placeholder" id="consumptionChart">
+                    Consumption trend chart
+                </div>
+            </div>
+        </section>
+
+        <!-- Alerts Panel -->
+        <section class="alerts-panel">
+            <h3 class="section-title" style="margin-bottom: 1rem;">Active Alerts</h3>
+            <div id="alertsList">
+                <!-- Filled by JS -->
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Add Spool Modal -->
+<div class="modal-overlay" id="addSpoolModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Add New Spool</h3>
+            <button class="modal-close" onclick="closeModal('addSpoolModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="addSpoolForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Material Type *</label>
+                        <select class="form-select" name="material_type" required>
+                            <option value="pla">PLA</option>
+                            <option value="petg">PETG</option>
+                            <option value="abs">ABS</option>
+                            <option value="asa">ASA</option>
+                            <option value="tpu">TPU</option>
+                            <option value="nylon">Nylon</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Brand *</label>
+                        <input type="text" class="form-input" name="brand" placeholder="e.g., Polymaker" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Color Name *</label>
+                        <input type="text" class="form-input" name="color" placeholder="e.g., Red" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Color Code</label>
+                        <input type="color" class="form-input" name="color_code" value="#FF0000">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Initial Weight (g) *</label>
+                        <input type="number" class="form-input" name="initial_weight_g" value="1000" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Diameter (mm)</label>
+                        <input type="number" class="form-input" name="diameter_mm" value="1.75" step="0.01">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Lot Number</label>
+                        <input type="text" class="form-input" name="lot_number" placeholder="LOT-2024-001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Unit Cost ($/kg)</label>
+                        <input type="number" class="form-input" name="unit_cost" value="25" step="0.01">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Supplier</label>
+                    <input type="text" class="form-input" name="supplier" placeholder="Amazon, Printed Solid, etc.">
+                </div>
+            </form>
+        </div>
+        <div class="modal-footer">
+            <button class="action-btn action-btn-secondary" onclick="closeModal('addSpoolModal')">Cancel</button>
+            <button class="action-btn action-btn-primary" onclick="submitAddSpool()">Add Spool</button>
+        </div>
+    </div>
+</div>
+
+<!-- Weigh Spool Modal -->
+<div class="modal-overlay" id="weighingModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">Weigh Spool</h3>
+            <button class="modal-close" onclick="closeModal('weighingModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Select Spool</label>
+                <select class="form-select" id="weighSpoolSelect">
+                    <!-- Filled by JS -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">New Weight (g)</label>
+                <input type="number" class="form-input" id="weighNewWeight" placeholder="Enter measured weight">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reason</label>
+                <input type="text" class="form-input" id="weighReason" value="Physical weighing">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="action-btn action-btn-secondary" onclick="closeModal('weighingModal')">Cancel</button>
+            <button class="action-btn action-btn-primary" onclick="submitWeighing()">Update Weight</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // API Base URL
+    const API_BASE = '/api/mrp/materials';
+
+    // State
+    let spools = [];
+    let summary = {};
+    let alerts = [];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+        loadInventory();
+        loadSummary();
+        loadAlerts();
+        loadLegoRecommendations();
+
+        // Filter listeners
+        document.getElementById('filterMaterial').addEventListener('change', applyFilters);
+        document.getElementById('filterStatus').addEventListener('change', applyFilters);
+        document.getElementById('filterBrand').addEventListener('input', applyFilters);
+        document.getElementById('searchInput').addEventListener('input', applyFilters);
+    });
+
+    // Load inventory
+    async function loadInventory() {
+        try {
+            const res = await fetch(`${API_BASE}/spools`);
+            const data = await res.json();
+            if (data.success) {
+                spools = data.spools;
+                renderInventoryTable(spools);
+                populateWeighSelect(spools);
+            }
+        } catch (err) {
+            console.error('Failed to load inventory:', err);
+        }
+    }
+
+    // Load summary
+    async function loadSummary() {
+        try {
+            const res = await fetch(`${API_BASE}/summary`);
+            const data = await res.json();
+            if (data.success) {
+                summary = data.summary;
+                updateStats(summary);
+            }
+        } catch (err) {
+            console.error('Failed to load summary:', err);
+        }
+    }
+
+    // Load alerts
+    async function loadAlerts() {
+        try {
+            const res = await fetch(`${API_BASE}/alerts`);
+            const data = await res.json();
+            if (data.success) {
+                alerts = data.alerts;
+                renderAlerts(alerts);
+            }
+        } catch (err) {
+            console.error('Failed to load alerts:', err);
+        }
+    }
+
+    // Load LEGO recommendations
+    async function loadLegoRecommendations() {
+        try {
+            const res = await fetch(`${API_BASE}/lego/recommendations`);
+            const data = await res.json();
+            if (data.success) {
+                renderLegoRecommendations(data.recommendations);
+            }
+        } catch (err) {
+            console.error('Failed to load recommendations:', err);
+        }
+    }
+
+    // Update stats
+    function updateStats(summary) {
+        document.getElementById('statTotalSpools').textContent = summary.total_spools || 0;
+        document.getElementById('statTotalWeight').textContent = `${summary.total_weight_kg || 0} kg`;
+        document.getElementById('statTotalValue').textContent = `$${summary.total_value || 0}`;
+        document.getElementById('statLowStock').textContent = summary.low_stock_count || 0;
+        document.getElementById('statAlerts').textContent = summary.alerts_count || 0;
+    }
+
+    // Render inventory table
+    function renderInventoryTable(spoolList) {
+        const tbody = document.getElementById('inventoryTableBody');
+        tbody.innerHTML = spoolList.map(spool => `
+            <tr>
+                <td>${spool.id}</td>
+                <td><span class="material-badge material-${spool.material_type}">${spool.material_type.toUpperCase()}</span></td>
+                <td>
+                    <span class="color-swatch" style="background: ${spool.color_code}"></span>
+                    ${spool.brand} - ${spool.color}
+                </td>
+                <td><span class="status-badge status-${spool.status}">${formatStatus(spool.status)}</span></td>
+                <td>
+                    <div class="progress-bar">
+                        <div class="progress-fill ${getProgressClass(spool.remaining_percentage)}"
+                             style="width: ${spool.remaining_percentage}%"></div>
+                    </div>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary)">
+                        ${Math.round(spool.remaining_percentage)}%
+                    </span>
+                </td>
+                <td>${Math.round(spool.current_weight_g)}g / ${spool.initial_weight_g}g</td>
+                <td>${spool.printer_id || spool.location}</td>
+                <td>
+                    <button class="action-btn action-btn-secondary" style="padding: 0.4rem 0.6rem; font-size: 0.8rem"
+                            onclick="viewSpool('${spool.id}')">View</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    // Render alerts
+    function renderAlerts(alertList) {
+        const container = document.getElementById('alertsList');
+        if (alertList.length === 0) {
+            container.innerHTML = '<p style="color: var(--text-secondary)">No active alerts</p>';
+            return;
+        }
+        container.innerHTML = alertList.slice(0, 5).map(alert => `
+            <div class="alert-item alert-${alert.severity}">
+                <div class="alert-icon">${alert.severity === 'critical' ? '!' : 'i'}</div>
+                <div class="alert-content">
+                    <div class="alert-title">${alert.message}</div>
+                    <div class="alert-time">${formatTime(alert.created_at)}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Render LEGO recommendations
+    function renderLegoRecommendations(recs) {
+        const container = document.getElementById('legoRecommendations');
+        container.innerHTML = recs.slice(0, 4).map(rec => `
+            <div class="rec-card">
+                <div class="rec-score ${getScoreClass(rec.score)}">${Math.round(rec.score)}</div>
+                <div class="rec-details">
+                    <div class="rec-name">${rec.name}</div>
+                    <div class="rec-props">Clutch: ${rec.clutch_power} | ${rec.available_stock_g}g available</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    // Apply filters
+    function applyFilters() {
+        let filtered = [...spools];
+        const material = document.getElementById('filterMaterial').value;
+        const status = document.getElementById('filterStatus').value;
+        const brand = document.getElementById('filterBrand').value.toLowerCase();
+        const search = document.getElementById('searchInput').value.toLowerCase();
+
+        if (material) filtered = filtered.filter(s => s.material_type === material);
+        if (status) filtered = filtered.filter(s => s.status === status);
+        if (brand) filtered = filtered.filter(s => s.brand.toLowerCase().includes(brand));
+        if (search) filtered = filtered.filter(s =>
+            s.brand.toLowerCase().includes(search) ||
+            s.color.toLowerCase().includes(search) ||
+            s.id.toLowerCase().includes(search)
+        );
+
+        renderInventoryTable(filtered);
+    }
+
+    // Populate weigh select
+    function populateWeighSelect(spoolList) {
+        const select = document.getElementById('weighSpoolSelect');
+        select.innerHTML = spoolList.map(s =>
+            `<option value="${s.id}">${s.id} - ${s.brand} ${s.color} (${s.material_type.toUpperCase()})</option>`
+        ).join('');
+    }
+
+    // Modal functions
+    function openAddSpoolModal() {
+        document.getElementById('addSpoolModal').classList.add('active');
+    }
+
+    function openWeighingModal() {
+        document.getElementById('weighingModal').classList.add('active');
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    }
+
+    // Submit add spool
+    async function submitAddSpool() {
+        const form = document.getElementById('addSpoolForm');
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+        data.initial_weight_g = parseFloat(data.initial_weight_g);
+        data.diameter_mm = parseFloat(data.diameter_mm);
+        data.unit_cost = parseFloat(data.unit_cost);
+
+        try {
+            const res = await fetch(`${API_BASE}/spools`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.success) {
+                closeModal('addSpoolModal');
+                form.reset();
+                refreshInventory();
+            } else {
+                alert('Error: ' + result.error);
+            }
+        } catch (err) {
+            console.error('Failed to add spool:', err);
+            alert('Failed to add spool');
+        }
+    }
+
+    // Submit weighing
+    async function submitWeighing() {
+        const spoolId = document.getElementById('weighSpoolSelect').value;
+        const newWeight = parseFloat(document.getElementById('weighNewWeight').value);
+        const reason = document.getElementById('weighReason').value;
+
+        if (!newWeight || newWeight < 0) {
+            alert('Please enter a valid weight');
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_BASE}/spools/${spoolId}/adjust`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_weight_g: newWeight, reason })
+            });
+            const result = await res.json();
+            if (result.success) {
+                closeModal('weighingModal');
+                refreshInventory();
+            } else {
+                alert('Error: ' + result.error);
+            }
+        } catch (err) {
+            console.error('Failed to update weight:', err);
+            alert('Failed to update weight');
+        }
+    }
+
+    // Refresh all data
+    function refreshInventory() {
+        loadInventory();
+        loadSummary();
+        loadAlerts();
+    }
+
+    // View spool details
+    function viewSpool(spoolId) {
+        // Could open a detail modal or navigate to detail page
+        alert('View spool: ' + spoolId);
+    }
+
+    // Export inventory
+    function exportInventory() {
+        // Would trigger a download
+        alert('Export feature coming soon');
+    }
+
+    // Utility functions
+    function formatStatus(status) {
+        return status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    function getProgressClass(percent) {
+        if (percent > 50) return 'progress-high';
+        if (percent > 20) return 'progress-medium';
+        return 'progress-low';
+    }
+
+    function getScoreClass(score) {
+        if (score >= 90) return 'excellent';
+        if (score >= 70) return 'good';
+        return 'fair';
+    }
+
+    function formatTime(isoString) {
+        const date = new Date(isoString);
+        return date.toLocaleString();
+    }
+</script>
+{% endblock %}

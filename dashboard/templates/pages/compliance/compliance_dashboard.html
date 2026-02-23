@@ -1,0 +1,3059 @@
+{% extends "base.html" %}
+
+{% block title %}Compliance & Audit - LegoMCP Manufacturing{% endblock %}
+
+{% block extra_css %}
+<style>
+    .compliance-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-title h1 {
+        font-size: 1.75rem;
+        margin: 0 0 0.25rem 0;
+        color: var(--text-primary);
+    }
+
+    .header-subtitle {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .compliance-badges {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .cert-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .cert-badge .cert-icon {
+        font-size: 1rem;
+    }
+
+    /* Compliance Score Cards */
+    .compliance-scores {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .score-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .score-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+    }
+
+    .score-card.excellent::before { background: linear-gradient(90deg, #10b981, #34d399); }
+    .score-card.good::before { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .score-card.warning::before { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+
+    .score-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.75rem;
+        font-size: 1.25rem;
+    }
+
+    .score-icon.iso9001 { background: rgba(59, 130, 246, 0.15); }
+    .score-icon.iso14001 { background: rgba(16, 185, 129, 0.15); }
+    .score-icon.iso45001 { background: rgba(245, 158, 11, 0.15); }
+    .score-icon.fda { background: rgba(139, 92, 246, 0.15); }
+
+    .score-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .score-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .score-desc {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .score-status {
+        margin-top: 0.75rem;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+
+    .score-status.valid { color: #10b981; }
+    .score-status.expiring { color: #f59e0b; }
+
+    /* Main Content Grid */
+    .compliance-content {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Audit Calendar */
+    .audit-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .section-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .audit-timeline {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .audit-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 10px;
+        border-left: 4px solid transparent;
+    }
+
+    .audit-item.upcoming { border-left-color: #3b82f6; }
+    .audit-item.in-progress { border-left-color: #f59e0b; }
+    .audit-item.completed { border-left-color: #10b981; }
+    .audit-item.overdue { border-left-color: #ef4444; }
+
+    .audit-date {
+        min-width: 60px;
+        text-align: center;
+    }
+
+    .audit-day {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .audit-month {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .audit-info {
+        flex: 1;
+    }
+
+    .audit-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .audit-details {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .audit-status {
+        text-align: right;
+    }
+
+    .audit-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-size: 0.65rem;
+        font-weight: 600;
+    }
+
+    .audit-badge.upcoming { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .audit-badge.in-progress { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .audit-badge.completed { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .audit-badge.overdue { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+    .audit-finding {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Document Control */
+    .document-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .doc-stats {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .doc-stat {
+        text-align: center;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 8px;
+    }
+
+    .doc-stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .doc-stat-value.warning { color: #f59e0b; }
+    .doc-stat-value.critical { color: #ef4444; }
+
+    .doc-stat-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .doc-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .doc-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem;
+        border-radius: 6px;
+    }
+
+    .doc-item:hover {
+        background: rgba(0, 0, 0, 0.03);
+    }
+
+    .doc-icon {
+        font-size: 1.25rem;
+    }
+
+    .doc-info {
+        flex: 1;
+    }
+
+    .doc-name {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .doc-version {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    .doc-status {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.4rem;
+        border-radius: 8px;
+    }
+
+    .doc-status.current { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .doc-status.review { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .doc-status.expired { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+    /* CAPA & NCR Section */
+    .action-section {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .action-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .action-summary {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .summary-stat {
+        flex: 1;
+        text-align: center;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 8px;
+    }
+
+    .summary-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .summary-value.red { color: #ef4444; }
+    .summary-value.yellow { color: #f59e0b; }
+    .summary-value.green { color: #10b981; }
+
+    .summary-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    .action-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .action-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 8px;
+        border-left: 3px solid transparent;
+    }
+
+    .action-item.high { border-left-color: #ef4444; }
+    .action-item.medium { border-left-color: #f59e0b; }
+    .action-item.low { border-left-color: #10b981; }
+
+    .action-priority {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .action-priority.high { background: #ef4444; }
+    .action-priority.medium { background: #f59e0b; }
+    .action-priority.low { background: #10b981; }
+
+    .action-info {
+        flex: 1;
+    }
+
+    .action-id {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .action-desc {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .action-due {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-align: right;
+    }
+
+    /* Training & Certification */
+    .bottom-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+
+    .training-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .training-chart {
+        height: 150px;
+        margin-bottom: 1rem;
+    }
+
+    .training-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+    }
+
+    .training-stat {
+        text-align: center;
+    }
+
+    .training-stat-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .training-stat-label {
+        font-size: 0.6rem;
+        color: var(--text-secondary);
+    }
+
+    /* Risk Matrix */
+    .risk-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .risk-matrix {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        margin-bottom: 1rem;
+    }
+
+    .risk-cell {
+        aspect-ratio: 1;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .risk-cell.high { background: #ef4444; }
+    .risk-cell.medium { background: #f59e0b; }
+    .risk-cell.low { background: #10b981; }
+
+    .risk-labels {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Compliance Timeline */
+    .timeline-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .timeline-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .timeline-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.5rem 0;
+        border-left: 2px solid var(--border-color);
+        padding-left: 1rem;
+        margin-left: 0.5rem;
+        position: relative;
+    }
+
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -5px;
+        top: 12px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--primary-color);
+    }
+
+    .timeline-content {
+        flex: 1;
+    }
+
+    .timeline-title {
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .timeline-desc {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .timeline-date {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .compliance-scores {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .compliance-content {
+            grid-template-columns: 1fr;
+        }
+
+        .action-section {
+            grid-template-columns: 1fr;
+        }
+
+        .bottom-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+    }
+
+    .modal-overlay.active {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--card-bg);
+        border-radius: 16px;
+        max-width: 700px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        animation: modalSlideIn 0.3s ease;
+    }
+
+    .modal-content.large {
+        max-width: 900px;
+    }
+
+    @keyframes modalSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-20px) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--text-secondary);
+        padding: 0.25rem;
+        line-height: 1;
+        transition: color 0.2s ease;
+    }
+
+    .modal-close:hover {
+        color: var(--text-primary);
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding: 1.25rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .toast {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1rem 1.25rem;
+        background: var(--card-bg);
+        border-radius: 10px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        animation: toastSlideIn 0.3s ease;
+        min-width: 300px;
+        max-width: 450px;
+    }
+
+    @keyframes toastSlideIn {
+        from {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .toast.success { border-left: 4px solid #10b981; }
+    .toast.error { border-left: 4px solid #ef4444; }
+    .toast.warning { border-left: 4px solid #f59e0b; }
+    .toast.info { border-left: 4px solid #3b82f6; }
+
+    .toast-icon {
+        font-size: 1.25rem;
+    }
+
+    .toast-message {
+        flex: 1;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+    }
+
+    .toast-close {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        font-size: 1rem;
+    }
+
+    /* Form Styles */
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .form-textarea {
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .form-row.three-col {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* Workflow Stepper */
+    .workflow-stepper {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 2rem;
+        position: relative;
+    }
+
+    .workflow-stepper::before {
+        content: '';
+        position: absolute;
+        top: 20px;
+        left: 40px;
+        right: 40px;
+        height: 2px;
+        background: var(--border-color);
+    }
+
+    .step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: relative;
+        z-index: 1;
+    }
+
+    .step-circle {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        background: var(--card-bg);
+        border: 2px solid var(--border-color);
+        color: var(--text-secondary);
+        margin-bottom: 0.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .step.active .step-circle {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        color: white;
+    }
+
+    .step.completed .step-circle {
+        background: #10b981;
+        border-color: #10b981;
+        color: white;
+    }
+
+    .step-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-align: center;
+    }
+
+    .step.active .step-label,
+    .step.completed .step-label {
+        color: var(--text-primary);
+        font-weight: 500;
+    }
+
+    /* CAPA Workflow Cards */
+    .workflow-card {
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+        border-left: 4px solid var(--primary-color);
+    }
+
+    .workflow-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .workflow-card-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .workflow-card-badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+    }
+
+    .workflow-card-badge.required { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .workflow-card-badge.optional { background: rgba(107, 114, 128, 0.15); color: #6b7280; }
+    .workflow-card-badge.complete { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+
+    .workflow-card-content {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    /* E-Signature Panel */
+    .esign-panel {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(139, 92, 246, 0.05));
+        border: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-top: 1rem;
+    }
+
+    .esign-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .esign-icon {
+        font-size: 1.5rem;
+    }
+
+    .esign-title {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .esign-subtitle {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .esign-fields {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    /* Audit Schedule Modal */
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 4px;
+        margin-bottom: 1rem;
+    }
+
+    .calendar-header {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-align: center;
+        color: var(--text-secondary);
+        padding: 0.5rem 0;
+    }
+
+    .calendar-day {
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: rgba(0, 0, 0, 0.02);
+    }
+
+    .calendar-day:hover {
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .calendar-day.selected {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .calendar-day.has-audit {
+        position: relative;
+    }
+
+    .calendar-day.has-audit::after {
+        content: '';
+        position: absolute;
+        bottom: 4px;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: #ef4444;
+    }
+
+    /* Document Version History */
+    .version-timeline {
+        position: relative;
+        padding-left: 1.5rem;
+    }
+
+    .version-timeline::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border-color);
+    }
+
+    .version-item {
+        position: relative;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 10px;
+        margin-left: 0.5rem;
+    }
+
+    .version-item::before {
+        content: '';
+        position: absolute;
+        left: -1.5rem;
+        top: 1.25rem;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        border: 2px solid var(--card-bg);
+    }
+
+    .version-item.current::before {
+        background: #10b981;
+    }
+
+    .version-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .version-number {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .version-date {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .version-changes {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    /* Training Matrix */
+    .training-matrix-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+    }
+
+    .training-matrix-table th,
+    .training-matrix-table td {
+        padding: 0.75rem;
+        text-align: center;
+        border: 1px solid var(--border-color);
+    }
+
+    .training-matrix-table th {
+        background: rgba(0, 0, 0, 0.03);
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .training-matrix-table td:first-child {
+        text-align: left;
+        font-weight: 500;
+    }
+
+    .training-status-icon {
+        font-size: 1rem;
+    }
+
+    .training-status-icon.complete { color: #10b981; }
+    .training-status-icon.overdue { color: #ef4444; }
+    .training-status-icon.pending { color: #f59e0b; }
+    .training-status-icon.na { color: #6b7280; }
+
+    /* Clickable Elements */
+    .score-card,
+    .audit-item,
+    .doc-item,
+    .action-item,
+    .risk-cell,
+    .timeline-item {
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .score-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .audit-item:hover,
+    .doc-item:hover,
+    .action-item:hover,
+    .timeline-item:hover {
+        background: rgba(59, 130, 246, 0.05);
+    }
+
+    .risk-cell:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Buttons */
+    .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 500;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: #2563eb;
+        transform: translateY(-1px);
+    }
+
+    .btn-success {
+        background: #10b981;
+        color: white;
+    }
+
+    .btn-success:hover {
+        background: #059669;
+    }
+
+    .btn-danger {
+        background: #ef4444;
+        color: white;
+    }
+
+    .btn-danger:hover {
+        background: #dc2626;
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .btn-sm {
+        padding: 0.375rem 0.75rem;
+        font-size: 0.75rem;
+    }
+
+    /* Tabs */
+    .tabs {
+        display: flex;
+        gap: 0.25rem;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 1.5rem;
+    }
+
+    .tab {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s ease;
+        background: none;
+        border-top: none;
+        border-left: none;
+        border-right: none;
+    }
+
+    .tab:hover {
+        color: var(--text-primary);
+    }
+
+    .tab.active {
+        color: var(--primary-color);
+        border-bottom-color: var(--primary-color);
+    }
+
+    /* Risk Detail Table */
+    .risk-detail-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.8rem;
+    }
+
+    .risk-detail-table th,
+    .risk-detail-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .risk-detail-table th {
+        font-weight: 600;
+        color: var(--text-secondary);
+        font-size: 0.7rem;
+        text-transform: uppercase;
+    }
+
+    .risk-score {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        font-weight: 600;
+        color: white;
+    }
+
+    .risk-score.high { background: #ef4444; }
+    .risk-score.medium { background: #f59e0b; }
+    .risk-score.low { background: #10b981; }
+
+    /* Approval Chain */
+    .approval-chain {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 10px;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+    }
+
+    .approval-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 100px;
+    }
+
+    .approval-avatar {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        position: relative;
+    }
+
+    .approval-avatar.approved::after {
+        content: '✓';
+        position: absolute;
+        bottom: -4px;
+        right: -4px;
+        width: 20px;
+        height: 20px;
+        background: #10b981;
+        border-radius: 50%;
+        font-size: 0.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid var(--card-bg);
+    }
+
+    .approval-avatar.pending::after {
+        content: '⏳';
+        position: absolute;
+        bottom: -4px;
+        right: -4px;
+        width: 20px;
+        height: 20px;
+        background: #f59e0b;
+        border-radius: 50%;
+        font-size: 0.6rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid var(--card-bg);
+    }
+
+    .approval-name {
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        text-align: center;
+    }
+
+    .approval-role {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    .approval-arrow {
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+    }
+
+    /* Checklist Styles */
+    .checklist {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .checklist-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.2s ease;
+    }
+
+    .checklist-item:hover {
+        background: rgba(0, 0, 0, 0.04);
+    }
+
+    .checklist-checkbox {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--border-color);
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+    .checklist-item.checked .checklist-checkbox {
+        background: #10b981;
+        border-color: #10b981;
+        color: white;
+    }
+
+    .checklist-text {
+        flex: 1;
+        font-size: 0.875rem;
+        color: var(--text-primary);
+    }
+
+    .checklist-item.checked .checklist-text {
+        text-decoration: line-through;
+        color: var(--text-secondary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="compliance-header">
+    <div>
+        <div class="header-title">
+            <h1>📋 Compliance & Audit Dashboard</h1>
+        </div>
+        <div class="header-subtitle">ISO 9001 • ISO 14001 • ISO 45001 • 21 CFR Part 11</div>
+    </div>
+    <div class="compliance-badges">
+        <span class="cert-badge"><span class="cert-icon">✓</span> ISO 9001:2015</span>
+        <span class="cert-badge"><span class="cert-icon">✓</span> ISO 14001:2015</span>
+        <span class="cert-badge"><span class="cert-icon">✓</span> ISO 45001:2018</span>
+    </div>
+    <div class="header-controls">
+        <button class="btn btn-outline" onclick="scheduleAudit()">📅 Schedule Audit</button>
+        <button class="btn btn-primary" onclick="exportReport()">📥 Compliance Report</button>
+    </div>
+</div>
+
+<!-- Compliance Score Cards -->
+<div class="compliance-scores">
+    <div class="score-card excellent" onclick="showCertificationDetail('iso9001')">
+        <div class="score-icon iso9001">📊</div>
+        <div class="score-value" id="iso9001Score">94%</div>
+        <div class="score-label">ISO 9001:2015</div>
+        <div class="score-desc">Quality Management System</div>
+        <div class="score-status valid">✓ Valid until Dec 2025</div>
+    </div>
+    <div class="score-card excellent" onclick="showCertificationDetail('iso14001')">
+        <div class="score-icon iso14001">🌱</div>
+        <div class="score-value" id="iso14001Score">91%</div>
+        <div class="score-label">ISO 14001:2015</div>
+        <div class="score-desc">Environmental Management</div>
+        <div class="score-status valid">✓ Valid until Oct 2025</div>
+    </div>
+    <div class="score-card good" onclick="showCertificationDetail('iso45001')">
+        <div class="score-icon iso45001">⛑️</div>
+        <div class="score-value" id="iso45001Score">88%</div>
+        <div class="score-label">ISO 45001:2018</div>
+        <div class="score-desc">Occupational Health & Safety</div>
+        <div class="score-status valid">✓ Valid until Aug 2025</div>
+    </div>
+    <div class="score-card warning" onclick="showCertificationDetail('fda')">
+        <div class="score-icon fda">💊</div>
+        <div class="score-value" id="fdaScore">85%</div>
+        <div class="score-label">21 CFR Part 11</div>
+        <div class="score-desc">FDA Electronic Records</div>
+        <div class="score-status expiring">⚠ Audit due Mar 2024</div>
+    </div>
+</div>
+
+<!-- Audit Calendar & Document Control -->
+<div class="compliance-content">
+    <div class="audit-section">
+        <div class="section-header">
+            <div class="section-title">📅 Audit Calendar</div>
+            <button class="btn btn-outline btn-sm">View All</button>
+        </div>
+        <div class="audit-timeline">
+            <div class="audit-item in-progress" onclick="showAuditDetail('AUD-2024-021', 'Internal Quality Audit - Production Area', 'in-progress')">
+                <div class="audit-date">
+                    <div class="audit-day">21</div>
+                    <div class="audit-month">Jan</div>
+                </div>
+                <div class="audit-info">
+                    <div class="audit-title">Internal Quality Audit - Production Area</div>
+                    <div class="audit-details">Lead Auditor: M. Johnson • Scope: Manufacturing Processes</div>
+                </div>
+                <div class="audit-status">
+                    <span class="audit-badge in-progress">IN PROGRESS</span>
+                    <div class="audit-finding">2 findings pending</div>
+                </div>
+            </div>
+            <div class="audit-item upcoming" onclick="showAuditDetail('AUD-2024-022', 'Supplier Audit - ABS Polymers Inc.', 'scheduled')">
+                <div class="audit-date">
+                    <div class="audit-day">28</div>
+                    <div class="audit-month">Jan</div>
+                </div>
+                <div class="audit-info">
+                    <div class="audit-title">Supplier Audit - ABS Polymers Inc.</div>
+                    <div class="audit-details">Lead Auditor: S. Williams • Scope: Quality & Delivery</div>
+                </div>
+                <div class="audit-status">
+                    <span class="audit-badge upcoming">SCHEDULED</span>
+                </div>
+            </div>
+            <div class="audit-item upcoming" onclick="showAuditDetail('AUD-2024-023', 'Environmental Compliance Review', 'scheduled')">
+                <div class="audit-date">
+                    <div class="audit-day">05</div>
+                    <div class="audit-month">Feb</div>
+                </div>
+                <div class="audit-info">
+                    <div class="audit-title">Environmental Compliance Review</div>
+                    <div class="audit-details">Lead Auditor: External • Scope: ISO 14001 Surveillance</div>
+                </div>
+                <div class="audit-status">
+                    <span class="audit-badge upcoming">SCHEDULED</span>
+                </div>
+            </div>
+            <div class="audit-item completed" onclick="showAuditDetail('AUD-2024-020', 'Safety Inspection - Warehouse', 'completed')">
+                <div class="audit-date">
+                    <div class="audit-day">15</div>
+                    <div class="audit-month">Jan</div>
+                </div>
+                <div class="audit-info">
+                    <div class="audit-title">Safety Inspection - Warehouse</div>
+                    <div class="audit-details">Inspector: R. Brown • Scope: H&S Compliance</div>
+                </div>
+                <div class="audit-status">
+                    <span class="audit-badge completed">COMPLETED</span>
+                    <div class="audit-finding">0 major findings</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="document-section">
+        <div class="section-header">
+            <div class="section-title">📄 Document Control</div>
+        </div>
+        <div class="doc-stats">
+            <div class="doc-stat">
+                <div class="doc-stat-value">245</div>
+                <div class="doc-stat-label">Active Documents</div>
+            </div>
+            <div class="doc-stat">
+                <div class="doc-stat-value warning">12</div>
+                <div class="doc-stat-label">Pending Review</div>
+            </div>
+            <div class="doc-stat">
+                <div class="doc-stat-value critical">3</div>
+                <div class="doc-stat-label">Expired</div>
+            </div>
+            <div class="doc-stat">
+                <div class="doc-stat-value">28</div>
+                <div class="doc-stat-label">Updated This Month</div>
+            </div>
+        </div>
+        <div class="doc-list">
+            <div class="doc-item" onclick="showDocumentDetail('DOC-001', 'Quality Manual', 'v4.2', 'current')">
+                <span class="doc-icon">📘</span>
+                <div class="doc-info">
+                    <div class="doc-name">Quality Manual</div>
+                    <div class="doc-version">v4.2 • Updated Jan 10</div>
+                </div>
+                <span class="doc-status current">Current</span>
+            </div>
+            <div class="doc-item" onclick="showDocumentDetail('SOP-001', 'Production Control', 'v3.1', 'review')">
+                <span class="doc-icon">📋</span>
+                <div class="doc-info">
+                    <div class="doc-name">SOP-001: Production Control</div>
+                    <div class="doc-version">v3.1 • Review due Jan 25</div>
+                </div>
+                <span class="doc-status review">Review</span>
+            </div>
+            <div class="doc-item" onclick="showDocumentDetail('SOP-023', 'Equipment Calibration', 'v2.8', 'expired')">
+                <span class="doc-icon">📋</span>
+                <div class="doc-info">
+                    <div class="doc-name">SOP-023: Equipment Calibration</div>
+                    <div class="doc-version">v2.8 • Expired Jan 15</div>
+                </div>
+                <span class="doc-status expired">Expired</span>
+            </div>
+            <div class="doc-item" onclick="showDocumentDetail('WI-042', '3D Printer Setup', 'v1.5', 'current')">
+                <span class="doc-icon">📝</span>
+                <div class="doc-info">
+                    <div class="doc-name">WI-042: 3D Printer Setup</div>
+                    <div class="doc-version">v1.5 • Updated Jan 18</div>
+                </div>
+                <span class="doc-status current">Current</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- CAPA & NCR Section -->
+<div class="action-section">
+    <div class="action-card">
+        <div class="section-header">
+            <div class="section-title">⚠️ CAPA Management</div>
+            <button class="btn btn-outline btn-sm" onclick="openModal('capaModal')">+ New CAPA</button>
+        </div>
+        <div class="action-summary">
+            <div class="summary-stat" onclick="showCAPAFilter('overdue')">
+                <div class="summary-value red" id="capaOverdue">4</div>
+                <div class="summary-label">Overdue</div>
+            </div>
+            <div class="summary-stat" onclick="showCAPAFilter('in-progress')">
+                <div class="summary-value yellow" id="capaInProgress">12</div>
+                <div class="summary-label">In Progress</div>
+            </div>
+            <div class="summary-stat" onclick="showCAPAFilter('closed')">
+                <div class="summary-value green" id="capaClosed">28</div>
+                <div class="summary-label">Closed MTD</div>
+            </div>
+        </div>
+        <div class="action-list">
+            <div class="action-item high" onclick="showCAPADetail('CAPA-2024-089', 'Surface defect root cause analysis', 'high')">
+                <span class="action-priority high"></span>
+                <div class="action-info">
+                    <div class="action-id">CAPA-2024-089</div>
+                    <div class="action-desc">Surface defect root cause analysis</div>
+                </div>
+                <div class="action-due">Due: Today</div>
+            </div>
+            <div class="action-item high" onclick="showCAPADetail('CAPA-2024-087', 'Calibration procedure update', 'high')">
+                <span class="action-priority high"></span>
+                <div class="action-info">
+                    <div class="action-id">CAPA-2024-087</div>
+                    <div class="action-desc">Calibration procedure update</div>
+                </div>
+                <div class="action-due">Due: Tomorrow</div>
+            </div>
+            <div class="action-item medium" onclick="showCAPADetail('CAPA-2024-085', 'Training effectiveness review', 'medium')">
+                <span class="action-priority medium"></span>
+                <div class="action-info">
+                    <div class="action-id">CAPA-2024-085</div>
+                    <div class="action-desc">Training effectiveness review</div>
+                </div>
+                <div class="action-due">Due: Jan 28</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="action-card">
+        <div class="section-header">
+            <div class="section-title">📝 Non-Conformance Reports</div>
+            <button class="btn btn-outline btn-sm" onclick="openModal('ncrModal')">+ New NCR</button>
+        </div>
+        <div class="action-summary">
+            <div class="summary-stat" onclick="showNCRFilter('critical')">
+                <div class="summary-value red" id="ncrCritical">2</div>
+                <div class="summary-label">Critical</div>
+            </div>
+            <div class="summary-stat" onclick="showNCRFilter('major')">
+                <div class="summary-value yellow" id="ncrMajor">8</div>
+                <div class="summary-label">Major</div>
+            </div>
+            <div class="summary-stat" onclick="showNCRFilter('minor')">
+                <div class="summary-value green" id="ncrMinor">15</div>
+                <div class="summary-label">Minor</div>
+            </div>
+        </div>
+        <div class="action-list">
+            <div class="action-item high" onclick="showNCRDetail('NCR-2024-0156', 'Batch rejection - dimension variance', 'critical')">
+                <span class="action-priority high"></span>
+                <div class="action-info">
+                    <div class="action-id">NCR-2024-0156</div>
+                    <div class="action-desc">Batch rejection - dimension variance</div>
+                </div>
+                <div class="action-due">Critical</div>
+            </div>
+            <div class="action-item medium" onclick="showNCRDetail('NCR-2024-0155', 'Supplier material non-conformance', 'major')">
+                <span class="action-priority medium"></span>
+                <div class="action-info">
+                    <div class="action-id">NCR-2024-0155</div>
+                    <div class="action-desc">Supplier material non-conformance</div>
+                </div>
+                <div class="action-due">Major</div>
+            </div>
+            <div class="action-item low" onclick="showNCRDetail('NCR-2024-0154', 'Documentation error - batch record', 'minor')">
+                <span class="action-priority low"></span>
+                <div class="action-info">
+                    <div class="action-id">NCR-2024-0154</div>
+                    <div class="action-desc">Documentation error - batch record</div>
+                </div>
+                <div class="action-due">Minor</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Grid -->
+<div class="bottom-grid">
+    <!-- Training Compliance -->
+    <div class="training-section" onclick="openModal('trainingModal')">
+        <div class="section-header">
+            <div class="section-title">🎓 Training Compliance</div>
+        </div>
+        <div class="training-chart">
+            <canvas id="trainingChart"></canvas>
+        </div>
+        <div class="training-stats">
+            <div class="training-stat">
+                <div class="training-stat-value" style="color: #10b981;">92%</div>
+                <div class="training-stat-label">Compliance Rate</div>
+            </div>
+            <div class="training-stat">
+                <div class="training-stat-value">45</div>
+                <div class="training-stat-label">Trained This Month</div>
+            </div>
+            <div class="training-stat">
+                <div class="training-stat-value" style="color: #f59e0b;">8</div>
+                <div class="training-stat-label">Overdue</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Risk Matrix -->
+    <div class="risk-section">
+        <div class="section-header">
+            <div class="section-title">⚡ Risk Assessment</div>
+            <button class="btn btn-outline btn-sm" onclick="openModal('riskModal'); event.stopPropagation();">View All</button>
+        </div>
+        <div class="risk-matrix">
+            <div class="risk-cell medium" onclick="showRiskCell(1, 'medium', 1)">1</div>
+            <div class="risk-cell high" onclick="showRiskCell(2, 'high', 2)">2</div>
+            <div class="risk-cell high" onclick="showRiskCell(3, 'high', 0)">0</div>
+            <div class="risk-cell low" onclick="showRiskCell(4, 'low', 3)">3</div>
+            <div class="risk-cell medium" onclick="showRiskCell(5, 'medium', 4)">4</div>
+            <div class="risk-cell high" onclick="showRiskCell(6, 'high', 1)">1</div>
+            <div class="risk-cell low" onclick="showRiskCell(7, 'low', 5)">5</div>
+            <div class="risk-cell low" onclick="showRiskCell(8, 'low', 2)">2</div>
+            <div class="risk-cell medium" onclick="showRiskCell(9, 'medium', 1)">1</div>
+        </div>
+        <div class="risk-labels">
+            <span>Low Likelihood →</span>
+            <span>High Impact ↑</span>
+        </div>
+        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-around; font-size: 0.75rem;">
+                <span><span style="color: #ef4444;">●</span> High: 3</span>
+                <span><span style="color: #f59e0b;">●</span> Medium: 6</span>
+                <span><span style="color: #10b981;">●</span> Low: 10</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Compliance Timeline -->
+    <div class="timeline-section">
+        <div class="section-header">
+            <div class="section-title">📈 Recent Activity</div>
+            <button class="btn btn-outline btn-sm" onclick="openModal('activityModal'); event.stopPropagation();">View All</button>
+        </div>
+        <div class="timeline-list">
+            <div class="timeline-item" onclick="showActivityDetail('CAPA-2024-086', 'CAPA Closed')">
+                <div class="timeline-content">
+                    <div class="timeline-title">CAPA-2024-086 Closed</div>
+                    <div class="timeline-desc">Root cause verified, corrective action effective</div>
+                </div>
+                <div class="timeline-date">2h ago</div>
+            </div>
+            <div class="timeline-item" onclick="showActivityDetail('SOP-015', 'Document Updated')">
+                <div class="timeline-content">
+                    <div class="timeline-title">SOP-015 Updated</div>
+                    <div class="timeline-desc">Version 3.2 approved and released</div>
+                </div>
+                <div class="timeline-date">5h ago</div>
+            </div>
+            <div class="timeline-item" onclick="showActivityDetail('AUD-2024-019', 'Finding Resolved')">
+                <div class="timeline-content">
+                    <div class="timeline-title">Audit Finding Resolved</div>
+                    <div class="timeline-desc">Training records updated for operators</div>
+                </div>
+                <div class="timeline-date">Yesterday</div>
+            </div>
+            <div class="timeline-item" onclick="showActivityDetail('NCR-2024-0156', 'NCR Created')">
+                <div class="timeline-content">
+                    <div class="timeline-title">New NCR Raised</div>
+                    <div class="timeline-desc">NCR-2024-0156 created for batch issue</div>
+                </div>
+                <div class="timeline-date">Yesterday</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Certification Detail Modal -->
+<div class="modal-overlay" id="certificationModal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 class="modal-title" id="certModalTitle">📊 ISO 9001:2015 Compliance Detail</h3>
+            <button class="modal-close" onclick="closeModal('certificationModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="certModalBody">
+            <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('certificationModal')">Close</button>
+            <button class="btn btn-primary" onclick="downloadCertReport()">📥 Download Report</button>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Audit Modal -->
+<div class="modal-overlay" id="auditScheduleModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">📅 Schedule New Audit</h3>
+            <button class="modal-close" onclick="closeModal('auditScheduleModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Audit Type</label>
+                <select class="form-select" id="auditType">
+                    <option value="">Select audit type...</option>
+                    <option value="internal">Internal Audit</option>
+                    <option value="external">External Audit</option>
+                    <option value="supplier">Supplier Audit</option>
+                    <option value="surveillance">Surveillance Audit</option>
+                    <option value="certification">Certification Audit</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Standard/Focus Area</label>
+                <select class="form-select" id="auditStandard">
+                    <option value="">Select standard...</option>
+                    <option value="iso9001">ISO 9001:2015 - Quality</option>
+                    <option value="iso14001">ISO 14001:2015 - Environmental</option>
+                    <option value="iso45001">ISO 45001:2018 - H&S</option>
+                    <option value="21cfr11">21 CFR Part 11 - FDA</option>
+                    <option value="iso13485">ISO 13485 - Medical Devices</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" class="form-input" id="auditStartDate">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">End Date</label>
+                    <input type="date" class="form-input" id="auditEndDate">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Lead Auditor</label>
+                <select class="form-select" id="leadAuditor">
+                    <option value="">Select auditor...</option>
+                    <option value="mjohnson">M. Johnson (Internal)</option>
+                    <option value="swilliams">S. Williams (Internal)</option>
+                    <option value="rbrown">R. Brown (Internal)</option>
+                    <option value="external">External Auditor (TBD)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Scope & Objectives</label>
+                <textarea class="form-textarea" id="auditScope" placeholder="Describe audit scope, areas to be audited, and specific objectives..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Departments/Areas</label>
+                <div class="checklist" id="auditAreas">
+                    <div class="checklist-item" onclick="toggleChecklist(this)">
+                        <span class="checklist-checkbox"></span>
+                        <span class="checklist-text">Production Floor</span>
+                    </div>
+                    <div class="checklist-item" onclick="toggleChecklist(this)">
+                        <span class="checklist-checkbox"></span>
+                        <span class="checklist-text">Quality Control Lab</span>
+                    </div>
+                    <div class="checklist-item" onclick="toggleChecklist(this)">
+                        <span class="checklist-checkbox"></span>
+                        <span class="checklist-text">Warehouse & Logistics</span>
+                    </div>
+                    <div class="checklist-item" onclick="toggleChecklist(this)">
+                        <span class="checklist-checkbox"></span>
+                        <span class="checklist-text">Document Control</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('auditScheduleModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitAuditSchedule()">📅 Schedule Audit</button>
+        </div>
+    </div>
+</div>
+
+<!-- Audit Detail Modal -->
+<div class="modal-overlay" id="auditDetailModal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 class="modal-title" id="auditDetailTitle">📋 Audit Detail</h3>
+            <button class="modal-close" onclick="closeModal('auditDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="auditDetailBody">
+            <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('auditDetailModal')">Close</button>
+            <button class="btn btn-primary" onclick="downloadAuditReport()">📥 Download Report</button>
+        </div>
+    </div>
+</div>
+
+<!-- Document Detail Modal -->
+<div class="modal-overlay" id="documentModal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 class="modal-title" id="docModalTitle">📄 Document Detail</h3>
+            <button class="modal-close" onclick="closeModal('documentModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="docModalBody">
+            <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('documentModal')">Close</button>
+            <button class="btn btn-outline" onclick="initiateDocReview()">📝 Initiate Review</button>
+            <button class="btn btn-primary" onclick="downloadDocument()">📥 Download</button>
+        </div>
+    </div>
+</div>
+
+<!-- New CAPA Modal -->
+<div class="modal-overlay" id="capaModal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 class="modal-title">⚠️ Create New CAPA</h3>
+            <button class="modal-close" onclick="closeModal('capaModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <!-- CAPA Workflow Stepper -->
+            <div class="workflow-stepper">
+                <div class="step active">
+                    <div class="step-circle">1</div>
+                    <span class="step-label">Initiate</span>
+                </div>
+                <div class="step">
+                    <div class="step-circle">2</div>
+                    <span class="step-label">Investigate</span>
+                </div>
+                <div class="step">
+                    <div class="step-circle">3</div>
+                    <span class="step-label">Root Cause</span>
+                </div>
+                <div class="step">
+                    <div class="step-circle">4</div>
+                    <span class="step-label">Action Plan</span>
+                </div>
+                <div class="step">
+                    <div class="step-circle">5</div>
+                    <span class="step-label">Verify</span>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">CAPA Type</label>
+                    <select class="form-select" id="capaType">
+                        <option value="corrective">Corrective Action</option>
+                        <option value="preventive">Preventive Action</option>
+                        <option value="both">Both</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" id="capaPriority">
+                        <option value="high">High - Critical</option>
+                        <option value="medium">Medium - Major</option>
+                        <option value="low">Low - Minor</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Source</label>
+                <select class="form-select" id="capaSource">
+                    <option value="">Select source...</option>
+                    <option value="ncr">Non-Conformance Report (NCR)</option>
+                    <option value="audit">Audit Finding</option>
+                    <option value="customer">Customer Complaint</option>
+                    <option value="internal">Internal Observation</option>
+                    <option value="supplier">Supplier Issue</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Problem Description</label>
+                <textarea class="form-textarea" id="capaProblem" placeholder="Describe the problem or non-conformance in detail..."></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Due Date</label>
+                    <input type="date" class="form-input" id="capaDueDate">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Assigned To</label>
+                    <select class="form-select" id="capaAssignee">
+                        <option value="">Select assignee...</option>
+                        <option value="quality">Quality Manager</option>
+                        <option value="production">Production Supervisor</option>
+                        <option value="engineering">Process Engineer</option>
+                        <option value="maintenance">Maintenance Lead</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- E-Signature Panel for 21 CFR Part 11 -->
+            <div class="esign-panel">
+                <div class="esign-header">
+                    <span class="esign-icon">🔐</span>
+                    <div>
+                        <div class="esign-title">21 CFR Part 11 Electronic Signature</div>
+                        <div class="esign-subtitle">Required for CAPA initiation compliance</div>
+                    </div>
+                </div>
+                <div class="esign-fields">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-input" id="esignUser" placeholder="Enter username">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-input" id="esignPass" placeholder="Enter password">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Signature Meaning</label>
+                    <select class="form-select" id="esignMeaning">
+                        <option value="initiate">I am initiating this CAPA</option>
+                        <option value="approve">I approve this CAPA</option>
+                        <option value="review">I have reviewed this CAPA</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('capaModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitCAPA()">✅ Create CAPA</button>
+        </div>
+    </div>
+</div>
+
+<!-- CAPA Detail Modal -->
+<div class="modal-overlay" id="capaDetailModal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 class="modal-title" id="capaDetailTitle">⚠️ CAPA Detail</h3>
+            <button class="modal-close" onclick="closeModal('capaDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="capaDetailBody">
+            <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('capaDetailModal')">Close</button>
+            <button class="btn btn-success" onclick="advanceCAPAWorkflow()">➡️ Advance Workflow</button>
+        </div>
+    </div>
+</div>
+
+<!-- New NCR Modal -->
+<div class="modal-overlay" id="ncrModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">📝 Create Non-Conformance Report</h3>
+            <button class="modal-close" onclick="closeModal('ncrModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">NCR Category</label>
+                    <select class="form-select" id="ncrCategory">
+                        <option value="">Select category...</option>
+                        <option value="product">Product Non-Conformance</option>
+                        <option value="process">Process Non-Conformance</option>
+                        <option value="supplier">Supplier Non-Conformance</option>
+                        <option value="documentation">Documentation Error</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Severity</label>
+                    <select class="form-select" id="ncrSeverity">
+                        <option value="critical">Critical</option>
+                        <option value="major">Major</option>
+                        <option value="minor">Minor</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Reference (Work Order / Batch / Part)</label>
+                <input type="text" class="form-input" id="ncrReference" placeholder="e.g., WO-2024-0156 or Batch-A123">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Non-Conformance Description</label>
+                <textarea class="form-textarea" id="ncrDescription" placeholder="Describe the non-conformance in detail..."></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Quantity Affected</label>
+                    <input type="number" class="form-input" id="ncrQuantity" placeholder="0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Disposition</label>
+                    <select class="form-select" id="ncrDisposition">
+                        <option value="">Pending review...</option>
+                        <option value="rework">Rework</option>
+                        <option value="scrap">Scrap</option>
+                        <option value="use-as-is">Use As-Is</option>
+                        <option value="return">Return to Supplier</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Immediate Containment Action</label>
+                <textarea class="form-textarea" id="ncrContainment" placeholder="Describe immediate containment actions taken..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('ncrModal')">Cancel</button>
+            <button class="btn btn-danger" onclick="submitNCR()">📝 Create NCR</button>
+        </div>
+    </div>
+</div>
+
+<!-- NCR Detail Modal -->
+<div class="modal-overlay" id="ncrDetailModal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 class="modal-title" id="ncrDetailTitle">📝 NCR Detail</h3>
+            <button class="modal-close" onclick="closeModal('ncrDetailModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="ncrDetailBody">
+            <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('ncrDetailModal')">Close</button>
+            <button class="btn btn-primary" onclick="createCAPAFromNCR()">⚠️ Create CAPA</button>
+        </div>
+    </div>
+</div>
+
+<!-- Training Matrix Modal -->
+<div class="modal-overlay" id="trainingModal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 class="modal-title">🎓 Training Compliance Matrix</h3>
+            <button class="modal-close" onclick="closeModal('trainingModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="tabs">
+                <button class="tab active" onclick="switchTrainingTab('matrix')">Training Matrix</button>
+                <button class="tab" onclick="switchTrainingTab('overdue')">Overdue (8)</button>
+                <button class="tab" onclick="switchTrainingTab('schedule')">Upcoming</button>
+            </div>
+
+            <div id="trainingMatrixContent">
+                <table class="training-matrix-table">
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>ISO 9001</th>
+                            <th>GMP</th>
+                            <th>Safety</th>
+                            <th>Equipment</th>
+                            <th>21 CFR 11</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>John Smith (Operator)</td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon pending">⏳</span></td>
+                            <td><span class="training-status-icon na">-</span></td>
+                        </tr>
+                        <tr>
+                            <td>Sarah Davis (QC Tech)</td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon overdue">!</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Mike Chen (Engineer)</td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon pending">⏳</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                        </tr>
+                        <tr>
+                            <td>Lisa Wang (Supervisor)</td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon complete">✓</span></td>
+                            <td><span class="training-status-icon overdue">!</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="margin-top: 1rem; display: flex; gap: 1.5rem; font-size: 0.8rem;">
+                    <span><span class="training-status-icon complete">✓</span> Complete</span>
+                    <span><span class="training-status-icon pending">⏳</span> In Progress</span>
+                    <span><span class="training-status-icon overdue">!</span> Overdue</span>
+                    <span><span class="training-status-icon na">-</span> N/A</span>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('trainingModal')">Close</button>
+            <button class="btn btn-primary" onclick="exportTrainingMatrix()">📥 Export Matrix</button>
+        </div>
+    </div>
+</div>
+
+<!-- Risk Assessment Modal -->
+<div class="modal-overlay" id="riskModal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 class="modal-title">⚡ Risk Assessment Register</h3>
+            <button class="modal-close" onclick="closeModal('riskModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <table class="risk-detail-table">
+                <thead>
+                    <tr>
+                        <th>Risk ID</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>L</th>
+                        <th>I</th>
+                        <th>Score</th>
+                        <th>Mitigation</th>
+                        <th>Owner</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>RISK-001</td>
+                        <td>Supply chain disruption</td>
+                        <td>Supply Chain</td>
+                        <td>3</td>
+                        <td>5</td>
+                        <td><span class="risk-score high">15</span></td>
+                        <td>Dual sourcing strategy</td>
+                        <td>S. Williams</td>
+                    </tr>
+                    <tr>
+                        <td>RISK-002</td>
+                        <td>Equipment failure</td>
+                        <td>Operations</td>
+                        <td>2</td>
+                        <td>4</td>
+                        <td><span class="risk-score medium">8</span></td>
+                        <td>Preventive maintenance</td>
+                        <td>M. Johnson</td>
+                    </tr>
+                    <tr>
+                        <td>RISK-003</td>
+                        <td>Regulatory non-compliance</td>
+                        <td>Compliance</td>
+                        <td>1</td>
+                        <td>5</td>
+                        <td><span class="risk-score medium">5</span></td>
+                        <td>Regular audits</td>
+                        <td>R. Brown</td>
+                    </tr>
+                    <tr>
+                        <td>RISK-004</td>
+                        <td>Material quality issues</td>
+                        <td>Quality</td>
+                        <td>2</td>
+                        <td>3</td>
+                        <td><span class="risk-score low">6</span></td>
+                        <td>Incoming inspection</td>
+                        <td>Quality Team</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-secondary);">
+                L = Likelihood (1-5) • I = Impact (1-5) • Score = L × I
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('riskModal')">Close</button>
+            <button class="btn btn-outline" onclick="addNewRisk()">+ Add Risk</button>
+            <button class="btn btn-primary" onclick="exportRiskRegister()">📥 Export Register</button>
+        </div>
+    </div>
+</div>
+
+<!-- Compliance Report Modal -->
+<div class="modal-overlay" id="reportModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 class="modal-title">📥 Generate Compliance Report</h3>
+            <button class="modal-close" onclick="closeModal('reportModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Report Type</label>
+                <select class="form-select" id="reportType">
+                    <option value="summary">Executive Summary</option>
+                    <option value="detailed">Detailed Compliance Report</option>
+                    <option value="audit">Audit Summary Report</option>
+                    <option value="capa">CAPA Status Report</option>
+                    <option value="training">Training Compliance Report</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">From Date</label>
+                    <input type="date" class="form-input" id="reportFromDate">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">To Date</label>
+                    <input type="date" class="form-input" id="reportToDate">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Include Standards</label>
+                <div class="checklist">
+                    <div class="checklist-item checked" onclick="toggleChecklist(this)">
+                        <span class="checklist-checkbox">✓</span>
+                        <span class="checklist-text">ISO 9001:2015</span>
+                    </div>
+                    <div class="checklist-item checked" onclick="toggleChecklist(this)">
+                        <span class="checklist-checkbox">✓</span>
+                        <span class="checklist-text">ISO 14001:2015</span>
+                    </div>
+                    <div class="checklist-item checked" onclick="toggleChecklist(this)">
+                        <span class="checklist-checkbox">✓</span>
+                        <span class="checklist-text">ISO 45001:2018</span>
+                    </div>
+                    <div class="checklist-item" onclick="toggleChecklist(this)">
+                        <span class="checklist-checkbox"></span>
+                        <span class="checklist-text">21 CFR Part 11</span>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Format</label>
+                <select class="form-select" id="reportFormat">
+                    <option value="pdf">PDF Document</option>
+                    <option value="excel">Excel Spreadsheet</option>
+                    <option value="word">Word Document</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('reportModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="generateReport()">📥 Generate Report</button>
+        </div>
+    </div>
+</div>
+
+<!-- Activity Log Modal -->
+<div class="modal-overlay" id="activityModal">
+    <div class="modal-content large">
+        <div class="modal-header">
+            <h3 class="modal-title">📈 Compliance Activity Log</h3>
+            <button class="modal-close" onclick="closeModal('activityModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="timeline-list" style="max-height: 400px; overflow-y: auto;">
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">CAPA-2024-086 Closed</div>
+                        <div class="timeline-desc">Root cause verified, corrective action effective</div>
+                    </div>
+                    <div class="timeline-date">2h ago</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">SOP-015 Updated</div>
+                        <div class="timeline-desc">Version 3.2 approved and released</div>
+                    </div>
+                    <div class="timeline-date">5h ago</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">Training Completed</div>
+                        <div class="timeline-desc">John Smith completed ISO 9001 refresher</div>
+                    </div>
+                    <div class="timeline-date">6h ago</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">Audit Finding Resolved</div>
+                        <div class="timeline-desc">Training records updated for operators</div>
+                    </div>
+                    <div class="timeline-date">Yesterday</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">New NCR Raised</div>
+                        <div class="timeline-desc">NCR-2024-0156 created for batch issue</div>
+                    </div>
+                    <div class="timeline-date">Yesterday</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">Risk Assessment Updated</div>
+                        <div class="timeline-desc">Quarterly risk review completed</div>
+                    </div>
+                    <div class="timeline-date">2 days ago</div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-content">
+                        <div class="timeline-title">Document Approved</div>
+                        <div class="timeline-desc">WI-042 3D Printer Setup v1.5 released</div>
+                    </div>
+                    <div class="timeline-date">3 days ago</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="closeModal('activityModal')">Close</button>
+            <button class="btn btn-primary" onclick="exportActivityLog()">📥 Export Log</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // ===========================================
+    // Toast Notification System
+    // ===========================================
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const icons = {
+            success: '✓',
+            error: '✕',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <span class="toast-icon">${icons[type]}</span>
+            <span class="toast-message">${message}</span>
+            <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+        `;
+
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            if (toast.parentElement) {
+                toast.style.animation = 'toastSlideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }
+        }, 5000);
+    }
+
+    // ===========================================
+    // Modal Functions
+    // ===========================================
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+        }
+    });
+
+    // Close modal on backdrop click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+            }
+        });
+    });
+
+    // ===========================================
+    // Certification Detail Data
+    // ===========================================
+    const certificationData = {
+        iso9001: {
+            title: '📊 ISO 9001:2015 Quality Management',
+            score: 94,
+            validUntil: 'December 2025',
+            lastAudit: 'October 2024',
+            nextAudit: 'October 2025',
+            clauses: [
+                { clause: '4. Context of the Organization', score: 95, status: 'compliant' },
+                { clause: '5. Leadership', score: 98, status: 'compliant' },
+                { clause: '6. Planning', score: 92, status: 'compliant' },
+                { clause: '7. Support', score: 90, status: 'minor-nc' },
+                { clause: '8. Operation', score: 96, status: 'compliant' },
+                { clause: '9. Performance Evaluation', score: 94, status: 'compliant' },
+                { clause: '10. Improvement', score: 93, status: 'compliant' }
+            ],
+            findings: 2,
+            openCAPAs: 1
+        },
+        iso14001: {
+            title: '🌱 ISO 14001:2015 Environmental Management',
+            score: 91,
+            validUntil: 'October 2025',
+            lastAudit: 'August 2024',
+            nextAudit: 'February 2025',
+            clauses: [
+                { clause: '4. Context of the Organization', score: 92, status: 'compliant' },
+                { clause: '5. Leadership', score: 94, status: 'compliant' },
+                { clause: '6. Planning', score: 88, status: 'minor-nc' },
+                { clause: '7. Support', score: 90, status: 'compliant' },
+                { clause: '8. Operation', score: 93, status: 'compliant' },
+                { clause: '9. Performance Evaluation', score: 89, status: 'minor-nc' },
+                { clause: '10. Improvement', score: 91, status: 'compliant' }
+            ],
+            findings: 3,
+            openCAPAs: 2
+        },
+        iso45001: {
+            title: '⛑️ ISO 45001:2018 Health & Safety',
+            score: 88,
+            validUntil: 'August 2025',
+            lastAudit: 'June 2024',
+            nextAudit: 'June 2025',
+            clauses: [
+                { clause: '4. Context of the Organization', score: 90, status: 'compliant' },
+                { clause: '5. Leadership & Worker Participation', score: 92, status: 'compliant' },
+                { clause: '6. Planning', score: 85, status: 'minor-nc' },
+                { clause: '7. Support', score: 88, status: 'compliant' },
+                { clause: '8. Operation', score: 86, status: 'minor-nc' },
+                { clause: '9. Performance Evaluation', score: 89, status: 'compliant' },
+                { clause: '10. Improvement', score: 87, status: 'compliant' }
+            ],
+            findings: 4,
+            openCAPAs: 2
+        },
+        fda: {
+            title: '💊 21 CFR Part 11 Electronic Records',
+            score: 85,
+            validUntil: 'March 2024',
+            lastAudit: 'March 2023',
+            nextAudit: 'March 2024 (Due)',
+            clauses: [
+                { clause: '11.10 Controls for Closed Systems', score: 88, status: 'compliant' },
+                { clause: '11.30 Controls for Open Systems', score: 82, status: 'minor-nc' },
+                { clause: '11.50 Signature Manifestations', score: 90, status: 'compliant' },
+                { clause: '11.70 Signature/Record Linking', score: 85, status: 'compliant' },
+                { clause: '11.100 General Requirements', score: 80, status: 'minor-nc' },
+                { clause: '11.200 Electronic Signature Components', score: 87, status: 'compliant' },
+                { clause: '11.300 Controls for Identification', score: 83, status: 'minor-nc' }
+            ],
+            findings: 5,
+            openCAPAs: 3
+        }
+    };
+
+    function showCertificationDetail(certId) {
+        const cert = certificationData[certId];
+        if (!cert) return;
+
+        document.getElementById('certModalTitle').textContent = cert.title;
+
+        let clausesHtml = cert.clauses.map(c => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: rgba(0,0,0,0.02); border-radius: 8px; margin-bottom: 0.5rem;">
+                <span style="flex: 1;">${c.clause}</span>
+                <span style="font-weight: 600; color: ${c.score >= 90 ? '#10b981' : c.score >= 80 ? '#f59e0b' : '#ef4444'};">${c.score}%</span>
+                <span class="audit-badge ${c.status === 'compliant' ? 'completed' : 'in-progress'}" style="margin-left: 0.75rem;">
+                    ${c.status === 'compliant' ? 'Compliant' : 'Minor NC'}
+                </span>
+            </div>
+        `).join('');
+
+        document.getElementById('certModalBody').innerHTML = `
+            <div class="form-row" style="margin-bottom: 1.5rem;">
+                <div class="doc-stat">
+                    <div class="doc-stat-value" style="color: ${cert.score >= 90 ? '#10b981' : cert.score >= 80 ? '#f59e0b' : '#ef4444'};">${cert.score}%</div>
+                    <div class="doc-stat-label">Overall Score</div>
+                </div>
+                <div class="doc-stat">
+                    <div class="doc-stat-value">${cert.findings}</div>
+                    <div class="doc-stat-label">Open Findings</div>
+                </div>
+                <div class="doc-stat">
+                    <div class="doc-stat-value warning">${cert.openCAPAs}</div>
+                    <div class="doc-stat-label">Open CAPAs</div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem; font-size: 0.8rem;">
+                <div><strong>Valid Until:</strong> ${cert.validUntil}</div>
+                <div><strong>Last Audit:</strong> ${cert.lastAudit}</div>
+                <div><strong>Next Audit:</strong> ${cert.nextAudit}</div>
+            </div>
+
+            <h4 style="margin-bottom: 1rem; font-size: 0.9rem;">Clause Compliance Status</h4>
+            ${clausesHtml}
+        `;
+
+        openModal('certificationModal');
+    }
+
+    // ===========================================
+    // Audit Functions
+    // ===========================================
+    function scheduleAudit() {
+        openModal('auditScheduleModal');
+    }
+
+    function submitAuditSchedule() {
+        const auditType = document.getElementById('auditType').value;
+        const auditStandard = document.getElementById('auditStandard').value;
+        const startDate = document.getElementById('auditStartDate').value;
+
+        if (!auditType || !auditStandard || !startDate) {
+            showToast('Please fill in all required fields', 'warning');
+            return;
+        }
+
+        closeModal('auditScheduleModal');
+        showToast(`Audit scheduled successfully for ${startDate}`, 'success');
+    }
+
+    function showAuditDetail(auditId, title, status) {
+        document.getElementById('auditDetailTitle').textContent = `📋 ${auditId}: ${title}`;
+
+        const statusColors = {
+            'in-progress': '#f59e0b',
+            'scheduled': '#3b82f6',
+            'completed': '#10b981'
+        };
+
+        document.getElementById('auditDetailBody').innerHTML = `
+            <div class="form-row" style="margin-bottom: 1.5rem;">
+                <div class="doc-stat">
+                    <span class="audit-badge ${status === 'completed' ? 'completed' : status === 'in-progress' ? 'in-progress' : 'upcoming'}">${status.toUpperCase()}</span>
+                    <div class="doc-stat-label" style="margin-top: 0.5rem;">Status</div>
+                </div>
+                <div class="doc-stat">
+                    <div class="doc-stat-value">M. Johnson</div>
+                    <div class="doc-stat-label">Lead Auditor</div>
+                </div>
+                <div class="doc-stat">
+                    <div class="doc-stat-value">${status === 'completed' ? '0' : status === 'in-progress' ? '2' : '-'}</div>
+                    <div class="doc-stat-label">Findings</div>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 1rem; font-size: 0.9rem;">Approval Chain</h4>
+            <div class="approval-chain">
+                <div class="approval-step">
+                    <div class="approval-avatar approved">MJ</div>
+                    <div class="approval-name">M. Johnson</div>
+                    <div class="approval-role">Lead Auditor</div>
+                </div>
+                <span class="approval-arrow">→</span>
+                <div class="approval-step">
+                    <div class="approval-avatar ${status === 'completed' ? 'approved' : 'pending'}">SW</div>
+                    <div class="approval-name">S. Williams</div>
+                    <div class="approval-role">Quality Manager</div>
+                </div>
+                <span class="approval-arrow">→</span>
+                <div class="approval-step">
+                    <div class="approval-avatar ${status === 'completed' ? 'approved' : ''}">RB</div>
+                    <div class="approval-name">R. Brown</div>
+                    <div class="approval-role">Plant Director</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem; font-size: 0.9rem;">Audit Checklist</h4>
+            <div class="checklist">
+                <div class="checklist-item checked" onclick="toggleChecklist(this)">
+                    <span class="checklist-checkbox">✓</span>
+                    <span class="checklist-text">Opening meeting conducted</span>
+                </div>
+                <div class="checklist-item ${status !== 'scheduled' ? 'checked' : ''}" onclick="toggleChecklist(this)">
+                    <span class="checklist-checkbox">${status !== 'scheduled' ? '✓' : ''}</span>
+                    <span class="checklist-text">Document review complete</span>
+                </div>
+                <div class="checklist-item ${status === 'completed' ? 'checked' : ''}" onclick="toggleChecklist(this)">
+                    <span class="checklist-checkbox">${status === 'completed' ? '✓' : ''}</span>
+                    <span class="checklist-text">Process observations complete</span>
+                </div>
+                <div class="checklist-item ${status === 'completed' ? 'checked' : ''}" onclick="toggleChecklist(this)">
+                    <span class="checklist-checkbox">${status === 'completed' ? '✓' : ''}</span>
+                    <span class="checklist-text">Interviews conducted</span>
+                </div>
+                <div class="checklist-item ${status === 'completed' ? 'checked' : ''}" onclick="toggleChecklist(this)">
+                    <span class="checklist-checkbox">${status === 'completed' ? '✓' : ''}</span>
+                    <span class="checklist-text">Closing meeting conducted</span>
+                </div>
+            </div>
+        `;
+
+        openModal('auditDetailModal');
+    }
+
+    // ===========================================
+    // Document Functions
+    // ===========================================
+    function showDocumentDetail(docId, name, version, status) {
+        document.getElementById('docModalTitle').textContent = `📄 ${docId}: ${name}`;
+
+        document.getElementById('docModalBody').innerHTML = `
+            <div class="form-row" style="margin-bottom: 1.5rem;">
+                <div class="doc-stat">
+                    <div class="doc-stat-value">${version}</div>
+                    <div class="doc-stat-label">Current Version</div>
+                </div>
+                <div class="doc-stat">
+                    <span class="doc-status ${status}">${status.charAt(0).toUpperCase() + status.slice(1)}</span>
+                    <div class="doc-stat-label" style="margin-top: 0.5rem;">Status</div>
+                </div>
+                <div class="doc-stat">
+                    <div class="doc-stat-value">Quality</div>
+                    <div class="doc-stat-label">Owner</div>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 1rem; font-size: 0.9rem;">Version History</h4>
+            <div class="version-timeline">
+                <div class="version-item current">
+                    <div class="version-header">
+                        <span class="version-number">${version} (Current)</span>
+                        <span class="version-date">Jan 10, 2024</span>
+                    </div>
+                    <div class="version-changes">Updated process control requirements</div>
+                </div>
+                <div class="version-item">
+                    <div class="version-header">
+                        <span class="version-number">v${parseFloat(version.replace('v', '')) - 0.1}</span>
+                        <span class="version-date">Oct 15, 2023</span>
+                    </div>
+                    <div class="version-changes">Added new inspection criteria</div>
+                </div>
+                <div class="version-item">
+                    <div class="version-header">
+                        <span class="version-number">v${parseFloat(version.replace('v', '')) - 0.2}</span>
+                        <span class="version-date">Jul 22, 2023</span>
+                    </div>
+                    <div class="version-changes">Initial release</div>
+                </div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem; font-size: 0.9rem;">Approval Chain</h4>
+            <div class="approval-chain">
+                <div class="approval-step">
+                    <div class="approval-avatar approved">JD</div>
+                    <div class="approval-name">J. Davis</div>
+                    <div class="approval-role">Author</div>
+                </div>
+                <span class="approval-arrow">→</span>
+                <div class="approval-step">
+                    <div class="approval-avatar approved">SW</div>
+                    <div class="approval-name">S. Williams</div>
+                    <div class="approval-role">Reviewer</div>
+                </div>
+                <span class="approval-arrow">→</span>
+                <div class="approval-step">
+                    <div class="approval-avatar approved">MJ</div>
+                    <div class="approval-name">M. Johnson</div>
+                    <div class="approval-role">Approver</div>
+                </div>
+            </div>
+        `;
+
+        openModal('documentModal');
+    }
+
+    function initiateDocReview() {
+        closeModal('documentModal');
+        showToast('Document review initiated. Reviewers have been notified.', 'success');
+    }
+
+    function downloadDocument() {
+        showToast('Document download started...', 'info');
+    }
+
+    // ===========================================
+    // CAPA Functions
+    // ===========================================
+    function showCAPADetail(capaId, description, priority) {
+        document.getElementById('capaDetailTitle').textContent = `⚠️ ${capaId}`;
+
+        const priorityColors = {
+            high: '#ef4444',
+            medium: '#f59e0b',
+            low: '#10b981'
+        };
+
+        document.getElementById('capaDetailBody').innerHTML = `
+            <div class="workflow-stepper">
+                <div class="step completed">
+                    <div class="step-circle">✓</div>
+                    <span class="step-label">Initiate</span>
+                </div>
+                <div class="step completed">
+                    <div class="step-circle">✓</div>
+                    <span class="step-label">Investigate</span>
+                </div>
+                <div class="step active">
+                    <div class="step-circle">3</div>
+                    <span class="step-label">Root Cause</span>
+                </div>
+                <div class="step">
+                    <div class="step-circle">4</div>
+                    <span class="step-label">Action Plan</span>
+                </div>
+                <div class="step">
+                    <div class="step-circle">5</div>
+                    <span class="step-label">Verify</span>
+                </div>
+            </div>
+
+            <div class="workflow-card" style="border-left-color: ${priorityColors[priority]};">
+                <div class="workflow-card-header">
+                    <span class="workflow-card-title">${description}</span>
+                    <span class="workflow-card-badge required">${priority.toUpperCase()} PRIORITY</span>
+                </div>
+                <div class="workflow-card-content">
+                    <p><strong>Source:</strong> NCR-2024-0142</p>
+                    <p><strong>Assigned To:</strong> Quality Manager</p>
+                    <p><strong>Due Date:</strong> Today</p>
+                </div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem; font-size: 0.9rem;">Current Step: Root Cause Analysis</h4>
+            <div class="form-group">
+                <label class="form-label">Root Cause Method</label>
+                <select class="form-select">
+                    <option value="5why">5 Why Analysis</option>
+                    <option value="fishbone">Fishbone Diagram</option>
+                    <option value="fmea">FMEA</option>
+                    <option value="fta">Fault Tree Analysis</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Root Cause Findings</label>
+                <textarea class="form-textarea" placeholder="Document your root cause findings..."></textarea>
+            </div>
+
+            <div class="esign-panel">
+                <div class="esign-header">
+                    <span class="esign-icon">🔐</span>
+                    <div>
+                        <div class="esign-title">Complete Root Cause Step</div>
+                        <div class="esign-subtitle">Electronic signature required to advance workflow</div>
+                    </div>
+                </div>
+                <div class="esign-fields">
+                    <div class="form-group">
+                        <label class="form-label">Username</label>
+                        <input type="text" class="form-input" placeholder="Enter username">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Password</label>
+                        <input type="password" class="form-input" placeholder="Enter password">
+                    </div>
+                </div>
+            </div>
+        `;
+
+        openModal('capaDetailModal');
+    }
+
+    function submitCAPA() {
+        const esignUser = document.getElementById('esignUser').value;
+        const esignPass = document.getElementById('esignPass').value;
+
+        if (!esignUser || !esignPass) {
+            showToast('Electronic signature required for CAPA initiation', 'warning');
+            return;
+        }
+
+        closeModal('capaModal');
+        showToast('CAPA-2024-090 created successfully with e-signature', 'success');
+
+        // Update CAPA count
+        const inProgress = document.getElementById('capaInProgress');
+        inProgress.textContent = parseInt(inProgress.textContent) + 1;
+    }
+
+    function advanceCAPAWorkflow() {
+        closeModal('capaDetailModal');
+        showToast('CAPA workflow advanced to next step', 'success');
+    }
+
+    function showCAPAFilter(filter) {
+        showToast(`Filtering CAPAs: ${filter}`, 'info');
+    }
+
+    // ===========================================
+    // NCR Functions
+    // ===========================================
+    function showNCRDetail(ncrId, description, severity) {
+        document.getElementById('ncrDetailTitle').textContent = `📝 ${ncrId}`;
+
+        const severityColors = {
+            critical: '#ef4444',
+            major: '#f59e0b',
+            minor: '#10b981'
+        };
+
+        document.getElementById('ncrDetailBody').innerHTML = `
+            <div class="form-row" style="margin-bottom: 1.5rem;">
+                <div class="doc-stat">
+                    <span class="audit-badge" style="background: ${severityColors[severity]}20; color: ${severityColors[severity]};">${severity.toUpperCase()}</span>
+                    <div class="doc-stat-label" style="margin-top: 0.5rem;">Severity</div>
+                </div>
+                <div class="doc-stat">
+                    <div class="doc-stat-value">Open</div>
+                    <div class="doc-stat-label">Status</div>
+                </div>
+                <div class="doc-stat">
+                    <div class="doc-stat-value">WO-2024-0156</div>
+                    <div class="doc-stat-label">Reference</div>
+                </div>
+            </div>
+
+            <div class="workflow-card" style="border-left-color: ${severityColors[severity]};">
+                <div class="workflow-card-header">
+                    <span class="workflow-card-title">${description}</span>
+                </div>
+                <div class="workflow-card-content">
+                    <p><strong>Category:</strong> Product Non-Conformance</p>
+                    <p><strong>Quantity Affected:</strong> 150 units</p>
+                    <p><strong>Reported By:</strong> QC Inspector - J. Smith</p>
+                    <p><strong>Date Reported:</strong> Jan 20, 2024</p>
+                </div>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem; font-size: 0.9rem;">Disposition</h4>
+            <div class="form-group">
+                <select class="form-select">
+                    <option value="">Select disposition...</option>
+                    <option value="rework">Rework</option>
+                    <option value="scrap">Scrap</option>
+                    <option value="use-as-is">Use As-Is (with deviation)</option>
+                    <option value="return">Return to Supplier</option>
+                </select>
+            </div>
+
+            <h4 style="margin: 1.5rem 0 1rem; font-size: 0.9rem;">Containment Actions</h4>
+            <div class="checklist">
+                <div class="checklist-item checked">
+                    <span class="checklist-checkbox">✓</span>
+                    <span class="checklist-text">Affected material quarantined</span>
+                </div>
+                <div class="checklist-item checked">
+                    <span class="checklist-checkbox">✓</span>
+                    <span class="checklist-text">Production notified</span>
+                </div>
+                <div class="checklist-item">
+                    <span class="checklist-checkbox"></span>
+                    <span class="checklist-text">Customer notification required</span>
+                </div>
+            </div>
+        `;
+
+        openModal('ncrDetailModal');
+    }
+
+    function submitNCR() {
+        const category = document.getElementById('ncrCategory').value;
+        const description = document.getElementById('ncrDescription').value;
+
+        if (!category || !description) {
+            showToast('Please fill in required fields', 'warning');
+            return;
+        }
+
+        closeModal('ncrModal');
+        showToast('NCR-2024-0157 created successfully', 'success');
+    }
+
+    function createCAPAFromNCR() {
+        closeModal('ncrDetailModal');
+        openModal('capaModal');
+        document.getElementById('capaSource').value = 'ncr';
+        showToast('Creating CAPA from NCR...', 'info');
+    }
+
+    function showNCRFilter(filter) {
+        showToast(`Filtering NCRs: ${filter}`, 'info');
+    }
+
+    // ===========================================
+    // Training Functions
+    // ===========================================
+    function switchTrainingTab(tab) {
+        document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+        showToast(`Viewing ${tab} training data`, 'info');
+    }
+
+    function exportTrainingMatrix() {
+        showToast('Exporting training matrix to Excel...', 'info');
+    }
+
+    // ===========================================
+    // Risk Functions
+    // ===========================================
+    function showRiskCell(cellIndex, level, count) {
+        if (count === 0) {
+            showToast('No risks in this category', 'info');
+            return;
+        }
+        showToast(`${count} ${level} risk(s) in cell ${cellIndex}`, level === 'high' ? 'warning' : 'info');
+    }
+
+    function addNewRisk() {
+        showToast('Opening risk creation form...', 'info');
+    }
+
+    function exportRiskRegister() {
+        showToast('Exporting risk register to PDF...', 'info');
+    }
+
+    // ===========================================
+    // Report Functions
+    // ===========================================
+    function exportReport() {
+        openModal('reportModal');
+    }
+
+    function generateReport() {
+        const reportType = document.getElementById('reportType').value;
+        closeModal('reportModal');
+        showToast(`Generating ${reportType} report...`, 'success');
+    }
+
+    // ===========================================
+    // Activity Functions
+    // ===========================================
+    function showActivityDetail(id, type) {
+        showToast(`${type}: ${id}`, 'info');
+    }
+
+    function exportActivityLog() {
+        showToast('Exporting activity log...', 'info');
+    }
+
+    // ===========================================
+    // Helper Functions
+    // ===========================================
+    function toggleChecklist(element) {
+        element.classList.toggle('checked');
+        const checkbox = element.querySelector('.checklist-checkbox');
+        checkbox.textContent = element.classList.contains('checked') ? '✓' : '';
+    }
+
+    function downloadCertReport() {
+        showToast('Downloading certification report...', 'info');
+        closeModal('certificationModal');
+    }
+
+    function downloadAuditReport() {
+        showToast('Downloading audit report...', 'info');
+        closeModal('auditDetailModal');
+    }
+
+    // ===========================================
+    // Charts
+    // ===========================================
+    function initTrainingChart() {
+        const ctx = document.getElementById('trainingChart').getContext('2d');
+
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Completed', 'In Progress', 'Overdue', 'Not Started'],
+                datasets: [{
+                    data: [82, 8, 5, 5],
+                    backgroundColor: [
+                        '#10b981',
+                        '#3b82f6',
+                        '#ef4444',
+                        '#6b7280'
+                    ],
+                    borderWidth: 0,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '70%',
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+
+    // ===========================================
+    // Real-time Updates
+    // ===========================================
+    function updateComplianceMetrics() {
+        // Simulate real-time compliance score fluctuations
+        const scores = ['iso9001Score', 'iso14001Score', 'iso45001Score', 'fdaScore'];
+        const baseScores = [94, 91, 88, 85];
+
+        // Use time-based sinusoidal variation for compliance scores
+        const now = Date.now() / 60000; // minutes
+        scores.forEach((scoreId, i) => {
+            const element = document.getElementById(scoreId);
+            if (element) {
+                // Each score has unique phase offset, varies ±0.25%
+                const variation = Math.sin(now * 0.1 + i * 1.5) * 0.25;
+                const newScore = Math.max(0, Math.min(100, baseScores[i] + variation));
+                element.textContent = newScore.toFixed(0) + '%';
+            }
+        });
+    }
+
+    function startLiveUpdates() {
+        setInterval(updateComplianceMetrics, 30000);
+    }
+
+    // ===========================================
+    // Initialize
+    // ===========================================
+    document.addEventListener('DOMContentLoaded', function() {
+        initTrainingChart();
+        startLiveUpdates();
+
+        // Show welcome toast
+        setTimeout(() => {
+            showToast('Compliance dashboard loaded. 4 overdue CAPAs require attention.', 'warning');
+        }, 1000);
+    });
+</script>
+{% endblock %}

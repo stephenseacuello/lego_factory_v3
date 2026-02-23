@@ -1,0 +1,606 @@
+{% extends "base.html" %}
+
+{% block title %}Action Console - V8 Command Center{% endblock %}
+
+{% block extra_css %}
+<style>
+    .action-console {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 1.5rem;
+        height: calc(100vh - 120px);
+    }
+
+    .action-queue {
+        background: var(--card-bg, #1e1e2e);
+        border-radius: 12px;
+        padding: 1rem;
+        overflow-y: auto;
+    }
+
+    .action-detail {
+        background: var(--card-bg, #1e1e2e);
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .queue-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border-color, #333);
+    }
+
+    .queue-stats {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .stat-badge {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .stat-pending { background: #f59e0b20; color: #f59e0b; }
+    .stat-approved { background: #22c55e20; color: #22c55e; }
+    .stat-executing { background: #3b82f620; color: #3b82f6; }
+
+    .action-item {
+        background: var(--item-bg, #252535);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        border-left: 4px solid transparent;
+    }
+
+    .action-item:hover {
+        background: var(--item-hover, #2a2a3a);
+    }
+
+    .action-item.selected {
+        background: var(--item-selected, #2a2a4a);
+        border-left-color: #3b82f6;
+    }
+
+    .action-item.priority-critical { border-left-color: #ef4444; }
+    .action-item.priority-high { border-left-color: #f59e0b; }
+    .action-item.priority-normal { border-left-color: #3b82f6; }
+    .action-item.priority-low { border-left-color: #6b7280; }
+
+    .action-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.5rem;
+    }
+
+    .action-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+        margin: 0;
+    }
+
+    .action-category {
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .category-preventive { background: #22c55e20; color: #22c55e; }
+    .category-corrective { background: #f59e0b20; color: #f59e0b; }
+    .category-emergency { background: #ef444420; color: #ef4444; }
+    .category-optimization { background: #8b5cf620; color: #8b5cf6; }
+    .category-quality { background: #06b6d420; color: #06b6d4; }
+    .category-scheduling { background: #3b82f620; color: #3b82f6; }
+
+    .action-meta {
+        font-size: 0.8rem;
+        color: var(--text-muted, #888);
+        display: flex;
+        gap: 1rem;
+    }
+
+    .detail-header {
+        border-bottom: 1px solid var(--border-color, #333);
+        padding-bottom: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .detail-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 0 0 0.5rem;
+    }
+
+    .detail-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .detail-section h4 {
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        color: var(--text-muted, #888);
+        margin: 0 0 0.75rem;
+    }
+
+    .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .detail-item {
+        background: var(--item-bg, #252535);
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    .detail-item label {
+        font-size: 0.75rem;
+        color: var(--text-muted, #888);
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
+    .detail-item .value {
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .risk-assessment {
+        background: var(--item-bg, #252535);
+        padding: 1rem;
+        border-radius: 8px;
+    }
+
+    .risk-bar {
+        height: 8px;
+        background: #333;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 0.5rem;
+    }
+
+    .risk-fill {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.3s;
+    }
+
+    .risk-low { background: #22c55e; }
+    .risk-medium { background: #f59e0b; }
+    .risk-high { background: #ef4444; }
+
+    .impact-areas {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.75rem;
+    }
+
+    .impact-tag {
+        padding: 0.25rem 0.5rem;
+        background: var(--item-bg, #252535);
+        border-radius: 4px;
+        font-size: 0.8rem;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-top: auto;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-color, #333);
+    }
+
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s;
+    }
+
+    .btn-approve {
+        background: #22c55e;
+        color: white;
+        flex: 1;
+    }
+
+    .btn-approve:hover {
+        background: #16a34a;
+    }
+
+    .btn-reject {
+        background: #ef4444;
+        color: white;
+        flex: 1;
+    }
+
+    .btn-reject:hover {
+        background: #dc2626;
+    }
+
+    .btn-simulate {
+        background: #3b82f6;
+        color: white;
+    }
+
+    .btn-simulate:hover {
+        background: #2563eb;
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-muted, #888);
+    }
+
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .execution-log {
+        background: #1a1a2a;
+        border-radius: 8px;
+        padding: 1rem;
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.85rem;
+    }
+
+    .log-entry {
+        padding: 0.25rem 0;
+        border-bottom: 1px solid #333;
+    }
+
+    .log-timestamp {
+        color: #888;
+        margin-right: 0.5rem;
+    }
+
+    .log-success { color: #22c55e; }
+    .log-error { color: #ef4444; }
+    .log-info { color: #3b82f6; }
+
+    .filters {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .filter-btn {
+        padding: 0.25rem 0.75rem;
+        background: var(--item-bg, #252535);
+        border: none;
+        border-radius: 4px;
+        color: var(--text-color, #fff);
+        cursor: pointer;
+        font-size: 0.8rem;
+    }
+
+    .filter-btn.active {
+        background: #3b82f6;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Action Console</h1>
+    <p class="subtitle">Algorithm-to-action pipeline with approval workflows</p>
+</div>
+
+<div class="action-console">
+    <!-- Action Queue -->
+    <div class="action-queue">
+        <div class="queue-header">
+            <h3>Action Queue</h3>
+            <div class="queue-stats">
+                <span class="stat-badge stat-pending" id="pending-count">0 Pending</span>
+                <span class="stat-badge stat-executing" id="executing-count">0 Running</span>
+            </div>
+        </div>
+
+        <div class="filters">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="pending_approval">Pending</button>
+            <button class="filter-btn" data-filter="approved">Approved</button>
+            <button class="filter-btn" data-filter="executing">Executing</button>
+        </div>
+
+        <div id="action-list">
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <p>No actions in queue</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Detail -->
+    <div class="action-detail">
+        <div id="action-detail-content">
+            <div class="empty-state">
+                <i class="fas fa-hand-pointer"></i>
+                <p>Select an action to view details</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let selectedActionId = null;
+    let actions = [];
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        loadActions();
+        setInterval(loadActions, 5000);
+
+        // Filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                renderActionList(this.dataset.filter);
+            });
+        });
+    });
+
+    async function loadActions() {
+        try {
+            const response = await fetch('/command-center/api/actions');
+            const data = await response.json();
+
+            if (data.success) {
+                actions = data.data.pending;
+                const stats = data.data.stats;
+
+                document.getElementById('pending-count').textContent = `${stats.pending_approval || 0} Pending`;
+                document.getElementById('executing-count').textContent = `${stats.executing || 0} Running`;
+
+                const activeFilter = document.querySelector('.filter-btn.active').dataset.filter;
+                renderActionList(activeFilter);
+            }
+        } catch (error) {
+            console.error('Failed to load actions:', error);
+        }
+    }
+
+    function renderActionList(filter) {
+        const container = document.getElementById('action-list');
+        let filtered = actions;
+
+        if (filter !== 'all') {
+            filtered = actions.filter(a => a.status === filter);
+        }
+
+        if (filtered.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <p>No actions match filter</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = filtered.map(action => `
+            <div class="action-item priority-${action.priority} ${action.id === selectedActionId ? 'selected' : ''}"
+                 onclick="selectAction('${action.id}')">
+                <div class="action-header">
+                    <h4 class="action-title">${action.title}</h4>
+                    <span class="action-category category-${action.category}">${action.category}</span>
+                </div>
+                <div class="action-meta">
+                    <span><i class="fas fa-clock"></i> ${formatTime(action.created_at)}</span>
+                    <span><i class="fas fa-tag"></i> ${action.source}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function selectAction(actionId) {
+        selectedActionId = actionId;
+        const action = actions.find(a => a.id === actionId);
+
+        if (!action) return;
+
+        // Update selection UI
+        document.querySelectorAll('.action-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        event.currentTarget?.classList.add('selected');
+
+        // Render detail
+        const riskLevel = action.risk_score < 30 ? 'low' : action.risk_score < 60 ? 'medium' : 'high';
+
+        document.getElementById('action-detail-content').innerHTML = `
+            <div class="detail-header">
+                <h2 class="detail-title">${action.title}</h2>
+                <span class="action-category category-${action.category}">${action.category}</span>
+            </div>
+
+            <div class="detail-section">
+                <h4>Description</h4>
+                <p>${action.description || 'No description provided.'}</p>
+            </div>
+
+            <div class="detail-section">
+                <h4>Details</h4>
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <label>Priority</label>
+                        <span class="value">${action.priority.toUpperCase()}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Source</label>
+                        <span class="value">${action.source}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Executor</label>
+                        <span class="value">${action.executor || 'Unassigned'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Status</label>
+                        <span class="value">${action.status.replace('_', ' ').toUpperCase()}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Approval Type</label>
+                        <span class="value">${action.approval_type || 'Manual'}</span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Created</label>
+                        <span class="value">${formatDateTime(action.created_at)}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <h4>Risk Assessment</h4>
+                <div class="risk-assessment">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Risk Score</span>
+                        <span class="risk-${riskLevel}">${(action.risk_score || 0).toFixed(1)}%</span>
+                    </div>
+                    <div class="risk-bar">
+                        <div class="risk-fill risk-${riskLevel}" style="width: ${action.risk_score || 0}%"></div>
+                    </div>
+                    <div class="impact-areas">
+                        ${(action.impact_areas || ['operations', 'quality']).map(area =>
+                            `<span class="impact-tag">${area}</span>`
+                        ).join('')}
+                    </div>
+                </div>
+            </div>
+
+            ${action.parameters ? `
+            <div class="detail-section">
+                <h4>Parameters</h4>
+                <div class="execution-log">
+                    ${Object.entries(action.parameters).map(([k, v]) =>
+                        `<div class="log-entry"><span class="log-info">${k}:</span> ${JSON.stringify(v)}</div>`
+                    ).join('')}
+                </div>
+            </div>
+            ` : ''}
+
+            <div class="action-buttons">
+                ${action.status === 'pending_approval' ? `
+                    <button class="btn btn-simulate" onclick="simulateAction('${action.id}')">
+                        <i class="fas fa-play"></i> Simulate First
+                    </button>
+                    <button class="btn btn-reject" onclick="rejectAction('${action.id}')">
+                        <i class="fas fa-times"></i> Reject
+                    </button>
+                    <button class="btn btn-approve" onclick="approveAction('${action.id}')">
+                        <i class="fas fa-check"></i> Approve & Execute
+                    </button>
+                ` : action.status === 'executing' ? `
+                    <button class="btn btn-reject" onclick="cancelAction('${action.id}')" style="flex: none;">
+                        <i class="fas fa-stop"></i> Cancel Execution
+                    </button>
+                ` : `
+                    <p style="color: var(--text-muted);">Action ${action.status}</p>
+                `}
+            </div>
+        `;
+    }
+
+    async function approveAction(actionId) {
+        try {
+            const response = await fetch(`/command-center/api/actions/${actionId}/approve`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user: 'operator',
+                    note: 'Approved from Action Console'
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showNotification('Action approved and queued for execution', 'success');
+                loadActions();
+            } else {
+                showNotification('Failed to approve action: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showNotification('Error approving action', 'error');
+        }
+    }
+
+    async function rejectAction(actionId) {
+        const reason = prompt('Rejection reason:');
+        if (reason === null) return;
+
+        try {
+            const response = await fetch(`/command-center/api/actions/${actionId}/reject`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    user: 'operator',
+                    reason: reason
+                })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                showNotification('Action rejected', 'info');
+                loadActions();
+            } else {
+                showNotification('Failed to reject action: ' + data.error, 'error');
+            }
+        } catch (error) {
+            showNotification('Error rejecting action', 'error');
+        }
+    }
+
+    function simulateAction(actionId) {
+        showNotification('Simulation starting... Results will appear in Co-Simulation panel', 'info');
+        // Navigate to co-simulation with action context
+        window.location.href = `/command-center/cosim?action=${actionId}`;
+    }
+
+    function formatTime(timestamp) {
+        if (!timestamp) return 'N/A';
+        const date = new Date(timestamp);
+        const now = new Date();
+        const diff = (now - date) / 1000;
+
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+    }
+
+    function formatDateTime(timestamp) {
+        if (!timestamp) return 'N/A';
+        return new Date(timestamp).toLocaleString();
+    }
+
+    function showNotification(message, type) {
+        // Simple notification - can be enhanced
+        alert(message);
+    }
+</script>
+{% endblock %}

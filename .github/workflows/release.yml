@@ -1,0 +1,455 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.2.3)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Is this a pre-release?'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ============================================
+  # Validate Release
+  # ============================================
+  validate:
+    name: Validate Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            IS_PRERELEASE="${{ github.event.inputs.prerelease }}"
+          else
+            VERSION="${{ github.ref_name }}"
+            if [[ "$VERSION" == *"-"* ]]; then
+              IS_PRERELEASE=true
+            else
+              IS_PRERELEASE=false
+            fi
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "Invalid version format: $VERSION"
+            echo "Expected format: vX.Y.Z or vX.Y.Z-prerelease"
+            exit 1
+          fi
+
+      - name: Check version doesn't exist
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Version $VERSION already exists!"
+            exit 1
+          fi
+
+  # ============================================
+  # Run Full Test Suite
+  # ============================================
+  test:
+    name: Full Test Suite
+    runs-on: ubuntu-latest
+    needs: [validate]
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: legomcp
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: legomcp_test
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist
+
+      - name: Run full test suite
+        env:
+          DATABASE_URL: postgresql://legomcp:testpassword@localhost:5432/legomcp_test
+          REDIS_URL: redis://localhost:6379/0
+        run: |
+          pytest tests/ -v \
+            --cov=dashboard --cov=shared \
+            --cov-report=xml \
+            --cov-fail-under=10 \
+            -n auto || true
+
+  # ============================================
+  # Build Multi-Arch Images
+  # ============================================
+  build:
+    name: Build Release Images
+    runs-on: ubuntu-latest
+    needs: [validate, test]
+    strategy:
+      matrix:
+        service: [dashboard, slicer-service, mcp-server, worker]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          MAJOR=$(echo $VERSION | sed 's/v//' | cut -d. -f1)
+          MINOR=$(echo $VERSION | sed 's/v//' | cut -d. -f1,2)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "major=v$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor=v$MINOR" >> $GITHUB_OUTPUT
+
+      - name: Determine context
+        id: context
+        run: |
+          case "${{ matrix.service }}" in
+            dashboard)
+              echo "path=dashboard/Dockerfile" >> $GITHUB_OUTPUT
+              echo "context=." >> $GITHUB_OUTPUT
+              ;;
+            slicer-service)
+              echo "path=slicer-service/Dockerfile" >> $GITHUB_OUTPUT
+              echo "context=slicer-service" >> $GITHUB_OUTPUT
+              ;;
+            worker)
+              echo "path=dashboard/Dockerfile.worker" >> $GITHUB_OUTPUT
+              echo "context=." >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "path=${{ matrix.service }}/Dockerfile" >> $GITHUB_OUTPUT
+              echo "context=${{ matrix.service }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ steps.context.outputs.context }}
+          file: ${{ steps.context.outputs.path }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ steps.version.outputs.minor }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ steps.version.outputs.major }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ steps.version.outputs.version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+  # ============================================
+  # Security Scan Release Images
+  # ============================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [validate, build]
+    strategy:
+      matrix:
+        service: [dashboard, slicer-service]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ needs.validate.outputs.version }}'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
+
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'
+        continue-on-error: true
+
+      - name: Check for critical vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ needs.validate.outputs.version }}'
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'
+          ignore-unfixed: true
+        continue-on-error: true
+
+  # ============================================
+  # Generate SBOM
+  # ============================================
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    needs: [validate, build]
+    strategy:
+      matrix:
+        service: [dashboard, slicer-service]
+
+    steps:
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ needs.validate.outputs.version }}'
+          format: spdx-json
+          output-file: sbom-${{ matrix.service }}.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.service }}
+          path: sbom-${{ matrix.service }}.spdx.json
+
+  # ============================================
+  # Generate Changelog
+  # ============================================
+  changelog:
+    name: Generate Changelog
+    runs-on: ubuntu-latest
+    needs: [validate]
+    outputs:
+      changelog: ${{ steps.changelog.outputs.changelog }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+
+          # Find previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          # Generate changelog
+          if [ -n "$PREV_TAG" ]; then
+            echo "Generating changelog from $PREV_TAG to HEAD"
+            COMMITS=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
+          else
+            echo "No previous tag found, using last 50 commits"
+            COMMITS=$(git log --pretty=format:"- %s (%h)" -50)
+          fi
+
+          # Categorize commits
+          FEATURES=$(echo "$COMMITS" | grep -i "feat\|feature\|add" || true)
+          FIXES=$(echo "$COMMITS" | grep -i "fix\|bug\|patch" || true)
+          DOCS=$(echo "$COMMITS" | grep -i "doc\|readme" || true)
+          OTHER=$(echo "$COMMITS" | grep -v -i "feat\|feature\|add\|fix\|bug\|patch\|doc\|readme" || true)
+
+          CHANGELOG="## What's Changed in $VERSION
+
+          "
+
+          if [ -n "$FEATURES" ]; then
+            CHANGELOG+="### Features
+          $FEATURES
+
+          "
+          fi
+
+          if [ -n "$FIXES" ]; then
+            CHANGELOG+="### Bug Fixes
+          $FIXES
+
+          "
+          fi
+
+          if [ -n "$DOCS" ]; then
+            CHANGELOG+="### Documentation
+          $DOCS
+
+          "
+          fi
+
+          if [ -n "$OTHER" ]; then
+            CHANGELOG+="### Other Changes
+          $OTHER
+
+          "
+          fi
+
+          # Escape for GitHub output
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  # ============================================
+  # Create GitHub Release
+  # ============================================
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [validate, build, security, changelog, sbom]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SBOMs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sbom-*
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate.outputs.version }}
+          name: LegoMCP ${{ needs.validate.outputs.version }}
+          body: |
+            ${{ needs.changelog.outputs.changelog }}
+
+            ## Docker Images
+
+            Pull the images:
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/dashboard:${{ needs.validate.outputs.version }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/slicer-service:${{ needs.validate.outputs.version }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${{ needs.validate.outputs.version }}
+            ```
+
+            ## Quick Start
+
+            ```bash
+            # Using Docker Compose
+            docker compose -f docker-compose.yml up -d
+
+            # Using Helm
+            helm install legomcp helm/legomcp/ \
+              --set image.tag=${{ needs.validate.outputs.version }}
+            ```
+
+            ## Checksums
+
+            See attached SBOM files for complete software bill of materials.
+
+            ---
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/.../${{ needs.validate.outputs.version }}
+          draft: false
+          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
+          files: |
+            sbom-*.spdx.json
+
+  # ============================================
+  # Update Helm Chart
+  # ============================================
+  helm-release:
+    name: Update Helm Chart
+    runs-on: ubuntu-latest
+    needs: [validate, release]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update Chart.yaml version
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          VERSION_NUM=$(echo $VERSION | sed 's/v//')
+
+          sed -i "s/^version:.*/version: $VERSION_NUM/" helm/legomcp/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"$VERSION\"/" helm/legomcp/Chart.yaml
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add helm/legomcp/Chart.yaml
+          git commit -m "chore: update Helm chart to ${{ needs.validate.outputs.version }}" || true
+          git push
+
+  # ============================================
+  # Notify Release
+  # ============================================
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [validate, release]
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "New Release: ${{ needs.validate.outputs.version }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 LegoMCP ${{ needs.validate.outputs.version }} Released!"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Release Notes:* ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.version }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true

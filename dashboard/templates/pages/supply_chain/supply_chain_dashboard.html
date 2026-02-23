@@ -1,0 +1,2279 @@
+{% extends "base.html" %}
+
+{% block title %}Supply Chain - LegoMCP Manufacturing{% endblock %}
+
+{% block extra_css %}
+<style>
+    .supply-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .header-title h1 {
+        font-size: 1.75rem;
+        margin: 0 0 0.25rem 0;
+        color: var(--text-primary);
+    }
+
+    .header-subtitle {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+    }
+
+    .header-badges {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .status-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .status-badge.healthy {
+        background: rgba(16, 185, 129, 0.15);
+        color: #10b981;
+    }
+
+    .status-badge.warning {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+
+    /* KPI Cards */
+    .supply-kpis {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .supply-kpi {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        text-align: center;
+    }
+
+    .kpi-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.75rem;
+        font-size: 1.5rem;
+    }
+
+    .kpi-icon.orders { background: rgba(59, 130, 246, 0.15); }
+    .kpi-icon.delivery { background: rgba(16, 185, 129, 0.15); }
+    .kpi-icon.inventory { background: rgba(139, 92, 246, 0.15); }
+    .kpi-icon.suppliers { background: rgba(245, 158, 11, 0.15); }
+    .kpi-icon.risk { background: rgba(239, 68, 68, 0.15); }
+
+    .kpi-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .kpi-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    .kpi-trend {
+        font-size: 0.7rem;
+        margin-top: 0.5rem;
+    }
+
+    .kpi-trend.up { color: #10b981; }
+    .kpi-trend.down { color: #ef4444; }
+
+    /* Main Content Grid */
+    .supply-content {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Supply Chain Map */
+    .map-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+
+    .section-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .supply-flow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1rem 0;
+        position: relative;
+    }
+
+    .supply-flow::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 10%;
+        right: 10%;
+        height: 4px;
+        background: linear-gradient(90deg, #3b82f6, #10b981, #f59e0b, #8b5cf6);
+        z-index: 0;
+    }
+
+    .flow-node {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        z-index: 1;
+    }
+
+    .node-icon {
+        width: 64px;
+        height: 64px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.75rem;
+        background: var(--card-bg);
+        border: 3px solid;
+        margin-bottom: 0.5rem;
+    }
+
+    .node-icon.suppliers { border-color: #3b82f6; }
+    .node-icon.warehouse { border-color: #10b981; }
+    .node-icon.production { border-color: #f59e0b; }
+    .node-icon.distribution { border-color: #8b5cf6; }
+    .node-icon.customers { border-color: #ef4444; }
+
+    .node-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .node-stats {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        text-align: center;
+    }
+
+    .flow-arrow {
+        font-size: 1.5rem;
+        color: var(--text-secondary);
+        z-index: 1;
+    }
+
+    /* Inventory Summary */
+    .inventory-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .inventory-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .inventory-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 8px;
+    }
+
+    .inv-status {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .inv-status.good { background: #10b981; }
+    .inv-status.low { background: #f59e0b; }
+    .inv-status.critical { background: #ef4444; }
+
+    .inv-info {
+        flex: 1;
+    }
+
+    .inv-name {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .inv-details {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .inv-level {
+        text-align: right;
+    }
+
+    .inv-qty {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .inv-days {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Orders Section */
+    .orders-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .orders-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+
+    .orders-column h4 {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .order-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .order-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 8px;
+        border-left: 3px solid transparent;
+    }
+
+    .order-item.pending { border-left-color: #f59e0b; }
+    .order-item.confirmed { border-left-color: #3b82f6; }
+    .order-item.shipped { border-left-color: #10b981; }
+    .order-item.delayed { border-left-color: #ef4444; }
+
+    .order-info {
+        flex: 1;
+    }
+
+    .order-id {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .order-details {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .order-status {
+        text-align: right;
+    }
+
+    .order-status-badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+        font-size: 0.65rem;
+        font-weight: 600;
+    }
+
+    .order-status-badge.pending { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .order-status-badge.confirmed { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+    .order-status-badge.shipped { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .order-status-badge.delayed { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+    .order-eta {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Bottom Grid */
+    .bottom-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+    }
+
+    /* Supplier Performance */
+    .supplier-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .supplier-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .supplier-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .supplier-rank {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .supplier-rank.gold { background: #f59e0b; }
+    .supplier-rank.silver { background: #9ca3af; }
+    .supplier-rank.bronze { background: #cd7c32; }
+
+    .supplier-info {
+        flex: 1;
+    }
+
+    .supplier-name {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    .supplier-category {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .supplier-score {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+
+    .score-bar {
+        width: 60px;
+        height: 6px;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .score-fill {
+        height: 100%;
+        border-radius: 3px;
+    }
+
+    .score-fill.excellent { background: #10b981; }
+    .score-fill.good { background: #3b82f6; }
+    .score-fill.average { background: #f59e0b; }
+
+    .score-value {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Risk Assessment */
+    .risk-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .risk-gauge {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
+
+    .gauge-wrapper {
+        position: relative;
+        width: 120px;
+        height: 60px;
+        overflow: hidden;
+    }
+
+    .gauge-wrapper svg {
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+
+    .gauge-value-text {
+        position: absolute;
+        bottom: 5px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .risk-items {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .risk-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem;
+        border-radius: 6px;
+    }
+
+    .risk-item.high {
+        background: rgba(239, 68, 68, 0.1);
+    }
+
+    .risk-item.medium {
+        background: rgba(245, 158, 11, 0.1);
+    }
+
+    .risk-item.low {
+        background: rgba(16, 185, 129, 0.1);
+    }
+
+    .risk-level {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .risk-level.high { background: #ef4444; }
+    .risk-level.medium { background: #f59e0b; }
+    .risk-level.low { background: #10b981; }
+
+    .risk-desc {
+        flex: 1;
+        font-size: 0.8rem;
+        color: var(--text-primary);
+    }
+
+    .risk-impact {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    /* Shipment Tracker */
+    .shipment-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+    }
+
+    .shipment-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .shipment-item {
+        padding: 0.75rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 8px;
+    }
+
+    .shipment-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .shipment-id {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .shipment-carrier {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .shipment-progress {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .progress-track {
+        flex: 1;
+        height: 4px;
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 2px;
+        position: relative;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: #3b82f6;
+        border-radius: 2px;
+    }
+
+    .progress-dots {
+        position: absolute;
+        top: -3px;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .progress-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--card-bg);
+        border: 2px solid rgba(0, 0, 0, 0.2);
+    }
+
+    .progress-dot.active {
+        border-color: #3b82f6;
+        background: #3b82f6;
+    }
+
+    .progress-dot.current {
+        border-color: #3b82f6;
+        background: white;
+        animation: pulse 1.5s infinite;
+    }
+
+    .shipment-eta {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        margin-top: 0.5rem;
+        text-align: center;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(4px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        opacity: 0;
+        visibility: hidden;
+        transition: all 0.3s ease;
+    }
+
+    .modal-overlay.active {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .modal {
+        background: var(--card-bg);
+        border-radius: 16px;
+        width: 90%;
+        max-width: 800px;
+        max-height: 85vh;
+        overflow-y: auto;
+        transform: scale(0.9) translateY(20px);
+        transition: transform 0.3s ease;
+    }
+
+    .modal-overlay.active .modal {
+        transform: scale(1) translateY(0);
+    }
+
+    .modal.wide {
+        max-width: 1000px;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        position: sticky;
+        top: 0;
+        background: var(--card-bg);
+        z-index: 10;
+    }
+
+    .modal-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .modal-close {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        color: var(--text-secondary);
+        transition: all 0.2s ease;
+    }
+
+    .modal-close:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
+
+    .modal-body {
+        padding: 1.5rem;
+    }
+
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .toast {
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        animation: slideIn 0.3s ease;
+        min-width: 300px;
+    }
+
+    .toast.success { border-left: 4px solid #10b981; }
+    .toast.error { border-left: 4px solid #ef4444; }
+    .toast.warning { border-left: 4px solid #f59e0b; }
+    .toast.info { border-left: 4px solid #3b82f6; }
+
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+    }
+
+    /* Form Styles */
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .form-input, .form-select, .form-textarea {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.875rem;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        transition: border-color 0.2s ease;
+    }
+
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    /* Interactive Map */
+    .map-container {
+        position: relative;
+        height: 350px;
+        background: linear-gradient(135deg, #e0f2fe 0%, #e0e7ff 100%);
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 1rem;
+    }
+
+    .map-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M0 0h100v100H0z' fill='none' stroke='%23a0aec0' stroke-width='0.5' stroke-dasharray='2,2'/%3E%3C/svg%3E");
+    }
+
+    .map-marker {
+        position: absolute;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+        z-index: 10;
+    }
+
+    .map-marker:hover {
+        transform: scale(1.2);
+    }
+
+    .marker-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        background: var(--card-bg);
+        border: 3px solid;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    .marker-icon.supplier { border-color: #3b82f6; }
+    .marker-icon.warehouse { border-color: #10b981; }
+    .marker-icon.factory { border-color: #f59e0b; }
+    .marker-icon.customer { border-color: #8b5cf6; }
+    .marker-icon.transit { border-color: #ef4444; animation: pulse 2s infinite; }
+
+    .marker-label {
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        background: var(--card-bg);
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        margin-top: 0.25rem;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .map-route {
+        position: absolute;
+        pointer-events: none;
+    }
+
+    .map-legend {
+        position: absolute;
+        bottom: 1rem;
+        left: 1rem;
+        background: var(--card-bg);
+        padding: 0.75rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        font-size: 0.7rem;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    /* Supplier Card */
+    .supplier-card {
+        padding: 1.25rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .supplier-card:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+
+    .supplier-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .supplier-logo {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        background: rgba(59, 130, 246, 0.1);
+    }
+
+    .supplier-rating {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+    }
+
+    .rating-stars {
+        color: #f59e0b;
+    }
+
+    .supplier-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.75rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .supplier-metric {
+        text-align: center;
+    }
+
+    .metric-value {
+        font-size: 1.125rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .metric-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Order Detail */
+    .order-detail-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .order-timeline {
+        position: relative;
+        padding-left: 2rem;
+    }
+
+    .order-timeline::before {
+        content: '';
+        position: absolute;
+        left: 0.5rem;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--border-color);
+    }
+
+    .timeline-item {
+        position: relative;
+        padding: 0.75rem 0;
+    }
+
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -1.5rem;
+        top: 1rem;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--border-color);
+        border: 2px solid var(--card-bg);
+    }
+
+    .timeline-item.completed::before {
+        background: #10b981;
+    }
+
+    .timeline-item.current::before {
+        background: #3b82f6;
+        animation: pulse 1.5s infinite;
+    }
+
+    .timeline-time {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .timeline-event {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--text-primary);
+    }
+
+    /* Action Buttons */
+    .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6, #60a5fa);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background: linear-gradient(135deg, #2563eb, #3b82f6);
+        transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+        background: rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-outline {
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .btn-outline:hover {
+        border-color: #3b82f6;
+        color: #3b82f6;
+    }
+
+    .btn-success {
+        background: linear-gradient(135deg, #10b981, #34d399);
+        color: white;
+    }
+
+    .btn-danger {
+        background: linear-gradient(135deg, #ef4444, #f87171);
+        color: white;
+    }
+
+    /* Clickable elements */
+    .supply-kpi, .flow-node, .inventory-item, .order-item, .supplier-item, .risk-item, .shipment-item {
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .supply-kpi:hover, .flow-node:hover {
+        transform: translateY(-2px);
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+        .supply-kpis {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .supply-content {
+            grid-template-columns: 1fr;
+        }
+
+        .orders-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .bottom-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+
+        .order-detail-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .supply-kpis {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .supply-flow {
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .supply-flow::before {
+            top: 10%;
+            bottom: 10%;
+            left: 50%;
+            width: 4px;
+            height: auto;
+            right: auto;
+        }
+
+        .flow-arrow {
+            transform: rotate(90deg);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="supply-header">
+    <div>
+        <div class="header-title">
+            <h1>🚚 Supply Chain Management</h1>
+        </div>
+        <div class="header-subtitle">S&OP Planning • Inventory Optimization • Supplier Collaboration</div>
+    </div>
+    <div class="header-badges">
+        <span class="status-badge healthy">✓ Supply Chain Healthy</span>
+        <span class="status-badge warning">⚠ 2 Alerts</span>
+    </div>
+    <div class="header-controls">
+        <button class="btn btn-outline" onclick="createPO()">+ Create PO</button>
+        <button class="btn btn-primary" onclick="exportReport()">📥 S&OP Report</button>
+    </div>
+</div>
+
+<!-- Supply Chain KPIs -->
+<div class="supply-kpis">
+    <div class="supply-kpi">
+        <div class="kpi-icon orders">📦</div>
+        <div class="kpi-value">127</div>
+        <div class="kpi-label">Active Orders</div>
+        <div class="kpi-trend up">↑ 12% vs last month</div>
+    </div>
+    <div class="supply-kpi">
+        <div class="kpi-icon delivery">🚀</div>
+        <div class="kpi-value">96.8%</div>
+        <div class="kpi-label">On-Time Delivery</div>
+        <div class="kpi-trend up">↑ 2.3% improved</div>
+    </div>
+    <div class="supply-kpi">
+        <div class="kpi-icon inventory">📊</div>
+        <div class="kpi-value">4.2</div>
+        <div class="kpi-label">Inventory Turns</div>
+        <div class="kpi-trend up">↑ 0.5 improved</div>
+    </div>
+    <div class="supply-kpi">
+        <div class="kpi-icon suppliers">🤝</div>
+        <div class="kpi-value">24</div>
+        <div class="kpi-label">Active Suppliers</div>
+        <div class="kpi-trend">→ Stable</div>
+    </div>
+    <div class="supply-kpi">
+        <div class="kpi-icon risk">⚠️</div>
+        <div class="kpi-value">Low</div>
+        <div class="kpi-label">Supply Risk</div>
+        <div class="kpi-trend up">↓ 15% reduced</div>
+    </div>
+</div>
+
+<!-- Supply Chain Flow & Inventory -->
+<div class="supply-content">
+    <div class="map-section">
+        <div class="section-header">
+            <div class="section-title">🗺️ Supply Chain Flow</div>
+        </div>
+        <div class="supply-flow">
+            <div class="flow-node">
+                <div class="node-icon suppliers">🏭</div>
+                <div class="node-label">Suppliers</div>
+                <div class="node-stats">24 Active<br>98.2% Quality</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node">
+                <div class="node-icon warehouse">📦</div>
+                <div class="node-label">Warehouse</div>
+                <div class="node-stats">$2.4M Value<br>15 Days Stock</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node">
+                <div class="node-icon production">⚙️</div>
+                <div class="node-label">Production</div>
+                <div class="node-stats">12 Lines Active<br>87.6% OEE</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node">
+                <div class="node-icon distribution">🚛</div>
+                <div class="node-label">Distribution</div>
+                <div class="node-stats">45 In Transit<br>96.8% OTD</div>
+            </div>
+            <div class="flow-arrow">→</div>
+            <div class="flow-node">
+                <div class="node-icon customers">👥</div>
+                <div class="node-label">Customers</div>
+                <div class="node-stats">1,245 Active<br>4.8★ Rating</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="inventory-section">
+        <div class="section-header">
+            <div class="section-title">📦 Inventory Status</div>
+            <button class="btn btn-outline btn-sm">View All</button>
+        </div>
+        <div class="inventory-list">
+            <div class="inventory-item">
+                <span class="inv-status critical"></span>
+                <div class="inv-info">
+                    <div class="inv-name">ABS Pellets (Red)</div>
+                    <div class="inv-details">SKU: RAW-ABS-RED-001</div>
+                </div>
+                <div class="inv-level">
+                    <div class="inv-qty" style="color: #ef4444;">245 kg</div>
+                    <div class="inv-days">3 days left</div>
+                </div>
+            </div>
+            <div class="inventory-item">
+                <span class="inv-status low"></span>
+                <div class="inv-info">
+                    <div class="inv-name">PLA Filament (White)</div>
+                    <div class="inv-details">SKU: RAW-PLA-WHT-001</div>
+                </div>
+                <div class="inv-level">
+                    <div class="inv-qty" style="color: #f59e0b;">1,200 kg</div>
+                    <div class="inv-days">8 days left</div>
+                </div>
+            </div>
+            <div class="inventory-item">
+                <span class="inv-status good"></span>
+                <div class="inv-info">
+                    <div class="inv-name">Color Pigment (Blue)</div>
+                    <div class="inv-details">SKU: ADD-PIG-BLU-001</div>
+                </div>
+                <div class="inv-level">
+                    <div class="inv-qty">85 kg</div>
+                    <div class="inv-days">22 days left</div>
+                </div>
+            </div>
+            <div class="inventory-item">
+                <span class="inv-status good"></span>
+                <div class="inv-info">
+                    <div class="inv-name">Packaging Boxes (Small)</div>
+                    <div class="inv-details">SKU: PKG-BOX-SM-001</div>
+                </div>
+                <div class="inv-level">
+                    <div class="inv-qty">12,500 units</div>
+                    <div class="inv-days">18 days left</div>
+                </div>
+            </div>
+            <div class="inventory-item">
+                <span class="inv-status good"></span>
+                <div class="inv-info">
+                    <div class="inv-name">LEGO 3001 Brick (Mixed)</div>
+                    <div class="inv-details">SKU: FG-3001-MIX-001</div>
+                </div>
+                <div class="inv-level">
+                    <div class="inv-qty">45,000 units</div>
+                    <div class="inv-days">12 days left</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Orders Section -->
+<div class="orders-section">
+    <div class="section-header">
+        <div class="section-title">📋 Order Management</div>
+    </div>
+    <div class="orders-grid">
+        <div class="orders-column">
+            <h4>📥 Purchase Orders (Inbound)</h4>
+            <div class="order-list">
+                <div class="order-item pending">
+                    <div class="order-info">
+                        <div class="order-id">PO-2024-0892</div>
+                        <div class="order-details">ABS Polymers Inc. • 2,000 kg ABS</div>
+                    </div>
+                    <div class="order-status">
+                        <span class="order-status-badge pending">PENDING</span>
+                        <div class="order-eta">ETA: Jan 25</div>
+                    </div>
+                </div>
+                <div class="order-item confirmed">
+                    <div class="order-info">
+                        <div class="order-id">PO-2024-0891</div>
+                        <div class="order-details">PLA Solutions • 5,000 kg PLA</div>
+                    </div>
+                    <div class="order-status">
+                        <span class="order-status-badge confirmed">CONFIRMED</span>
+                        <div class="order-eta">ETA: Jan 23</div>
+                    </div>
+                </div>
+                <div class="order-item shipped">
+                    <div class="order-info">
+                        <div class="order-id">PO-2024-0890</div>
+                        <div class="order-details">ColorPig Additives • 150 kg Pigments</div>
+                    </div>
+                    <div class="order-status">
+                        <span class="order-status-badge shipped">IN TRANSIT</span>
+                        <div class="order-eta">ETA: Tomorrow</div>
+                    </div>
+                </div>
+                <div class="order-item delayed">
+                    <div class="order-info">
+                        <div class="order-id">PO-2024-0885</div>
+                        <div class="order-details">PackRight Solutions • 25,000 boxes</div>
+                    </div>
+                    <div class="order-status">
+                        <span class="order-status-badge delayed">DELAYED</span>
+                        <div class="order-eta">ETA: Jan 28 (+3 days)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="orders-column">
+            <h4>📤 Sales Orders (Outbound)</h4>
+            <div class="order-list">
+                <div class="order-item shipped">
+                    <div class="order-info">
+                        <div class="order-id">SO-2024-1245</div>
+                        <div class="order-details">ToyWorld Retail • Set 75192 x 50</div>
+                    </div>
+                    <div class="order-status">
+                        <span class="order-status-badge shipped">SHIPPED</span>
+                        <div class="order-eta">Delivery: Today</div>
+                    </div>
+                </div>
+                <div class="order-item confirmed">
+                    <div class="order-info">
+                        <div class="order-id">SO-2024-1244</div>
+                        <div class="order-details">BrickMart • Mixed Bricks 10,000</div>
+                    </div>
+                    <div class="order-status">
+                        <span class="order-status-badge confirmed">PROCESSING</span>
+                        <div class="order-eta">Ship by: Jan 23</div>
+                    </div>
+                </div>
+                <div class="order-item pending">
+                    <div class="order-info">
+                        <div class="order-id">SO-2024-1243</div>
+                        <div class="order-details">LegoLand Parks • Custom Order</div>
+                    </div>
+                    <div class="order-status">
+                        <span class="order-status-badge pending">AWAITING</span>
+                        <div class="order-eta">Ship by: Jan 30</div>
+                    </div>
+                </div>
+                <div class="order-item shipped">
+                    <div class="order-info">
+                        <div class="order-id">SO-2024-1242</div>
+                        <div class="order-details">Amazon Distribution • Bulk Order</div>
+                    </div>
+                    <div class="order-status">
+                        <span class="order-status-badge shipped">DELIVERED</span>
+                        <div class="order-eta">Completed</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Grid -->
+<div class="bottom-grid">
+    <!-- Supplier Performance -->
+    <div class="supplier-section">
+        <div class="section-header">
+            <div class="section-title">🏆 Top Suppliers</div>
+        </div>
+        <div class="supplier-list">
+            <div class="supplier-item">
+                <div class="supplier-rank gold">1</div>
+                <div class="supplier-info">
+                    <div class="supplier-name">ABS Polymers Inc.</div>
+                    <div class="supplier-category">Raw Materials</div>
+                </div>
+                <div class="supplier-score">
+                    <div class="score-bar">
+                        <div class="score-fill excellent" style="width: 98%;"></div>
+                    </div>
+                    <div class="score-value">98.5%</div>
+                </div>
+            </div>
+            <div class="supplier-item">
+                <div class="supplier-rank silver">2</div>
+                <div class="supplier-info">
+                    <div class="supplier-name">PLA Solutions</div>
+                    <div class="supplier-category">Raw Materials</div>
+                </div>
+                <div class="supplier-score">
+                    <div class="score-bar">
+                        <div class="score-fill excellent" style="width: 97%;"></div>
+                    </div>
+                    <div class="score-value">97.2%</div>
+                </div>
+            </div>
+            <div class="supplier-item">
+                <div class="supplier-rank bronze">3</div>
+                <div class="supplier-info">
+                    <div class="supplier-name">ColorPig Additives</div>
+                    <div class="supplier-category">Additives</div>
+                </div>
+                <div class="supplier-score">
+                    <div class="score-bar">
+                        <div class="score-fill good" style="width: 94%;"></div>
+                    </div>
+                    <div class="score-value">94.8%</div>
+                </div>
+            </div>
+            <div class="supplier-item">
+                <div class="supplier-rank" style="background: #6b7280;">4</div>
+                <div class="supplier-info">
+                    <div class="supplier-name">PackRight Solutions</div>
+                    <div class="supplier-category">Packaging</div>
+                </div>
+                <div class="supplier-score">
+                    <div class="score-bar">
+                        <div class="score-fill average" style="width: 89%;"></div>
+                    </div>
+                    <div class="score-value">89.3%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Risk Assessment -->
+    <div class="risk-section">
+        <div class="section-header">
+            <div class="section-title">⚠️ Supply Risk</div>
+        </div>
+        <div class="risk-gauge">
+            <div class="gauge-wrapper">
+                <svg width="120" height="60" viewBox="0 0 120 60">
+                    <path d="M 10 55 A 50 50 0 0 1 110 55" fill="none" stroke="rgba(0,0,0,0.1)" stroke-width="8"/>
+                    <path d="M 10 55 A 50 50 0 0 1 110 55" fill="none" stroke="#10b981" stroke-width="8"
+                        stroke-dasharray="157" stroke-dashoffset="110"/>
+                </svg>
+                <div class="gauge-value-text">Low</div>
+            </div>
+        </div>
+        <div class="risk-items">
+            <div class="risk-item high">
+                <span class="risk-level high"></span>
+                <span class="risk-desc">ABS Red shortage risk</span>
+                <span class="risk-impact">High</span>
+            </div>
+            <div class="risk-item medium">
+                <span class="risk-level medium"></span>
+                <span class="risk-desc">Shipping delays APAC</span>
+                <span class="risk-impact">Medium</span>
+            </div>
+            <div class="risk-item low">
+                <span class="risk-level low"></span>
+                <span class="risk-desc">Currency fluctuation</span>
+                <span class="risk-impact">Low</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shipment Tracker -->
+    <div class="shipment-section">
+        <div class="section-header">
+            <div class="section-title">🚚 Shipment Tracking</div>
+        </div>
+        <div class="shipment-list">
+            <div class="shipment-item">
+                <div class="shipment-header">
+                    <span class="shipment-id">SHIP-2024-0445</span>
+                    <span class="shipment-carrier">DHL Express</span>
+                </div>
+                <div class="shipment-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 75%;"></div>
+                        <div class="progress-dots">
+                            <span class="progress-dot active"></span>
+                            <span class="progress-dot active"></span>
+                            <span class="progress-dot current"></span>
+                            <span class="progress-dot"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="shipment-eta">In transit • ETA: Tomorrow 14:00</div>
+            </div>
+            <div class="shipment-item">
+                <div class="shipment-header">
+                    <span class="shipment-id">SHIP-2024-0444</span>
+                    <span class="shipment-carrier">FedEx Freight</span>
+                </div>
+                <div class="shipment-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 50%;"></div>
+                        <div class="progress-dots">
+                            <span class="progress-dot active"></span>
+                            <span class="progress-dot current"></span>
+                            <span class="progress-dot"></span>
+                            <span class="progress-dot"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="shipment-eta">Processing at hub • ETA: Jan 24</div>
+            </div>
+            <div class="shipment-item">
+                <div class="shipment-header">
+                    <span class="shipment-id">SHIP-2024-0443</span>
+                    <span class="shipment-carrier">Maersk Shipping</span>
+                </div>
+                <div class="shipment-progress">
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: 25%;"></div>
+                        <div class="progress-dots">
+                            <span class="progress-dot current"></span>
+                            <span class="progress-dot"></span>
+                            <span class="progress-dot"></span>
+                            <span class="progress-dot"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="shipment-eta">Departed origin • ETA: Feb 5</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- Create PO Modal -->
+<div id="poModal" class="modal-overlay" onclick="if(event.target===this)closeModal('poModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">📦 Create Purchase Order</div>
+            <button class="modal-close" onclick="closeModal('poModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Supplier</label>
+                    <select class="form-select" id="poSupplier">
+                        <option value="">Select Supplier...</option>
+                        <option value="abs">ABS Polymers Inc.</option>
+                        <option value="pla">PLA Solutions</option>
+                        <option value="color">ColorPig Additives</option>
+                        <option value="pack">PackRight Solutions</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" id="poPriority">
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Material</label>
+                <select class="form-select" id="poMaterial">
+                    <option value="">Select Material...</option>
+                    <option value="abs-red">ABS Pellets (Red) - RAW-ABS-RED-001</option>
+                    <option value="abs-blue">ABS Pellets (Blue) - RAW-ABS-BLU-001</option>
+                    <option value="pla-white">PLA Filament (White) - RAW-PLA-WHT-001</option>
+                    <option value="pigment">Color Pigment - ADD-PIG-xxx</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Quantity</label>
+                    <input type="number" class="form-input" id="poQuantity" placeholder="Enter quantity">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Unit</label>
+                    <select class="form-select" id="poUnit">
+                        <option value="kg">Kilograms (kg)</option>
+                        <option value="units">Units</option>
+                        <option value="boxes">Boxes</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Requested Delivery Date</label>
+                    <input type="date" class="form-input" id="poDeliveryDate">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Delivery Location</label>
+                    <select class="form-select" id="poLocation">
+                        <option value="main">Main Warehouse</option>
+                        <option value="production">Production Floor</option>
+                        <option value="backup">Backup Facility</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Notes</label>
+                <textarea class="form-input" id="poNotes" rows="3" placeholder="Additional notes..."></textarea>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('poModal')">Cancel</button>
+            <button class="btn btn-outline" onclick="savePODraft()">💾 Save Draft</button>
+            <button class="btn btn-primary" onclick="submitPO()">📤 Submit PO</button>
+        </div>
+    </div>
+</div>
+
+<!-- Order Detail Modal -->
+<div id="orderModal" class="modal-overlay" onclick="if(event.target===this)closeModal('orderModal')">
+    <div class="modal wide">
+        <div class="modal-header">
+            <div class="modal-title" id="orderModalTitle">📋 Order Details</div>
+            <button class="modal-close" onclick="closeModal('orderModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="order-detail-grid">
+                <div>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="padding: 1rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Order ID</div>
+                            <div style="font-size: 1.125rem; font-weight: 600;" id="orderDetailId">PO-2024-0892</div>
+                        </div>
+                        <div style="padding: 1rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Status</div>
+                            <div id="orderDetailStatus"><span class="order-status-badge pending">PENDING</span></div>
+                        </div>
+                        <div style="padding: 1rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Supplier</div>
+                            <div style="font-size: 1rem; font-weight: 500;" id="orderDetailSupplier">ABS Polymers Inc.</div>
+                        </div>
+                        <div style="padding: 1rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">ETA</div>
+                            <div style="font-size: 1rem; font-weight: 500;" id="orderDetailETA">Jan 25, 2025</div>
+                        </div>
+                    </div>
+
+                    <h4 style="margin-bottom: 1rem;">Order Items</h4>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <th style="text-align: left; padding: 0.5rem; color: var(--text-secondary);">Material</th>
+                                <th style="text-align: right; padding: 0.5rem; color: var(--text-secondary);">Quantity</th>
+                                <th style="text-align: right; padding: 0.5rem; color: var(--text-secondary);">Unit Price</th>
+                                <th style="text-align: right; padding: 0.5rem; color: var(--text-secondary);">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orderDetailItems">
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding: 0.75rem 0.5rem;">ABS Pellets (Red)</td>
+                                <td style="padding: 0.75rem 0.5rem; text-align: right;">2,000 kg</td>
+                                <td style="padding: 0.75rem 0.5rem; text-align: right;">$2.50/kg</td>
+                                <td style="padding: 0.75rem 0.5rem; text-align: right; font-weight: 600;">$5,000.00</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="3" style="padding: 0.75rem 0.5rem; text-align: right; font-weight: 600;">Total:</td>
+                                <td style="padding: 0.75rem 0.5rem; text-align: right; font-weight: 700; color: #3b82f6;">$5,000.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div>
+                    <h4 style="margin-bottom: 1rem;">Order Timeline</h4>
+                    <div class="order-timeline" id="orderTimeline">
+                        <div class="timeline-item completed">
+                            <div class="timeline-time">Jan 18, 2025 10:00 AM</div>
+                            <div class="timeline-event">Order Created</div>
+                        </div>
+                        <div class="timeline-item completed">
+                            <div class="timeline-time">Jan 18, 2025 02:30 PM</div>
+                            <div class="timeline-event">Order Sent to Supplier</div>
+                        </div>
+                        <div class="timeline-item current">
+                            <div class="timeline-time">Pending</div>
+                            <div class="timeline-event">Awaiting Confirmation</div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-time">-</div>
+                            <div class="timeline-event">Shipped</div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-time">-</div>
+                            <div class="timeline-event">Delivered</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('orderModal')">Close</button>
+            <button class="btn btn-outline" onclick="printOrder()">🖨️ Print</button>
+            <button class="btn btn-outline" onclick="contactSupplier()">📧 Contact Supplier</button>
+            <button class="btn btn-primary" onclick="trackShipment()">🚚 Track Shipment</button>
+        </div>
+    </div>
+</div>
+
+<!-- Supplier Detail Modal -->
+<div id="supplierModal" class="modal-overlay" onclick="if(event.target===this)closeModal('supplierModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title" id="supplierModalTitle">🏭 Supplier Details</div>
+            <button class="modal-close" onclick="closeModal('supplierModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="supplier-card" style="cursor: default;">
+                <div class="supplier-header">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <div class="supplier-logo">🏭</div>
+                        <div>
+                            <div style="font-size: 1.25rem; font-weight: 600;" id="supplierName">ABS Polymers Inc.</div>
+                            <div style="font-size: 0.875rem; color: var(--text-secondary);" id="supplierCategory">Raw Materials • Tier 1</div>
+                        </div>
+                    </div>
+                    <div class="supplier-rating">
+                        <div class="rating-stars">★★★★★</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">98.5% Score</div>
+                    </div>
+                </div>
+                <div class="supplier-metrics">
+                    <div class="supplier-metric">
+                        <div class="metric-value" style="color: #10b981;">98.2%</div>
+                        <div class="metric-label">On-Time Delivery</div>
+                    </div>
+                    <div class="supplier-metric">
+                        <div class="metric-value" style="color: #3b82f6;">99.5%</div>
+                        <div class="metric-label">Quality Rate</div>
+                    </div>
+                    <div class="supplier-metric">
+                        <div class="metric-value" style="color: #8b5cf6;">$245K</div>
+                        <div class="metric-label">Annual Spend</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+                <h4 style="margin-bottom: 1rem;">Contact Information</h4>
+                <div style="display: grid; gap: 0.5rem; font-size: 0.875rem;">
+                    <div><strong>Address:</strong> 123 Industrial Way, Houston, TX 77001</div>
+                    <div><strong>Contact:</strong> John Smith (Account Manager)</div>
+                    <div><strong>Phone:</strong> +1 (555) 123-4567</div>
+                    <div><strong>Email:</strong> orders@abspolymers.com</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 1.5rem;">
+                <h4 style="margin-bottom: 1rem;">Recent Orders</h4>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(0,0,0,0.03); border-radius: 6px;">
+                        <span>PO-2024-0892</span>
+                        <span style="color: #f59e0b;">Pending</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(0,0,0,0.03); border-radius: 6px;">
+                        <span>PO-2024-0845</span>
+                        <span style="color: #10b981;">Delivered</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; padding: 0.5rem; background: rgba(0,0,0,0.03); border-radius: 6px;">
+                        <span>PO-2024-0798</span>
+                        <span style="color: #10b981;">Delivered</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('supplierModal')">Close</button>
+            <button class="btn btn-outline" onclick="viewSupplierScorecard()">📊 Scorecard</button>
+            <button class="btn btn-primary" onclick="openModal('poModal')">📦 Create Order</button>
+        </div>
+    </div>
+</div>
+
+<!-- Map Detail Modal -->
+<div id="mapModal" class="modal-overlay" onclick="if(event.target===this)closeModal('mapModal')">
+    <div class="modal wide">
+        <div class="modal-header">
+            <div class="modal-title">🗺️ Global Supply Chain Map</div>
+            <button class="modal-close" onclick="closeModal('mapModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="map-container" style="height: 400px;">
+                <div class="map-overlay"></div>
+                <!-- Supplier Markers -->
+                <div class="map-marker" style="left: 15%; top: 35%;" onclick="showMarkerInfo('supplier1')">
+                    <div class="marker-icon supplier">🏭</div>
+                    <div class="marker-label">ABS Polymers (TX)</div>
+                </div>
+                <div class="map-marker" style="left: 25%; top: 45%;" onclick="showMarkerInfo('supplier2')">
+                    <div class="marker-icon supplier">🏭</div>
+                    <div class="marker-label">PLA Solutions (MX)</div>
+                </div>
+                <div class="map-marker" style="left: 75%; top: 30%;" onclick="showMarkerInfo('supplier3')">
+                    <div class="marker-icon supplier">🏭</div>
+                    <div class="marker-label">ColorPig (DE)</div>
+                </div>
+                <div class="map-marker" style="left: 85%; top: 55%;" onclick="showMarkerInfo('supplier4')">
+                    <div class="marker-icon supplier">🏭</div>
+                    <div class="marker-label">PackRight (CN)</div>
+                </div>
+
+                <!-- Warehouse/Factory -->
+                <div class="map-marker" style="left: 45%; top: 40%;" onclick="showMarkerInfo('factory')">
+                    <div class="marker-icon factory">⚙️</div>
+                    <div class="marker-label">Main Factory (DK)</div>
+                </div>
+                <div class="map-marker" style="left: 50%; top: 50%;" onclick="showMarkerInfo('warehouse')">
+                    <div class="marker-icon warehouse">📦</div>
+                    <div class="marker-label">Warehouse</div>
+                </div>
+
+                <!-- In-Transit Shipments -->
+                <div class="map-marker" style="left: 60%; top: 45%;" onclick="showMarkerInfo('transit1')">
+                    <div class="marker-icon transit">🚚</div>
+                    <div class="marker-label">SHIP-0445</div>
+                </div>
+
+                <!-- Customers -->
+                <div class="map-marker" style="left: 20%; top: 30%;" onclick="showMarkerInfo('customer1')">
+                    <div class="marker-icon customer">👥</div>
+                    <div class="marker-label">ToyWorld (US)</div>
+                </div>
+                <div class="map-marker" style="left: 70%; top: 65%;" onclick="showMarkerInfo('customer2')">
+                    <div class="marker-icon customer">👥</div>
+                    <div class="marker-label">BrickMart (JP)</div>
+                </div>
+
+                <!-- Map Legend -->
+                <div class="map-legend">
+                    <div class="legend-item"><div class="legend-dot" style="background: #3b82f6;"></div> Suppliers</div>
+                    <div class="legend-item"><div class="legend-dot" style="background: #10b981;"></div> Warehouses</div>
+                    <div class="legend-item"><div class="legend-dot" style="background: #f59e0b;"></div> Production</div>
+                    <div class="legend-item"><div class="legend-dot" style="background: #ef4444;"></div> In Transit</div>
+                    <div class="legend-item"><div class="legend-dot" style="background: #8b5cf6;"></div> Customers</div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-top: 1rem;">
+                <div style="padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #3b82f6;">24</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Active Suppliers</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #10b981;">3</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Warehouses</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(239, 68, 68, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #ef4444;">12</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">In Transit</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(139, 92, 246, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #8b5cf6;">1,245</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Active Customers</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('mapModal')">Close</button>
+            <button class="btn btn-primary" onclick="exportMapReport()">📥 Export Report</button>
+        </div>
+    </div>
+</div>
+
+<!-- Inventory Detail Modal -->
+<div id="inventoryModal" class="modal-overlay" onclick="if(event.target===this)closeModal('inventoryModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title" id="inventoryModalTitle">📦 Inventory Details</div>
+            <button class="modal-close" onclick="closeModal('inventoryModal')">×</button>
+        </div>
+        <div class="modal-body" id="inventoryModalContent">
+            <!-- Dynamic content -->
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('inventoryModal')">Close</button>
+            <button class="btn btn-outline" onclick="adjustStock()">📝 Adjust Stock</button>
+            <button class="btn btn-primary" onclick="reorderItem()">🔄 Reorder</button>
+        </div>
+    </div>
+</div>
+
+<!-- Risk Detail Modal -->
+<div id="riskModal" class="modal-overlay" onclick="if(event.target===this)closeModal('riskModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">⚠️ Risk Assessment Details</div>
+            <button class="modal-close" onclick="closeModal('riskModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="padding: 1rem; background: rgba(239, 68, 68, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #ef4444;">2</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">High Risk</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #f59e0b;">3</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Medium Risk</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(16, 185, 129, 0.1); border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #10b981;">8</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Low Risk</div>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom: 1rem;">Active Risks</h4>
+            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="padding: 1rem; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border-left: 4px solid #ef4444;">
+                    <div style="font-weight: 600; color: #ef4444;">🔴 ABS Red Material Shortage</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem;">Critical inventory level (3 days). Primary supplier experiencing production delays.</div>
+                    <div style="font-size: 0.75rem; margin-top: 0.5rem;">Mitigation: Alternative supplier activated, expedited order placed</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(239, 68, 68, 0.1); border-radius: 8px; border-left: 4px solid #ef4444;">
+                    <div style="font-weight: 600; color: #ef4444;">🔴 Port Congestion - Shanghai</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem;">Expected 5-7 day delays for APAC shipments due to port congestion.</div>
+                    <div style="font-size: 0.75rem; margin-top: 0.5rem;">Mitigation: Rerouting to alternate ports, air freight for urgent orders</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(245, 158, 11, 0.1); border-radius: 8px; border-left: 4px solid #f59e0b;">
+                    <div style="font-weight: 600; color: #f59e0b;">🟡 Currency Fluctuation - EUR/USD</div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.5rem;">15% fluctuation in past 30 days affecting European supplier costs.</div>
+                    <div style="font-size: 0.75rem; margin-top: 0.5rem;">Mitigation: Forward contracts in place, price adjustment negotiations</div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('riskModal')">Close</button>
+            <button class="btn btn-primary" onclick="generateRiskReport()">📥 Full Report</button>
+        </div>
+    </div>
+</div>
+
+<!-- S&OP Report Modal -->
+<div id="sopModal" class="modal-overlay" onclick="if(event.target===this)closeModal('sopModal')">
+    <div class="modal">
+        <div class="modal-header">
+            <div class="modal-title">📊 Generate S&OP Report</div>
+            <button class="modal-close" onclick="closeModal('sopModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label class="form-label">Report Period</label>
+                <select class="form-select" id="sopPeriod">
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Include Sections</label>
+                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" checked> Demand Planning
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" checked> Supply Planning
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" checked> Inventory Analysis
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" checked> Supplier Performance
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" checked> Risk Assessment
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" checked> KPI Dashboard
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('sopModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="generateSOPReport()">📥 Generate Report</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Modal Functions
+    function openModal(modalId) {
+        document.getElementById(modalId).classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(modalId) {
+        document.getElementById(modalId).classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // Close modals with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                modal.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+        }
+    });
+
+    // Toast Notification
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+        toast.innerHTML = `<span style="font-size: 1.25rem;">${icons[type]}</span><span>${message}</span>`;
+
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
+    }
+
+    // PO Functions
+    function createPO() {
+        openModal('poModal');
+    }
+
+    function savePODraft() {
+        closeModal('poModal');
+        showToast('Purchase Order saved as draft', 'info');
+    }
+
+    function submitPO() {
+        const supplier = document.getElementById('poSupplier').value;
+        const quantity = document.getElementById('poQuantity').value;
+
+        if (!supplier || !quantity) {
+            showToast('Please fill in all required fields', 'warning');
+            return;
+        }
+
+        closeModal('poModal');
+        showToast('Purchase Order PO-2024-0893 created successfully!', 'success');
+    }
+
+    // Report Functions
+    function exportReport() {
+        openModal('sopModal');
+    }
+
+    function generateSOPReport() {
+        closeModal('sopModal');
+        showToast('Generating S&OP Report...', 'info');
+        setTimeout(() => {
+            showToast('S&OP Report generated and downloaded', 'success');
+        }, 2000);
+    }
+
+    // Order Functions
+    function showOrderDetail(orderId, type, status) {
+        document.getElementById('orderDetailId').textContent = orderId;
+        document.getElementById('orderModalTitle').textContent = type === 'po' ? '📥 Purchase Order Details' : '📤 Sales Order Details';
+        openModal('orderModal');
+    }
+
+    function printOrder() {
+        showToast('Opening print preview...', 'info');
+    }
+
+    function contactSupplier() {
+        showToast('Opening email client...', 'info');
+    }
+
+    function trackShipment() {
+        closeModal('orderModal');
+        showToast('Opening shipment tracking...', 'info');
+    }
+
+    // Supplier Functions
+    function showSupplierDetail(name) {
+        document.getElementById('supplierName').textContent = name;
+        document.getElementById('supplierModalTitle').textContent = `🏭 ${name}`;
+        openModal('supplierModal');
+    }
+
+    function viewSupplierScorecard() {
+        showToast('Loading supplier scorecard...', 'info');
+    }
+
+    // Inventory Functions
+    function showInventoryDetail(sku, name, qty, status) {
+        document.getElementById('inventoryModalTitle').textContent = `📦 ${name}`;
+
+        const statusColors = { critical: '#ef4444', low: '#f59e0b', good: '#10b981' };
+        const statusLabels = { critical: 'Critical', low: 'Low Stock', good: 'Healthy' };
+
+        document.getElementById('inventoryModalContent').innerHTML = `
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="padding: 1rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">SKU</div>
+                    <div style="font-size: 1rem; font-weight: 600;">${sku}</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Status</div>
+                    <div style="font-size: 1rem; font-weight: 600; color: ${statusColors[status]};">${statusLabels[status]}</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Current Stock</div>
+                    <div style="font-size: 1.25rem; font-weight: 700;">${qty}</div>
+                </div>
+                <div style="padding: 1rem; background: rgba(0,0,0,0.03); border-radius: 8px;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Reorder Point</div>
+                    <div style="font-size: 1rem; font-weight: 600;">500 kg</div>
+                </div>
+            </div>
+            <h4 style="margin-bottom: 1rem;">Stock Movement (Last 7 Days)</h4>
+            <div style="height: 150px; background: rgba(0,0,0,0.03); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-secondary);">
+                📊 Stock movement chart would appear here
+            </div>
+        `;
+        openModal('inventoryModal');
+    }
+
+    function adjustStock() {
+        showToast('Opening stock adjustment form...', 'info');
+    }
+
+    function reorderItem() {
+        closeModal('inventoryModal');
+        openModal('poModal');
+    }
+
+    // Map Functions
+    function showMapDetail() {
+        openModal('mapModal');
+    }
+
+    function showMarkerInfo(markerId) {
+        const markerInfo = {
+            supplier1: { type: 'Supplier', name: 'ABS Polymers Inc.', location: 'Houston, TX', status: 'Active' },
+            supplier2: { type: 'Supplier', name: 'PLA Solutions', location: 'Monterrey, MX', status: 'Active' },
+            supplier3: { type: 'Supplier', name: 'ColorPig Additives', location: 'Frankfurt, DE', status: 'Active' },
+            supplier4: { type: 'Supplier', name: 'PackRight Solutions', location: 'Shenzhen, CN', status: 'Delayed' },
+            factory: { type: 'Factory', name: 'Main Production', location: 'Billund, DK', status: 'Operating' },
+            warehouse: { type: 'Warehouse', name: 'Central Warehouse', location: 'Billund, DK', status: 'Active' },
+            transit1: { type: 'Shipment', name: 'SHIP-2024-0445', location: 'In Transit', status: 'ETA: Tomorrow' },
+            customer1: { type: 'Customer', name: 'ToyWorld Retail', location: 'New York, US', status: 'Active' },
+            customer2: { type: 'Customer', name: 'BrickMart', location: 'Tokyo, JP', status: 'Active' }
+        };
+
+        const info = markerInfo[markerId];
+        showToast(`${info.type}: ${info.name} (${info.location}) - ${info.status}`, 'info');
+    }
+
+    function exportMapReport() {
+        closeModal('mapModal');
+        showToast('Exporting supply chain map report...', 'info');
+        setTimeout(() => showToast('Report exported', 'success'), 1500);
+    }
+
+    // Risk Functions
+    function showRiskDetail() {
+        openModal('riskModal');
+    }
+
+    function generateRiskReport() {
+        closeModal('riskModal');
+        showToast('Generating risk assessment report...', 'info');
+        setTimeout(() => showToast('Risk report downloaded', 'success'), 1500);
+    }
+
+    // Click Handlers
+    document.addEventListener('DOMContentLoaded', function() {
+        // KPI clicks
+        document.querySelectorAll('.supply-kpi').forEach((kpi, index) => {
+            kpi.addEventListener('click', () => {
+                const kpiTypes = ['orders', 'delivery', 'inventory', 'suppliers', 'risk'];
+                if (kpiTypes[index] === 'risk') {
+                    showRiskDetail();
+                } else if (kpiTypes[index] === 'suppliers') {
+                    showSupplierDetail('ABS Polymers Inc.');
+                } else {
+                    showToast(`Opening ${kpiTypes[index]} details...`, 'info');
+                }
+            });
+        });
+
+        // Map section click
+        document.querySelector('.map-section').addEventListener('click', (e) => {
+            if (!e.target.closest('.flow-node')) {
+                showMapDetail();
+            }
+        });
+
+        // Flow node clicks
+        document.querySelectorAll('.flow-node').forEach(node => {
+            node.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const label = node.querySelector('.node-label').textContent;
+                showToast(`Opening ${label} details...`, 'info');
+            });
+        });
+
+        // Inventory item clicks
+        document.querySelectorAll('.inventory-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const name = item.querySelector('.inv-name').textContent;
+                const sku = item.querySelector('.inv-details').textContent.replace('SKU: ', '');
+                const qty = item.querySelector('.inv-qty').textContent;
+                const statusEl = item.querySelector('.inv-status');
+                const status = statusEl.classList.contains('critical') ? 'critical' :
+                              statusEl.classList.contains('low') ? 'low' : 'good';
+                showInventoryDetail(sku, name, qty, status);
+            });
+        });
+
+        // Order item clicks
+        document.querySelectorAll('.order-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const orderId = item.querySelector('.order-id').textContent;
+                const isPO = orderId.startsWith('PO');
+                showOrderDetail(orderId, isPO ? 'po' : 'so');
+            });
+        });
+
+        // Supplier item clicks
+        document.querySelectorAll('.supplier-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const name = item.querySelector('.supplier-name').textContent;
+                showSupplierDetail(name);
+            });
+        });
+
+        // Risk item clicks
+        document.querySelectorAll('.risk-item').forEach(item => {
+            item.addEventListener('click', () => {
+                showRiskDetail();
+            });
+        });
+
+        // Shipment item clicks
+        document.querySelectorAll('.shipment-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const shipId = item.querySelector('.shipment-id').textContent;
+                showToast(`Tracking shipment ${shipId}...`, 'info');
+            });
+        });
+
+        // Animate progress dots
+        setInterval(() => {
+            document.querySelectorAll('.progress-dot.current').forEach(dot => {
+                dot.style.opacity = dot.style.opacity === '0.5' ? '1' : '0.5';
+            });
+        }, 1000);
+    });
+
+    // Pattern-based real-time updates
+    function updateSupplyChainKPIs() {
+        const time = Date.now() * 0.001;
+
+        // Orders: base 127 with time-based variation
+        const orders = 127 + Math.floor(Math.sin(time * 0.05) * 2);
+
+        // On-time delivery: typically high with small oscillation
+        const otd = (96.8 + Math.sin(time * 0.03) * 0.3).toFixed(1);
+
+        // Inventory turns: stable metric with minor variation
+        const turns = (4.2 + Math.sin(time * 0.02) * 0.05).toFixed(1);
+
+        document.querySelectorAll('.kpi-value')[0].textContent = orders;
+        document.querySelectorAll('.kpi-value')[1].textContent = otd + '%';
+        document.querySelectorAll('.kpi-value')[2].textContent = turns;
+    }
+
+    // Start live updates
+    setInterval(updateSupplyChainKPIs, 30000);
+</script>
+{% endblock %}

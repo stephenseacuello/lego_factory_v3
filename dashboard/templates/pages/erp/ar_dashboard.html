@@ -1,0 +1,830 @@
+{% extends "base.html" %}
+
+{% block title %}Accounts Receivable - LEGO MCP v6.0{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-receipt me-2"></i>Accounts Receivable</h2>
+            <p class="text-muted mb-0">Customer invoices, collections & aging analysis</p>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-outline-primary" onclick="refreshData()">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#newCustomerModal">
+                <i class="bi bi-person-plus me-1"></i>New Customer
+            </button>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newInvoiceModal">
+                <i class="bi bi-plus-lg me-1"></i>New Invoice
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body text-center">
+                    <h4 id="totalAR">$0</h4>
+                    <small>Total AR</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-danger text-white h-100">
+                <div class="card-body text-center">
+                    <h4 id="overdueAmount">$0</h4>
+                    <small>Overdue</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body text-center">
+                    <h4 id="currentAmount">$0</h4>
+                    <small>Current</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body text-center">
+                    <h4 id="dsoValue">0</h4>
+                    <small>DSO (Days)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-warning text-dark h-100">
+                <div class="card-body text-center">
+                    <h4 id="openInvoices">0</h4>
+                    <small>Open Invoices</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-secondary text-white h-100">
+                <div class="card-body text-center">
+                    <h4 id="totalCustomers">0</h4>
+                    <small>Customers</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="row mb-4">
+        <!-- Aging Chart -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>AR Aging Analysis</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="agingChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aging by Customer -->
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-people me-2"></i>Top Customers by Balance</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="customerChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs for Invoices and Customers -->
+    <ul class="nav nav-tabs mb-3" id="arTabs">
+        <li class="nav-item">
+            <a class="nav-link active" data-bs-toggle="tab" href="#invoicesTab">
+                <i class="bi bi-file-text me-1"></i>Invoices
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#customersTab">
+                <i class="bi bi-people me-1"></i>Customers
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#paymentsTab">
+                <i class="bi bi-cash me-1"></i>Recent Payments
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" data-bs-toggle="tab" href="#forecastTab">
+                <i class="bi bi-graph-up me-1"></i>Cash Forecast
+            </a>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+        <!-- Invoices Tab -->
+        <div class="tab-pane fade show active" id="invoicesTab">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Invoices</h5>
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" id="invoiceStatusFilter" style="width: auto;">
+                            <option value="">All Status</option>
+                            <option value="draft">Draft</option>
+                            <option value="sent">Sent</option>
+                            <option value="partially_paid">Partially Paid</option>
+                            <option value="paid">Paid</option>
+                            <option value="overdue">Overdue</option>
+                        </select>
+                        <input type="text" class="form-control form-control-sm" id="invoiceSearch"
+                               placeholder="Search..." style="width: 200px;">
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Invoice #</th>
+                                    <th>Customer</th>
+                                    <th>Date</th>
+                                    <th>Due Date</th>
+                                    <th class="text-end">Amount</th>
+                                    <th class="text-end">Balance</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="invoicesTable">
+                                <tr><td colspan="8" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customers Tab -->
+        <div class="tab-pane fade" id="customersTab">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Customer Master</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Customer</th>
+                                    <th>Credit Limit</th>
+                                    <th>Credit Rating</th>
+                                    <th>Payment Terms</th>
+                                    <th class="text-end">Balance</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customersTable">
+                                <tr><td colspan="7" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payments Tab -->
+        <div class="tab-pane fade" id="paymentsTab">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Recent Payments Received</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Invoice #</th>
+                                    <th>Customer</th>
+                                    <th>Method</th>
+                                    <th>Reference</th>
+                                    <th class="text-end">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentsTable">
+                                <tr><td colspan="6" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Forecast Tab -->
+        <div class="tab-pane fade" id="forecastTab">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">30-Day Cash Receipts Forecast</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="forecastChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Customer Modal -->
+<div class="modal fade" id="newCustomerModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">New Customer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="customerForm">
+                    <div class="mb-3">
+                        <label class="form-label">Customer Name *</label>
+                        <input type="text" class="form-control" id="customerName" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Credit Limit</label>
+                            <input type="number" class="form-control" id="creditLimit" value="10000">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Payment Terms (Days)</label>
+                            <input type="number" class="form-control" id="paymentTerms" value="30">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" id="customerEmail">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Billing Address</label>
+                        <textarea class="form-control" id="billingAddress" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createCustomer()">Create Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Invoice Modal -->
+<div class="modal fade" id="newInvoiceModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create Invoice</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="invoiceForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Customer *</label>
+                            <select class="form-select" id="invoiceCustomer" required>
+                                <option value="">Select Customer...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Invoice Date</label>
+                            <input type="date" class="form-control" id="invoiceDate">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Sales Order Reference</label>
+                        <input type="text" class="form-control" id="salesOrderRef" placeholder="SO-001234">
+                    </div>
+                    <h6>Line Items</h6>
+                    <div id="invoiceLines">
+                        <div class="row mb-2 invoice-line">
+                            <div class="col-md-5">
+                                <input type="text" class="form-control" name="description" placeholder="Description" required>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" class="form-control" name="qty" placeholder="Qty" value="1" min="1">
+                            </div>
+                            <div class="col-md-3">
+                                <input type="number" class="form-control" name="price" placeholder="Price" step="0.01" value="0.00">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="removeLine(this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mb-3" onclick="addInvoiceLine()">
+                        <i class="bi bi-plus me-1"></i>Add Line
+                    </button>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" id="invoiceNotes" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="bg-light p-3 rounded">
+                                <div class="d-flex justify-content-between">
+                                    <span>Subtotal:</span>
+                                    <strong id="invoiceSubtotal">$0.00</strong>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Tax (8%):</span>
+                                    <strong id="invoiceTax">$0.00</strong>
+                                </div>
+                                <hr>
+                                <div class="d-flex justify-content-between">
+                                    <span>Total:</span>
+                                    <strong id="invoiceTotal">$0.00</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createInvoice()">Create Invoice</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Modal -->
+<div class="modal fade" id="paymentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Record Payment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="paymentForm">
+                    <input type="hidden" id="paymentInvoiceId">
+                    <div class="alert alert-info">
+                        <strong>Invoice:</strong> <span id="paymentInvoiceNumber"></span><br>
+                        <strong>Balance Due:</strong> <span id="paymentBalanceDue"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Amount *</label>
+                        <input type="number" class="form-control" id="paymentAmount" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Method</label>
+                        <select class="form-select" id="paymentMethod">
+                            <option value="ach">ACH</option>
+                            <option value="check">Check</option>
+                            <option value="wire">Wire Transfer</option>
+                            <option value="credit_card">Credit Card</option>
+                            <option value="cash">Cash</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reference #</label>
+                        <input type="text" class="form-control" id="paymentReference" placeholder="Check #, Transaction ID">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Payment Date</label>
+                        <input type="date" class="form-control" id="paymentDate">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="applyPayment()">Apply Payment</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const API_BASE = '/api/erp/financials';
+let agingChart, customerChart, forecastChart;
+
+document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+    refreshData();
+
+    // Set default date
+    document.getElementById('invoiceDate').valueAsDate = new Date();
+    document.getElementById('paymentDate').valueAsDate = new Date();
+
+    // Event listeners
+    document.getElementById('invoiceStatusFilter').addEventListener('change', loadInvoices);
+    document.getElementById('invoiceSearch').addEventListener('input', debounce(loadInvoices, 300));
+
+    // Calculate invoice totals on input
+    document.getElementById('invoiceLines').addEventListener('input', calculateInvoiceTotals);
+});
+
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+function initCharts() {
+    // Aging Chart
+    agingChart = new Chart(document.getElementById('agingChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: ['Current', '31-60 Days', '61-90 Days', '91-120 Days', 'Over 120'],
+            datasets: [{
+                label: 'Amount',
+                data: [0, 0, 0, 0, 0],
+                backgroundColor: ['#28a745', '#17a2b8', '#ffc107', '#fd7e14', '#dc3545']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { callback: v => '$' + v.toLocaleString() } }
+            }
+        }
+    });
+
+    // Customer Chart
+    customerChart = new Chart(document.getElementById('customerChart').getContext('2d'), {
+        type: 'doughnut',
+        data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+        options: {
+            responsive: true,
+            plugins: { legend: { position: 'right' } }
+        }
+    });
+
+    // Forecast Chart
+    forecastChart = new Chart(document.getElementById('forecastChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Expected Receipts',
+                data: [],
+                borderColor: '#28a745',
+                backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true, ticks: { callback: v => '$' + v.toLocaleString() } }
+            }
+        }
+    });
+}
+
+async function refreshData() {
+    await Promise.all([
+        loadSummary(),
+        loadAging(),
+        loadInvoices(),
+        loadCustomers(),
+        loadForecast()
+    ]);
+}
+
+async function loadSummary() {
+    try {
+        const response = await fetch(`${API_BASE}/ar/summary`);
+        const data = await response.json();
+
+        document.getElementById('totalAR').textContent = formatCurrency(data.total_ar);
+        document.getElementById('overdueAmount').textContent = formatCurrency(data.overdue_amount);
+        document.getElementById('dsoValue').textContent = data.dso || 0;
+        document.getElementById('openInvoices').textContent = data.active_invoices || 0;
+        document.getElementById('totalCustomers').textContent = data.total_customers || 0;
+    } catch (error) {
+        console.error('Error loading summary:', error);
+    }
+}
+
+async function loadAging() {
+    try {
+        const response = await fetch(`${API_BASE}/ar/aging`);
+        const data = await response.json();
+
+        if (data.buckets) {
+            agingChart.data.datasets[0].data = [
+                data.buckets.current?.amount || 0,
+                data.buckets['31_60']?.amount || 0,
+                data.buckets['61_90']?.amount || 0,
+                data.buckets['91_120']?.amount || 0,
+                data.buckets.over_120?.amount || 0
+            ];
+            agingChart.update();
+
+            document.getElementById('currentAmount').textContent = formatCurrency(data.buckets.current?.amount || 0);
+        }
+
+        // Customer breakdown
+        if (data.by_customer && data.by_customer.length > 0) {
+            const colors = ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6c757d'];
+            customerChart.data.labels = data.by_customer.slice(0, 5).map(c => c.customer_name);
+            customerChart.data.datasets[0].data = data.by_customer.slice(0, 5).map(c => c.total);
+            customerChart.data.datasets[0].backgroundColor = colors;
+            customerChart.update();
+        }
+    } catch (error) {
+        console.error('Error loading aging:', error);
+    }
+}
+
+async function loadInvoices() {
+    const status = document.getElementById('invoiceStatusFilter').value;
+    let url = `${API_BASE}/ar/invoices?limit=50`;
+    if (status) url += `&status=${status}`;
+
+    try {
+        const response = await fetch(url);
+        const invoices = await response.json();
+
+        const tbody = document.getElementById('invoicesTable');
+        if (invoices.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No invoices found</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = invoices.map(inv => `
+            <tr>
+                <td><a href="#" onclick="viewInvoice('${inv.invoice_id}')">${inv.invoice_number}</a></td>
+                <td>${inv.customer_name}</td>
+                <td>${inv.invoice_date}</td>
+                <td>${inv.due_date}</td>
+                <td class="text-end">${formatCurrency(inv.total_amount)}</td>
+                <td class="text-end">${formatCurrency(inv.balance_due)}</td>
+                <td><span class="badge ${getStatusBadge(inv.status)}">${inv.status}</span></td>
+                <td>
+                    ${inv.status !== 'paid' ? `
+                        <button class="btn btn-sm btn-outline-success" onclick="openPaymentModal('${inv.invoice_id}', '${inv.invoice_number}', ${inv.balance_due})">
+                            <i class="bi bi-cash"></i>
+                        </button>
+                    ` : ''}
+                    <button class="btn btn-sm btn-outline-primary" onclick="sendInvoice('${inv.invoice_id}')">
+                        <i class="bi bi-send"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading invoices:', error);
+    }
+}
+
+async function loadCustomers() {
+    try {
+        const response = await fetch(`${API_BASE}/ar/customers`);
+        const customers = await response.json();
+
+        // Populate customer dropdown
+        const select = document.getElementById('invoiceCustomer');
+        select.innerHTML = '<option value="">Select Customer...</option>' +
+            customers.map(c => `<option value="${c.customer_id}">${c.name}</option>`).join('');
+
+        // Populate customers table
+        const tbody = document.getElementById('customersTable');
+        if (customers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No customers</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = customers.map(c => `
+            <tr>
+                <td><strong>${c.name}</strong></td>
+                <td>${formatCurrency(c.credit_limit)}</td>
+                <td><span class="badge ${getRatingBadge(c.credit_rating)}">${c.credit_rating}</span></td>
+                <td>Net ${c.payment_terms}</td>
+                <td class="text-end">${formatCurrency(c.balance)}</td>
+                <td><span class="badge ${c.is_active ? 'bg-success' : 'bg-secondary'}">${c.is_active ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewCustomer('${c.customer_id}')">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (error) {
+        console.error('Error loading customers:', error);
+    }
+}
+
+async function loadForecast() {
+    try {
+        const response = await fetch(`${API_BASE}/ar/forecast?days=30`);
+        const forecast = await response.json();
+
+        // Aggregate by date
+        const byDate = {};
+        forecast.forEach(f => {
+            byDate[f.expected_date] = (byDate[f.expected_date] || 0) + f.amount;
+        });
+
+        const dates = Object.keys(byDate).sort();
+        forecastChart.data.labels = dates.map(d => new Date(d).toLocaleDateString('en-US', {month: 'short', day: 'numeric'}));
+        forecastChart.data.datasets[0].data = dates.map(d => byDate[d]);
+        forecastChart.update();
+    } catch (error) {
+        console.error('Error loading forecast:', error);
+    }
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value || 0);
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'paid': 'bg-success', 'draft': 'bg-secondary', 'sent': 'bg-info',
+        'partially_paid': 'bg-primary', 'overdue': 'bg-danger', 'pending': 'bg-warning text-dark'
+    };
+    return badges[status] || 'bg-secondary';
+}
+
+function getRatingBadge(rating) {
+    const badges = { 'AAA': 'bg-success', 'AA': 'bg-success', 'A': 'bg-info',
+        'BBB': 'bg-warning text-dark', 'BB': 'bg-warning text-dark', 'B': 'bg-danger', 'C': 'bg-danger', 'D': 'bg-dark'
+    };
+    return badges[rating] || 'bg-secondary';
+}
+
+async function createCustomer() {
+    const data = {
+        name: document.getElementById('customerName').value,
+        credit_limit: parseFloat(document.getElementById('creditLimit').value),
+        payment_terms: parseInt(document.getElementById('paymentTerms').value),
+        email: document.getElementById('customerEmail').value,
+        address: document.getElementById('billingAddress').value
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/ar/customers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('newCustomerModal')).hide();
+            document.getElementById('customerForm').reset();
+            refreshData();
+            alert('Customer created successfully');
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.error);
+        }
+    } catch (error) {
+        console.error('Error creating customer:', error);
+    }
+}
+
+function addInvoiceLine() {
+    const container = document.getElementById('invoiceLines');
+    const line = container.querySelector('.invoice-line').cloneNode(true);
+    line.querySelectorAll('input').forEach(input => {
+        if (input.name === 'qty') input.value = '1';
+        else if (input.name === 'price') input.value = '0.00';
+        else input.value = '';
+    });
+    container.appendChild(line);
+}
+
+function removeLine(btn) {
+    const lines = document.querySelectorAll('.invoice-line');
+    if (lines.length > 1) {
+        btn.closest('.invoice-line').remove();
+        calculateInvoiceTotals();
+    }
+}
+
+function calculateInvoiceTotals() {
+    let subtotal = 0;
+    document.querySelectorAll('.invoice-line').forEach(line => {
+        const qty = parseFloat(line.querySelector('[name="qty"]').value) || 0;
+        const price = parseFloat(line.querySelector('[name="price"]').value) || 0;
+        subtotal += qty * price;
+    });
+
+    const tax = subtotal * 0.08;
+    const total = subtotal + tax;
+
+    document.getElementById('invoiceSubtotal').textContent = formatCurrency(subtotal);
+    document.getElementById('invoiceTax').textContent = formatCurrency(tax);
+    document.getElementById('invoiceTotal').textContent = formatCurrency(total);
+}
+
+async function createInvoice() {
+    const lines = [];
+    document.querySelectorAll('.invoice-line').forEach(line => {
+        lines.push({
+            description: line.querySelector('[name="description"]').value,
+            qty: parseFloat(line.querySelector('[name="qty"]').value),
+            price: parseFloat(line.querySelector('[name="price"]').value)
+        });
+    });
+
+    const data = {
+        customer_id: document.getElementById('invoiceCustomer').value,
+        line_items: lines,
+        invoice_date: document.getElementById('invoiceDate').value,
+        sales_order_ref: document.getElementById('salesOrderRef').value,
+        notes: document.getElementById('invoiceNotes').value
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/ar/invoices`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('newInvoiceModal')).hide();
+            refreshData();
+            alert('Invoice created successfully');
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.error);
+        }
+    } catch (error) {
+        console.error('Error creating invoice:', error);
+    }
+}
+
+function openPaymentModal(invoiceId, invoiceNumber, balanceDue) {
+    document.getElementById('paymentInvoiceId').value = invoiceId;
+    document.getElementById('paymentInvoiceNumber').textContent = invoiceNumber;
+    document.getElementById('paymentBalanceDue').textContent = formatCurrency(balanceDue);
+    document.getElementById('paymentAmount').value = balanceDue.toFixed(2);
+    new bootstrap.Modal(document.getElementById('paymentModal')).show();
+}
+
+async function applyPayment() {
+    const invoiceId = document.getElementById('paymentInvoiceId').value;
+    const data = {
+        amount: parseFloat(document.getElementById('paymentAmount').value),
+        payment_method: document.getElementById('paymentMethod').value,
+        reference: document.getElementById('paymentReference').value,
+        payment_date: document.getElementById('paymentDate').value
+    };
+
+    try {
+        const response = await fetch(`${API_BASE}/ar/invoices/${invoiceId}/payments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('paymentModal')).hide();
+            refreshData();
+            alert('Payment applied successfully');
+        } else {
+            const error = await response.json();
+            alert('Error: ' + error.error);
+        }
+    } catch (error) {
+        console.error('Error applying payment:', error);
+    }
+}
+
+async function sendInvoice(invoiceId) {
+    try {
+        const response = await fetch(`${API_BASE}/ar/invoices/${invoiceId}/send`, { method: 'POST' });
+        if (response.ok) {
+            refreshData();
+            alert('Invoice marked as sent');
+        }
+    } catch (error) {
+        console.error('Error sending invoice:', error);
+    }
+}
+
+function viewInvoice(invoiceId) {
+    // TODO: Implement invoice detail view
+    alert('Invoice detail view - coming soon');
+}
+
+function viewCustomer(customerId) {
+    // TODO: Implement customer detail view
+    alert('Customer detail view - coming soon');
+}
+</script>
+{% endblock %}

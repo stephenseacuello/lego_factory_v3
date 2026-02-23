@@ -1,0 +1,1560 @@
+{% extends "base.html" %}
+
+{% block title %}Accounts Payable - LEGO MCP{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+    .kpi-card {
+        border-left: 4px solid;
+        transition: transform 0.2s;
+    }
+    .kpi-card:hover {
+        transform: translateY(-2px);
+    }
+    .kpi-card.ap { border-color: #dc3545; }
+    .kpi-card.overdue { border-color: #ffc107; }
+    .kpi-card.current { border-color: #28a745; }
+    .kpi-card.dpo { border-color: #17a2b8; }
+    .kpi-card.bills { border-color: #6f42c1; }
+    .kpi-card.vendors { border-color: #fd7e14; }
+
+    .aging-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .aging-current { background-color: #28a745; }
+    .aging-30 { background-color: #17a2b8; }
+    .aging-60 { background-color: #ffc107; color: #000; }
+    .aging-90 { background-color: #fd7e14; }
+    .aging-120 { background-color: #dc3545; }
+
+    .status-badge {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+    }
+
+    .bill-row:hover {
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+
+    .vendor-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1rem;
+    }
+
+    .payment-method-icon {
+        width: 24px;
+        height: 24px;
+    }
+
+    .schedule-item {
+        border-left: 3px solid #dc3545;
+        transition: all 0.2s;
+    }
+    .schedule-item:hover {
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+    .schedule-item.due-soon {
+        border-left-color: #ffc107;
+    }
+    .schedule-item.overdue {
+        border-left-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="bi bi-cash-stack text-danger me-2"></i>
+                        Accounts Payable
+                    </h2>
+                    <p class="text-muted mb-0">Vendor bills, payments, and cash management</p>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-danger" onclick="showNewBillModal()">
+                        <i class="bi bi-plus-lg me-1"></i>New Bill
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="showNewVendorModal()">
+                        <i class="bi bi-building-add me-1"></i>Add Vendor
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="exportAPData()">
+                        <i class="bi bi-download me-1"></i>Export
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card kpi-card ap h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Total AP</p>
+                            <h3 class="mb-0" id="totalAP">$0</h3>
+                        </div>
+                        <div class="text-danger opacity-50">
+                            <i class="bi bi-receipt fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card kpi-card overdue h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Overdue</p>
+                            <h3 class="mb-0 text-warning" id="overdueAmount">$0</h3>
+                        </div>
+                        <div class="text-warning opacity-50">
+                            <i class="bi bi-exclamation-triangle fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card kpi-card current h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Due This Week</p>
+                            <h3 class="mb-0 text-success" id="dueThisWeek">$0</h3>
+                        </div>
+                        <div class="text-success opacity-50">
+                            <i class="bi bi-calendar-week fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card kpi-card dpo h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">DPO</p>
+                            <h3 class="mb-0" id="dpo">0</h3>
+                            <small class="text-muted">days</small>
+                        </div>
+                        <div class="text-info opacity-50">
+                            <i class="bi bi-clock-history fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card kpi-card bills h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Open Bills</p>
+                            <h3 class="mb-0" id="openBills">0</h3>
+                        </div>
+                        <div class="text-purple opacity-50">
+                            <i class="bi bi-file-earmark-text fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card kpi-card vendors h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <p class="text-muted mb-1 small">Active Vendors</p>
+                            <h3 class="mb-0" id="activeVendors">0</h3>
+                        </div>
+                        <div class="text-orange opacity-50">
+                            <i class="bi bi-building fs-1"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-bar-chart text-danger me-2"></i>
+                        AP Aging Analysis
+                    </h5>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary active" onclick="updateAgingChart('amount')">Amount</button>
+                        <button class="btn btn-outline-secondary" onclick="updateAgingChart('count')">Count</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <canvas id="agingChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-pie-chart text-danger me-2"></i>
+                        Vendor Breakdown
+                    </h5>
+                    <select class="form-select form-select-sm w-auto" id="vendorChartFilter">
+                        <option value="amount">By Amount</option>
+                        <option value="count">By Bill Count</option>
+                    </select>
+                </div>
+                <div class="card-body">
+                    <canvas id="vendorChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Tabs -->
+    <div class="card">
+        <div class="card-header">
+            <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="tab" href="#bills" role="tab">
+                        <i class="bi bi-receipt me-1"></i>Bills
+                        <span class="badge bg-danger ms-1" id="billCount">0</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#vendors" role="tab">
+                        <i class="bi bi-building me-1"></i>Vendors
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#payments" role="tab">
+                        <i class="bi bi-credit-card me-1"></i>Payments
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#schedule" role="tab">
+                        <i class="bi bi-calendar3 me-1"></i>Payment Schedule
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="tab" href="#tax1099" role="tab">
+                        <i class="bi bi-file-earmark-text me-1"></i>1099 Tracking
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <div class="card-body">
+            <div class="tab-content">
+                <!-- Bills Tab -->
+                <div class="tab-pane fade show active" id="bills" role="tabpanel">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="billSearch" placeholder="Search bills...">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="billStatusFilter">
+                                <option value="">All Statuses</option>
+                                <option value="draft">Draft</option>
+                                <option value="pending">Pending</option>
+                                <option value="approved">Approved</option>
+                                <option value="paid">Paid</option>
+                                <option value="overdue">Overdue</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="billVendorFilter">
+                                <option value="">All Vendors</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="billAgingFilter">
+                                <option value="">All Aging</option>
+                                <option value="current">Current</option>
+                                <option value="1-30">1-30 Days</option>
+                                <option value="31-60">31-60 Days</option>
+                                <option value="61-90">61-90 Days</option>
+                                <option value="90+">90+ Days</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 text-end">
+                            <button class="btn btn-outline-secondary" onclick="refreshBills()">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th><input type="checkbox" class="form-check-input" id="selectAllBills"></th>
+                                    <th>Bill #</th>
+                                    <th>Vendor</th>
+                                    <th>Date</th>
+                                    <th>Due Date</th>
+                                    <th>Amount</th>
+                                    <th>Balance</th>
+                                    <th>Status</th>
+                                    <th>Aging</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billsTable">
+                                <tr>
+                                    <td colspan="10" class="text-center py-4">
+                                        <div class="spinner-border spinner-border-sm text-danger" role="status"></div>
+                                        <span class="ms-2">Loading bills...</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <div class="text-muted">
+                            Showing <span id="billsShowing">0</span> of <span id="billsTotal">0</span> bills
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-outline-danger btn-sm" id="paySelectedBtn" disabled onclick="paySelectedBills()">
+                                <i class="bi bi-credit-card me-1"></i>Pay Selected
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" id="approveSelectedBtn" disabled onclick="approveSelectedBills()">
+                                <i class="bi bi-check-lg me-1"></i>Approve Selected
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vendors Tab -->
+                <div class="tab-pane fade" id="vendors" role="tabpanel">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="vendorSearch" placeholder="Search vendors...">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="vendor1099Filter">
+                                <option value="">All Vendors</option>
+                                <option value="true">1099 Vendors</option>
+                                <option value="false">Non-1099 Vendors</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <button class="btn btn-danger" onclick="showNewVendorModal()">
+                                <i class="bi bi-plus-lg me-1"></i>Add Vendor
+                            </button>
+                        </div>
+                    </div>
+                    <div class="row" id="vendorsGrid">
+                        <div class="col-12 text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-danger" role="status"></div>
+                            <span class="ms-2">Loading vendors...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payments Tab -->
+                <div class="tab-pane fade" id="payments" role="tabpanel">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label small">Date Range</label>
+                            <div class="input-group">
+                                <input type="date" class="form-control" id="paymentStartDate">
+                                <span class="input-group-text">to</span>
+                                <input type="date" class="form-control" id="paymentEndDate">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small">Method</label>
+                            <select class="form-select" id="paymentMethodFilter">
+                                <option value="">All Methods</option>
+                                <option value="check">Check</option>
+                                <option value="ach">ACH</option>
+                                <option value="wire">Wire</option>
+                                <option value="card">Card</option>
+                            </select>
+                        </div>
+                        <div class="col-md-7 text-end d-flex align-items-end justify-content-end">
+                            <button class="btn btn-outline-secondary me-2" onclick="refreshPayments()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                            </button>
+                            <button class="btn btn-danger" onclick="showBatchPaymentModal()">
+                                <i class="bi bi-credit-card me-1"></i>Batch Payment
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Payment ID</th>
+                                    <th>Date</th>
+                                    <th>Vendor</th>
+                                    <th>Bill #</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                    <th>Reference</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentsTable">
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">
+                                        <i class="bi bi-credit-card fs-1 d-block mb-2"></i>
+                                        Select date range to view payments
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Payment Schedule Tab -->
+                <div class="tab-pane fade" id="schedule" role="tabpanel">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6>Upcoming Payments</h6>
+                            <p class="text-muted small">Bills due in the next 30 days</p>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary active" onclick="setScheduleView('week')">Week</button>
+                                <button class="btn btn-outline-secondary" onclick="setScheduleView('month')">Month</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="paymentSchedule">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-danger" role="status"></div>
+                            <span class="ms-2">Loading schedule...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1099 Tab -->
+                <div class="tab-pane fade" id="tax1099" role="tabpanel">
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <label class="form-label">Tax Year</label>
+                            <select class="form-select" id="taxYear" onchange="load1099Data()">
+                                <option value="2026">2026</option>
+                                <option value="2025">2025</option>
+                                <option value="2024">2024</option>
+                            </select>
+                        </div>
+                        <div class="col-md-9 text-end d-flex align-items-end justify-content-end">
+                            <button class="btn btn-outline-secondary me-2" onclick="export1099()">
+                                <i class="bi bi-download me-1"></i>Export 1099s
+                            </button>
+                            <button class="btn btn-danger" onclick="generate1099Forms()">
+                                <i class="bi bi-file-earmark-pdf me-1"></i>Generate 1099s
+                            </button>
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>1099 Threshold:</strong> Vendors paid $600 or more require 1099-NEC filing.
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Vendor</th>
+                                    <th>Tax ID</th>
+                                    <th>Total Payments</th>
+                                    <th>1099 Required</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tax1099Table">
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="spinner-border spinner-border-sm text-danger" role="status"></div>
+                                        <span class="ms-2">Loading 1099 data...</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Vendor Modal -->
+<div class="modal fade" id="newVendorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-building-add text-danger me-2"></i>Add Vendor
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newVendorForm">
+                    <div class="mb-3">
+                        <label class="form-label">Vendor Name *</label>
+                        <input type="text" class="form-control" id="vendorName" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Payment Terms</label>
+                            <select class="form-select" id="vendorTerms">
+                                <option value="30">Net 30</option>
+                                <option value="15">Net 15</option>
+                                <option value="45">Net 45</option>
+                                <option value="60">Net 60</option>
+                                <option value="0">Due on Receipt</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Preferred Payment</label>
+                            <select class="form-select" id="vendorPaymentMethod">
+                                <option value="ach">ACH</option>
+                                <option value="check">Check</option>
+                                <option value="wire">Wire</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" id="vendorEmail">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Address</label>
+                        <textarea class="form-control" id="vendorAddress" rows="2"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tax ID (EIN/SSN)</label>
+                            <input type="text" class="form-control" id="vendorTaxId" placeholder="XX-XXXXXXX">
+                        </div>
+                        <div class="col-md-6 mb-3 d-flex align-items-end">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="vendor1099">
+                                <label class="form-check-label" for="vendor1099">1099 Vendor</label>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="createVendor()">
+                    <i class="bi bi-plus-lg me-1"></i>Add Vendor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Bill Modal -->
+<div class="modal fade" id="newBillModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-receipt text-danger me-2"></i>Create Vendor Bill
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newBillForm">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Vendor *</label>
+                            <select class="form-select" id="billVendor" required>
+                                <option value="">Select Vendor...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Bill Number</label>
+                            <input type="text" class="form-control" id="billNumber" placeholder="Auto-generate">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Bill Date</label>
+                            <input type="date" class="form-control" id="billDate">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label">PO Reference</label>
+                            <input type="text" class="form-control" id="billPORef" placeholder="PO-XXXXX">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Terms</label>
+                            <select class="form-select" id="billTerms">
+                                <option value="30">Net 30</option>
+                                <option value="15">Net 15</option>
+                                <option value="45">Net 45</option>
+                                <option value="60">Net 60</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <h6 class="mb-3">Line Items</h6>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm" id="billLineItems">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Description</th>
+                                    <th style="width: 120px;">Account</th>
+                                    <th style="width: 100px;">Qty</th>
+                                    <th style="width: 120px;">Unit Price</th>
+                                    <th style="width: 120px;">Amount</th>
+                                    <th style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="lineItemsBody">
+                                <tr class="line-item">
+                                    <td><input type="text" class="form-control form-control-sm" name="description"></td>
+                                    <td>
+                                        <select class="form-select form-select-sm" name="account">
+                                            <option value="5100">COGS - Materials</option>
+                                            <option value="6100">Operating Expenses</option>
+                                            <option value="1100">Inventory</option>
+                                        </select>
+                                    </td>
+                                    <td><input type="number" class="form-control form-control-sm" name="qty" value="1" min="1"></td>
+                                    <td><input type="number" class="form-control form-control-sm" name="price" step="0.01"></td>
+                                    <td><input type="text" class="form-control form-control-sm" name="amount" readonly></td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addLineItem()">
+                            <i class="bi bi-plus me-1"></i>Add Line
+                        </button>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" id="billNotes" rows="2"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="bg-light p-3 rounded">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Subtotal:</span>
+                                    <strong id="billSubtotal">$0.00</strong>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Tax (0%):</span>
+                                    <span id="billTax">$0.00</span>
+                                </div>
+                                <hr>
+                                <div class="d-flex justify-content-between">
+                                    <strong>Total:</strong>
+                                    <strong class="text-danger" id="billTotal">$0.00</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-outline-danger" onclick="saveBillDraft()">
+                    <i class="bi bi-save me-1"></i>Save Draft
+                </button>
+                <button type="button" class="btn btn-danger" onclick="createBill()">
+                    <i class="bi bi-check-lg me-1"></i>Create Bill
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Pay Bill Modal -->
+<div class="modal fade" id="payBillModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-credit-card text-danger me-2"></i>Pay Bill
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-light mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Bill:</span>
+                        <strong id="payBillNumber">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Vendor:</span>
+                        <strong id="payBillVendor">-</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span>Balance Due:</span>
+                        <strong class="text-danger" id="payBillBalance">$0.00</strong>
+                    </div>
+                </div>
+                <form id="payBillForm">
+                    <input type="hidden" id="payBillId">
+                    <div class="mb-3">
+                        <label class="form-label">Payment Amount</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="paymentAmount" step="0.01" required>
+                            <button type="button" class="btn btn-outline-secondary" onclick="payFullAmount()">Pay Full</button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Payment Method</label>
+                            <select class="form-select" id="paymentMethod">
+                                <option value="ach">ACH</option>
+                                <option value="check">Check</option>
+                                <option value="wire">Wire Transfer</option>
+                                <option value="card">Credit Card</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Payment Date</label>
+                            <input type="date" class="form-control" id="paymentDate">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Reference/Check #</label>
+                        <input type="text" class="form-control" id="paymentReference" placeholder="CHK-12345">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="processBillPayment()">
+                    <i class="bi bi-check-lg me-1"></i>Process Payment
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Global state
+let apData = {
+    summary: {},
+    aging: {},
+    bills: [],
+    vendors: [],
+    schedule: []
+};
+
+// Charts
+let agingChart = null;
+let vendorChart = null;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadAPData();
+    setupEventListeners();
+    setDefaultDates();
+});
+
+async function loadAPData() {
+    try {
+        // Load all data in parallel
+        const [summary, aging, bills, vendors, schedule] = await Promise.all([
+            fetch('/api/erp/financials/ap/summary').then(r => r.json()),
+            fetch('/api/erp/financials/ap/aging').then(r => r.json()),
+            fetch('/api/erp/financials/ap/bills').then(r => r.json()),
+            fetch('/api/erp/financials/ap/vendors').then(r => r.json()),
+            fetch('/api/erp/financials/ap/schedule').then(r => r.json())
+        ]);
+
+        apData = { summary, aging, bills, vendors, schedule };
+
+        updateKPIs();
+        updateCharts();
+        renderBills();
+        renderVendors();
+        renderSchedule();
+        populateVendorDropdowns();
+        load1099Data();
+
+    } catch (error) {
+        console.error('Error loading AP data:', error);
+        showToast('Error loading accounts payable data', 'danger');
+    }
+}
+
+function updateKPIs() {
+    const s = apData.summary;
+    document.getElementById('totalAP').textContent = formatCurrency(s.total_ap || 0);
+    document.getElementById('overdueAmount').textContent = formatCurrency(s.overdue_amount || 0);
+    document.getElementById('dpo').textContent = Math.round(s.dpo || 0);
+    document.getElementById('openBills').textContent = s.active_bills || 0;
+    document.getElementById('activeVendors').textContent = s.total_vendors || 0;
+    document.getElementById('billCount').textContent = s.active_bills || 0;
+
+    // Calculate due this week
+    const dueThisWeek = apData.bills
+        .filter(b => {
+            const due = new Date(b.due_date);
+            const today = new Date();
+            const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+            return due >= today && due <= nextWeek && b.balance_due > 0;
+        })
+        .reduce((sum, b) => sum + b.balance_due, 0);
+
+    document.getElementById('dueThisWeek').textContent = formatCurrency(dueThisWeek);
+}
+
+function updateCharts() {
+    updateAgingChart('amount');
+    updateVendorChart();
+}
+
+function updateAgingChart(mode) {
+    const ctx = document.getElementById('agingChart').getContext('2d');
+    const a = apData.aging;
+
+    const data = mode === 'amount'
+        ? [a.current || 0, a['1_30'] || 0, a['31_60'] || 0, a['61_90'] || 0, a['over_90'] || 0]
+        : [a.current_count || 0, a['1_30_count'] || 0, a['31_60_count'] || 0, a['61_90_count'] || 0, a['over_90_count'] || 0];
+
+    if (agingChart) {
+        agingChart.destroy();
+    }
+
+    agingChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Current', '1-30 Days', '31-60 Days', '61-90 Days', '90+ Days'],
+            datasets: [{
+                label: mode === 'amount' ? 'Amount ($)' : 'Bill Count',
+                data: data,
+                backgroundColor: [
+                    'rgba(40, 167, 69, 0.8)',
+                    'rgba(23, 162, 184, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(253, 126, 20, 0.8)',
+                    'rgba(220, 53, 69, 0.8)'
+                ],
+                borderColor: [
+                    'rgb(40, 167, 69)',
+                    'rgb(23, 162, 184)',
+                    'rgb(255, 193, 7)',
+                    'rgb(253, 126, 20)',
+                    'rgb(220, 53, 69)'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return mode === 'amount' ? '$' + value.toLocaleString() : value;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function updateVendorChart() {
+    const ctx = document.getElementById('vendorChart').getContext('2d');
+
+    // Aggregate by vendor
+    const vendorTotals = {};
+    apData.bills.forEach(b => {
+        if (b.balance_due > 0) {
+            vendorTotals[b.vendor_name] = (vendorTotals[b.vendor_name] || 0) + b.balance_due;
+        }
+    });
+
+    const sorted = Object.entries(vendorTotals)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6);
+
+    if (vendorChart) {
+        vendorChart.destroy();
+    }
+
+    vendorChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: sorted.map(s => s[0]),
+            datasets: [{
+                data: sorted.map(s => s[1]),
+                backgroundColor: [
+                    'rgba(220, 53, 69, 0.8)',
+                    'rgba(253, 126, 20, 0.8)',
+                    'rgba(255, 193, 7, 0.8)',
+                    'rgba(40, 167, 69, 0.8)',
+                    'rgba(23, 162, 184, 0.8)',
+                    'rgba(108, 117, 125, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 12,
+                        font: { size: 11 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ' + formatCurrency(context.raw);
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderBills() {
+    const tbody = document.getElementById('billsTable');
+
+    if (apData.bills.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="10" class="text-center py-4 text-muted">
+                    <i class="bi bi-receipt fs-1 d-block mb-2"></i>
+                    No bills found. Create your first bill to get started.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = apData.bills.map(b => {
+        const agingDays = calculateAgingDays(b.due_date);
+        const agingBadge = getAgingBadge(agingDays);
+        const statusBadge = getStatusBadge(b.status);
+
+        return `
+            <tr class="bill-row">
+                <td><input type="checkbox" class="form-check-input bill-checkbox" data-id="${b.bill_id}"></td>
+                <td>
+                    <a href="#" onclick="viewBill('${b.bill_id}')" class="text-decoration-none">
+                        ${b.bill_number}
+                    </a>
+                </td>
+                <td>${b.vendor_name}</td>
+                <td>${formatDate(b.bill_date)}</td>
+                <td>${formatDate(b.due_date)}</td>
+                <td>${formatCurrency(b.total_amount)}</td>
+                <td class="${b.balance_due > 0 ? 'text-danger fw-bold' : 'text-success'}">${formatCurrency(b.balance_due)}</td>
+                <td>${statusBadge}</td>
+                <td>${agingBadge}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="viewBill('${b.bill_id}')" title="View">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        ${b.status === 'pending' ? `
+                            <button class="btn btn-outline-success" onclick="approveBill('${b.bill_id}')" title="Approve">
+                                <i class="bi bi-check-lg"></i>
+                            </button>
+                        ` : ''}
+                        ${(b.status === 'approved' || b.status === 'sent') && b.balance_due > 0 ? `
+                            <button class="btn btn-outline-danger" onclick="showPayBillModal('${b.bill_id}')" title="Pay">
+                                <i class="bi bi-credit-card"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    document.getElementById('billsShowing').textContent = apData.bills.length;
+    document.getElementById('billsTotal').textContent = apData.bills.length;
+}
+
+function renderVendors() {
+    const grid = document.getElementById('vendorsGrid');
+
+    if (apData.vendors.length === 0) {
+        grid.innerHTML = `
+            <div class="col-12 text-center py-4 text-muted">
+                <i class="bi bi-building fs-1 d-block mb-2"></i>
+                No vendors found. Add your first vendor to get started.
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = apData.vendors.map(v => {
+        const initials = v.name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+        const bgColor = stringToColor(v.name);
+
+        return `
+            <div class="col-md-4 col-lg-3 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="vendor-avatar me-3" style="background-color: ${bgColor}; color: white;">
+                                ${initials}
+                            </div>
+                            <div>
+                                <h6 class="mb-0">${v.name}</h6>
+                                <small class="text-muted">Net ${v.payment_terms}</small>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted small">Balance:</span>
+                            <strong class="${v.balance > 0 ? 'text-danger' : ''}">${formatCurrency(v.balance)}</strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted small">Method:</span>
+                            <span class="text-uppercase small">${v.preferred_method}</span>
+                        </div>
+                        ${v.is_1099 ? '<span class="badge bg-info">1099 Vendor</span>' : ''}
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <button class="btn btn-sm btn-outline-secondary w-100" onclick="viewVendor('${v.vendor_id}')">
+                            <i class="bi bi-eye me-1"></i>View Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderSchedule() {
+    const container = document.getElementById('paymentSchedule');
+    const schedule = apData.schedule || [];
+
+    if (schedule.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-calendar-check fs-1 d-block mb-2"></i>
+                No upcoming payments scheduled
+            </div>
+        `;
+        return;
+    }
+
+    // Group by date
+    const byDate = {};
+    schedule.forEach(item => {
+        const dateKey = item.due_date;
+        if (!byDate[dateKey]) byDate[dateKey] = [];
+        byDate[dateKey].push(item);
+    });
+
+    let html = '';
+    Object.entries(byDate).sort().forEach(([dateStr, items]) => {
+        const date = new Date(dateStr);
+        const today = new Date();
+        const isOverdue = date < today;
+        const isDueSoon = !isOverdue && (date - today) < 7 * 24 * 60 * 60 * 1000;
+
+        html += `
+            <div class="mb-3">
+                <h6 class="text-muted mb-2">
+                    ${formatDate(dateStr)}
+                    ${isOverdue ? '<span class="badge bg-danger ms-2">Overdue</span>' : ''}
+                    ${isDueSoon ? '<span class="badge bg-warning ms-2">Due Soon</span>' : ''}
+                </h6>
+                ${items.map(item => `
+                    <div class="schedule-item p-3 mb-2 bg-light rounded ${isOverdue ? 'overdue' : isDueSoon ? 'due-soon' : ''}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${item.vendor_name}</strong>
+                                <span class="text-muted ms-2">${item.bill_number}</span>
+                            </div>
+                            <div class="text-end">
+                                <strong class="text-danger">${formatCurrency(item.balance_due)}</strong>
+                                <button class="btn btn-sm btn-outline-danger ms-2" onclick="showPayBillModal('${item.bill_id}')">
+                                    Pay
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+async function load1099Data() {
+    const year = document.getElementById('taxYear').value;
+
+    try {
+        const response = await fetch(`/api/erp/financials/ap/1099?year=${year}`);
+        const data = await response.json();
+
+        const tbody = document.getElementById('tax1099Table');
+
+        if (!data.vendors || data.vendors.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center py-4 text-muted">
+                        No 1099 vendor data for ${year}
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = data.vendors.map(v => `
+            <tr>
+                <td><strong>${v.name}</strong></td>
+                <td><code>${v.tax_id || 'Not provided'}</code></td>
+                <td>${formatCurrency(v.total_payments)}</td>
+                <td>
+                    ${v.total_payments >= 600
+                        ? '<span class="badge bg-danger">Yes</span>'
+                        : '<span class="badge bg-secondary">No</span>'}
+                </td>
+                <td>
+                    ${v.form_generated
+                        ? '<span class="badge bg-success">Generated</span>'
+                        : '<span class="badge bg-warning">Pending</span>'}
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-secondary" onclick="preview1099('${v.vendor_id}')">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+
+    } catch (error) {
+        console.error('Error loading 1099 data:', error);
+    }
+}
+
+function populateVendorDropdowns() {
+    const vendorOptions = apData.vendors.map(v =>
+        `<option value="${v.vendor_id}">${v.name}</option>`
+    ).join('');
+
+    document.getElementById('billVendorFilter').innerHTML = '<option value="">All Vendors</option>' + vendorOptions;
+    document.getElementById('billVendor').innerHTML = '<option value="">Select Vendor...</option>' + vendorOptions;
+}
+
+// Modal functions
+function showNewVendorModal() {
+    document.getElementById('newVendorForm').reset();
+    new bootstrap.Modal(document.getElementById('newVendorModal')).show();
+}
+
+function showNewBillModal() {
+    document.getElementById('newBillForm').reset();
+    document.getElementById('billDate').value = new Date().toISOString().split('T')[0];
+    updateBillTotals();
+    new bootstrap.Modal(document.getElementById('newBillModal')).show();
+}
+
+function showPayBillModal(billId) {
+    const bill = apData.bills.find(b => b.bill_id === billId);
+    if (!bill) return;
+
+    document.getElementById('payBillId').value = billId;
+    document.getElementById('payBillNumber').textContent = bill.bill_number;
+    document.getElementById('payBillVendor').textContent = bill.vendor_name;
+    document.getElementById('payBillBalance').textContent = formatCurrency(bill.balance_due);
+    document.getElementById('paymentAmount').value = bill.balance_due;
+    document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+
+    new bootstrap.Modal(document.getElementById('payBillModal')).show();
+}
+
+async function createVendor() {
+    const data = {
+        name: document.getElementById('vendorName').value,
+        payment_terms: parseInt(document.getElementById('vendorTerms').value),
+        is_1099: document.getElementById('vendor1099').checked,
+        email: document.getElementById('vendorEmail').value,
+        address: document.getElementById('vendorAddress').value,
+        tax_id: document.getElementById('vendorTaxId').value
+    };
+
+    try {
+        const response = await fetch('/api/erp/financials/ap/vendors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('newVendorModal')).hide();
+            showToast('Vendor created successfully', 'success');
+            loadAPData();
+        } else {
+            const error = await response.json();
+            showToast(error.error || 'Failed to create vendor', 'danger');
+        }
+    } catch (error) {
+        console.error('Error creating vendor:', error);
+        showToast('Error creating vendor', 'danger');
+    }
+}
+
+async function createBill() {
+    const vendorId = document.getElementById('billVendor').value;
+    if (!vendorId) {
+        showToast('Please select a vendor', 'warning');
+        return;
+    }
+
+    const lineItems = [];
+    document.querySelectorAll('#lineItemsBody .line-item').forEach(row => {
+        const desc = row.querySelector('[name="description"]').value;
+        const account = row.querySelector('[name="account"]').value;
+        const qty = parseFloat(row.querySelector('[name="qty"]').value) || 1;
+        const price = parseFloat(row.querySelector('[name="price"]').value) || 0;
+
+        if (desc && price > 0) {
+            lineItems.push({ description: desc, account, qty, amount: qty * price });
+        }
+    });
+
+    if (lineItems.length === 0) {
+        showToast('Please add at least one line item', 'warning');
+        return;
+    }
+
+    const data = {
+        vendor_id: vendorId,
+        line_items: lineItems,
+        bill_number: document.getElementById('billNumber').value,
+        bill_date: document.getElementById('billDate').value,
+        purchase_order_ref: document.getElementById('billPORef').value,
+        notes: document.getElementById('billNotes').value
+    };
+
+    try {
+        const response = await fetch('/api/erp/financials/ap/bills', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('newBillModal')).hide();
+            showToast('Bill created successfully', 'success');
+            loadAPData();
+        } else {
+            const error = await response.json();
+            showToast(error.error || 'Failed to create bill', 'danger');
+        }
+    } catch (error) {
+        console.error('Error creating bill:', error);
+        showToast('Error creating bill', 'danger');
+    }
+}
+
+async function approveBill(billId) {
+    try {
+        const response = await fetch(`/api/erp/financials/ap/bills/${billId}/approve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ approver: 'current_user' })
+        });
+
+        if (response.ok) {
+            showToast('Bill approved', 'success');
+            loadAPData();
+        } else {
+            showToast('Failed to approve bill', 'danger');
+        }
+    } catch (error) {
+        console.error('Error approving bill:', error);
+    }
+}
+
+async function processBillPayment() {
+    const billId = document.getElementById('payBillId').value;
+    const data = {
+        amount: parseFloat(document.getElementById('paymentAmount').value),
+        payment_method: document.getElementById('paymentMethod').value,
+        payment_date: document.getElementById('paymentDate').value,
+        reference: document.getElementById('paymentReference').value
+    };
+
+    try {
+        const response = await fetch(`/api/erp/financials/ap/bills/${billId}/pay`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('payBillModal')).hide();
+            showToast('Payment processed successfully', 'success');
+            loadAPData();
+        } else {
+            const error = await response.json();
+            showToast(error.error || 'Failed to process payment', 'danger');
+        }
+    } catch (error) {
+        console.error('Error processing payment:', error);
+        showToast('Error processing payment', 'danger');
+    }
+}
+
+// Line item functions
+function addLineItem() {
+    const tbody = document.getElementById('lineItemsBody');
+    const row = document.createElement('tr');
+    row.className = 'line-item';
+    row.innerHTML = `
+        <td><input type="text" class="form-control form-control-sm" name="description"></td>
+        <td>
+            <select class="form-select form-select-sm" name="account">
+                <option value="5100">COGS - Materials</option>
+                <option value="6100">Operating Expenses</option>
+                <option value="1100">Inventory</option>
+            </select>
+        </td>
+        <td><input type="number" class="form-control form-control-sm" name="qty" value="1" min="1"></td>
+        <td><input type="number" class="form-control form-control-sm" name="price" step="0.01"></td>
+        <td><input type="text" class="form-control form-control-sm" name="amount" readonly></td>
+        <td>
+            <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeLineItem(this)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(row);
+    setupLineItemListeners();
+}
+
+function removeLineItem(btn) {
+    const rows = document.querySelectorAll('#lineItemsBody .line-item');
+    if (rows.length > 1) {
+        btn.closest('tr').remove();
+        updateBillTotals();
+    }
+}
+
+function setupLineItemListeners() {
+    document.querySelectorAll('#lineItemsBody input[name="qty"], #lineItemsBody input[name="price"]').forEach(input => {
+        input.addEventListener('input', function() {
+            const row = this.closest('tr');
+            const qty = parseFloat(row.querySelector('[name="qty"]').value) || 0;
+            const price = parseFloat(row.querySelector('[name="price"]').value) || 0;
+            row.querySelector('[name="amount"]').value = (qty * price).toFixed(2);
+            updateBillTotals();
+        });
+    });
+}
+
+function updateBillTotals() {
+    let subtotal = 0;
+    document.querySelectorAll('#lineItemsBody .line-item').forEach(row => {
+        const amount = parseFloat(row.querySelector('[name="amount"]').value) || 0;
+        subtotal += amount;
+    });
+
+    document.getElementById('billSubtotal').textContent = formatCurrency(subtotal);
+    document.getElementById('billTax').textContent = '$0.00';
+    document.getElementById('billTotal').textContent = formatCurrency(subtotal);
+}
+
+function payFullAmount() {
+    const balance = parseFloat(document.getElementById('payBillBalance').textContent.replace(/[^0-9.-]/g, ''));
+    document.getElementById('paymentAmount').value = balance;
+}
+
+// Utility functions
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+}
+
+function formatDate(dateStr) {
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function calculateAgingDays(dueDate) {
+    const due = new Date(dueDate);
+    const today = new Date();
+    return Math.floor((today - due) / (1000 * 60 * 60 * 24));
+}
+
+function getAgingBadge(days) {
+    if (days <= 0) return '<span class="badge aging-badge aging-current">Current</span>';
+    if (days <= 30) return '<span class="badge aging-badge aging-30">1-30</span>';
+    if (days <= 60) return '<span class="badge aging-badge aging-60">31-60</span>';
+    if (days <= 90) return '<span class="badge aging-badge aging-90">61-90</span>';
+    return '<span class="badge aging-badge aging-120">90+</span>';
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'draft': '<span class="badge bg-secondary status-badge">Draft</span>',
+        'pending': '<span class="badge bg-warning status-badge">Pending</span>',
+        'approved': '<span class="badge bg-info status-badge">Approved</span>',
+        'sent': '<span class="badge bg-primary status-badge">Sent</span>',
+        'paid': '<span class="badge bg-success status-badge">Paid</span>',
+        'partial': '<span class="badge bg-warning status-badge">Partial</span>',
+        'overdue': '<span class="badge bg-danger status-badge">Overdue</span>'
+    };
+    return badges[status] || `<span class="badge bg-secondary status-badge">${status}</span>`;
+}
+
+function stringToColor(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = hash % 360;
+    return `hsl(${hue}, 60%, 45%)`;
+}
+
+function setupEventListeners() {
+    // Bill checkboxes
+    document.getElementById('selectAllBills').addEventListener('change', function() {
+        document.querySelectorAll('.bill-checkbox').forEach(cb => cb.checked = this.checked);
+        updateSelectedCount();
+    });
+
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('bill-checkbox')) {
+            updateSelectedCount();
+        }
+    });
+
+    // Search and filters
+    document.getElementById('billSearch').addEventListener('input', filterBills);
+    document.getElementById('billStatusFilter').addEventListener('change', filterBills);
+    document.getElementById('billVendorFilter').addEventListener('change', filterBills);
+
+    // Line item listeners
+    setupLineItemListeners();
+}
+
+function updateSelectedCount() {
+    const selected = document.querySelectorAll('.bill-checkbox:checked').length;
+    document.getElementById('paySelectedBtn').disabled = selected === 0;
+    document.getElementById('approveSelectedBtn').disabled = selected === 0;
+}
+
+function filterBills() {
+    // Implement client-side filtering
+    const search = document.getElementById('billSearch').value.toLowerCase();
+    const status = document.getElementById('billStatusFilter').value;
+    const vendor = document.getElementById('billVendorFilter').value;
+
+    const filtered = apData.bills.filter(b => {
+        if (search && !b.bill_number.toLowerCase().includes(search) && !b.vendor_name.toLowerCase().includes(search)) {
+            return false;
+        }
+        if (status && b.status !== status) return false;
+        if (vendor && b.vendor_id !== vendor) return false;
+        return true;
+    });
+
+    // Re-render with filtered data
+    const originalBills = apData.bills;
+    apData.bills = filtered;
+    renderBills();
+    apData.bills = originalBills;
+}
+
+function setDefaultDates() {
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    document.getElementById('paymentStartDate').value = startOfMonth.toISOString().split('T')[0];
+    document.getElementById('paymentEndDate').value = today.toISOString().split('T')[0];
+}
+
+function showToast(message, type = 'info') {
+    // Simple toast implementation
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} position-fixed top-0 end-0 m-3`;
+    toast.style.zIndex = '9999';
+    toast.innerHTML = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function refreshBills() {
+    loadAPData();
+}
+
+function viewBill(billId) {
+    // Navigate to bill detail or show modal
+    console.log('View bill:', billId);
+}
+
+function viewVendor(vendorId) {
+    // Navigate to vendor detail or show modal
+    console.log('View vendor:', vendorId);
+}
+
+function exportAPData() {
+    showToast('Exporting AP data...', 'info');
+}
+
+function setScheduleView(view) {
+    // Toggle between week/month view
+    console.log('Set schedule view:', view);
+}
+
+function export1099() {
+    showToast('Exporting 1099 data...', 'info');
+}
+
+function generate1099Forms() {
+    showToast('Generating 1099 forms...', 'info');
+}
+
+function preview1099(vendorId) {
+    console.log('Preview 1099 for vendor:', vendorId);
+}
+
+function showBatchPaymentModal() {
+    showToast('Batch payment feature coming soon', 'info');
+}
+</script>
+{% endblock %}

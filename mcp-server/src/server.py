@@ -18,7 +18,7 @@ Claude Desktop config:
             "lego-mcp": {
                 "command": "python",
                 "args": ["-m", "src.server"],
-                "cwd": "/path/to/lego-mcp-fusion360/mcp-server"
+                "cwd": "/path/to/lego_factory/mcp-server"
             }
         }
     }

@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}System Status - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>System Status</h1>
+    <div class="page-actions">
+        <button class="btn btn-secondary" id="refreshStatusBtn">🔄 Refresh</button>
+    </div>
+</div>
+
+<!-- Service Status Cards -->
+<section class="section">
+    <h2 class="section-title">Services</h2>
+    <div class="card-grid card-grid-3">
+        {% for service_id, service in status.services.items() %}
+        <div class="card service-card {{ service.status }}">
+            <div class="service-header">
+                <span class="service-status-dot {{ service.status }}"></span>
+                <h3>{{ service.name }}</h3>
+            </div>
+            <div class="service-body">
+                <p class="service-status-text">{{ service.status | title }}</p>
+                <p class="service-url">{{ service.url }}</p>
+                {% if service.latency_ms %}
+                <p class="service-latency">Latency: {{ service.latency_ms }}ms</p>
+                {% endif %}
+                {% if service.error %}
+                <p class="service-error">{{ service.error }}</p>
+                {% endif %}
+            </div>
+            <div class="service-actions">
+                <button class="btn btn-small test-connection-btn" data-service="{{ service_id }}">
+                    Test Connection
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+        
+        <!-- MCP Server Card -->
+        <div class="card service-card connected">
+            <div class="service-header">
+                <span class="service-status-dot connected"></span>
+                <h3>MCP Server</h3>
+            </div>
+            <div class="service-body">
+                <p class="service-status-text">Running</p>
+                <p class="service-detail">{{ mcp_info.total_tools }} tools available</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Circuit Breakers -->
+<section class="section">
+    <h2 class="section-title">Circuit Breakers</h2>
+    <div class="card">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Service</th>
+                    <th>State</th>
+                    <th>Failures</th>
+                    <th>Last Failure</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for service_id, circuit in circuits.items() %}
+                <tr>
+                    <td>{{ service_id }}</td>
+                    <td>
+                        <span class="circuit-state {{ circuit.state }}">
+                            {{ circuit.state | upper }}
+                        </span>
+                    </td>
+                    <td>{{ circuit.failure_count | default(0) }}/5</td>
+                    <td>{{ circuit.last_failure | default('—') }}</td>
+                    <td>
+                        <button class="btn btn-small reset-circuit-btn" data-service="{{ service_id }}">
+                            Reset
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Error Log -->
+<section class="section">
+    <div class="section-header">
+        <h2 class="section-title">Error Log</h2>
+        <span class="error-count">{{ error_stats.total | default(0) }} total errors</span>
+    </div>
+    <div class="card">
+        {% if errors %}
+        <div class="error-log">
+            {% for error in errors %}
+            <div class="error-entry">
+                <span class="error-time">{{ error.datetime | default(error.timestamp) }}</span>
+                <span class="error-code">{{ error.code | default('UNKNOWN') }}</span>
+                <span class="error-message">{{ error.message }}</span>
+                <button class="btn btn-small btn-outline error-details-btn" data-error='{{ error | tojson }}'>
+                    Details
+                </button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No errors logged</p>
+        </div>
+        {% endif %}
+    </div>
+</section>
+
+<!-- Performance Stats -->
+<section class="section">
+    <h2 class="section-title">Performance</h2>
+    <div class="card-grid card-grid-3">
+        <div class="card stat-card">
+            <div class="stat-value">{{ perf_stats.total_operations | default(0) }}</div>
+            <div class="stat-label">Total Operations</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-value">{{ "%.0f"|format(perf_stats.average_time_ms | default(0)) }}ms</div>
+            <div class="stat-label">Avg Response Time</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-value">{{ "%.1f"|format((perf_stats.success_rate | default(1)) * 100) }}%</div>
+            <div class="stat-label">Success Rate</div>
+        </div>
+    </div>
+</section>
+
+<!-- MCP Tools -->
+<section class="section">
+    <h2 class="section-title">MCP Tools</h2>
+    <div class="card">
+        <div class="tools-summary">
+            <p><strong>{{ mcp_info.total_tools }}</strong> tools available in <strong>{{ mcp_info.categories | length }}</strong> categories</p>
+        </div>
+        <div class="tools-categories">
+            {% for category, tools in mcp_info.categories.items() %}
+            <div class="tool-category-card">
+                <h4>{{ category | title }}</h4>
+                <p>{{ tools | length }} tools</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Refresh status
+document.getElementById('refreshStatusBtn').addEventListener('click', function() {
+    window.location.reload();
+});
+
+// Test connection
+document.querySelectorAll('.test-connection-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const service = this.dataset.service;
+        this.disabled = true;
+        this.textContent = 'Testing...';
+        
+        fetch(`/status/check/${service}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'connected') {
+                    App.toast(`${service} connected (${data.latency_ms}ms)`, 'success');
+                } else {
+                    App.toast(`${service}: ${data.error || data.status}`, 'error');
+                }
+            })
+            .finally(() => {
+                this.disabled = false;
+                this.textContent = 'Test Connection';
+            });
+    });
+});
+
+// Reset circuit
+document.querySelectorAll('.reset-circuit-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const service = this.dataset.service;
+        
+        fetch(`/status/circuits/${service}/reset`, {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    App.toast('Circuit breaker reset', 'success');
+                    window.location.reload();
+                } else {
+                    App.toast('Failed: ' + data.error, 'error');
+                }
+            });
+    });
+});
+
+// Error details
+document.querySelectorAll('.error-details-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const error = JSON.parse(this.dataset.error);
+        App.modal('Error Details', `
+            <pre class="json-viewer">${JSON.stringify(error, null, 2)}</pre>
+        `, [
+            {text: 'Close', class: 'btn-secondary', action: 'close'}
+        ]);
+    });
+});
+
+// Auto-refresh every 30 seconds
+setInterval(() => {
+    fetch('/api/status')
+        .then(r => r.json())
+        .then(data => {
+            // Update status indicators
+            for (const [id, service] of Object.entries(data.services)) {
+                const card = document.querySelector(`.service-card[data-service="${id}"]`);
+                if (card) {
+                    card.className = `card service-card ${service.status}`;
+                }
+            }
+        })
+        .catch(() => {});
+}, 30000);
+</script>
+{% endblock %}

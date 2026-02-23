@@ -1,0 +1,599 @@
+{% extends "base.html" %}
+
+{% block title %}Vendor Management - LEGO MCP v6.0{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-building me-2"></i>Vendor/Supplier Management</h2>
+            <p class="text-muted mb-0">Enterprise supplier lifecycle, performance scorecarding & certification tracking</p>
+        </div>
+        <div>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addVendorModal">
+                <i class="bi bi-plus-lg me-1"></i>Add Vendor
+            </button>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body text-center">
+                    <h3 id="totalVendors">0</h3>
+                    <small>Total Vendors</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-success text-white h-100">
+                <div class="card-body text-center">
+                    <h3 id="activeVendors">0</h3>
+                    <small>Active</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-info text-white h-100">
+                <div class="card-body text-center">
+                    <h3 id="preferredVendors">0</h3>
+                    <small>Preferred</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-warning text-dark h-100">
+                <div class="card-body text-center">
+                    <h3 id="expiringCerts">0</h3>
+                    <small>Certs Expiring</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-danger text-white h-100">
+                <div class="card-body text-center">
+                    <h3 id="highRiskVendors">0</h3>
+                    <small>High Risk</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-secondary text-white h-100">
+                <div class="card-body text-center">
+                    <h3 id="strategicVendors">0</h3>
+                    <small>Strategic</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="row">
+        <!-- Vendor List -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Vendor Directory</h5>
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" id="statusFilter" style="width: auto;">
+                            <option value="">All Status</option>
+                            <option value="approved">Approved</option>
+                            <option value="preferred">Preferred</option>
+                            <option value="strategic">Strategic</option>
+                            <option value="prospect">Prospect</option>
+                            <option value="on_hold">On Hold</option>
+                        </select>
+                        <select class="form-select form-select-sm" id="typeFilter" style="width: auto;">
+                            <option value="">All Types</option>
+                            <option value="raw_material">Raw Material</option>
+                            <option value="component">Component</option>
+                            <option value="service">Service</option>
+                            <option value="equipment">Equipment</option>
+                            <option value="logistics">Logistics</option>
+                        </select>
+                        <input type="text" class="form-control form-control-sm" id="searchInput"
+                               placeholder="Search..." style="width: 200px;">
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Risk</th>
+                                    <th>Performance</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vendorTable">
+                                <tr><td colspan="7" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Side Panels -->
+        <div class="col-md-4">
+            <!-- Top Performers -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-trophy me-2"></i>Top Performers</h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush" id="topPerformers">
+                        <li class="list-group-item text-muted text-center">Loading...</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Expiring Certifications -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Expiring Certifications</h6>
+                </div>
+                <div class="card-body p-0">
+                    <ul class="list-group list-group-flush" id="expiringCertsList">
+                        <li class="list-group-item text-muted text-center">Loading...</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Quick Stats by Type -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-pie-chart me-2"></i>Vendors by Type</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="vendorTypeChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Vendor Modal -->
+<div class="modal fade" id="addVendorModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Vendor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addVendorForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Vendor Code *</label>
+                            <input type="text" class="form-control" id="vendorCode" required
+                                   placeholder="e.g., SUP001">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Vendor Name *</label>
+                            <input type="text" class="form-control" id="vendorName" required
+                                   placeholder="e.g., Acme Plastics Inc.">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Vendor Type *</label>
+                            <select class="form-select" id="vendorType" required>
+                                <option value="">Select Type...</option>
+                                <option value="raw_material">Raw Material</option>
+                                <option value="component">Component</option>
+                                <option value="service">Service</option>
+                                <option value="equipment">Equipment</option>
+                                <option value="mro">MRO (Maintenance)</option>
+                                <option value="contract_manufacturer">Contract Manufacturer</option>
+                                <option value="logistics">Logistics</option>
+                                <option value="tooling">Tooling</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Payment Terms</label>
+                            <select class="form-select" id="paymentTerms">
+                                <option value="net_30">Net 30</option>
+                                <option value="net_15">Net 15</option>
+                                <option value="net_45">Net 45</option>
+                                <option value="net_60">Net 60</option>
+                                <option value="2_10_net_30">2/10 Net 30</option>
+                                <option value="cod">COD</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Lead Time (days)</label>
+                            <input type="number" class="form-control" id="leadTimeDays" value="7">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tax ID</label>
+                            <input type="text" class="form-control" id="taxId" placeholder="12-3456789">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Currency</label>
+                            <select class="form-select" id="currency">
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="GBP">GBP</option>
+                                <option value="DKK">DKK</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Website</label>
+                            <input type="url" class="form-control" id="website" placeholder="https://...">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Categories (comma-separated)</label>
+                        <input type="text" class="form-control" id="categories"
+                               placeholder="e.g., plastics, abs, pla, filament">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" rows="2"></textarea>
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="is1099">
+                        <label class="form-check-label" for="is1099">1099 Vendor</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="createVendor()">
+                    <i class="bi bi-plus-lg me-1"></i>Create Vendor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vendor Detail Modal -->
+<div class="modal fade" id="vendorDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Vendor Details: <span id="detailVendorName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="vendorDetailContent">
+                Loading...
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const API_BASE = '/api/erp/vendors';
+let vendorTypeChart;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSummary();
+    loadVendors();
+    loadExpiringCerts();
+
+    // Event listeners for filters
+    document.getElementById('statusFilter').addEventListener('change', loadVendors);
+    document.getElementById('typeFilter').addEventListener('change', loadVendors);
+    document.getElementById('searchInput').addEventListener('input', debounce(loadVendors, 300));
+
+    // Initialize chart
+    const ctx = document.getElementById('vendorTypeChart').getContext('2d');
+    vendorTypeChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: [],
+            datasets: [{
+                data: [],
+                backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6c757d', '#0dcaf0']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+});
+
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
+async function loadSummary() {
+    try {
+        const response = await fetch(`${API_BASE}/summary`);
+        const data = await response.json();
+
+        document.getElementById('totalVendors').textContent = data.total_vendors || 0;
+        document.getElementById('activeVendors').textContent = data.active_vendors || 0;
+        document.getElementById('preferredVendors').textContent = data.preferred_vendors || 0;
+        document.getElementById('strategicVendors').textContent = data.strategic_vendors || 0;
+        document.getElementById('expiringCerts').textContent = data.certifications_expiring_90d || 0;
+        document.getElementById('highRiskVendors').textContent = data.high_risk_count || 0;
+
+        // Update chart
+        if (data.by_type) {
+            vendorTypeChart.data.labels = Object.keys(data.by_type).map(t => t.replace('_', ' '));
+            vendorTypeChart.data.datasets[0].data = Object.values(data.by_type);
+            vendorTypeChart.update();
+        }
+
+        // Update top performers
+        const topList = document.getElementById('topPerformers');
+        if (data.top_performers && data.top_performers.length > 0) {
+            topList.innerHTML = data.top_performers.map((v, i) => `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>
+                        <span class="badge bg-${i === 0 ? 'warning' : 'secondary'} me-2">${i + 1}</span>
+                        ${v.name}
+                    </span>
+                    <span class="badge bg-success">${v.score.toFixed(1)}</span>
+                </li>
+            `).join('');
+        } else {
+            topList.innerHTML = '<li class="list-group-item text-muted text-center">No performance data yet</li>';
+        }
+
+    } catch (error) {
+        console.error('Error loading summary:', error);
+    }
+}
+
+async function loadVendors() {
+    const status = document.getElementById('statusFilter').value;
+    const type = document.getElementById('typeFilter').value;
+    const search = document.getElementById('searchInput').value;
+
+    let url = `${API_BASE}?limit=50`;
+    if (status) url += `&status=${status}`;
+    if (type) url += `&type=${type}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+
+    try {
+        const response = await fetch(url);
+        const vendors = await response.json();
+
+        const tbody = document.getElementById('vendorTable');
+
+        if (vendors.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No vendors found</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = vendors.map(v => `
+            <tr>
+                <td><strong>${v.vendor_code}</strong></td>
+                <td>${v.name}</td>
+                <td><span class="badge bg-secondary">${v.vendor_type.replace('_', ' ')}</span></td>
+                <td><span class="badge ${getStatusBadge(v.status)}">${v.status}</span></td>
+                <td><span class="badge ${getRiskBadge(v.risk_level)}">${v.risk_level}</span></td>
+                <td>
+                    <div class="progress" style="height: 10px; width: 60px;">
+                        <div class="progress-bar bg-success" style="width: 75%"></div>
+                    </div>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewVendor('${v.vendor_id}')">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-success" onclick="recordDelivery('${v.vendor_id}')">
+                        <i class="bi bi-truck"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+
+    } catch (error) {
+        console.error('Error loading vendors:', error);
+    }
+}
+
+async function loadExpiringCerts() {
+    try {
+        const response = await fetch(`${API_BASE}/certifications/expiring?days=90`);
+        const certs = await response.json();
+
+        const list = document.getElementById('expiringCertsList');
+
+        if (certs.length === 0) {
+            list.innerHTML = '<li class="list-group-item text-muted text-center">No expiring certifications</li>';
+            return;
+        }
+
+        list.innerHTML = certs.slice(0, 5).map(c => `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <strong>${c.vendor_code}</strong><br>
+                    <small class="text-muted">${c.certification}</small>
+                </div>
+                <span class="badge ${c.days_remaining <= 30 ? 'bg-danger' : 'bg-warning text-dark'}">
+                    ${c.days_remaining} days
+                </span>
+            </li>
+        `).join('');
+
+    } catch (error) {
+        console.error('Error loading expiring certs:', error);
+    }
+}
+
+function getStatusBadge(status) {
+    const badges = {
+        'approved': 'bg-success',
+        'preferred': 'bg-info',
+        'strategic': 'bg-primary',
+        'prospect': 'bg-secondary',
+        'on_hold': 'bg-warning text-dark',
+        'suspended': 'bg-danger',
+        'pending_approval': 'bg-warning text-dark'
+    };
+    return badges[status] || 'bg-secondary';
+}
+
+function getRiskBadge(risk) {
+    const badges = {
+        'low': 'bg-success',
+        'medium': 'bg-warning text-dark',
+        'high': 'bg-danger',
+        'critical': 'bg-danger'
+    };
+    return badges[risk] || 'bg-secondary';
+}
+
+async function createVendor() {
+    const data = {
+        code: document.getElementById('vendorCode').value,
+        name: document.getElementById('vendorName').value,
+        vendor_type: document.getElementById('vendorType').value,
+        payment_terms: document.getElementById('paymentTerms').value,
+        lead_time_days: parseInt(document.getElementById('leadTimeDays').value),
+        tax_id: document.getElementById('taxId').value,
+        currency: document.getElementById('currency').value,
+        website: document.getElementById('website').value,
+        categories: document.getElementById('categories').value.split(',').map(c => c.trim()).filter(c => c),
+        notes: document.getElementById('notes').value,
+        is_1099: document.getElementById('is1099').checked
+    };
+
+    try {
+        const response = await fetch(API_BASE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            alert('Vendor created successfully: ' + result.vendor_code);
+            bootstrap.Modal.getInstance(document.getElementById('addVendorModal')).hide();
+            document.getElementById('addVendorForm').reset();
+            loadVendors();
+            loadSummary();
+        } else {
+            const error = await response.json();
+            alert('Error: ' + (error.error || 'Failed to create vendor'));
+        }
+    } catch (error) {
+        console.error('Error creating vendor:', error);
+        alert('Error creating vendor');
+    }
+}
+
+async function viewVendor(vendorId) {
+    try {
+        const response = await fetch(`${API_BASE}/${vendorId}`);
+        const vendor = await response.json();
+
+        document.getElementById('detailVendorName').textContent = vendor.name;
+
+        document.getElementById('vendorDetailContent').innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>General Information</h6>
+                    <table class="table table-sm">
+                        <tr><th>Code</th><td>${vendor.vendor_code}</td></tr>
+                        <tr><th>Legal Name</th><td>${vendor.legal_name}</td></tr>
+                        <tr><th>Type</th><td>${vendor.vendor_type}</td></tr>
+                        <tr><th>Status</th><td><span class="badge ${getStatusBadge(vendor.status)}">${vendor.status}</span></td></tr>
+                        <tr><th>Risk Level</th><td><span class="badge ${getRiskBadge(vendor.risk_level)}">${vendor.risk_level}</span></td></tr>
+                        <tr><th>Payment Terms</th><td>${vendor.payment_terms}</td></tr>
+                        <tr><th>Lead Time</th><td>${vendor.lead_time_days} days</td></tr>
+                        <tr><th>Currency</th><td>${vendor.currency}</td></tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>Contacts</h6>
+                    ${vendor.contacts.length > 0 ? `
+                        <ul class="list-group list-group-flush">
+                            ${vendor.contacts.map(c => `
+                                <li class="list-group-item">
+                                    <strong>${c.name}</strong> ${c.is_primary ? '<span class="badge bg-primary">Primary</span>' : ''}<br>
+                                    <small>${c.title}<br>${c.email}<br>${c.phone}</small>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    ` : '<p class="text-muted">No contacts</p>'}
+
+                    <h6 class="mt-3">Certifications</h6>
+                    ${vendor.certifications.length > 0 ? `
+                        <ul class="list-group list-group-flush">
+                            ${vendor.certifications.map(c => `
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>${c.type}</span>
+                                    <span>
+                                        ${c.verified ? '<i class="bi bi-check-circle-fill text-success me-2"></i>' : ''}
+                                        Exp: ${c.expiry_date}
+                                    </span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    ` : '<p class="text-muted">No certifications</p>'}
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6>Categories</h6>
+                    <div>
+                        ${vendor.categories.map(c => `<span class="badge bg-secondary me-1">${c}</span>`).join('') || '<span class="text-muted">None specified</span>'}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        new bootstrap.Modal(document.getElementById('vendorDetailModal')).show();
+
+    } catch (error) {
+        console.error('Error loading vendor details:', error);
+    }
+}
+
+function recordDelivery(vendorId) {
+    const poNumber = prompt('Enter PO Number:');
+    if (!poNumber) return;
+
+    const qtyOrdered = parseInt(prompt('Quantity Ordered:'));
+    if (!qtyOrdered) return;
+
+    const qtyReceived = parseInt(prompt('Quantity Received (good):'));
+    const defects = parseInt(prompt('Defects:') || '0');
+    const onTime = confirm('Was delivery on time?');
+
+    fetch(`${API_BASE}/${vendorId}/deliveries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            po_number: poNumber,
+            qty_ordered: qtyOrdered,
+            qty_received: qtyReceived,
+            defects: defects,
+            on_time: onTime
+        })
+    })
+    .then(response => {
+        if (response.ok) {
+            alert('Delivery recorded successfully');
+        } else {
+            return response.json().then(e => { throw new Error(e.error); });
+        }
+    })
+    .catch(error => alert('Error: ' + error.message));
+}
+</script>
+{% endblock %}

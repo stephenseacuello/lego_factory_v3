@@ -1,0 +1,284 @@
+# Prometheus Alert Rules for LegoMCP
+# PhD-Level Manufacturing Platform
+
+groups:
+  # =========================================================================
+  # MANUFACTURING ALERTS
+  # =========================================================================
+  - name: manufacturing
+    interval: 30s
+    rules:
+      - alert: LowOEE
+        expr: legomcp_oee_overall < 0.65
+        for: 15m
+        labels:
+          severity: warning
+          team: manufacturing
+        annotations:
+          summary: "Low OEE on {{ $labels.equipment_id }}"
+          description: "OEE is {{ $value | humanizePercentage }} (threshold: 65%)"
+
+      - alert: CriticallyLowOEE
+        expr: legomcp_oee_overall < 0.50
+        for: 5m
+        labels:
+          severity: critical
+          team: manufacturing
+        annotations:
+          summary: "Critical OEE on {{ $labels.equipment_id }}"
+          description: "OEE dropped to {{ $value | humanizePercentage }}"
+
+      - alert: HighDefectRate
+        expr: |
+          rate(legomcp_defects_total[5m]) / rate(legomcp_parts_produced_total[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: quality
+        annotations:
+          summary: "High defect rate on {{ $labels.equipment_id }}"
+          description: "Defect rate is {{ $value | humanizePercentage }}"
+
+      - alert: ExtendedDowntime
+        expr: |
+          increase(legomcp_downtime_seconds_total[1h]) > 1800
+        labels:
+          severity: warning
+          team: maintenance
+        annotations:
+          summary: "Extended downtime on {{ $labels.equipment_id }}"
+          description: "Equipment has been down for {{ $value | humanizeDuration }}"
+
+      - alert: CycleTimeDeviation
+        expr: |
+          abs(legomcp_cycle_time_seconds - legomcp_cycle_time_seconds offset 1h)
+          / legomcp_cycle_time_seconds offset 1h > 0.20
+        for: 30m
+        labels:
+          severity: warning
+          team: manufacturing
+        annotations:
+          summary: "Cycle time deviation on {{ $labels.equipment_id }}"
+          description: "Cycle time changed by >20% from baseline"
+
+  # =========================================================================
+  # ML MODEL ALERTS
+  # =========================================================================
+  - name: ml_models
+    interval: 1m
+    rules:
+      - alert: ModelDriftDetected
+        expr: legomcp_ml_drift_score > 0.3
+        for: 15m
+        labels:
+          severity: warning
+          team: data-science
+        annotations:
+          summary: "Model drift detected for {{ $labels.model_name }}"
+          description: "Drift score: {{ $value | humanizePercentage }}"
+
+      - alert: SevereModelDrift
+        expr: legomcp_ml_drift_score > 0.5
+        for: 5m
+        labels:
+          severity: critical
+          team: data-science
+        annotations:
+          summary: "Severe model drift for {{ $labels.model_name }}"
+          description: "Drift score: {{ $value | humanizePercentage }}. Retrain immediately."
+
+      - alert: LowModelAccuracy
+        expr: legomcp_ml_model_accuracy < 0.85
+        for: 30m
+        labels:
+          severity: warning
+          team: data-science
+        annotations:
+          summary: "Low accuracy for {{ $labels.model_name }}"
+          description: "Accuracy: {{ $value | humanizePercentage }}"
+
+      - alert: HighPredictionLatency
+        expr: |
+          histogram_quantile(0.95, rate(legomcp_ml_prediction_latency_seconds_bucket[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High prediction latency for {{ $labels.model_name }}"
+          description: "P95 latency: {{ $value | humanizeDuration }}"
+
+      - alert: LowPredictionConfidence
+        expr: |
+          histogram_quantile(0.50, rate(legomcp_ml_prediction_confidence_bucket[1h])) < 0.7
+        for: 1h
+        labels:
+          severity: info
+          team: data-science
+        annotations:
+          summary: "Low confidence predictions for {{ $labels.model_name }}"
+          description: "Median confidence: {{ $value | humanizePercentage }}"
+
+  # =========================================================================
+  # QUALITY ALERTS
+  # =========================================================================
+  - name: quality
+    interval: 30s
+    rules:
+      - alert: SPCControlViolation
+        expr: increase(legomcp_spc_control_violations_total[5m]) > 3
+        labels:
+          severity: warning
+          team: quality
+        annotations:
+          summary: "Multiple SPC violations for {{ $labels.parameter }}"
+          description: "{{ $value }} violations in 5 minutes"
+
+      - alert: QualityScoreDrop
+        expr: |
+          legomcp_quality_score < 90
+          AND legomcp_quality_score offset 1h > 95
+        for: 15m
+        labels:
+          severity: warning
+          team: quality
+        annotations:
+          summary: "Quality score dropped in {{ $labels.cell }}"
+          description: "Current score: {{ $value }}"
+
+  # =========================================================================
+  # API & SERVICE ALERTS
+  # =========================================================================
+  - name: api
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(legomcp_http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(legomcp_http_requests_total[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High API error rate"
+          description: "Error rate: {{ $value | humanizePercentage }}"
+
+      - alert: CriticalErrorRate
+        expr: |
+          sum(rate(legomcp_http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(legomcp_http_requests_total[5m])) > 0.15
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Critical API error rate"
+          description: "Error rate: {{ $value | humanizePercentage }}"
+
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, rate(legomcp_http_request_duration_seconds_bucket[5m])) > 2
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High API latency on {{ $labels.endpoint }}"
+          description: "P95 latency: {{ $value | humanizeDuration }}"
+
+      - alert: ServiceDown
+        expr: up{job=~"legomcp-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "Service has been unreachable for >1 minute"
+
+  # =========================================================================
+  # SUSTAINABILITY ALERTS
+  # =========================================================================
+  - name: sustainability
+    interval: 5m
+    rules:
+      - alert: HighEnergyConsumption
+        expr: |
+          rate(legomcp_energy_consumption_kwh_total[1h]) > 100
+        for: 30m
+        labels:
+          severity: info
+          team: sustainability
+        annotations:
+          summary: "High energy consumption on {{ $labels.equipment_id }}"
+          description: "Consumption rate: {{ $value }} kWh/hour"
+
+      - alert: CarbonBudgetExceeded
+        expr: |
+          sum(increase(legomcp_carbon_emissions_kg_total[24h])) > 1000
+        labels:
+          severity: warning
+          team: sustainability
+        annotations:
+          summary: "Daily carbon budget exceeded"
+          description: "Total emissions: {{ $value }} kg CO2e"
+
+  # =========================================================================
+  # INFRASTRUCTURE ALERTS
+  # =========================================================================
+  - name: infrastructure
+    interval: 30s
+    rules:
+      - alert: HighDatabaseConnections
+        expr: legomcp_database_connections > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High database connection count"
+          description: "{{ $value }} active connections"
+
+      - alert: TaskQueueBacklog
+        expr: legomcp_task_queue_size > 100
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Large task queue backlog"
+          description: "{{ $value }} tasks waiting in queue"
+
+      - alert: HighMemoryUsage
+        expr: |
+          (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)
+          / node_memory_MemTotal_bytes > 0.90
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage: {{ $value | humanizePercentage }}"
+
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage: {{ $value | humanizePercentage }}"
+
+      - alert: DiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.15
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Available: {{ $value | humanizePercentage }}"

@@ -1,0 +1,411 @@
+name: Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  # ============================================
+  # CodeQL Analysis
+  # ============================================
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
+
+  # ============================================
+  # Dependency Vulnerability Scan
+  # ============================================
+  dependency-scan:
+    name: Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install tools
+        run: pip install safety pip-audit
+
+      - name: Run Safety check
+        run: |
+          safety check -r requirements.txt --json > safety-report.json || true
+          cat safety-report.json
+
+      - name: Run pip-audit
+        run: |
+          pip-audit -r requirements.txt --format=json > pip-audit-report.json || true
+          cat pip-audit-report.json
+
+      - name: Upload dependency reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-reports
+          path: |
+            safety-report.json
+            pip-audit-report.json
+
+      - name: Check for critical vulnerabilities
+        run: |
+          CRITICAL=$(cat pip-audit-report.json | python3 -c "import sys,json; vulns=json.load(sys.stdin); print(len([v for v in vulns.get('dependencies', []) if any(f.get('severity', '').upper() == 'CRITICAL' for f in v.get('vulns', []))]))" 2>/dev/null || echo "0")
+          echo "Found $CRITICAL critical vulnerabilities"
+          if [ "$CRITICAL" -gt "0" ]; then
+            echo "::warning::Found $CRITICAL critical vulnerabilities in dependencies"
+          fi
+
+  # ============================================
+  # SAST with Bandit
+  # ============================================
+  bandit:
+    name: Bandit SAST
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit
+        run: |
+          bandit -r shared/ dashboard/ \
+            -f sarif \
+            -o bandit-results.sarif \
+            --severity-level medium \
+            --confidence-level medium || true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit-results.sarif
+          category: bandit
+        continue-on-error: true
+
+      - name: Generate HTML report
+        run: |
+          bandit -r shared/ dashboard/ -f html -o bandit-report.html || true
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.html
+
+  # ============================================
+  # Semgrep SAST
+  # ============================================
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: |
+          semgrep scan \
+            --config=p/python \
+            --config=p/security-audit \
+            --config=p/secrets \
+            --config=p/owasp-top-ten \
+            --sarif \
+            --output=semgrep-results.sarif \
+            --error || true
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-results.sarif
+          category: semgrep
+        continue-on-error: true
+
+  # ============================================
+  # Secret Scanning
+  # ============================================
+  secrets:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified
+        continue-on-error: true
+
+  # ============================================
+  # Container Security
+  # ============================================
+  container-security:
+    name: Container Security
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        service: [dashboard, slicer-service]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          if [ "${{ matrix.service }}" = "dashboard" ]; then
+            docker build -f dashboard/Dockerfile -t ${{ matrix.service }}:scan .
+          else
+            docker build -f ${{ matrix.service }}/Dockerfile -t ${{ matrix.service }}:scan ${{ matrix.service }}
+          fi
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ matrix.service }}:scan'
+          format: 'sarif'
+          output: 'trivy-${{ matrix.service }}.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-${{ matrix.service }}.sarif'
+          category: 'trivy-${{ matrix.service }}'
+        continue-on-error: true
+
+      - name: Run Grype vulnerability scanner
+        uses: anchore/scan-action@v4
+        with:
+          image: '${{ matrix.service }}:scan'
+          fail-build: false
+          severity-cutoff: critical
+
+  # ============================================
+  # Infrastructure Security
+  # ============================================
+  infrastructure-security:
+    name: Infrastructure Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov on Terraform
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform/
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov-terraform.sarif
+        continue-on-error: true
+
+      - name: Run Checkov on Kubernetes
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: k8s/
+          framework: kubernetes
+          output_format: sarif
+          output_file_path: checkov-k8s.sarif
+        continue-on-error: true
+
+      - name: Run Checkov on Helm
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: helm/
+          framework: helm
+          output_format: sarif
+          output_file_path: checkov-helm.sarif
+        continue-on-error: true
+
+      - name: Upload Checkov results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: checkov-terraform.sarif
+          category: checkov-terraform
+        continue-on-error: true
+
+      - name: Run tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        with:
+          working_directory: terraform/
+          format: sarif
+          sarif_file: tfsec.sarif
+        continue-on-error: true
+
+      - name: Upload tfsec results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: tfsec.sarif
+          category: tfsec
+        continue-on-error: true
+
+  # ============================================
+  # License Compliance
+  # ============================================
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-licenses
+        run: pip install pip-licenses
+
+      - name: Check licenses
+        run: |
+          pip install -r requirements.txt
+          pip-licenses --format=json > licenses.json
+          pip-licenses --format=markdown > licenses.md
+
+          # Check for problematic licenses
+          PROBLEMATIC=$(cat licenses.json | python3 -c "
+          import sys, json
+          licenses = json.load(sys.stdin)
+          problematic = ['GPL', 'AGPL', 'LGPL', 'SSPL']
+          found = [l for l in licenses if any(p in l.get('License', '') for p in problematic)]
+          for f in found:
+              print(f'{f[\"Name\"]}: {f[\"License\"]}')
+          " || echo "")
+
+          if [ -n "$PROBLEMATIC" ]; then
+            echo "::warning::Found potentially problematic licenses:"
+            echo "$PROBLEMATIC"
+          fi
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: |
+            licenses.json
+            licenses.md
+
+  # ============================================
+  # DAST Scan (Dynamic Application Security Testing)
+  # ============================================
+  dast:
+    name: DAST Scan
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    services:
+      app:
+        image: ghcr.io/${{ github.repository }}/dashboard:latest
+        ports:
+          - 5000:5000
+        env:
+          DATABASE_URL: sqlite:///test.db
+          SECRET_KEY: test-secret-key
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for app
+        run: |
+          timeout 60 bash -c 'until curl -s http://localhost:5000/health; do sleep 2; done' || true
+
+      - name: Run ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:5000'
+          rules_file_name: '.zap/rules.tsv'
+          fail_action: false
+        continue-on-error: true
+
+      - name: Upload ZAP report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: |
+            report_html.html
+            report_json.json
+        continue-on-error: true
+
+  # ============================================
+  # Security Report Summary
+  # ============================================
+  summary:
+    name: Security Summary
+    runs-on: ubuntu-latest
+    needs: [codeql, dependency-scan, bandit, semgrep, secrets]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "# Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dependencies | ${{ needs.dependency-scan.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Bandit SAST | ${{ needs.bandit.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Semgrep | ${{ needs.semgrep.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Secrets | ${{ needs.secrets.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View detailed results in the Security tab." >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify on failures
+        if: contains(needs.*.result, 'failure')
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Security scan failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Security Scan Failed* :warning:\n*Repository:* ${{ github.repository }}\n*Branch:* ${{ github.ref_name }}\n*Details:* ${{ github.server_url }}/${{ github.repository }}/security"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true

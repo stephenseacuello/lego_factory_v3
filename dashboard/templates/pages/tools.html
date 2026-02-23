@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Tool Playground - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Tool Playground</h1>
+    <div class="page-actions">
+        <a href="https://docs.anthropic.com/claude/docs/mcp" target="_blank" class="btn btn-outline">
+            MCP Docs ↗
+        </a>
+    </div>
+</div>
+
+<div class="playground-layout">
+    <!-- Tool Selector -->
+    <div class="playground-sidebar">
+        <div class="tool-search">
+            <input type="text" id="toolSearch" placeholder="Search tools...">
+        </div>
+        
+        <div class="tool-categories">
+            {% for category, tool_list in categories.items() %}
+            <div class="tool-category">
+                <h4 class="category-name">{{ category | title }}</h4>
+                <ul class="tool-list">
+                    {% for tool_name in tool_list %}
+                    <li class="tool-item {{ 'active' if selected_tool == tool_name else '' }}">
+                        <a href="{{ url_for('tools.playground', tool=tool_name) }}">
+                            {{ tool_name | replace('_', ' ') }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <!-- Tool Interface -->
+    <div class="playground-main">
+        {% if selected_tool and tool_info %}
+        <div class="tool-header">
+            <h2>{{ selected_tool }}</h2>
+            <p class="tool-description">{{ tool_info.description | default('No description') }}</p>
+        </div>
+        
+        <div class="tool-interface">
+            <!-- Input Panel -->
+            <div class="tool-input">
+                <div class="panel-header">
+                    <h3>Input Parameters</h3>
+                    <div class="panel-actions">
+                        <button class="btn btn-small" id="fillExampleBtn">Fill Example</button>
+                        <button class="btn btn-small" id="clearParamsBtn">Clear</button>
+                    </div>
+                </div>
+                
+                <form id="toolForm" class="params-form">
+                    {% set schema = tool_info.inputSchema | default({}) %}
+                    {% set properties = schema.properties | default({}) %}
+                    {% set required = schema.required | default([]) %}
+                    
+                    {% for prop_name, prop in properties.items() %}
+                    <div class="form-group">
+                        <label for="param_{{ prop_name }}">
+                            {{ prop_name }}
+                            {% if prop_name in required %}<span class="required">*</span>{% endif %}
+                        </label>
+                        
+                        {% if prop.type == 'boolean' %}
+                        <input type="checkbox" 
+                               id="param_{{ prop_name }}" 
+                               name="{{ prop_name }}"
+                               {{ 'checked' if prop.default else '' }}>
+                        
+                        {% elif prop.type == 'integer' or prop.type == 'number' %}
+                        <input type="number" 
+                               id="param_{{ prop_name }}" 
+                               name="{{ prop_name }}"
+                               value="{{ example.get(prop_name, prop.default | default('')) }}"
+                               {% if prop.minimum is defined %}min="{{ prop.minimum }}"{% endif %}
+                               {% if prop.maximum is defined %}max="{{ prop.maximum }}"{% endif %}>
+                        
+                        {% elif prop.enum %}
+                        <select id="param_{{ prop_name }}" name="{{ prop_name }}">
+                            {% for opt in prop.enum %}
+                            <option value="{{ opt }}" {{ 'selected' if opt == prop.default else '' }}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
+                        
+                        {% elif prop.type == 'array' %}
+                        <textarea id="param_{{ prop_name }}" 
+                                  name="{{ prop_name }}"
+                                  placeholder="JSON array, e.g. [1, 2, 3]">{{ example.get(prop_name, []) | tojson }}</textarea>
+                        
+                        {% elif prop.type == 'object' %}
+                        <textarea id="param_{{ prop_name }}" 
+                                  name="{{ prop_name }}"
+                                  placeholder="JSON object, e.g. {}">{{ example.get(prop_name, {}) | tojson }}</textarea>
+                        
+                        {% else %}
+                        <input type="text" 
+                               id="param_{{ prop_name }}" 
+                               name="{{ prop_name }}"
+                               value="{{ example.get(prop_name, prop.default | default('')) }}"
+                               placeholder="{{ prop.description | default('') }}">
+                        {% endif %}
+                        
+                        {% if prop.description %}
+                        <p class="param-hint">{{ prop.description }}</p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    
+                    {% if not properties %}
+                    <p class="no-params">This tool has no parameters</p>
+                    {% endif %}
+                </form>
+                
+                <button class="btn btn-primary btn-large" id="executeBtn">
+                    ▶ Execute Tool
+                </button>
+            </div>
+            
+            <!-- Schema Panel -->
+            <div class="tool-schema">
+                <div class="panel-header">
+                    <h3>Tool Schema</h3>
+                </div>
+                <pre class="schema-json">{{ tool_info | tojson(indent=2) }}</pre>
+            </div>
+        </div>
+        
+        <!-- Results Panel -->
+        <div class="tool-results">
+            <div class="results-tabs">
+                <button class="tab-btn active" data-tab="response">Response</button>
+                <button class="tab-btn" data-tab="request">Request</button>
+                <button class="tab-btn" data-tab="history">History</button>
+            </div>
+            
+            <div class="tab-content active" id="responseTab">
+                <div class="result-placeholder" id="resultPlaceholder">
+                    <p>Execute the tool to see results</p>
+                </div>
+                <pre class="result-json" id="resultJson" style="display: none;"></pre>
+            </div>
+            
+            <div class="tab-content" id="requestTab">
+                <pre class="request-json" id="requestJson">{}</pre>
+            </div>
+            
+            <div class="tab-content" id="historyTab">
+                <div class="execution-history" id="executionHistory">
+                    <p>No executions yet</p>
+                </div>
+            </div>
+        </div>
+        
+        {% else %}
+        <div class="tool-placeholder">
+            <div class="placeholder-content">
+                <h2>🧪 Tool Playground</h2>
+                <p>Select a tool from the sidebar to test it</p>
+                <p class="hint">You can execute any MCP tool and see the raw request/response</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if selected_tool %}
+const toolName = '{{ selected_tool }}';
+const example = {{ example | tojson }};
+let executionHistory = [];
+
+// Tab switching
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        
+        this.classList.add('active');
+        document.getElementById(this.dataset.tab + 'Tab').classList.add('active');
+    });
+});
+
+// Fill example
+document.getElementById('fillExampleBtn').addEventListener('click', function() {
+    for (const [key, value] of Object.entries(example)) {
+        const input = document.getElementById('param_' + key);
+        if (input) {
+            if (input.type === 'checkbox') {
+                input.checked = !!value;
+            } else if (typeof value === 'object') {
+                input.value = JSON.stringify(value);
+            } else {
+                input.value = value;
+            }
+        }
+    }
+});
+
+// Clear
+document.getElementById('clearParamsBtn').addEventListener('click', function() {
+    document.getElementById('toolForm').reset();
+});
+
+// Execute
+document.getElementById('executeBtn').addEventListener('click', function() {
+    this.disabled = true;
+    this.textContent = 'Executing...';
+    
+    // Collect parameters
+    const params = {};
+    const form = document.getElementById('toolForm');
+    
+    form.querySelectorAll('input, select, textarea').forEach(input => {
+        const name = input.name;
+        if (!name) return;
+        
+        let value;
+        if (input.type === 'checkbox') {
+            value = input.checked;
+        } else if (input.type === 'number') {
+            value = input.value ? parseFloat(input.value) : null;
+        } else if (input.tagName === 'TEXTAREA') {
+            try {
+                value = JSON.parse(input.value);
+            } catch {
+                value = input.value;
+            }
+        } else {
+            value = input.value;
+        }
+        
+        if (value !== null && value !== '') {
+            params[name] = value;
+        }
+    });
+    
+    const request = {tool: toolName, params: params};
+    document.getElementById('requestJson').textContent = JSON.stringify(request, null, 2);
+    
+    fetch('/tools/execute', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(request)
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('resultPlaceholder').style.display = 'none';
+        const resultEl = document.getElementById('resultJson');
+        resultEl.style.display = 'block';
+        resultEl.textContent = JSON.stringify(data, null, 2);
+        
+        // Add to history
+        executionHistory.unshift({
+            time: new Date().toLocaleTimeString(),
+            success: data.success,
+            duration: data.duration_ms
+        });
+        updateHistory();
+        
+        if (data.success) {
+            App.toast('Tool executed successfully', 'success');
+        } else {
+            App.toast('Execution failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(e => {
+        App.toast('Error: ' + e.message, 'error');
+    })
+    .finally(() => {
+        this.disabled = false;
+        this.textContent = '▶ Execute Tool';
+    });
+});
+
+function updateHistory() {
+    const el = document.getElementById('executionHistory');
+    if (executionHistory.length === 0) {
+        el.innerHTML = '<p>No executions yet</p>';
+        return;
+    }
+    
+    el.innerHTML = executionHistory.map(h => `
+        <div class="history-item ${h.success ? 'success' : 'error'}">
+            <span class="history-status">${h.success ? '✓' : '✗'}</span>
+            <span class="history-time">${h.time}</span>
+            <span class="history-duration">${h.duration}ms</span>
+        </div>
+    `).join('');
+}
+{% endif %}
+
+// Tool search
+document.getElementById('toolSearch').addEventListener('input', function() {
+    const query = this.value.toLowerCase();
+    document.querySelectorAll('.tool-item').forEach(item => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = text.includes(query) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}

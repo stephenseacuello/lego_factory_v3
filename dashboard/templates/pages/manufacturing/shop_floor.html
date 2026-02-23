@@ -1,0 +1,1614 @@
+{% extends "base.html" %}
+
+{% block title %}Shop Floor Dashboard - LEGO MCP v6.0{% endblock %}
+
+{% block styles %}
+<style>
+    :root {
+        --status-green: #22c55e;
+        --status-yellow: #eab308;
+        --status-red: #ef4444;
+        --status-gray: #6b7280;
+        --status-blue: #3b82f6;
+        --andon-green: #16a34a;
+        --andon-yellow: #ca8a04;
+        --andon-red: #dc2626;
+    }
+
+    /* Live Connection Indicator */
+    .connection-status {
+        position: fixed;
+        top: 70px;
+        right: 20px;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background: var(--card-bg);
+        border-radius: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        font-size: 0.75rem;
+        z-index: 1000;
+    }
+
+    .connection-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--status-gray);
+    }
+
+    .connection-dot.connected {
+        background: var(--status-green);
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    /* KPI Header Row */
+    .kpi-header {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 1400px) {
+        .kpi-header { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 768px) {
+        .kpi-header { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .kpi-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.25rem;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--primary-color), var(--status-blue));
+    }
+
+    .kpi-card.warning::before {
+        background: linear-gradient(90deg, var(--status-yellow), var(--status-red));
+    }
+
+    .kpi-card.success::before {
+        background: linear-gradient(90deg, var(--status-green), #10b981);
+    }
+
+    .kpi-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .kpi-value {
+        font-size: 2rem;
+        font-weight: 700;
+        line-height: 1;
+        margin-bottom: 0.25rem;
+    }
+
+    .kpi-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .kpi-trend {
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+
+    .kpi-trend.up { color: var(--status-green); }
+    .kpi-trend.down { color: var(--status-red); }
+
+    /* Main Grid Layout */
+    .shop-floor-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .shop-floor-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Dashboard Cards */
+    .dashboard-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 1.25rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-header h2 {
+        font-size: 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+
+    .card-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .card-action-btn {
+        background: var(--bg-secondary);
+        border: none;
+        padding: 0.4rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .card-action-btn:hover {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    /* Work Center Grid - Visual Factory Layout */
+    .work-center-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 1rem;
+    }
+
+    .work-center-card {
+        background: var(--bg-secondary);
+        border-radius: 10px;
+        padding: 1rem;
+        position: relative;
+        cursor: pointer;
+        transition: all 0.3s;
+        border: 2px solid transparent;
+    }
+
+    .work-center-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .work-center-card.selected {
+        border-color: var(--primary-color);
+    }
+
+    .work-center-card.status-running {
+        border-left: 4px solid var(--status-green);
+    }
+
+    .work-center-card.status-idle {
+        border-left: 4px solid var(--status-yellow);
+    }
+
+    .work-center-card.status-down {
+        border-left: 4px solid var(--status-red);
+    }
+
+    .work-center-card.status-maintenance {
+        border-left: 4px solid var(--status-blue);
+    }
+
+    .wc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 0.75rem;
+    }
+
+    .wc-code {
+        font-weight: 700;
+        font-size: 0.95rem;
+    }
+
+    .wc-status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        animation: blink 1.5s infinite;
+    }
+
+    .wc-status-indicator.running { background: var(--status-green); }
+    .wc-status-indicator.idle { background: var(--status-yellow); animation: none; }
+    .wc-status-indicator.down { background: var(--status-red); }
+    .wc-status-indicator.maintenance { background: var(--status-blue); animation: none; }
+
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+    }
+
+    .wc-name {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.75rem;
+    }
+
+    .wc-metrics {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.5rem;
+    }
+
+    .wc-metric {
+        text-align: center;
+    }
+
+    .wc-metric-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .wc-metric-value.good { color: var(--status-green); }
+    .wc-metric-value.warning { color: var(--status-yellow); }
+    .wc-metric-value.critical { color: var(--status-red); }
+
+    .wc-metric-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    .wc-job-info {
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px dashed var(--border-color);
+        font-size: 0.75rem;
+    }
+
+    .wc-job-number {
+        font-weight: 600;
+        color: var(--primary-color);
+    }
+
+    .wc-progress-bar {
+        height: 4px;
+        background: var(--bg-primary);
+        border-radius: 2px;
+        margin-top: 0.5rem;
+        overflow: hidden;
+    }
+
+    .wc-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--status-blue), var(--primary-color));
+        transition: width 0.5s ease;
+    }
+
+    /* Andon Board - Visual Alert System */
+    .andon-board {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .andon-cell {
+        aspect-ratio: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        font-weight: 600;
+        transition: all 0.3s;
+        cursor: pointer;
+        position: relative;
+    }
+
+    .andon-cell.green {
+        background: linear-gradient(135deg, var(--andon-green), #22c55e);
+        color: white;
+        box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+    }
+
+    .andon-cell.yellow {
+        background: linear-gradient(135deg, var(--andon-yellow), var(--status-yellow));
+        color: #1a1a1a;
+        box-shadow: 0 0 20px rgba(234, 179, 8, 0.3);
+    }
+
+    .andon-cell.red {
+        background: linear-gradient(135deg, var(--andon-red), #ef4444);
+        color: white;
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+        animation: andon-alert 1s infinite;
+    }
+
+    .andon-cell.gray {
+        background: linear-gradient(135deg, #4b5563, var(--status-gray));
+        color: white;
+    }
+
+    @keyframes andon-alert {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+    }
+
+    .andon-code {
+        font-size: 1rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .andon-oee {
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .andon-job {
+        font-size: 0.6rem;
+        opacity: 0.8;
+        margin-top: 0.25rem;
+    }
+
+    /* Active Operations Table */
+    .operations-table-container {
+        max-height: 400px;
+        overflow-y: auto;
+    }
+
+    .operations-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .operations-table th {
+        position: sticky;
+        top: 0;
+        background: var(--card-bg);
+        padding: 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .operations-table td {
+        padding: 0.75rem;
+        font-size: 0.85rem;
+        border-bottom: 1px solid var(--border-color);
+        vertical-align: middle;
+    }
+
+    .operations-table tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .op-status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+
+    .op-status-badge.in-progress {
+        background: rgba(34, 197, 94, 0.15);
+        color: var(--status-green);
+    }
+
+    .op-status-badge.pending {
+        background: rgba(234, 179, 8, 0.15);
+        color: var(--status-yellow);
+    }
+
+    .op-progress-cell {
+        width: 120px;
+    }
+
+    .op-progress-bar {
+        height: 6px;
+        background: var(--bg-secondary);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .op-progress-fill {
+        height: 100%;
+        background: var(--status-green);
+        transition: width 0.3s;
+    }
+
+    .op-progress-text {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Work Queue */
+    .queue-list {
+        max-height: 350px;
+        overflow-y: auto;
+    }
+
+    .queue-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        background: var(--bg-secondary);
+        transition: all 0.2s;
+    }
+
+    .queue-item:hover {
+        background: var(--bg-primary);
+    }
+
+    .queue-priority {
+        width: 4px;
+        height: 40px;
+        border-radius: 2px;
+    }
+
+    .queue-priority.high { background: var(--status-red); }
+    .queue-priority.medium { background: var(--status-yellow); }
+    .queue-priority.low { background: var(--status-green); }
+
+    .queue-info {
+        flex: 1;
+    }
+
+    .queue-wo {
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .queue-part {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .queue-qty {
+        text-align: right;
+    }
+
+    .queue-qty-value {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    .queue-qty-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+    }
+
+    /* Production Summary */
+    .production-summary {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+    }
+
+    @media (max-width: 768px) {
+        .production-summary { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .summary-stat {
+        text-align: center;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 10px;
+    }
+
+    .summary-icon {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .summary-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+    }
+
+    .summary-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* OEE Gauge */
+    .oee-gauge-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1rem;
+    }
+
+    .oee-gauge {
+        position: relative;
+        width: 150px;
+        height: 150px;
+    }
+
+    .oee-gauge svg {
+        transform: rotate(-90deg);
+    }
+
+    .oee-gauge-bg {
+        fill: none;
+        stroke: var(--bg-secondary);
+        stroke-width: 12;
+    }
+
+    .oee-gauge-fill {
+        fill: none;
+        stroke: var(--status-green);
+        stroke-width: 12;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 0.5s ease;
+    }
+
+    .oee-gauge-fill.warning { stroke: var(--status-yellow); }
+    .oee-gauge-fill.critical { stroke: var(--status-red); }
+
+    .oee-gauge-value {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+    }
+
+    .oee-value-number {
+        font-size: 2rem;
+        font-weight: 700;
+    }
+
+    .oee-value-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .oee-breakdown {
+        display: flex;
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+
+    .oee-component {
+        text-align: center;
+    }
+
+    .oee-component-value {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    .oee-component-label {
+        font-size: 0.65rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+    }
+
+    /* Alerts Panel */
+    .alerts-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .alert-item {
+        display: flex;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-radius: 8px;
+        background: var(--bg-secondary);
+    }
+
+    .alert-item.critical {
+        background: rgba(239, 68, 68, 0.1);
+        border-left: 3px solid var(--status-red);
+    }
+
+    .alert-item.warning {
+        background: rgba(234, 179, 8, 0.1);
+        border-left: 3px solid var(--status-yellow);
+    }
+
+    .alert-item.info {
+        background: rgba(59, 130, 246, 0.1);
+        border-left: 3px solid var(--status-blue);
+    }
+
+    .alert-icon {
+        font-size: 1.25rem;
+    }
+
+    .alert-content {
+        flex: 1;
+    }
+
+    .alert-message {
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .alert-time {
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .toast {
+        background: var(--card-bg);
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        max-width: 350px;
+        animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+
+    .toast.success { border-left: 4px solid var(--status-green); }
+    .toast.warning { border-left: 4px solid var(--status-yellow); }
+    .toast.error { border-left: 4px solid var(--status-red); }
+    .toast.info { border-left: 4px solid var(--status-blue); }
+
+    .toast-icon { font-size: 1.25rem; }
+    .toast-message { flex: 1; font-size: 0.85rem; }
+    .toast-close {
+        background: none;
+        border: none;
+        font-size: 1rem;
+        cursor: pointer;
+        opacity: 0.5;
+    }
+    .toast-close:hover { opacity: 1; }
+
+    /* Full Width Cards */
+    .full-width {
+        grid-column: 1 / -1;
+    }
+
+    /* Sub-grid layout */
+    .sub-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1000px) {
+        .sub-grid { grid-template-columns: 1fr; }
+    }
+
+    /* Live Update Indicator */
+    .live-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.7rem;
+        color: var(--text-secondary);
+    }
+
+    .live-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--status-green);
+        animation: pulse 2s infinite;
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state-icon {
+        font-size: 3rem;
+        opacity: 0.3;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- WebSocket Connection Status -->
+<div class="connection-status">
+    <div class="connection-dot" id="connectionDot"></div>
+    <span id="connectionText">Connecting...</span>
+</div>
+
+<div class="page-header">
+    <h1>Shop Floor Dashboard</h1>
+    <p class="subtitle">Real-time Manufacturing Visibility - ISA-95 Level 3 MES</p>
+</div>
+
+<!-- KPI Header Row -->
+<div class="kpi-header">
+    <div class="kpi-card success" id="kpiRunning">
+        <span class="kpi-icon">🔄</span>
+        <div class="kpi-value" id="runningCount">-</div>
+        <div class="kpi-label">Running</div>
+        <div class="kpi-trend up" id="runningTrend"></div>
+    </div>
+    <div class="kpi-card" id="kpiAvailable">
+        <span class="kpi-icon">⏸️</span>
+        <div class="kpi-value" id="availableCount">-</div>
+        <div class="kpi-label">Available</div>
+    </div>
+    <div class="kpi-card warning" id="kpiDown">
+        <span class="kpi-icon">⚠️</span>
+        <div class="kpi-value" id="downCount">-</div>
+        <div class="kpi-label">Down</div>
+    </div>
+    <div class="kpi-card" id="kpiActiveWO">
+        <span class="kpi-icon">📋</span>
+        <div class="kpi-value" id="activeWOCount">-</div>
+        <div class="kpi-label">Active WOs</div>
+    </div>
+    <div class="kpi-card success" id="kpiPartsToday">
+        <span class="kpi-icon">🏭</span>
+        <div class="kpi-value" id="partsToday">-</div>
+        <div class="kpi-label">Parts Today</div>
+        <div class="kpi-trend" id="partsTrend"></div>
+    </div>
+    <div class="kpi-card" id="kpiOEE">
+        <span class="kpi-icon">📊</span>
+        <div class="kpi-value" id="avgOEE">-%</div>
+        <div class="kpi-label">Avg OEE</div>
+    </div>
+</div>
+
+<div class="shop-floor-grid">
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <!-- Andon Board -->
+        <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+            <div class="card-header">
+                <h2>🚦 Andon Board</h2>
+                <div class="live-indicator">
+                    <div class="live-dot"></div>
+                    <span>LIVE</span>
+                </div>
+            </div>
+            <div class="andon-board" id="andonBoard">
+                <div class="empty-state">
+                    <div class="empty-state-icon">🏭</div>
+                    <div>Loading work centers...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Work Center Grid -->
+        <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+            <div class="card-header">
+                <h2>🔧 Work Center Status</h2>
+                <div class="card-actions">
+                    <button class="card-action-btn" onclick="filterWorkCenters('all')">All</button>
+                    <button class="card-action-btn" onclick="filterWorkCenters('running')">Running</button>
+                    <button class="card-action-btn" onclick="filterWorkCenters('down')">Down</button>
+                </div>
+            </div>
+            <div class="work-center-grid" id="workCenterGrid">
+                <div class="empty-state">
+                    <div class="empty-state-icon">⚙️</div>
+                    <div>Loading work centers...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Operations -->
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h2>⚡ Active Operations</h2>
+                <span class="live-indicator">
+                    <div class="live-dot"></div>
+                    <span>Real-time</span>
+                </span>
+            </div>
+            <div class="operations-table-container">
+                <table class="operations-table">
+                    <thead>
+                        <tr>
+                            <th>Work Order</th>
+                            <th>Operation</th>
+                            <th>Work Center</th>
+                            <th>Part</th>
+                            <th>Progress</th>
+                            <th>Elapsed</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activeOperations">
+                        <tr><td colspan="7" class="empty-state">Loading operations...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <!-- OEE Gauge -->
+        <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+            <div class="card-header">
+                <h2>📈 Plant OEE</h2>
+            </div>
+            <div class="oee-gauge-container">
+                <div class="oee-gauge">
+                    <svg viewBox="0 0 120 120" width="150" height="150">
+                        <circle class="oee-gauge-bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="oee-gauge-fill" id="oeeGaugeFill" cx="60" cy="60" r="50"
+                                stroke-dasharray="314" stroke-dashoffset="314"></circle>
+                    </svg>
+                    <div class="oee-gauge-value">
+                        <div class="oee-value-number" id="oeeValue">--%</div>
+                        <div class="oee-value-label">Overall</div>
+                    </div>
+                </div>
+                <div class="oee-breakdown">
+                    <div class="oee-component">
+                        <div class="oee-component-value" id="oeeAvailability">--%</div>
+                        <div class="oee-component-label">Availability</div>
+                    </div>
+                    <div class="oee-component">
+                        <div class="oee-component-value" id="oeePerformance">--%</div>
+                        <div class="oee-component-label">Performance</div>
+                    </div>
+                    <div class="oee-component">
+                        <div class="oee-component-value" id="oeeQuality">--%</div>
+                        <div class="oee-component-label">Quality</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Work Queue -->
+        <div class="dashboard-card" style="margin-bottom: 1.5rem;">
+            <div class="card-header">
+                <h2>📦 Work Queue</h2>
+                <span class="card-action-btn" onclick="refreshWorkQueue()">Refresh</span>
+            </div>
+            <div class="queue-list" id="workQueue">
+                <div class="empty-state">Loading queue...</div>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div class="dashboard-card">
+            <div class="card-header">
+                <h2>🔔 Alerts</h2>
+                <span id="alertCount" style="background: var(--status-red); color: white; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.7rem;">0</span>
+            </div>
+            <div class="alerts-list" id="alertsList">
+                <div class="empty-state">No active alerts</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Production Summary - Full Width -->
+<div class="dashboard-card full-width" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <h2>📊 Production Summary - Current Shift</h2>
+        <div class="card-actions">
+            <button class="card-action-btn" onclick="loadProductionSummary('shift')">Shift</button>
+            <button class="card-action-btn" onclick="loadProductionSummary('day')">Day</button>
+            <button class="card-action-btn" onclick="loadProductionSummary('week')">Week</button>
+        </div>
+    </div>
+    <div class="production-summary">
+        <div class="summary-stat">
+            <div class="summary-icon">✅</div>
+            <div class="summary-value" id="opsCompleted">-</div>
+            <div class="summary-label">Operations Completed</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-icon">🎯</div>
+            <div class="summary-value" id="goodParts">-</div>
+            <div class="summary-label">Good Parts</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-icon">🗑️</div>
+            <div class="summary-value" id="scrappedParts">-</div>
+            <div class="summary-label">Scrapped</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-icon">📈</div>
+            <div class="summary-value" id="yieldPercent">-</div>
+            <div class="summary-label">First Pass Yield</div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+<script>
+// ============================================================
+// WebSocket Connection
+// ============================================================
+let socket = null;
+let isConnected = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
+function initWebSocket() {
+    socket = io({
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: MAX_RECONNECT_ATTEMPTS
+    });
+
+    socket.on('connect', () => {
+        console.log('WebSocket connected');
+        isConnected = true;
+        reconnectAttempts = 0;
+        updateConnectionStatus(true);
+
+        // Subscribe to manufacturing events
+        socket.emit('manufacturing:subscribe');
+        socket.emit('andon:subscribe');
+        socket.emit('quality:subscribe');
+        socket.emit('maintenance:subscribe');
+
+        showToast('Connected to real-time feed', 'success');
+    });
+
+    socket.on('disconnect', () => {
+        console.log('WebSocket disconnected');
+        isConnected = false;
+        updateConnectionStatus(false);
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+        reconnectAttempts++;
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            showToast('Unable to connect to real-time feed. Using polling mode.', 'warning');
+            startPollingMode();
+        }
+    });
+
+    // Manufacturing Events
+    socket.on('mes:machine_status', handleMachineStatus);
+    socket.on('mes:work_order_update', handleWorkOrderUpdate);
+    socket.on('mes:oee_update', handleOEEUpdate);
+    socket.on('mes:andon', handleAndonEvent);
+    socket.on('quality:alert', handleQualityAlert);
+    socket.on('quality:spc_violation', handleSPCViolation);
+    socket.on('maintenance:alert', handleMaintenanceAlert);
+}
+
+function updateConnectionStatus(connected) {
+    const dot = document.getElementById('connectionDot');
+    const text = document.getElementById('connectionText');
+
+    if (connected) {
+        dot.classList.add('connected');
+        text.textContent = 'Live';
+    } else {
+        dot.classList.remove('connected');
+        text.textContent = 'Reconnecting...';
+    }
+}
+
+// ============================================================
+// Event Handlers
+// ============================================================
+function handleMachineStatus(data) {
+    console.log('Machine status update:', data);
+    // Update specific work center in the grid
+    updateWorkCenterStatus(data.machine_id, data.status, data.oee, data.current_job);
+    loadAndonDisplay(); // Refresh andon board
+}
+
+function handleWorkOrderUpdate(data) {
+    console.log('Work order update:', data);
+    loadActiveOperations();
+    loadWorkQueue();
+}
+
+function handleOEEUpdate(data) {
+    console.log('OEE update:', data);
+    updateOEEGauge(data);
+}
+
+function handleAndonEvent(data) {
+    console.log('Andon event:', data);
+    showToast(`Andon: ${data.message} at ${data.work_center_id}`,
+        data.andon_type === 'help' ? 'warning' : 'error');
+    addAlert({
+        type: data.andon_type === 'help' ? 'warning' : 'critical',
+        message: `${data.andon_type.toUpperCase()}: ${data.message}`,
+        workCenter: data.work_center_id,
+        timestamp: data.timestamp
+    });
+}
+
+function handleQualityAlert(data) {
+    console.log('Quality alert:', data);
+    showToast(`Quality Alert: ${data.message}`, data.severity === 'critical' ? 'error' : 'warning');
+    addAlert({
+        type: data.severity,
+        message: data.message,
+        timestamp: data.timestamp
+    });
+}
+
+function handleSPCViolation(data) {
+    console.log('SPC violation:', data);
+    showToast(`SPC Violation: ${data.rule_violated} on ${data.chart_id}`, 'error');
+    addAlert({
+        type: 'critical',
+        message: `SPC: ${data.rule_violated} - Value: ${data.value.toFixed(4)}`,
+        timestamp: data.timestamp
+    });
+}
+
+function handleMaintenanceAlert(data) {
+    console.log('Maintenance alert:', data);
+    showToast(`Maintenance: ${data.message || data.alert_type}`, 'warning');
+    addAlert({
+        type: 'warning',
+        message: `Maintenance: ${data.message || `${data.alert_type} on ${data.machine_id}`}`,
+        timestamp: data.timestamp
+    });
+}
+
+// ============================================================
+// Data Loading Functions
+// ============================================================
+async function loadDashboard() {
+    try {
+        const response = await fetch('/api/mes/shop-floor/dashboard');
+        const data = await response.json();
+
+        // Update KPI counts
+        const summary = data.summary || {};
+        const workCenters = data.work_centers || [];
+
+        document.getElementById('runningCount').textContent = summary.running_work_centers || 0;
+        document.getElementById('availableCount').textContent =
+            (summary.total_work_centers || 0) - (summary.running_work_centers || 0) - countDownWorkCenters(workCenters);
+        document.getElementById('downCount').textContent = countDownWorkCenters(workCenters);
+        document.getElementById('activeWOCount').textContent = summary.active_work_orders || 0;
+        document.getElementById('partsToday').textContent = summary.total_parts_completed || 0;
+
+        // Render work centers
+        renderWorkCenters(workCenters);
+        renderAndonBoard(workCenters);
+
+        // Calculate average OEE
+        const avgOEE = calculateAverageOEE(workCenters);
+        document.getElementById('avgOEE').textContent = avgOEE + '%';
+        updateOEEGauge({ oee: avgOEE, availability: 85, performance: 88, quality: 98 });
+
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+        showToast('Error loading dashboard data', 'error');
+    }
+}
+
+function countDownWorkCenters(workCenters) {
+    return workCenters.filter(wc =>
+        ['offline', 'maintenance', 'down'].includes(wc.status?.toLowerCase())
+    ).length;
+}
+
+function calculateAverageOEE(workCenters) {
+    const runningCenters = workCenters.filter(wc => wc.oee > 0);
+    if (runningCenters.length === 0) return 0;
+    const total = runningCenters.reduce((sum, wc) => sum + (wc.oee || 0), 0);
+    return Math.round(total / runningCenters.length);
+}
+
+function renderWorkCenters(workCenters) {
+    const grid = document.getElementById('workCenterGrid');
+
+    if (!workCenters || workCenters.length === 0) {
+        grid.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">⚙️</div>
+                <div>No work centers configured</div>
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = workCenters.map(wc => {
+        const statusClass = getStatusClass(wc.status);
+        const oeeClass = getOEEClass(wc.oee || 0);
+        const progress = wc.current_operation?.progress_percent || 0;
+
+        return `
+            <div class="work-center-card status-${statusClass}"
+                 onclick="showWorkCenterDetails('${wc.id}')"
+                 data-status="${statusClass}">
+                <div class="wc-header">
+                    <span class="wc-code">${wc.code}</span>
+                    <div class="wc-status-indicator ${statusClass}"></div>
+                </div>
+                <div class="wc-name">${wc.name || wc.type || 'Work Center'}</div>
+                <div class="wc-metrics">
+                    <div class="wc-metric">
+                        <div class="wc-metric-value ${oeeClass}">${wc.oee || 0}%</div>
+                        <div class="wc-metric-label">OEE</div>
+                    </div>
+                    <div class="wc-metric">
+                        <div class="wc-metric-value">${capitalizeFirst(statusClass)}</div>
+                        <div class="wc-metric-label">Status</div>
+                    </div>
+                </div>
+                ${wc.current_operation ? `
+                    <div class="wc-job-info">
+                        <span class="wc-job-number">${wc.current_operation.work_order_number}</span>
+                        <div class="wc-progress-bar">
+                            <div class="wc-progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+function renderAndonBoard(workCenters) {
+    const board = document.getElementById('andonBoard');
+
+    if (!workCenters || workCenters.length === 0) {
+        board.innerHTML = '<div class="empty-state">No work centers</div>';
+        return;
+    }
+
+    board.innerHTML = workCenters.map(wc => {
+        const color = getAndonColor(wc.status);
+        const oee = wc.oee || 0;
+        const currentJob = wc.current_operation?.work_order_number || '-';
+
+        return `
+            <div class="andon-cell ${color}" onclick="showWorkCenterDetails('${wc.id}')">
+                <div class="andon-code">${wc.code}</div>
+                <div class="andon-oee">${oee}%</div>
+                <div class="andon-job">${currentJob !== '-' ? currentJob.split('-').pop() : '-'}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+async function loadActiveOperations() {
+    try {
+        const response = await fetch('/api/mes/shop-floor/active-operations');
+        const data = await response.json();
+
+        const tbody = document.getElementById('activeOperations');
+        const operations = data.active_operations || [];
+
+        if (operations.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No active operations</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = operations.map(op => {
+            const elapsed = op.elapsed_seconds ? formatDuration(op.elapsed_seconds) : '-';
+            const progress = op.progress_percent || 0;
+
+            return `
+                <tr>
+                    <td><strong>${op.work_order_number}</strong></td>
+                    <td>${op.operation_code}</td>
+                    <td>${op.work_center?.code || '-'}</td>
+                    <td>${op.part?.part_number || '-'}</td>
+                    <td class="op-progress-cell">
+                        <div class="op-progress-bar">
+                            <div class="op-progress-fill" style="width: ${progress}%"></div>
+                        </div>
+                        <div class="op-progress-text">${progress.toFixed(0)}% (${op.quantity_completed}/${op.quantity_scheduled})</div>
+                    </td>
+                    <td>${elapsed}</td>
+                    <td>
+                        <span class="op-status-badge in-progress">
+                            <span class="live-dot"></span>
+                            In Progress
+                        </span>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading operations:', error);
+    }
+}
+
+async function loadWorkQueue() {
+    try {
+        const response = await fetch('/api/mes/shop-floor/queue?status=pending');
+        const data = await response.json();
+
+        const queueDiv = document.getElementById('workQueue');
+        const queue = data.queue || [];
+
+        if (queue.length === 0) {
+            queueDiv.innerHTML = '<div class="empty-state">Work queue is empty</div>';
+            return;
+        }
+
+        queueDiv.innerHTML = queue.slice(0, 10).map(item => {
+            const priorityClass = getPriorityClass(item.priority);
+
+            return `
+                <div class="queue-item">
+                    <div class="queue-priority ${priorityClass}"></div>
+                    <div class="queue-info">
+                        <div class="queue-wo">${item.work_order_number || item.operation_id}</div>
+                        <div class="queue-part">${item.part_name || item.operation_code || '-'}</div>
+                    </div>
+                    <div class="queue-qty">
+                        <div class="queue-qty-value">${item.quantity_scheduled || 0}</div>
+                        <div class="queue-qty-label">units</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Error loading queue:', error);
+    }
+}
+
+async function loadAndonDisplay() {
+    try {
+        const response = await fetch('/api/mes/shop-floor/andon');
+        const data = await response.json();
+        renderAndonBoard(data.work_centers || []);
+    } catch (error) {
+        console.error('Error loading andon:', error);
+    }
+}
+
+async function loadProductionSummary(period = 'shift') {
+    try {
+        const response = await fetch(`/api/mes/shop-floor/production-summary?period=${period}`);
+        const data = await response.json();
+
+        const summary = data.summary || {};
+        document.getElementById('opsCompleted').textContent = summary.operations_completed || 0;
+        document.getElementById('goodParts').textContent = summary.good_parts || 0;
+        document.getElementById('scrappedParts').textContent = summary.scrapped_parts || 0;
+        document.getElementById('yieldPercent').textContent = (summary.yield_percent || 100).toFixed(1) + '%';
+    } catch (error) {
+        console.error('Error loading production summary:', error);
+    }
+}
+
+// ============================================================
+// UI Update Functions
+// ============================================================
+function updateWorkCenterStatus(machineId, status, oee, currentJob) {
+    // Find and update the specific work center card
+    const cards = document.querySelectorAll('.work-center-card');
+    cards.forEach(card => {
+        if (card.querySelector('.wc-code')?.textContent === machineId) {
+            const statusClass = getStatusClass(status);
+            card.className = `work-center-card status-${statusClass}`;
+            card.dataset.status = statusClass;
+
+            const indicator = card.querySelector('.wc-status-indicator');
+            if (indicator) {
+                indicator.className = `wc-status-indicator ${statusClass}`;
+            }
+
+            if (oee !== undefined) {
+                const oeeEl = card.querySelector('.wc-metric-value');
+                if (oeeEl) {
+                    oeeEl.textContent = `${oee}%`;
+                    oeeEl.className = `wc-metric-value ${getOEEClass(oee)}`;
+                }
+            }
+        }
+    });
+}
+
+function updateOEEGauge(data) {
+    const oee = data.oee || 0;
+    const circumference = 314; // 2 * PI * 50
+    const offset = circumference - (oee / 100) * circumference;
+
+    const gaugeFill = document.getElementById('oeeGaugeFill');
+    gaugeFill.style.strokeDashoffset = offset;
+
+    // Update color based on OEE
+    gaugeFill.classList.remove('warning', 'critical');
+    if (oee < 60) {
+        gaugeFill.classList.add('critical');
+    } else if (oee < 75) {
+        gaugeFill.classList.add('warning');
+    }
+
+    document.getElementById('oeeValue').textContent = `${oee.toFixed(0)}%`;
+    document.getElementById('oeeAvailability').textContent = `${(data.availability || 0).toFixed(0)}%`;
+    document.getElementById('oeePerformance').textContent = `${(data.performance || 0).toFixed(0)}%`;
+    document.getElementById('oeeQuality').textContent = `${(data.quality || 0).toFixed(0)}%`;
+}
+
+// ============================================================
+// Alerts Management
+// ============================================================
+const alerts = [];
+
+function addAlert(alert) {
+    alerts.unshift({
+        ...alert,
+        id: Date.now(),
+        timestamp: alert.timestamp || Date.now() / 1000
+    });
+
+    // Keep only last 20 alerts
+    if (alerts.length > 20) {
+        alerts.pop();
+    }
+
+    renderAlerts();
+}
+
+function renderAlerts() {
+    const alertsList = document.getElementById('alertsList');
+    const alertCount = document.getElementById('alertCount');
+
+    const criticalCount = alerts.filter(a => a.type === 'critical').length;
+    alertCount.textContent = alerts.length;
+    alertCount.style.background = criticalCount > 0 ? 'var(--status-red)' : 'var(--status-yellow)';
+
+    if (alerts.length === 0) {
+        alertsList.innerHTML = '<div class="empty-state">No active alerts</div>';
+        return;
+    }
+
+    alertsList.innerHTML = alerts.map(alert => {
+        const icon = alert.type === 'critical' ? '🚨' : alert.type === 'warning' ? '⚠️' : 'ℹ️';
+        const timeAgo = formatTimeAgo(alert.timestamp);
+
+        return `
+            <div class="alert-item ${alert.type}">
+                <span class="alert-icon">${icon}</span>
+                <div class="alert-content">
+                    <div class="alert-message">${alert.message}</div>
+                    <div class="alert-time">${timeAgo}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ============================================================
+// Toast Notifications
+// ============================================================
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+
+    const icons = {
+        success: '✅',
+        warning: '⚠️',
+        error: '🚨',
+        info: 'ℹ️'
+    };
+
+    toast.innerHTML = `
+        <span class="toast-icon">${icons[type]}</span>
+        <span class="toast-message">${message}</span>
+        <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, 5000);
+}
+
+// ============================================================
+// Utility Functions
+// ============================================================
+function getStatusClass(status) {
+    switch(status?.toLowerCase()) {
+        case 'in_use':
+        case 'running':
+        case 'active':
+            return 'running';
+        case 'available':
+        case 'idle':
+            return 'idle';
+        case 'offline':
+        case 'down':
+            return 'down';
+        case 'maintenance':
+        case 'setup':
+            return 'maintenance';
+        default:
+            return 'idle';
+    }
+}
+
+function getAndonColor(status) {
+    switch(status?.toLowerCase()) {
+        case 'in_use':
+        case 'running':
+        case 'active':
+            return 'green';
+        case 'available':
+        case 'idle':
+            return 'yellow';
+        case 'offline':
+        case 'down':
+            return 'red';
+        default:
+            return 'gray';
+    }
+}
+
+function getOEEClass(oee) {
+    if (oee >= 85) return 'good';
+    if (oee >= 60) return 'warning';
+    return 'critical';
+}
+
+function getPriorityClass(priority) {
+    if (priority >= 8) return 'high';
+    if (priority >= 5) return 'medium';
+    return 'low';
+}
+
+function capitalizeFirst(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+function formatDuration(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+
+    if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    }
+    if (minutes > 0) {
+        return `${minutes}m ${secs}s`;
+    }
+    return `${secs}s`;
+}
+
+function formatTimeAgo(timestamp) {
+    const now = Date.now() / 1000;
+    const diff = now - timestamp;
+
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function filterWorkCenters(filter) {
+    const cards = document.querySelectorAll('.work-center-card');
+    cards.forEach(card => {
+        if (filter === 'all') {
+            card.style.display = 'block';
+        } else {
+            card.style.display = card.dataset.status === filter ? 'block' : 'none';
+        }
+    });
+}
+
+function showWorkCenterDetails(wcId) {
+    // Could open a modal with detailed work center info
+    console.log('Show details for:', wcId);
+    showToast(`Selected work center: ${wcId}`, 'info');
+}
+
+function refreshWorkQueue() {
+    loadWorkQueue();
+    showToast('Work queue refreshed', 'success');
+}
+
+// ============================================================
+// Polling Mode (fallback)
+// ============================================================
+let pollingInterval = null;
+
+function startPollingMode() {
+    if (pollingInterval) return;
+
+    pollingInterval = setInterval(() => {
+        loadDashboard();
+        loadActiveOperations();
+        loadWorkQueue();
+        loadProductionSummary();
+    }, 30000);
+}
+
+// ============================================================
+// Initialization
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize WebSocket
+    initWebSocket();
+
+    // Initial data load
+    loadDashboard();
+    loadActiveOperations();
+    loadWorkQueue();
+    loadProductionSummary();
+
+    // Refresh every 30 seconds as backup
+    setInterval(() => {
+        if (!isConnected) {
+            loadDashboard();
+            loadActiveOperations();
+        }
+    }, 30000);
+});
+</script>
+{% endblock %}

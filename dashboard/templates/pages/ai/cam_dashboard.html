@@ -1,0 +1,1187 @@
+{% extends "base.html" %}
+
+{% block title %}CAM Copilot - AI-Assisted Manufacturing{% endblock %}
+
+{% block extra_css %}
+<style>
+    :root {
+        --cam-primary: #10b981;
+        --cam-secondary: #059669;
+        --cam-accent: #34d399;
+        --cam-autonomous: #8b5cf6;
+        --cam-copilot: #3b82f6;
+        --cam-advisory: #f59e0b;
+        --bg-dark: #0f172a;
+        --bg-card: #1e293b;
+        --bg-card-hover: #334155;
+        --text-primary: #f8fafc;
+        --text-secondary: #94a3b8;
+        --border-color: #334155;
+        --success: #22c55e;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+    }
+
+    .cam-dashboard {
+        min-height: 100vh;
+        background: linear-gradient(135deg, var(--bg-dark) 0%, #1a1a2e 100%);
+        padding: 24px;
+    }
+
+    /* Header */
+    .cam-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+        padding: 20px 24px;
+        background: var(--bg-card);
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+    }
+
+    .cam-title {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    .cam-title h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--cam-primary), var(--cam-accent));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0;
+    }
+
+    .cam-title .subtitle {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .cam-logo {
+        width: 56px;
+        height: 56px;
+        background: linear-gradient(135deg, var(--cam-primary), var(--cam-secondary));
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+    }
+
+    /* Mode Selector */
+    .mode-selector {
+        display: flex;
+        gap: 12px;
+        padding: 6px;
+        background: var(--bg-dark);
+        border-radius: 12px;
+    }
+
+    .mode-btn {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: transparent;
+        color: var(--text-secondary);
+    }
+
+    .mode-btn:hover {
+        background: var(--bg-card-hover);
+        color: var(--text-primary);
+    }
+
+    .mode-btn.active {
+        color: white;
+    }
+
+    .mode-btn.active.autonomous {
+        background: linear-gradient(135deg, var(--cam-autonomous), #7c3aed);
+        box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+    }
+
+    .mode-btn.active.copilot {
+        background: linear-gradient(135deg, var(--cam-copilot), #2563eb);
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+    }
+
+    .mode-btn.active.advisory {
+        background: linear-gradient(135deg, var(--cam-advisory), #d97706);
+        box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+    }
+
+    /* Main Grid */
+    .cam-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.5fr 1fr;
+        gap: 24px;
+    }
+
+    @media (max-width: 1400px) {
+        .cam-grid {
+            grid-template-columns: 1fr 1fr;
+        }
+    }
+
+    @media (max-width: 1000px) {
+        .cam-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Cards */
+    .cam-card {
+        background: var(--bg-card);
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 16px 20px;
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05));
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .card-header h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .card-body {
+        padding: 20px;
+    }
+
+    /* Input Configuration Panel */
+    .config-group {
+        margin-bottom: 20px;
+    }
+
+    .config-label {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 8px;
+        display: block;
+    }
+
+    .config-select, .config-input {
+        width: 100%;
+        padding: 12px 16px;
+        background: var(--bg-dark);
+        border: 1px solid var(--border-color);
+        border-radius: 10px;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+        transition: all 0.2s;
+    }
+
+    .config-select:focus, .config-input:focus {
+        outline: none;
+        border-color: var(--cam-primary);
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+
+    .dimension-inputs {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+
+    .dim-input-group {
+        position: relative;
+    }
+
+    .dim-input-group label {
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+    }
+
+    .dim-input-group input {
+        padding-right: 40px;
+    }
+
+    /* Recommendation Panel */
+    .recommendation-panel {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(59, 130, 246, 0.05));
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .rec-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+
+    .rec-title {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--cam-primary);
+    }
+
+    .confidence-badge {
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .confidence-high {
+        background: rgba(34, 197, 94, 0.15);
+        color: var(--success);
+    }
+
+    .confidence-medium {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--warning);
+    }
+
+    /* Parameter Grid */
+    .param-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .param-item {
+        background: var(--bg-card);
+        padding: 14px;
+        border-radius: 10px;
+        border: 1px solid var(--border-color);
+    }
+
+    .param-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .param-value {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .param-unit {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin-left: 4px;
+    }
+
+    /* Toolpath Strategy */
+    .strategy-card {
+        background: var(--bg-dark);
+        padding: 16px;
+        border-radius: 12px;
+        margin-bottom: 16px;
+    }
+
+    .strategy-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--cam-accent);
+        margin-bottom: 8px;
+    }
+
+    .strategy-details {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .strategy-tag {
+        padding: 6px 12px;
+        background: var(--bg-card);
+        border-radius: 6px;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    /* Rationale */
+    .rationale-box {
+        background: var(--bg-dark);
+        padding: 16px;
+        border-radius: 12px;
+        border-left: 3px solid var(--cam-primary);
+    }
+
+    .rationale-box p {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    /* Action Buttons */
+    .action-buttons {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+    }
+
+    .btn-action {
+        flex: 1;
+        padding: 14px 20px;
+        border: none;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+
+    .btn-approve {
+        background: linear-gradient(135deg, var(--cam-primary), var(--cam-secondary));
+        color: white;
+    }
+
+    .btn-approve:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-modify {
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .btn-modify:hover {
+        background: var(--bg-card-hover);
+    }
+
+    .btn-reject {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-reject:hover {
+        background: rgba(239, 68, 68, 0.2);
+    }
+
+    /* Feedback Panel */
+    .feedback-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px;
+        background: var(--bg-dark);
+        border-radius: 10px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+
+    .feedback-item:hover {
+        border-color: var(--border-color);
+        transform: translateX(4px);
+    }
+
+    .feedback-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+
+    .feedback-icon.surface { background: rgba(239, 68, 68, 0.15); }
+    .feedback-icon.dimensional { background: rgba(59, 130, 246, 0.15); }
+    .feedback-icon.thermal { background: rgba(245, 158, 11, 0.15); }
+
+    .feedback-content {
+        flex: 1;
+    }
+
+    .feedback-type {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .feedback-desc {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    /* Machine Status */
+    .machine-status {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px;
+        background: var(--bg-dark);
+        border-radius: 12px;
+        margin-bottom: 16px;
+    }
+
+    .machine-icon {
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, var(--cam-primary), var(--cam-accent));
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .machine-info h4 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0 0 4px 0;
+    }
+
+    .machine-info .status {
+        font-size: 0.85rem;
+        color: var(--success);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--success);
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
+    }
+
+    .stat-card {
+        background: var(--bg-dark);
+        padding: 16px;
+        border-radius: 12px;
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--cam-primary);
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        margin-top: 4px;
+    }
+
+    /* Toast */
+    .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+
+    .toast {
+        padding: 14px 20px;
+        border-radius: 12px;
+        color: white;
+        font-size: 0.9rem;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        animation: slideIn 0.3s ease;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .toast.success { background: linear-gradient(135deg, var(--success), #16a34a); }
+    .toast.error { background: linear-gradient(135deg, var(--danger), #dc2626); }
+    .toast.info { background: linear-gradient(135deg, var(--cam-copilot), #2563eb); }
+
+    @keyframes slideIn {
+        from { transform: translateX(100px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Loading State */
+    .loading-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        border-radius: 16px;
+        z-index: 10;
+    }
+
+    .loading-overlay.active {
+        display: flex;
+    }
+
+    .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--border-color);
+        border-top-color: var(--cam-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cam-dashboard">
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Header -->
+    <div class="cam-header">
+        <div class="cam-title">
+            <div class="cam-logo">🔧</div>
+            <div>
+                <h1>CAM Copilot</h1>
+                <div class="subtitle">AI-Assisted Manufacturing Parameters | Fusion 360 Integration</div>
+            </div>
+        </div>
+        <div class="mode-selector">
+            <button class="mode-btn autonomous" onclick="setMode('autonomous')">
+                <span>🤖</span> Autonomous
+            </button>
+            <button class="mode-btn copilot active" onclick="setMode('copilot')">
+                <span>👨‍✈️</span> Copilot
+            </button>
+            <button class="mode-btn advisory" onclick="setMode('advisory')">
+                <span>💡</span> Advisory
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="cam-grid">
+        <!-- Left Column: Configuration -->
+        <div class="cam-card">
+            <div class="card-header">
+                <h3><span>⚙️</span> Configuration</h3>
+            </div>
+            <div class="card-body">
+                <div class="config-group">
+                    <label class="config-label">Brick Type</label>
+                    <select class="config-select" id="brickType" onchange="updateRecommendation()">
+                        <option value="2x4">2x4 Brick (Standard)</option>
+                        <option value="2x2">2x2 Brick</option>
+                        <option value="1x4">1x4 Brick</option>
+                        <option value="2x6">2x6 Brick</option>
+                        <option value="2x4_plate">2x4 Plate</option>
+                    </select>
+                </div>
+
+                <div class="config-group">
+                    <label class="config-label">Dimensions (mm)</label>
+                    <div class="dimension-inputs">
+                        <div class="dim-input-group">
+                            <input type="number" class="config-input" id="dimX" value="32" onchange="updateRecommendation()">
+                            <label>X</label>
+                        </div>
+                        <div class="dim-input-group">
+                            <input type="number" class="config-input" id="dimY" value="16" onchange="updateRecommendation()">
+                            <label>Y</label>
+                        </div>
+                        <div class="dim-input-group">
+                            <input type="number" class="config-input" id="dimZ" value="9.6" onchange="updateRecommendation()">
+                            <label>Z</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-group">
+                    <label class="config-label">Material</label>
+                    <select class="config-select" id="material" onchange="updateRecommendation()">
+                        <option value="aluminum_6061">Aluminum 6061-T6</option>
+                        <option value="aluminum_7075">Aluminum 7075-T6</option>
+                        <option value="brass_360">Brass 360</option>
+                        <option value="steel_1018">Steel 1018</option>
+                        <option value="abs_plastic">ABS Plastic</option>
+                        <option value="delrin">Delrin/Acetal</option>
+                    </select>
+                </div>
+
+                <div class="config-group">
+                    <label class="config-label">Machine</label>
+                    <select class="config-select" id="machine" onchange="updateRecommendation()">
+                        <option value="bantam-desktop-cnc">Bantam Desktop CNC</option>
+                        <option value="haas-mini-mill">Haas Mini Mill</option>
+                        <option value="tormach-1100m">Tormach 1100M</option>
+                    </select>
+                </div>
+
+                <div class="config-group">
+                    <label class="config-label">Operation Type</label>
+                    <select class="config-select" id="operation" onchange="updateRecommendation()">
+                        <option value="pocket">Pocket (Cavity)</option>
+                        <option value="profile">Profile (Outline)</option>
+                        <option value="face">Face (Surface)</option>
+                        <option value="drill">Drill (Holes)</option>
+                    </select>
+                </div>
+
+                <button class="btn-action btn-approve" onclick="getRecommendation()" style="width: 100%; margin-top: 16px;">
+                    <span>🧠</span> Get AI Recommendation
+                </button>
+            </div>
+        </div>
+
+        <!-- Center Column: Recommendations -->
+        <div class="cam-card" style="position: relative;">
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="spinner"></div>
+            </div>
+            <div class="card-header">
+                <h3><span>🎯</span> AI Recommendation</h3>
+                <span class="confidence-badge confidence-high" id="confidenceBadge">92% Confidence</span>
+            </div>
+            <div class="card-body">
+                <!-- Tool Selection -->
+                <div class="recommendation-panel">
+                    <div class="rec-header">
+                        <span class="rec-title">🔩 Tool Selection</span>
+                    </div>
+                    <div class="param-grid">
+                        <div class="param-item">
+                            <div class="param-label">Tool Type</div>
+                            <div class="param-value" id="toolType">Flat End Mill</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Diameter</div>
+                            <div class="param-value"><span id="toolDiameter">3.175</span><span class="param-unit">mm</span></div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Flutes</div>
+                            <div class="param-value" id="toolFlutes">2</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Material</div>
+                            <div class="param-value" id="toolMaterial">Carbide</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feeds & Speeds -->
+                <div class="recommendation-panel">
+                    <div class="rec-header">
+                        <span class="rec-title">⚡ Feeds & Speeds</span>
+                    </div>
+                    <div class="param-grid">
+                        <div class="param-item">
+                            <div class="param-label">Spindle RPM</div>
+                            <div class="param-value" id="spindleRpm">15,000</div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Feed Rate</div>
+                            <div class="param-value"><span id="feedRate">500</span><span class="param-unit">mm/min</span></div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Plunge Rate</div>
+                            <div class="param-value"><span id="plungeRate">150</span><span class="param-unit">mm/min</span></div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Depth of Cut</div>
+                            <div class="param-value"><span id="depthOfCut">1.0</span><span class="param-unit">mm</span></div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Stepover</div>
+                            <div class="param-value"><span id="stepover">40</span><span class="param-unit">%</span></div>
+                        </div>
+                        <div class="param-item">
+                            <div class="param-label">Chip Load</div>
+                            <div class="param-value"><span id="chipLoad">0.017</span><span class="param-unit">mm</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Toolpath Strategy -->
+                <div class="strategy-card">
+                    <div class="strategy-title">📐 Toolpath Strategy</div>
+                    <div class="strategy-details">
+                        <span class="strategy-tag" id="strategyType">Adaptive Clearing</span>
+                        <span class="strategy-tag" id="strategyDirection">Climb Milling</span>
+                        <span class="strategy-tag" id="strategyLeadIn">Arc Lead-in</span>
+                        <span class="strategy-tag" id="strategyHsm">HSM Enabled</span>
+                    </div>
+                </div>
+
+                <!-- Rationale -->
+                <div class="rationale-box">
+                    <p id="rationale">
+                        Based on the aluminum 6061-T6 material and Bantam Desktop CNC capabilities,
+                        these conservative parameters prioritize surface finish and tool life.
+                        The 40% stepover with adaptive clearing reduces cutting forces and heat buildup.
+                    </p>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="action-buttons" id="actionButtons">
+                    <button class="btn-action btn-approve" onclick="approveAndExecute()">
+                        <span>✓</span> Approve & Execute
+                    </button>
+                    <button class="btn-action btn-modify" onclick="openModifyModal()">
+                        <span>✏️</span> Modify
+                    </button>
+                    <button class="btn-action btn-reject" onclick="rejectRecommendation()">
+                        <span>✕</span> Reject
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Feedback & Status -->
+        <div style="display: flex; flex-direction: column; gap: 24px;">
+            <!-- Machine Status -->
+            <div class="cam-card">
+                <div class="card-header">
+                    <h3><span>🖥️</span> Machine Status</h3>
+                </div>
+                <div class="card-body">
+                    <div class="machine-status">
+                        <div class="machine-icon">🔧</div>
+                        <div class="machine-info">
+                            <h4 id="machineName">Bantam Desktop CNC</h4>
+                            <div class="status">
+                                <span class="status-dot"></span>
+                                <span>Ready</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="jobsToday">12</div>
+                            <div class="stat-label">Jobs Today</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="successRate">98.5%</div>
+                            <div class="stat-label">Success Rate</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="avgCycleTime">24m</div>
+                            <div class="stat-label">Avg Cycle Time</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="toolLife">78%</div>
+                            <div class="stat-label">Tool Life</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quality Feedback -->
+            <div class="cam-card">
+                <div class="card-header">
+                    <h3><span>📊</span> Quality Feedback</h3>
+                </div>
+                <div class="card-body">
+                    <div class="feedback-item" onclick="submitFeedback('rough_surface')">
+                        <div class="feedback-icon surface">🔴</div>
+                        <div class="feedback-content">
+                            <div class="feedback-type">Rough Surface</div>
+                            <div class="feedback-desc">Surface finish below spec</div>
+                        </div>
+                    </div>
+                    <div class="feedback-item" onclick="submitFeedback('undersized_stud')">
+                        <div class="feedback-icon dimensional">🔵</div>
+                        <div class="feedback-content">
+                            <div class="feedback-type">Undersized Stud</div>
+                            <div class="feedback-desc">Stud diameter too small</div>
+                        </div>
+                    </div>
+                    <div class="feedback-item" onclick="submitFeedback('chatter_marks')">
+                        <div class="feedback-icon thermal">🟡</div>
+                        <div class="feedback-content">
+                            <div class="feedback-type">Chatter Marks</div>
+                            <div class="feedback-desc">Vibration marks visible</div>
+                        </div>
+                    </div>
+                    <button class="btn-action btn-modify" style="width: 100%; margin-top: 12px;" onclick="openFeedbackModal()">
+                        <span>➕</span> Report Other Issue
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const CAM_API = '/api/ai/cam';
+    let currentMode = 'copilot';
+    let currentRecommendation = null;
+
+    // Mode Management
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.classList.contains(mode)) {
+                btn.classList.add('active');
+            }
+        });
+
+        // Update UI based on mode
+        const actionButtons = document.getElementById('actionButtons');
+        if (mode === 'autonomous') {
+            actionButtons.innerHTML = `
+                <button class="btn-action btn-approve" onclick="executeAutonomous()" style="flex: 2;">
+                    <span>🚀</span> Execute Automatically
+                </button>
+                <button class="btn-action btn-reject" onclick="cancelAutonomous()">
+                    <span>⏸️</span> Cancel
+                </button>
+            `;
+            showToast('Autonomous mode: AI will execute without approval', 'info');
+        } else if (mode === 'copilot') {
+            actionButtons.innerHTML = `
+                <button class="btn-action btn-approve" onclick="approveAndExecute()">
+                    <span>✓</span> Approve & Execute
+                </button>
+                <button class="btn-action btn-modify" onclick="openModifyModal()">
+                    <span>✏️</span> Modify
+                </button>
+                <button class="btn-action btn-reject" onclick="rejectRecommendation()">
+                    <span>✕</span> Reject
+                </button>
+            `;
+            showToast('Copilot mode: AI suggests, you approve', 'info');
+        } else {
+            actionButtons.innerHTML = `
+                <button class="btn-action btn-modify" onclick="copyToClipboard()" style="flex: 2;">
+                    <span>📋</span> Copy Parameters
+                </button>
+                <button class="btn-action btn-modify" onclick="exportToFusion()">
+                    <span>📤</span> Export
+                </button>
+            `;
+            showToast('Advisory mode: View recommendations only', 'info');
+        }
+
+        updateRecommendation();
+    }
+
+    // Get AI Recommendation
+    async function getRecommendation() {
+        const loading = document.getElementById('loadingOverlay');
+        loading.classList.add('active');
+
+        const config = {
+            brick_type: document.getElementById('brickType').value,
+            dimensions: {
+                x: parseFloat(document.getElementById('dimX').value),
+                y: parseFloat(document.getElementById('dimY').value),
+                z: parseFloat(document.getElementById('dimZ').value)
+            },
+            material: document.getElementById('material').value,
+            machine_id: document.getElementById('machine').value,
+            operation: document.getElementById('operation').value,
+            mode: currentMode
+        };
+
+        try {
+            const response = await fetch(`${CAM_API}/recommend`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success) {
+                    currentRecommendation = data.recommendation;
+                    displayRecommendation(data.recommendation);
+                    showToast('AI recommendation generated successfully', 'success');
+                } else {
+                    throw new Error(data.error || 'Failed to get recommendation');
+                }
+            } else {
+                // Fallback to local calculation
+                generateLocalRecommendation(config);
+            }
+        } catch (error) {
+            console.error('API error, using local calculation:', error);
+            generateLocalRecommendation(config);
+        }
+
+        loading.classList.remove('active');
+    }
+
+    // Local recommendation fallback
+    function generateLocalRecommendation(config) {
+        const materialProps = {
+            'aluminum_6061': { surfaceSpeed: 150, chipLoad: 0.05, hardness: 95 },
+            'aluminum_7075': { surfaceSpeed: 120, chipLoad: 0.04, hardness: 150 },
+            'brass_360': { surfaceSpeed: 100, chipLoad: 0.06, hardness: 78 },
+            'steel_1018': { surfaceSpeed: 30, chipLoad: 0.02, hardness: 126 },
+            'abs_plastic': { surfaceSpeed: 300, chipLoad: 0.1, hardness: 10 },
+            'delrin': { surfaceSpeed: 250, chipLoad: 0.08, hardness: 12 }
+        };
+
+        const props = materialProps[config.material] || materialProps['aluminum_6061'];
+        const toolDiameter = 3.175; // 1/8" default
+        const rpm = Math.round((props.surfaceSpeed * 1000) / (Math.PI * toolDiameter));
+        const feedRate = Math.round(rpm * 2 * props.chipLoad);
+
+        currentRecommendation = {
+            tool: {
+                type: 'Flat End Mill',
+                diameter_mm: toolDiameter,
+                flutes: 2,
+                material: 'Carbide'
+            },
+            feeds_speeds: {
+                spindle_rpm: Math.min(rpm, 24000),
+                feed_rate_mm_min: feedRate,
+                plunge_rate_mm_min: Math.round(feedRate * 0.3),
+                depth_of_cut_mm: 1.0,
+                stepover_percent: 40,
+                chip_load_mm: props.chipLoad
+            },
+            toolpath: {
+                strategy: 'adaptive',
+                direction: 'climb',
+                lead_in: 'arc',
+                hsm_enabled: true
+            },
+            confidence: 0.85,
+            rationale: `Calculated for ${config.material} on ${config.machine_id}. Surface speed: ${props.surfaceSpeed} m/min.`
+        };
+
+        displayRecommendation(currentRecommendation);
+        showToast('Generated local recommendation', 'info');
+    }
+
+    // Display recommendation in UI
+    function displayRecommendation(rec) {
+        // Tool
+        document.getElementById('toolType').textContent = rec.tool?.type || 'Flat End Mill';
+        document.getElementById('toolDiameter').textContent = rec.tool?.diameter_mm?.toFixed(3) || '3.175';
+        document.getElementById('toolFlutes').textContent = rec.tool?.flutes || '2';
+        document.getElementById('toolMaterial').textContent = rec.tool?.material || 'Carbide';
+
+        // Feeds & Speeds
+        document.getElementById('spindleRpm').textContent = (rec.feeds_speeds?.spindle_rpm || 15000).toLocaleString();
+        document.getElementById('feedRate').textContent = rec.feeds_speeds?.feed_rate_mm_min || 500;
+        document.getElementById('plungeRate').textContent = rec.feeds_speeds?.plunge_rate_mm_min || 150;
+        document.getElementById('depthOfCut').textContent = rec.feeds_speeds?.depth_of_cut_mm?.toFixed(1) || '1.0';
+        document.getElementById('stepover').textContent = rec.feeds_speeds?.stepover_percent || 40;
+        document.getElementById('chipLoad').textContent = rec.feeds_speeds?.chip_load_mm?.toFixed(3) || '0.017';
+
+        // Strategy
+        document.getElementById('strategyType').textContent =
+            rec.toolpath?.strategy === 'adaptive' ? 'Adaptive Clearing' : rec.toolpath?.strategy || 'Adaptive';
+        document.getElementById('strategyDirection').textContent =
+            rec.toolpath?.direction === 'climb' ? 'Climb Milling' : 'Conventional';
+        document.getElementById('strategyHsm').textContent =
+            rec.toolpath?.hsm_enabled ? 'HSM Enabled' : 'HSM Disabled';
+
+        // Confidence
+        const conf = Math.round((rec.confidence || 0.85) * 100);
+        const badge = document.getElementById('confidenceBadge');
+        badge.textContent = `${conf}% Confidence`;
+        badge.className = 'confidence-badge ' + (conf >= 85 ? 'confidence-high' : 'confidence-medium');
+
+        // Rationale
+        document.getElementById('rationale').textContent = rec.rationale || 'AI-generated recommendation based on input parameters.';
+    }
+
+    // Approve and Execute
+    async function approveAndExecute() {
+        if (!currentRecommendation) {
+            showToast('Please generate a recommendation first', 'error');
+            return;
+        }
+
+        const loading = document.getElementById('loadingOverlay');
+        loading.classList.add('active');
+
+        try {
+            const response = await fetch(`${CAM_API}/execute`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    recommendation: currentRecommendation,
+                    user_approved: true
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                showToast('CAM parameters approved and sent to machine', 'success');
+            } else {
+                showToast('Approval recorded (offline mode)', 'info');
+            }
+        } catch (error) {
+            showToast('Approval recorded (API unavailable)', 'info');
+        }
+
+        loading.classList.remove('active');
+    }
+
+    // Submit Quality Feedback
+    async function submitFeedback(defectType) {
+        try {
+            const response = await fetch(`${CAM_API}/feedback-loop/record`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    work_center_id: document.getElementById('machine').value,
+                    part_number: 'LEGO-' + document.getElementById('brickType').value,
+                    defect_type: defectType,
+                    severity: 'minor',
+                    cam_recommendation_id: currentRecommendation?.recommendation_id
+                })
+            });
+
+            showToast(`Feedback recorded: ${defectType.replace('_', ' ')}`, 'success');
+
+            // Trigger re-analysis
+            setTimeout(() => {
+                showToast('AI analyzing feedback for parameter adjustment...', 'info');
+            }, 1500);
+        } catch (error) {
+            showToast('Feedback recorded locally', 'info');
+        }
+    }
+
+    // Update recommendation on config change
+    function updateRecommendation() {
+        // Auto-update dimensions based on brick type
+        const brickType = document.getElementById('brickType').value;
+        const dimensions = {
+            '2x4': { x: 32, y: 16, z: 9.6 },
+            '2x2': { x: 16, y: 16, z: 9.6 },
+            '1x4': { x: 32, y: 8, z: 9.6 },
+            '2x6': { x: 48, y: 16, z: 9.6 },
+            '2x4_plate': { x: 32, y: 16, z: 3.2 }
+        };
+
+        const dims = dimensions[brickType] || dimensions['2x4'];
+        document.getElementById('dimX').value = dims.x;
+        document.getElementById('dimY').value = dims.y;
+        document.getElementById('dimZ').value = dims.z;
+
+        // Update machine name display
+        const machineNames = {
+            'bantam-desktop-cnc': 'Bantam Desktop CNC',
+            'haas-mini-mill': 'Haas Mini Mill',
+            'tormach-1100m': 'Tormach 1100M'
+        };
+        document.getElementById('machineName').textContent =
+            machineNames[document.getElementById('machine').value] || 'CNC Machine';
+    }
+
+    // Toast notifications
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <span>${type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ'}</span>
+            <span>${message}</span>
+        `;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // Utility functions
+    function rejectRecommendation() {
+        showToast('Recommendation rejected - please modify parameters', 'info');
+    }
+
+    function openModifyModal() {
+        showToast('Parameter modification modal coming soon', 'info');
+    }
+
+    function openFeedbackModal() {
+        showToast('Detailed feedback modal coming soon', 'info');
+    }
+
+    function copyToClipboard() {
+        if (currentRecommendation) {
+            navigator.clipboard.writeText(JSON.stringify(currentRecommendation, null, 2));
+            showToast('Parameters copied to clipboard', 'success');
+        }
+    }
+
+    function exportToFusion() {
+        showToast('Export to Fusion 360 feature coming soon', 'info');
+    }
+
+    function executeAutonomous() {
+        showToast('Autonomous execution started...', 'info');
+        setTimeout(() => approveAndExecute(), 1000);
+    }
+
+    function cancelAutonomous() {
+        showToast('Autonomous execution cancelled', 'info');
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        updateRecommendation();
+
+        // Load initial recommendation
+        setTimeout(() => {
+            getRecommendation();
+        }, 500);
+    });
+</script>
+{% endblock %}

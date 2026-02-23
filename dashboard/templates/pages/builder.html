@@ -1,0 +1,688 @@
+{% extends "base.html" %}
+
+{% block title %}Brick Builder - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Brick Builder</h1>
+    <div class="page-actions">
+        <select id="presetSelect" class="preset-select">
+            <option value="">Load Preset...</option>
+            {% for preset in presets %}
+            <option value="{{ preset.id }}" data-params='{{ preset.params | tojson }}'>{{ preset.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<div class="builder-layout">
+    <!-- Parameters Panel -->
+    <div class="builder-params">
+        <div class="params-section">
+            <h3>Dimensions</h3>
+            
+            <div class="param-group">
+                <label for="widthSlider">Width (studs)</label>
+                <div class="slider-group">
+                    <input type="range" id="widthSlider" min="1" max="16" value="{{ preset_params.width_studs | default(2) }}">
+                    <span class="slider-value" id="widthValue">{{ preset_params.width_studs | default(2) }}</span>
+                </div>
+            </div>
+            
+            <div class="param-group">
+                <label for="depthSlider">Depth (studs)</label>
+                <div class="slider-group">
+                    <input type="range" id="depthSlider" min="1" max="16" value="{{ preset_params.depth_studs | default(4) }}">
+                    <span class="slider-value" id="depthValue">{{ preset_params.depth_studs | default(4) }}</span>
+                </div>
+            </div>
+            
+            <div class="param-group">
+                <label>Height</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="height" value="1" {{ 'checked' if preset_params.height_plates == 1 else '' }}>
+                        <span>Plate (1)</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="height" value="3" {{ 'checked' if preset_params.height_plates == 3 or not preset_params else '' }}>
+                        <span>Brick (3)</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="height" value="6">
+                        <span>Double (6)</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="height" value="custom">
+                        <span>Custom:</span>
+                        <input type="number" id="customHeight" min="1" max="36" value="3" class="custom-input">
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <div class="params-section">
+            <h3>Type</h3>
+            <select id="brickType" class="type-select">
+                {% for bt in brick_types %}
+                <option value="{{ bt.id }}" {{ 'selected' if preset_params.brick_type == bt.id else '' }}>{{ bt.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="params-section">
+            <h3>Color</h3>
+            <select id="brickColor" class="color-select">
+                <option value="" style="background: #808080;">None (Gray)</option>
+                <option value="red" style="background: #C4281B; color: white;">Red</option>
+                <option value="blue" style="background: #0055A5; color: white;">Blue</option>
+                <option value="yellow" style="background: #F2CD37;">Yellow</option>
+                <option value="green" style="background: #237841; color: white;">Green</option>
+                <option value="bright_green" style="background: #4B974A; color: white;">Bright Green</option>
+                <option value="lime" style="background: #9ACA3C;">Lime</option>
+                <option value="black" style="background: #212121; color: white;">Black</option>
+                <option value="white" style="background: #F4F4F4;">White</option>
+                <option value="orange" style="background: #FE8A18;">Orange</option>
+                <option value="tan" style="background: #E4CD9E;">Tan</option>
+                <option value="brown" style="background: #583927; color: white;">Brown</option>
+                <option value="light_gray" style="background: #A0A5A9;">Light Gray</option>
+                <option value="dark_gray" style="background: #635F61; color: white;">Dark Gray</option>
+                <option value="pink" style="background: #FC97AC;">Pink</option>
+                <option value="purple" style="background: #81007B; color: white;">Purple</option>
+                <option value="dark_azure" style="background: #008ABD; color: white;">Dark Azure</option>
+                <option value="medium_azure" style="background: #36AEBF;">Medium Azure</option>
+                <option value="coral" style="background: #FF6D77;">Coral</option>
+            </select>
+        </div>
+
+        <div class="params-section">
+            <h3>Features</h3>
+            <div class="checkbox-group">
+                <label class="checkbox-option">
+                    <input type="checkbox" id="hollow" checked>
+                    <span>Hollow interior</span>
+                </label>
+                <label class="checkbox-option">
+                    <input type="checkbox" id="studs" checked>
+                    <span>Studs</span>
+                </label>
+                <label class="checkbox-option">
+                    <input type="checkbox" id="tubes" checked>
+                    <span>Anti-stud tubes</span>
+                </label>
+                <label class="checkbox-option">
+                    <input type="checkbox" id="chamfers">
+                    <span>Chamfered edges</span>
+                </label>
+            </div>
+        </div>
+        
+        <!-- Slope Options (hidden by default) -->
+        <div class="params-section slope-options" id="slopeOptions" style="display: none;">
+            <h3>Slope Settings</h3>
+            <div class="param-group">
+                <label>Angle</label>
+                <select id="slopeAngle">
+                    {% for angle in slope_angles %}
+                    <option value="{{ angle }}">{{ angle }}°</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="param-group">
+                <label>Direction</label>
+                <select id="slopeDirection">
+                    {% for dir in slope_directions %}
+                    <option value="{{ dir }}">{{ dir | title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        
+        <!-- Technic Options (hidden by default) -->
+        <div class="params-section technic-options" id="technicOptions" style="display: none;">
+            <h3>Technic Settings</h3>
+            <div class="param-group">
+                <label>Hole Type</label>
+                <select id="holeType">
+                    <option value="pin">Pin holes</option>
+                    <option value="axle">Axle holes</option>
+                    <option value="both">Both</option>
+                </select>
+            </div>
+            <div class="param-group">
+                <label>Axis</label>
+                <select id="holeAxis">
+                    <option value="x">X (width)</option>
+                    <option value="y">Y (depth)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Preview Panel -->
+    <div class="builder-preview">
+        <div class="preview-container" id="previewContainer">
+            <div class="preview-placeholder" id="previewPlaceholder">
+                <div class="brick-3d-placeholder" id="brickPlaceholder">
+                    <span id="previewDims">2×4</span>
+                </div>
+            </div>
+        </div>
+        <div class="preview-controls">
+            <button class="preview-btn" id="resetView">↻ Reset View</button>
+            <label class="preview-checkbox">
+                <input type="checkbox" id="showWireframe">
+                Wireframe
+            </label>
+        </div>
+    </div>
+    
+    <!-- Output Panel -->
+    <div class="builder-output">
+        <div class="output-section">
+            <h3>Name</h3>
+            <input type="text" id="brickName" value="custom_brick" class="name-input">
+        </div>
+        
+        <div class="output-section">
+            <h3>Validation</h3>
+            <div class="validation-status" id="validationStatus">
+                <span class="validation-icon">✓</span>
+                <span class="validation-text">Valid</span>
+            </div>
+            <ul class="validation-messages" id="validationMessages"></ul>
+        </div>
+        
+        <div class="output-section">
+            <h3>Computed Dimensions</h3>
+            <table class="dims-table" id="dimsTable">
+                <tr><td>Width</td><td id="dimWidth">16.0 mm</td></tr>
+                <tr><td>Depth</td><td id="dimDepth">32.0 mm</td></tr>
+                <tr><td>Height</td><td id="dimHeight">9.6 mm</td></tr>
+                <tr><td>Volume</td><td id="dimVolume">~4,915 mm³</td></tr>
+                <tr><td>Studs</td><td id="dimStuds">8</td></tr>
+            </table>
+        </div>
+        
+        <div class="output-section actions">
+            <button class="btn btn-primary btn-large" id="createBtn">
+                🔨 Create Brick
+            </button>
+            
+            <div class="post-actions">
+                <label class="checkbox-option">
+                    <input type="checkbox" id="autoExport">
+                    <span>Auto-export STL</span>
+                </label>
+                <label class="checkbox-option">
+                    <input type="checkbox" id="autoGcode">
+                    <span>Auto-generate G-code</span>
+                </label>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const legoSpecs = {{ lego_specs | tojson }};
+const presetParams = {{ preset_params | tojson if preset_params else 'null' }};
+
+// LEGO color map (matches brick_modeler.py LEGO_COLORS)
+const LEGO_COLORS = {
+    '': 0x808080,           // None/Gray
+    'red': 0xC4281B,
+    'blue': 0x0055A5,
+    'yellow': 0xF2CD37,
+    'green': 0x237841,
+    'bright_green': 0x4B974A,
+    'lime': 0x9ACA3C,
+    'black': 0x212121,
+    'white': 0xF4F4F4,
+    'orange': 0xFE8A18,
+    'tan': 0xE4CD9E,
+    'brown': 0x583927,
+    'light_gray': 0xA0A5A9,
+    'dark_gray': 0x635F61,
+    'pink': 0xFC97AC,
+    'purple': 0x81007B,
+    'dark_azure': 0x008ABD,
+    'medium_azure': 0x36AEBF,
+    'coral': 0xFF6D77
+};
+
+// Builder state
+const state = {
+    width: {{ preset_params.width_studs | default(2) }},
+    depth: {{ preset_params.depth_studs | default(4) }},
+    height: {{ preset_params.height_plates | default(3) }},
+    type: '{{ preset_params.brick_type | default("standard") }}',
+    color: '',
+    hollow: true,
+    studs: true,
+    tubes: true,
+    chamfers: false,
+    slopeAngle: 45,
+    slopeDirection: 'front'
+};
+
+// Update functions
+function updateDimensions() {
+    const width_mm = state.width * legoSpecs.stud_pitch;
+    const depth_mm = state.depth * legoSpecs.stud_pitch;
+    const height_mm = state.height * legoSpecs.plate_height;
+    const volume = width_mm * depth_mm * height_mm * 0.7; // Approximate
+
+    document.getElementById('dimWidth').textContent = width_mm.toFixed(1) + ' mm';
+    document.getElementById('dimDepth').textContent = depth_mm.toFixed(1) + ' mm';
+    document.getElementById('dimHeight').textContent = height_mm.toFixed(1) + ' mm';
+    document.getElementById('dimVolume').textContent = '~' + Math.round(volume).toLocaleString() + ' mm³';
+    document.getElementById('dimStuds').textContent = state.width * state.depth;
+
+    // Update 3D preview (if initialized)
+    if (typeof updateBrickPreview === 'function') {
+        updateBrickPreview();
+    }
+}
+
+function validate() {
+    fetch('/builder/validate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            width_studs: state.width,
+            depth_studs: state.depth,
+            height_plates: state.height,
+            brick_type: state.type,
+            features: {
+                hollow: state.hollow,
+                studs: state.studs,
+                slope: state.type.includes('slope') ? {
+                    angle: state.slopeAngle,
+                    direction: state.slopeDirection
+                } : null
+            }
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        const statusEl = document.getElementById('validationStatus');
+        const messagesEl = document.getElementById('validationMessages');
+        
+        if (data.valid) {
+            statusEl.className = 'validation-status valid';
+            statusEl.innerHTML = '<span class="validation-icon">✓</span><span>Valid</span>';
+        } else {
+            statusEl.className = 'validation-status invalid';
+            statusEl.innerHTML = '<span class="validation-icon">✗</span><span>Invalid</span>';
+        }
+        
+        messagesEl.innerHTML = '';
+        data.errors.forEach(e => {
+            const li = document.createElement('li');
+            li.className = 'error';
+            li.textContent = e.message;
+            messagesEl.appendChild(li);
+        });
+        data.warnings.forEach(w => {
+            const li = document.createElement('li');
+            li.className = 'warning';
+            li.textContent = w.message;
+            messagesEl.appendChild(li);
+        });
+        
+        document.getElementById('createBtn').disabled = !data.valid;
+    });
+}
+
+// Event listeners
+document.getElementById('widthSlider').addEventListener('input', function() {
+    state.width = parseInt(this.value);
+    document.getElementById('widthValue').textContent = state.width;
+    updateDimensions();
+    validate();
+});
+
+document.getElementById('depthSlider').addEventListener('input', function() {
+    state.depth = parseInt(this.value);
+    document.getElementById('depthValue').textContent = state.depth;
+    updateDimensions();
+    validate();
+});
+
+document.querySelectorAll('input[name="height"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        if (this.value === 'custom') {
+            state.height = parseInt(document.getElementById('customHeight').value);
+        } else {
+            state.height = parseInt(this.value);
+        }
+        updateDimensions();
+        validate();
+    });
+});
+
+document.getElementById('customHeight').addEventListener('input', function() {
+    if (document.querySelector('input[name="height"][value="custom"]').checked) {
+        state.height = parseInt(this.value) || 1;
+        updateDimensions();
+        validate();
+    }
+});
+
+document.getElementById('brickType').addEventListener('change', function() {
+    state.type = this.value;
+    
+    // Show/hide type-specific options
+    document.getElementById('slopeOptions').style.display = 
+        state.type.includes('slope') ? 'block' : 'none';
+    document.getElementById('technicOptions').style.display = 
+        state.type === 'technic' ? 'block' : 'none';
+    
+    // Disable studs for tiles
+    const studsCheckbox = document.getElementById('studs');
+    if (state.type === 'tile') {
+        studsCheckbox.checked = false;
+        studsCheckbox.disabled = true;
+        state.studs = false;
+    } else {
+        studsCheckbox.disabled = false;
+    }
+    
+    validate();
+});
+
+['hollow', 'studs', 'tubes', 'chamfers'].forEach(id => {
+    document.getElementById(id).addEventListener('change', function() {
+        state[id] = this.checked;
+        validate();
+    });
+});
+
+// Color selector
+document.getElementById('brickColor').addEventListener('change', function() {
+    state.color = this.value;
+    // Update the 3D preview color
+    if (brickGroup) {
+        const newColor = LEGO_COLORS[state.color] || LEGO_COLORS[''];
+        brickGroup.traverse(child => {
+            if (child.material && child.material.color) {
+                child.material.color.setHex(newColor);
+            }
+        });
+    }
+});
+
+// Preset loading
+document.getElementById('presetSelect').addEventListener('change', function() {
+    if (this.value) {
+        const params = JSON.parse(this.selectedOptions[0].dataset.params);
+        
+        state.width = params.width_studs || 2;
+        state.depth = params.depth_studs || 4;
+        state.height = params.height_plates || 3;
+        state.type = params.brick_type || 'standard';
+        
+        document.getElementById('widthSlider').value = state.width;
+        document.getElementById('widthValue').textContent = state.width;
+        document.getElementById('depthSlider').value = state.depth;
+        document.getElementById('depthValue').textContent = state.depth;
+        document.getElementById('brickType').value = state.type;
+        
+        // Update height radio
+        const heightRadio = document.querySelector(`input[name="height"][value="${state.height}"]`);
+        if (heightRadio) {
+            heightRadio.checked = true;
+        } else {
+            document.querySelector('input[name="height"][value="custom"]').checked = true;
+            document.getElementById('customHeight').value = state.height;
+        }
+        
+        updateDimensions();
+        validate();
+    }
+});
+
+// Create button
+document.getElementById('createBtn').addEventListener('click', function() {
+    this.disabled = true;
+    this.textContent = 'Creating...';
+    
+    fetch('/builder/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: document.getElementById('brickName').value,
+            width_studs: state.width,
+            depth_studs: state.depth,
+            height_plates: state.height,
+            brick_type: state.type,
+            color: state.color || null,
+            hollow: state.hollow,
+            studs: state.studs,
+            tubes: state.tubes,
+            chamfers: state.chamfers,
+            slope_angle: state.slopeAngle,
+            slope_direction: state.slopeDirection
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            App.toast('Brick created successfully!', 'success');
+        } else {
+            App.toast('Failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(e => {
+        App.toast('Error: ' + e.message, 'error');
+    })
+    .finally(() => {
+        this.disabled = false;
+        this.textContent = '🔨 Create Brick';
+    });
+});
+
+// === 3D PREVIEW ===
+// LEGO dimensions (in cm for Three.js)
+const STUD_PITCH = 0.8;
+const STUD_DIAMETER = 0.48;
+const STUD_HEIGHT = 0.17;
+const BRICK_HEIGHT = 0.96;
+const PLATE_HEIGHT = 0.32;
+
+let scene, camera, renderer, controls;
+let brickGroup = null;
+let wireframeMode = false;
+
+function init3DPreview() {
+    const container = document.getElementById('previewContainer');
+    const width = container.clientWidth;
+    const height = container.clientHeight || 300;
+
+    // Clear placeholder
+    container.innerHTML = '';
+
+    // Scene setup
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+
+    // Camera
+    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(10, 20, 10);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    fillLight.position.set(-10, 5, -10);
+    scene.add(fillLight);
+
+    // Grid
+    const gridHelper = new THREE.GridHelper(10, 20, 0x444444, 0x333333);
+    scene.add(gridHelper);
+
+    // Controls
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Initial camera position
+    camera.position.set(4, 3, 4);
+    controls.update();
+
+    // Animation loop
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+        const newWidth = container.clientWidth;
+        const newHeight = container.clientHeight || 300;
+        camera.aspect = newWidth / newHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(newWidth, newHeight);
+    });
+
+    // Initial brick
+    updateBrickPreview();
+}
+
+function updateBrickPreview() {
+    if (!scene) return;
+
+    // Remove old brick
+    if (brickGroup) {
+        scene.remove(brickGroup);
+        brickGroup.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) child.material.dispose();
+        });
+    }
+
+    // Create new brick
+    brickGroup = new THREE.Group();
+
+    const brickWidth = state.width * STUD_PITCH;
+    const brickDepth = state.depth * STUD_PITCH;
+    const brickHeight = (state.height / 3) * BRICK_HEIGHT;
+
+    // LEGO color material (uses selected color or default gray)
+    const brickColor = LEGO_COLORS[state.color] || LEGO_COLORS[''];
+    const brickMaterial = new THREE.MeshPhongMaterial({
+        color: brickColor,
+        shininess: 30,
+        wireframe: wireframeMode
+    });
+
+    // Main body
+    const bodyGeometry = new THREE.BoxGeometry(brickWidth, brickHeight, brickDepth);
+    const bodyMesh = new THREE.Mesh(bodyGeometry, brickMaterial);
+    bodyMesh.position.y = brickHeight / 2;
+    bodyMesh.castShadow = true;
+    bodyMesh.receiveShadow = true;
+    brickGroup.add(bodyMesh);
+
+    // Add studs (unless it's a tile)
+    if (state.studs && state.type !== 'tile') {
+        const studGeometry = new THREE.CylinderGeometry(
+            STUD_DIAMETER / 2, STUD_DIAMETER / 2, STUD_HEIGHT, 16
+        );
+
+        for (let x = 0; x < state.width; x++) {
+            for (let z = 0; z < state.depth; z++) {
+                const stud = new THREE.Mesh(studGeometry, brickMaterial);
+                stud.position.set(
+                    (x + 0.5) * STUD_PITCH - brickWidth / 2,
+                    brickHeight + STUD_HEIGHT / 2,
+                    (z + 0.5) * STUD_PITCH - brickDepth / 2
+                );
+                stud.castShadow = true;
+                brickGroup.add(stud);
+            }
+        }
+    }
+
+    // Add hollow visualization (if hollow)
+    if (state.hollow && brickWidth > 0.4 && brickDepth > 0.4) {
+        const innerWidth = brickWidth - 0.3;
+        const innerDepth = brickDepth - 0.3;
+        const innerHeight = brickHeight - 0.2;
+        if (innerHeight > 0) {
+            const hollowGeometry = new THREE.BoxGeometry(innerWidth, innerHeight, innerDepth);
+            const hollowEdges = new THREE.EdgesGeometry(hollowGeometry);
+            const hollowLine = new THREE.LineSegments(
+                hollowEdges,
+                new THREE.LineBasicMaterial({ color: 0x333333, opacity: 0.3, transparent: true })
+            );
+            hollowLine.position.y = innerHeight / 2 + 0.1;
+            // Uncomment to show hollow: brickGroup.add(hollowLine);
+        }
+    }
+
+    scene.add(brickGroup);
+
+    // Update camera to frame brick
+    const maxDim = Math.max(brickWidth, brickDepth, brickHeight + STUD_HEIGHT);
+    camera.position.set(maxDim * 2, maxDim * 1.5, maxDim * 2);
+    controls.target.set(0, brickHeight / 2, 0);
+    controls.update();
+}
+
+// Reset view button
+document.getElementById('resetView').addEventListener('click', function() {
+    if (controls && camera && brickGroup) {
+        const brickHeight = (state.height / 3) * BRICK_HEIGHT;
+        const maxDim = Math.max(state.width * STUD_PITCH, state.depth * STUD_PITCH, brickHeight);
+        camera.position.set(maxDim * 2, maxDim * 1.5, maxDim * 2);
+        controls.target.set(0, brickHeight / 2, 0);
+        controls.update();
+    }
+});
+
+// Wireframe toggle
+document.getElementById('showWireframe').addEventListener('change', function() {
+    wireframeMode = this.checked;
+    if (brickGroup) {
+        brickGroup.traverse(child => {
+            if (child.material) {
+                child.material.wireframe = wireframeMode;
+            }
+        });
+    }
+});
+
+// Initial setup
+updateDimensions();
+validate();
+
+// Initialize 3D preview
+if (typeof THREE !== 'undefined') {
+    init3DPreview();
+} else {
+    console.warn('Three.js not loaded - 3D preview disabled');
+}
+
+// Load preset params if provided
+if (presetParams) {
+    document.getElementById('brickType').dispatchEvent(new Event('change'));
+}
+</script>
+{% endblock %}

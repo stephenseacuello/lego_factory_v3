@@ -1,0 +1,732 @@
+{% extends "base.html" %}
+{% block title %}Bill of Materials - LEGO MCP v6.0{% endblock %}
+
+{% block styles %}
+<style>
+    .bom-dashboard {
+        padding: 1.5rem;
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+
+    .btn {
+        padding: 0.625rem 1.25rem;
+        border-radius: 0.5rem;
+        font-weight: 500;
+        cursor: pointer;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        transition: all 0.2s;
+    }
+
+    .btn-primary {
+        background: linear-gradient(135deg, #3b82f6, #2563eb);
+        color: white;
+    }
+
+    .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    /* KPI Cards */
+    .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .kpi-card {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        padding: 1.25rem;
+        border: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .kpi-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .kpi-icon.blue { background: rgba(59, 130, 246, 0.15); }
+    .kpi-icon.green { background: rgba(34, 197, 94, 0.15); }
+    .kpi-icon.amber { background: rgba(245, 158, 11, 0.15); }
+    .kpi-icon.purple { background: rgba(168, 85, 247, 0.15); }
+
+    .kpi-content {
+        flex: 1;
+    }
+
+    .kpi-label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+    }
+
+    .kpi-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .kpi-trend {
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-top: 0.25rem;
+    }
+
+    .kpi-trend.up { color: #22c55e; }
+    .kpi-trend.down { color: #ef4444; }
+
+    /* Main Content Grid */
+    .content-grid {
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        gap: 1.5rem;
+    }
+
+    @media (max-width: 1200px) {
+        .content-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Panels */
+    .panel {
+        background: var(--bg-primary);
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    .panel-header {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .panel-title {
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .panel-body {
+        padding: 1.25rem;
+    }
+
+    /* BOM Tree */
+    .bom-tree {
+        font-family: monospace;
+    }
+
+    .bom-item {
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+        background: var(--bg-secondary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .bom-item:hover {
+        background: var(--bg-tertiary);
+    }
+
+    .bom-item.level-0 { margin-left: 0; }
+    .bom-item.level-1 { margin-left: 1.5rem; }
+    .bom-item.level-2 { margin-left: 3rem; }
+    .bom-item.level-3 { margin-left: 4.5rem; }
+
+    .bom-item-icon {
+        font-size: 1.25rem;
+    }
+
+    .bom-item-info {
+        flex: 1;
+    }
+
+    .bom-item-name {
+        font-weight: 500;
+    }
+
+    .bom-item-code {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .bom-item-qty {
+        background: var(--bg-primary);
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    .bom-item-cost {
+        font-weight: 600;
+        color: #22c55e;
+    }
+
+    /* Cost Breakdown Chart */
+    .cost-chart {
+        height: 200px;
+        display: flex;
+        align-items: flex-end;
+        gap: 0.5rem;
+        padding: 1rem 0;
+    }
+
+    .cost-bar-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .cost-bar {
+        width: 100%;
+        border-radius: 0.25rem 0.25rem 0 0;
+        transition: height 0.5s ease;
+    }
+
+    .cost-bar.materials { background: linear-gradient(180deg, #3b82f6, #1d4ed8); }
+    .cost-bar.labor { background: linear-gradient(180deg, #22c55e, #16a34a); }
+    .cost-bar.overhead { background: linear-gradient(180deg, #f59e0b, #d97706); }
+    .cost-bar.tooling { background: linear-gradient(180deg, #a855f7, #7c3aed); }
+
+    .cost-bar-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-align: center;
+    }
+
+    .cost-bar-value {
+        font-size: 0.875rem;
+        font-weight: 600;
+    }
+
+    /* Material Table */
+    .material-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .material-table th,
+    .material-table td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .material-table th {
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+    }
+
+    .material-table tr:hover {
+        background: var(--bg-secondary);
+    }
+
+    .stock-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .stock-indicator.in-stock {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+    }
+
+    .stock-indicator.low-stock {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+
+    .stock-indicator.out-of-stock {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+    }
+
+    /* Revision History */
+    .revision-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .revision-item {
+        display: flex;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-secondary);
+        border-radius: 0.5rem;
+    }
+
+    .revision-version {
+        background: #3b82f6;
+        color: white;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        height: fit-content;
+    }
+
+    .revision-info {
+        flex: 1;
+    }
+
+    .revision-date {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+
+    .revision-changes {
+        font-size: 0.875rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Search and Filter */
+    .search-filter-bar {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .search-input {
+        flex: 1;
+        padding: 0.625rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+
+    .filter-select {
+        padding: 0.625rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        min-width: 150px;
+    }
+
+    /* Where Used Panel */
+    .where-used-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: var(--bg-secondary);
+        border-radius: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .where-used-icon {
+        font-size: 1.25rem;
+    }
+
+    .where-used-info {
+        flex: 1;
+    }
+
+    .where-used-name {
+        font-weight: 500;
+    }
+
+    .where-used-qty {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="bom-dashboard">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1 class="page-title">
+            <span>Bill of Materials</span>
+        </h1>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="exportBOM()">
+                <span>Export</span>
+            </button>
+            <button class="btn btn-secondary" onclick="importBOM()">
+                <span>Import</span>
+            </button>
+            <button class="btn btn-primary" onclick="createBOM()">
+                <span>+ New BOM</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="kpi-icon blue">📦</div>
+            <div class="kpi-content">
+                <div class="kpi-label">Active BOMs</div>
+                <div class="kpi-value">47</div>
+                <div class="kpi-trend up">+3 this week</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon green">🧱</div>
+            <div class="kpi-content">
+                <div class="kpi-label">Total Components</div>
+                <div class="kpi-value">1,247</div>
+                <div class="kpi-trend up">+12 new</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon amber">💰</div>
+            <div class="kpi-content">
+                <div class="kpi-label">Avg. Unit Cost</div>
+                <div class="kpi-value">$2.34</div>
+                <div class="kpi-trend down">-5% vs target</div>
+            </div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-icon purple">⚠️</div>
+            <div class="kpi-content">
+                <div class="kpi-label">Low Stock Items</div>
+                <div class="kpi-value">8</div>
+                <div class="kpi-trend down">Needs attention</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content-grid">
+        <!-- Left Column - BOM Tree -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">BOM Structure</h2>
+                <select class="filter-select" id="bomSelect" onchange="loadBOM(this.value)">
+                    <option value="lego-2x4">LEGO 2x4 Brick Assembly</option>
+                    <option value="lego-2x2">LEGO 2x2 Brick Assembly</option>
+                    <option value="lego-1x4">LEGO 1x4 Plate Assembly</option>
+                    <option value="lego-custom">Custom Minifig Stand</option>
+                </select>
+            </div>
+            <div class="panel-body">
+                <div class="search-filter-bar">
+                    <input type="text" class="search-input" placeholder="Search components..." id="bomSearch">
+                    <select class="filter-select" id="levelFilter">
+                        <option value="all">All Levels</option>
+                        <option value="0">Top Level</option>
+                        <option value="1">Sub-assemblies</option>
+                        <option value="2">Components</option>
+                    </select>
+                </div>
+
+                <div class="bom-tree" id="bomTree">
+                    <!-- Level 0 - Top Assembly -->
+                    <div class="bom-item level-0" data-id="ASM-001">
+                        <span class="bom-item-icon">🧱</span>
+                        <div class="bom-item-info">
+                            <div class="bom-item-name">LEGO 2x4 Brick - Red</div>
+                            <div class="bom-item-code">ASM-001 | Rev. C</div>
+                        </div>
+                        <span class="bom-item-qty">1</span>
+                        <span class="bom-item-cost">$0.12</span>
+                    </div>
+
+                    <!-- Level 1 - Sub-assemblies -->
+                    <div class="bom-item level-1" data-id="SUB-001">
+                        <span class="bom-item-icon">🔲</span>
+                        <div class="bom-item-info">
+                            <div class="bom-item-name">Stud Array (2x4)</div>
+                            <div class="bom-item-code">SUB-001</div>
+                        </div>
+                        <span class="bom-item-qty">1</span>
+                        <span class="bom-item-cost">$0.04</span>
+                    </div>
+
+                    <!-- Level 2 - Components -->
+                    <div class="bom-item level-2" data-id="CMP-001">
+                        <span class="bom-item-icon">⚫</span>
+                        <div class="bom-item-info">
+                            <div class="bom-item-name">Cylindrical Stud</div>
+                            <div class="bom-item-code">CMP-001 | ABS Red</div>
+                        </div>
+                        <span class="bom-item-qty">8</span>
+                        <span class="bom-item-cost">$0.005</span>
+                    </div>
+
+                    <div class="bom-item level-1" data-id="SUB-002">
+                        <span class="bom-item-icon">🔲</span>
+                        <div class="bom-item-info">
+                            <div class="bom-item-name">Body Shell</div>
+                            <div class="bom-item-code">SUB-002</div>
+                        </div>
+                        <span class="bom-item-qty">1</span>
+                        <span class="bom-item-cost">$0.06</span>
+                    </div>
+
+                    <div class="bom-item level-2" data-id="CMP-002">
+                        <span class="bom-item-icon">📐</span>
+                        <div class="bom-item-info">
+                            <div class="bom-item-name">Wall Structure</div>
+                            <div class="bom-item-code">CMP-002 | ABS Red</div>
+                        </div>
+                        <span class="bom-item-qty">1</span>
+                        <span class="bom-item-cost">$0.03</span>
+                    </div>
+
+                    <div class="bom-item level-2" data-id="CMP-003">
+                        <span class="bom-item-icon">⭕</span>
+                        <div class="bom-item-info">
+                            <div class="bom-item-name">Anti-Stud Tubes</div>
+                            <div class="bom-item-code">CMP-003 | ABS Red</div>
+                        </div>
+                        <span class="bom-item-qty">3</span>
+                        <span class="bom-item-cost">$0.01</span>
+                    </div>
+
+                    <div class="bom-item level-1" data-id="SUB-003">
+                        <span class="bom-item-icon">🎨</span>
+                        <div class="bom-item-info">
+                            <div class="bom-item-name">Surface Finish</div>
+                            <div class="bom-item-code">SUB-003</div>
+                        </div>
+                        <span class="bom-item-qty">1</span>
+                        <span class="bom-item-cost">$0.02</span>
+                    </div>
+
+                    <div class="bom-item level-2" data-id="MAT-001">
+                        <span class="bom-item-icon">🔴</span>
+                        <div class="bom-item-info">
+                            <div class="bom-item-name">ABS Plastic - Red</div>
+                            <div class="bom-item-code">MAT-001 | 2.3g</div>
+                        </div>
+                        <span class="bom-item-qty">2.3g</span>
+                        <span class="bom-item-cost">$0.02</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column - Details & Analysis -->
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <!-- Cost Breakdown -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">Cost Breakdown</h2>
+                </div>
+                <div class="panel-body">
+                    <div class="cost-chart">
+                        <div class="cost-bar-container">
+                            <div class="cost-bar materials" style="height: 160px;"></div>
+                            <div class="cost-bar-value">$0.08</div>
+                            <div class="cost-bar-label">Materials</div>
+                        </div>
+                        <div class="cost-bar-container">
+                            <div class="cost-bar labor" style="height: 80px;"></div>
+                            <div class="cost-bar-value">$0.02</div>
+                            <div class="cost-bar-label">Labor</div>
+                        </div>
+                        <div class="cost-bar-container">
+                            <div class="cost-bar overhead" style="height: 40px;"></div>
+                            <div class="cost-bar-value">$0.01</div>
+                            <div class="cost-bar-label">Overhead</div>
+                        </div>
+                        <div class="cost-bar-container">
+                            <div class="cost-bar tooling" style="height: 60px;"></div>
+                            <div class="cost-bar-value">$0.01</div>
+                            <div class="cost-bar-label">Tooling</div>
+                        </div>
+                    </div>
+                    <div style="text-align: center; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+                        <span style="color: var(--text-secondary);">Total Unit Cost:</span>
+                        <strong style="font-size: 1.25rem; margin-left: 0.5rem;">$0.12</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Material Inventory -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">Material Status</h2>
+                </div>
+                <div class="panel-body" style="padding: 0;">
+                    <table class="material-table">
+                        <thead>
+                            <tr>
+                                <th>Material</th>
+                                <th>Stock</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>ABS Red</td>
+                                <td>45.2 kg</td>
+                                <td><span class="stock-indicator in-stock">In Stock</span></td>
+                            </tr>
+                            <tr>
+                                <td>ABS Blue</td>
+                                <td>12.8 kg</td>
+                                <td><span class="stock-indicator low-stock">Low Stock</span></td>
+                            </tr>
+                            <tr>
+                                <td>ABS Yellow</td>
+                                <td>38.5 kg</td>
+                                <td><span class="stock-indicator in-stock">In Stock</span></td>
+                            </tr>
+                            <tr>
+                                <td>ABS White</td>
+                                <td>0 kg</td>
+                                <td><span class="stock-indicator out-of-stock">Out of Stock</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Revision History -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">Revision History</h2>
+                </div>
+                <div class="panel-body">
+                    <div class="revision-list">
+                        <div class="revision-item">
+                            <span class="revision-version">Rev C</span>
+                            <div class="revision-info">
+                                <div class="revision-date">Jan 2, 2026 - Current</div>
+                                <div class="revision-changes">Updated stud tolerance to +0.02mm</div>
+                            </div>
+                        </div>
+                        <div class="revision-item">
+                            <span class="revision-version">Rev B</span>
+                            <div class="revision-info">
+                                <div class="revision-date">Dec 15, 2025</div>
+                                <div class="revision-changes">Added anti-stud reinforcement</div>
+                            </div>
+                        </div>
+                        <div class="revision-item">
+                            <span class="revision-version">Rev A</span>
+                            <div class="revision-info">
+                                <div class="revision-date">Nov 28, 2025</div>
+                                <div class="revision-changes">Initial release</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // BOM Dashboard functionality
+    function loadBOM(bomId) {
+        console.log('Loading BOM:', bomId);
+        // Fetch BOM data from API
+        fetch(`/api/erp/bom/${bomId}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('BOM data:', data);
+                // Update tree view
+            })
+            .catch(error => console.error('Error loading BOM:', error));
+    }
+
+    function createBOM() {
+        window.location.href = '/api/erp/bom/create';
+    }
+
+    function exportBOM() {
+        const bomId = document.getElementById('bomSelect').value;
+        window.location.href = `/api/erp/bom/${bomId}/export`;
+    }
+
+    function importBOM() {
+        // Show import modal
+        console.log('Import BOM');
+    }
+
+    // Search functionality
+    document.getElementById('bomSearch').addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase();
+        const items = document.querySelectorAll('.bom-item');
+        items.forEach(item => {
+            const name = item.querySelector('.bom-item-name').textContent.toLowerCase();
+            const code = item.querySelector('.bom-item-code').textContent.toLowerCase();
+            if (name.includes(searchTerm) || code.includes(searchTerm)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+
+    // Item click handler
+    document.querySelectorAll('.bom-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const itemId = this.dataset.id;
+            console.log('Selected item:', itemId);
+            // Show item details
+        });
+    });
+</script>
+{% endblock %}

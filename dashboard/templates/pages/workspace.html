@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+
+{% block title %}Workspace - Digital Twin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🎯 Workspace</h1>
+    <div class="page-actions">
+        <select id="cameraSelect" class="form-select">
+            {% for camera in cameras %}
+            <option value="{{ camera.id }}">{{ camera.name }} ({{ camera.width }}x{{ camera.height }})</option>
+            {% endfor %}
+        </select>
+        <button class="btn btn-secondary" id="calibrateBtn">Calibrate</button>
+        <a href="/workspace/settings" class="btn btn-secondary">⚙️ Camera Settings</a>
+    </div>
+</div>
+
+<div class="workspace-layout">
+    <!-- Camera Feed -->
+    <div class="workspace-camera">
+        <div class="camera-container">
+            <div class="camera-feed" id="cameraFeed">
+                <img id="cameraImage" src="" alt="Camera Feed" style="display: none;">
+                <div class="camera-placeholder" id="cameraPlaceholder">
+                    <p>📷 Camera Feed</p>
+                    <p>Click "Start" to begin</p>
+                </div>
+                <!-- Detection overlay -->
+                <canvas id="detectionOverlay"></canvas>
+            </div>
+            
+            <div class="camera-controls">
+                <button class="btn btn-primary" id="startBtn">▶ Start</button>
+                <button class="btn btn-secondary" id="stopBtn" disabled>⏹ Stop</button>
+                <button class="btn btn-secondary" id="captureBtn">📸 Capture</button>
+                <span class="detection-status" id="detectionStatus">
+                    <span class="status-dot"></span>
+                    <span id="fpsCounter">-- FPS</span>
+                </span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Digital Twin View -->
+    <div class="workspace-twin">
+        <div class="twin-header">
+            <h3>Digital Twin</h3>
+            <div class="twin-controls">
+                <button class="twin-view-btn active" data-view="2d">2D</button>
+                <button class="twin-view-btn" data-view="3d">3D</button>
+                <button class="twin-view-btn" data-view="list">List</button>
+            </div>
+        </div>
+        
+        <div class="twin-container" id="twinContainer">
+            <!-- Grid-based 2D view - 16x32 grey baseplate -->
+            <div class="twin-grid" id="twinGrid" style="grid-template-columns: repeat(32, 1fr); overflow-x: auto;">
+                {% for row in range(16) %}
+                <div class="grid-row" style="display: contents;">
+                    {% for col in range(32) %}
+                    <div class="grid-cell" data-row="{{ row + 1 }}" data-col="{{ col + 1 }}" style="min-width: 20px; min-height: 20px;">
+                        <span class="cell-label" style="font-size: 8px;">{{ col + 1 }}-{{ row + 1 }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Brick Panel -->
+<div class="workspace-panel">
+    <div class="panel-section">
+        <h3>On Workspace <span class="brick-count" id="brickCount">{{ summary.total_bricks }}</span></h3>
+        <div class="brick-list" id="brickList">
+            {% for brick in current_bricks %}
+            <div class="brick-item" data-id="{{ brick.id }}">
+                <span class="brick-color" style="background: rgb{{ brick.color_rgb }}"></span>
+                <span class="brick-name">{{ brick.brick_name }}</span>
+                <span class="brick-position">{{ brick.grid_position }}</span>
+                <span class="brick-confidence">{{ (brick.confidence * 100)|round }}%</span>
+            </div>
+            {% else %}
+            <p class="empty-message">No bricks detected</p>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="panel-section">
+        <h3>Quick Actions</h3>
+        <button class="btn btn-primary btn-block" id="addAllBtn">
+            ➕ Add All to Collection
+        </button>
+        <button class="btn btn-secondary btn-block" id="clearWorkspaceBtn">
+            🗑️ Clear Workspace
+        </button>
+        <a href="{{ url_for('scan.scan_page') }}" class="btn btn-secondary btn-block">
+            📦 Bulk Scan Mode
+        </a>
+    </div>
+    
+    <div class="panel-section">
+        <h3>Selected Brick</h3>
+        <div id="selectedBrickInfo" class="selected-brick-info">
+            <p class="empty-message">Click a brick to select</p>
+        </div>
+    </div>
+</div>
+
+<!-- Calibration Modal -->
+<div class="modal-overlay" id="calibrationModal" style="display: none;">
+    <div class="modal calibration-modal">
+        <div class="modal-header">
+            <h3>Calibrate Workspace</h3>
+            <button class="modal-close" onclick="closeCalibration()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Click the four corners of your baseplate in order:</p>
+            <ol>
+                <li>Top-left</li>
+                <li>Top-right</li>
+                <li>Bottom-left</li>
+                <li>Bottom-right</li>
+            </ol>
+            <div class="calibration-preview">
+                <img id="calibrationImage" src="">
+                <canvas id="calibrationCanvas"></canvas>
+            </div>
+            <div class="calibration-points" id="calibrationPoints">
+                <span>Points: 0/4</span>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeCalibration()">Cancel</button>
+            <button class="btn btn-primary" id="saveCalibrationBtn" disabled>Save</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const detectorInfo = {{ detector_info | tojson }};
+let streaming = false;
+let detectionInterval = null;
+let frameCount = 0;
+let lastFpsUpdate = Date.now();
+
+// Camera controls
+document.getElementById('startBtn').addEventListener('click', startStreaming);
+document.getElementById('stopBtn').addEventListener('click', stopStreaming);
+document.getElementById('captureBtn').addEventListener('click', captureImage);
+
+function startStreaming() {
+    const cameraId = document.getElementById('cameraSelect').value;
+    console.log('Starting camera:', cameraId);
+
+    // Show loading state
+    document.getElementById('startBtn').textContent = '⏳ Connecting...';
+    document.getElementById('startBtn').disabled = true;
+
+    // Open camera
+    fetch(`/workspace/camera/${cameraId}/open`, { method: 'POST' })
+        .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+        })
+        .then(data => {
+            console.log('Camera response:', data);
+            if (data.success) {
+                streaming = true;
+                document.getElementById('startBtn').textContent = '▶ Start';
+                document.getElementById('stopBtn').disabled = false;
+                document.getElementById('cameraPlaceholder').style.display = 'none';
+
+                // Start frame updates
+                updateFrame();
+
+                // Start detection loop (1 FPS to reduce API load)
+                detectionInterval = setInterval(runDetection, 1000); // 1 FPS detection
+            } else {
+                throw new Error(data.error || 'Failed to open camera');
+            }
+        })
+        .catch(err => {
+            console.error('Camera error:', err);
+            document.getElementById('startBtn').textContent = '▶ Start';
+            document.getElementById('startBtn').disabled = false;
+            alert('Failed to start camera: ' + err.message);
+        });
+}
+
+function stopStreaming() {
+    streaming = false;
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+    
+    if (detectionInterval) {
+        clearInterval(detectionInterval);
+        detectionInterval = null;
+    }
+    
+    fetch('/workspace/camera/close', { method: 'POST' });
+}
+
+function updateFrame() {
+    if (!streaming) return;
+
+    const img = document.getElementById('cameraImage');
+    img.src = '/workspace/frame?' + Date.now();
+    img.style.display = 'block';
+
+    frameCount++;
+
+    // Update FPS counter
+    const now = Date.now();
+    if (now - lastFpsUpdate >= 1000) {
+        document.getElementById('fpsCounter').textContent = frameCount + ' FPS';
+        frameCount = 0;
+        lastFpsUpdate = now;
+    }
+
+    // Throttle to ~10 FPS instead of 60 FPS (reduces bandwidth)
+    setTimeout(updateFrame, 100);
+}
+
+function runDetection() {
+    if (!streaming) return;
+    
+    fetch('/workspace/detect', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success !== false) {
+                updateDetectionOverlay(data.detections || []);
+                updateBrickList(data.current || []);
+                updateTwinView(data.current || []);
+                document.getElementById('brickCount').textContent = data.count || 0;
+            }
+        })
+        .catch(console.error);
+}
+
+function updateDetectionOverlay(detections) {
+    const canvas = document.getElementById('detectionOverlay');
+    const img = document.getElementById('cameraImage');
+    
+    if (!img.complete || img.naturalWidth === 0) return;
+    
+    canvas.width = img.clientWidth;
+    canvas.height = img.clientHeight;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const scaleX = canvas.width / img.naturalWidth;
+    const scaleY = canvas.height / img.naturalHeight;
+    
+    detections.forEach(det => {
+        const [x1, y1, x2, y2] = det.bbox;
+        const sx1 = x1 * scaleX;
+        const sy1 = y1 * scaleY;
+        const sw = (x2 - x1) * scaleX;
+        const sh = (y2 - y1) * scaleY;
+        
+        // Draw bounding box
+        ctx.strokeStyle = `rgb(${det.color_rgb.join(',')})`;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx1, sy1, sw, sh);
+        
+        // Draw label
+        const label = `${det.brick_name} (${Math.round(det.confidence * 100)}%)`;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(sx1, sy1 - 20, ctx.measureText(label).width + 10, 20);
+        ctx.fillStyle = 'white';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(label, sx1 + 5, sy1 - 6);
+    });
+}
+
+function updateBrickList(bricks) {
+    const list = document.getElementById('brickList');
+    
+    if (bricks.length === 0) {
+        list.innerHTML = '<p class="empty-message">No bricks detected</p>';
+        return;
+    }
+    
+    list.innerHTML = bricks.map(brick => `
+        <div class="brick-item" data-id="${brick.id}" onclick="selectBrick('${brick.id}')">
+            <span class="brick-color" style="background: rgb(${brick.color_rgb.join(',')})"></span>
+            <span class="brick-name">${brick.brick_name}</span>
+            <span class="brick-position">${brick.grid_position}</span>
+            <span class="brick-confidence">${Math.round(brick.confidence * 100)}%</span>
+        </div>
+    `).join('');
+}
+
+function updateTwinView(bricks) {
+    // Clear existing brick markers
+    document.querySelectorAll('.grid-cell .brick-marker').forEach(m => m.remove());
+
+    // Add brick markers
+    bricks.forEach(brick => {
+        const pos = brick.grid_position;
+        // Parse position - can be "A3" (letter-number) or "5-3" (col-row)
+        let col, row;
+        if (pos.includes('-')) {
+            // Numeric format: "col-row"
+            const parts = pos.split('-');
+            col = parts[0];
+            row = parseInt(parts[1]);
+        } else {
+            // Letter format: "A3"
+            col = pos[0];
+            row = parseInt(pos.slice(1));
+        }
+
+        const cell = document.querySelector(`.grid-cell[data-col="${col}"][data-row="${row}"]`);
+        if (cell) {
+            const marker = document.createElement('div');
+            marker.className = 'brick-marker';
+            marker.style.backgroundColor = `rgb(${brick.color_rgb.join(',')})`;
+            marker.title = brick.brick_name;
+            marker.dataset.id = brick.id;
+            marker.onclick = () => selectBrick(brick.id);
+            cell.appendChild(marker);
+        }
+    });
+}
+
+function selectBrick(brickId) {
+    // Highlight in list
+    document.querySelectorAll('.brick-item').forEach(item => {
+        item.classList.toggle('selected', item.dataset.id === brickId);
+    });
+    
+    // Show info
+    fetch('/workspace/state')
+        .then(r => r.json())
+        .then(data => {
+            const brick = data.bricks.find(b => b.id === brickId);
+            if (brick) {
+                document.getElementById('selectedBrickInfo').innerHTML = `
+                    <div class="selected-brick">
+                        <div class="brick-header">
+                            <span class="brick-color-large" style="background: rgb(${brick.color_rgb.join(',')})"></span>
+                            <div>
+                                <strong>${brick.brick_name}</strong>
+                                <p>${brick.color}</p>
+                            </div>
+                        </div>
+                        <table class="brick-specs">
+                            <tr><td>Position</td><td>${brick.grid_position}</td></tr>
+                            <tr><td>Confidence</td><td>${Math.round(brick.confidence * 100)}%</td></tr>
+                            <tr><td>Stable</td><td>${brick.stable ? 'Yes' : 'No'}</td></tr>
+                        </table>
+                        <div class="brick-actions">
+                            <button class="btn btn-small btn-primary" onclick="addBrickToCollection('${brick.brick_id}', '${brick.color}')">
+                                Add to Collection
+                            </button>
+                            <a href="/catalog/${brick.brick_id}" class="btn btn-small btn-secondary">
+                                View in Catalog
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+}
+
+function addBrickToCollection(brickId, color) {
+    fetch('/collection/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ brick_id: brickId, color: color, quantity: 1 })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            App.toast('Added to collection!', 'success');
+        }
+    });
+}
+
+function captureImage() {
+    fetch('/workspace/capture', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                App.toast('Image captured!', 'success');
+            }
+        });
+}
+
+// Add all to collection
+document.getElementById('addAllBtn').addEventListener('click', function() {
+    fetch('/workspace/add-all-to-collection', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                App.toast(`Added ${data.added} bricks to collection!`, 'success');
+            }
+        });
+});
+
+// Clear workspace
+document.getElementById('clearWorkspaceBtn').addEventListener('click', function() {
+    if (confirm('Clear all bricks from workspace view?')) {
+        fetch('/workspace/clear', { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    updateBrickList([]);
+                    updateTwinView([]);
+                    document.getElementById('brickCount').textContent = '0';
+                    App.toast('Workspace cleared', 'success');
+                }
+            });
+    }
+});
+
+// Calibration
+document.getElementById('calibrateBtn').addEventListener('click', function() {
+    document.getElementById('calibrationModal').style.display = 'flex';
+    // Load current frame for calibration
+    document.getElementById('calibrationImage').src = '/workspace/frame?' + Date.now();
+});
+
+function closeCalibration() {
+    document.getElementById('calibrationModal').style.display = 'none';
+}
+
+// View toggle
+document.querySelectorAll('.twin-view-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        document.querySelectorAll('.twin-view-btn').forEach(b => b.classList.remove('active'));
+        this.classList.add('active');
+        
+        const view = this.dataset.view;
+        // Switch view mode
+        console.log('Switch to view:', view);
+    });
+});
+</script>
+{% endblock %}

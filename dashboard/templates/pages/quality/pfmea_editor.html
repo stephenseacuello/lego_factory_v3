@@ -1,0 +1,644 @@
+{% extends "base.html" %}
+
+{% block title %}Process FMEA Editor{% endblock %}
+
+{% block head %}
+<style>
+    .fmea-container {
+        padding: 1rem;
+    }
+
+    .fmea-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .process-flow {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1rem;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        overflow-x: auto;
+    }
+
+    .process-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background: var(--bg-primary);
+        border-radius: 8px;
+        min-width: 100px;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: border-color 0.2s;
+    }
+
+    .process-step:hover, .process-step.active {
+        border-color: var(--accent-color);
+    }
+
+    .process-step .step-number {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: var(--accent-color);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+
+    .process-step .step-name {
+        font-size: 0.75rem;
+        text-align: center;
+    }
+
+    .process-arrow {
+        color: var(--text-secondary);
+        flex-shrink: 0;
+    }
+
+    .fmea-table-container {
+        overflow-x: auto;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1rem;
+    }
+
+    .fmea-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+    }
+
+    .fmea-table th {
+        background: var(--bg-primary);
+        padding: 0.75rem 0.5rem;
+        text-align: left;
+        font-weight: 600;
+        border-bottom: 2px solid var(--border-color);
+        white-space: nowrap;
+    }
+
+    .fmea-table td {
+        padding: 0.75rem 0.5rem;
+        border-bottom: 1px solid var(--border-color);
+        vertical-align: top;
+    }
+
+    .fmea-table tr:hover {
+        background: var(--bg-primary);
+    }
+
+    .rpn-cell {
+        text-align: center;
+        font-weight: bold;
+        border-radius: 4px;
+    }
+
+    .rpn-high { color: #dc2626; background: #fee2e2; }
+    .rpn-medium { color: #d97706; background: #fef3c7; }
+    .rpn-low { color: #059669; background: #d1fae5; }
+
+    .rating-input {
+        width: 50px;
+        padding: 0.25rem;
+        text-align: center;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
+
+    .text-input {
+        width: 100%;
+        padding: 0.25rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        resize: vertical;
+        min-height: 60px;
+    }
+
+    .summary-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .summary-card {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .summary-card h4 {
+        color: var(--text-secondary);
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .summary-card .value {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+
+    .controls-bar {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 0.875rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .btn-primary {
+        background: var(--accent-color);
+        color: white;
+    }
+
+    .btn-secondary {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border: 1px solid var(--border-color);
+    }
+
+    .add-row-btn {
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background: var(--accent-color);
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .btn-icon {
+        padding: 0.25rem;
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-secondary);
+        border-radius: 4px;
+    }
+
+    .btn-icon:hover {
+        background: var(--bg-primary);
+        color: var(--text-primary);
+    }
+
+    .step-details {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .step-detail-item label {
+        display: block;
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-bottom: 0.25rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fmea-container">
+    <div class="fmea-header">
+        <div>
+            <h1>Process FMEA Editor</h1>
+            <p style="color: var(--text-secondary);">3D Printing Process Failure Mode Analysis</p>
+        </div>
+    </div>
+
+    <div class="controls-bar">
+        <button class="btn btn-primary" onclick="savePFMEA()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            Save PFMEA
+        </button>
+        <button class="btn btn-secondary" onclick="generateReport()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            Generate Report
+        </button>
+        <button class="btn btn-secondary" onclick="linkToControlPlan()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            Link to Control Plan
+        </button>
+        <button class="btn btn-secondary" onclick="runAIAnalysis()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            AI Analysis
+        </button>
+    </div>
+
+    <!-- Process Flow -->
+    <div class="process-flow">
+        <div class="process-step active" onclick="selectStep(1)">
+            <div class="step-number">1</div>
+            <div class="step-name">File Prep</div>
+        </div>
+        <span class="process-arrow">→</span>
+        <div class="process-step" onclick="selectStep(2)">
+            <div class="step-number">2</div>
+            <div class="step-name">Slicing</div>
+        </div>
+        <span class="process-arrow">→</span>
+        <div class="process-step" onclick="selectStep(3)">
+            <div class="step-number">3</div>
+            <div class="step-name">Printer Setup</div>
+        </div>
+        <span class="process-arrow">→</span>
+        <div class="process-step" onclick="selectStep(4)">
+            <div class="step-number">4</div>
+            <div class="step-name">First Layer</div>
+        </div>
+        <span class="process-arrow">→</span>
+        <div class="process-step" onclick="selectStep(5)">
+            <div class="step-number">5</div>
+            <div class="step-name">Printing</div>
+        </div>
+        <span class="process-arrow">→</span>
+        <div class="process-step" onclick="selectStep(6)">
+            <div class="step-number">6</div>
+            <div class="step-name">Cooling</div>
+        </div>
+        <span class="process-arrow">→</span>
+        <div class="process-step" onclick="selectStep(7)">
+            <div class="step-number">7</div>
+            <div class="step-name">Removal</div>
+        </div>
+        <span class="process-arrow">→</span>
+        <div class="process-step" onclick="selectStep(8)">
+            <div class="step-number">8</div>
+            <div class="step-name">Post-Process</div>
+        </div>
+        <span class="process-arrow">→</span>
+        <div class="process-step" onclick="selectStep(9)">
+            <div class="step-number">9</div>
+            <div class="step-name">Inspection</div>
+        </div>
+    </div>
+
+    <!-- Step Details -->
+    <div class="step-details" id="stepDetails">
+        <div class="step-detail-item">
+            <label>Process Step</label>
+            <strong id="currentStepName">File Preparation</strong>
+        </div>
+        <div class="step-detail-item">
+            <label>Equipment</label>
+            <span id="currentEquipment">Slicer Software (PrusaSlicer)</span>
+        </div>
+        <div class="step-detail-item">
+            <label>Operator</label>
+            <span id="currentOperator">CAD Technician</span>
+        </div>
+        <div class="step-detail-item">
+            <label>Cycle Time</label>
+            <span id="currentCycleTime">5-10 min</span>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary-cards">
+        <div class="summary-card">
+            <h4>Process Steps</h4>
+            <div class="value">9</div>
+        </div>
+        <div class="summary-card">
+            <h4>Failure Modes</h4>
+            <div class="value" id="totalModes">24</div>
+        </div>
+        <div class="summary-card">
+            <h4>High RPN (>100)</h4>
+            <div class="value" style="color: #dc2626;" id="highRPN">5</div>
+        </div>
+        <div class="summary-card">
+            <h4>Avg RPN</h4>
+            <div class="value" id="avgRPN">72</div>
+        </div>
+        <div class="summary-card">
+            <h4>Control Plans</h4>
+            <div class="value" style="color: #059669;">12</div>
+        </div>
+    </div>
+
+    <!-- FMEA Table -->
+    <div class="fmea-table-container">
+        <table class="fmea-table" id="fmeaTable">
+            <thead>
+                <tr>
+                    <th style="width: 30px;">#</th>
+                    <th style="min-width: 100px;">Process Step</th>
+                    <th style="min-width: 120px;">Potential Failure Mode</th>
+                    <th style="min-width: 120px;">Potential Effect(s)</th>
+                    <th style="width: 50px;">S</th>
+                    <th style="min-width: 100px;">Potential Cause(s)</th>
+                    <th style="width: 50px;">O</th>
+                    <th style="min-width: 100px;">Current Controls (P)</th>
+                    <th style="min-width: 100px;">Current Controls (D)</th>
+                    <th style="width: 50px;">D</th>
+                    <th style="width: 60px;">RPN</th>
+                    <th style="min-width: 120px;">Recommended Actions</th>
+                    <th style="width: 80px;">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="fmeaBody">
+                <!-- Rows populated by JavaScript -->
+            </tbody>
+        </table>
+
+        <button class="add-row-btn" onclick="addRow()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Add Failure Mode
+        </button>
+    </div>
+</div>
+
+<script>
+// Process FMEA data
+const pfmeaData = [
+    {
+        step: "Printer Setup",
+        failureMode: "Incorrect bed leveling",
+        effects: "Poor first layer, print failure",
+        severity: 7,
+        causes: "Manual error, thermal expansion",
+        occurrence: 6,
+        preventionControls: "Auto-leveling, operator training",
+        detectionControls: "First layer inspection",
+        detection: 4,
+        actions: "Implement ABL probe, document procedure"
+    },
+    {
+        step: "Printer Setup",
+        failureMode: "Wrong filament loaded",
+        effects: "Wrong color/material properties",
+        severity: 5,
+        causes: "Operator error",
+        occurrence: 3,
+        preventionControls: "Filament labeling, work orders",
+        detectionControls: "Visual verification",
+        detection: 2,
+        actions: "Color-coded storage system"
+    },
+    {
+        step: "First Layer",
+        failureMode: "Poor bed adhesion",
+        effects: "Part detachment, warping",
+        severity: 8,
+        causes: "Dirty bed, wrong Z-offset, temp",
+        occurrence: 5,
+        preventionControls: "Bed cleaning SOP",
+        detectionControls: "Camera monitoring",
+        detection: 3,
+        actions: "AI-based first layer detection"
+    },
+    {
+        step: "Printing",
+        failureMode: "Under-extrusion",
+        effects: "Weak parts, gaps in walls",
+        severity: 7,
+        causes: "Clogged nozzle, filament issue",
+        occurrence: 4,
+        preventionControls: "Regular nozzle changes",
+        detectionControls: "Flow rate monitoring",
+        detection: 5,
+        actions: "Predictive nozzle replacement"
+    },
+    {
+        step: "Printing",
+        failureMode: "Layer shifting",
+        effects: "Dimensional failure, scrap",
+        severity: 9,
+        causes: "Belt tension, motor skip",
+        occurrence: 3,
+        preventionControls: "PM schedule",
+        detectionControls: "Encoder feedback",
+        detection: 4,
+        actions: "Install linear encoders"
+    },
+    {
+        step: "Printing",
+        failureMode: "Stringing/oozing",
+        effects: "Poor surface finish",
+        severity: 4,
+        causes: "Retraction settings, temp high",
+        occurrence: 6,
+        preventionControls: "Optimized profiles",
+        detectionControls: "Visual inspection",
+        detection: 2,
+        actions: "Profile optimization per material"
+    },
+    {
+        step: "Cooling",
+        failureMode: "Warping during cooldown",
+        effects: "Dimensional out of spec",
+        severity: 6,
+        causes: "Uneven cooling, material stress",
+        occurrence: 5,
+        preventionControls: "Enclosure, gradual cooling",
+        detectionControls: "Dimensional check",
+        detection: 3,
+        actions: "Controlled cooldown profile"
+    },
+    {
+        step: "Inspection",
+        failureMode: "Missed defect",
+        effects: "Defective part shipped",
+        severity: 8,
+        causes: "Human error, fatigue",
+        occurrence: 4,
+        preventionControls: "Inspection checklist",
+        detectionControls: "100% visual inspection",
+        detection: 4,
+        actions: "AI vision inspection system"
+    }
+];
+
+let currentStep = 1;
+let tableData = [...pfmeaData];
+
+const stepInfo = {
+    1: { name: "File Preparation", equipment: "Slicer Software", operator: "CAD Technician", cycleTime: "5-10 min" },
+    2: { name: "Slicing", equipment: "PrusaSlicer/Cura", operator: "CAD Technician", cycleTime: "2-5 min" },
+    3: { name: "Printer Setup", equipment: "3D Printer", operator: "Print Operator", cycleTime: "5-15 min" },
+    4: { name: "First Layer", equipment: "3D Printer", operator: "Print Operator", cycleTime: "5-10 min" },
+    5: { name: "Printing", equipment: "3D Printer", operator: "Automated", cycleTime: "Variable" },
+    6: { name: "Cooling", equipment: "Print Bed/Enclosure", operator: "Automated", cycleTime: "10-30 min" },
+    7: { name: "Part Removal", equipment: "Tools/Spatula", operator: "Print Operator", cycleTime: "2-5 min" },
+    8: { name: "Post-Processing", equipment: "Finishing Tools", operator: "Finishing Tech", cycleTime: "5-30 min" },
+    9: { name: "Inspection", equipment: "CMM/Gauges", operator: "QC Inspector", cycleTime: "5-10 min" }
+};
+
+function selectStep(step) {
+    currentStep = step;
+    document.querySelectorAll('.process-step').forEach((el, i) => {
+        el.classList.toggle('active', i + 1 === step);
+    });
+
+    const info = stepInfo[step];
+    document.getElementById('currentStepName').textContent = info.name;
+    document.getElementById('currentEquipment').textContent = info.equipment;
+    document.getElementById('currentOperator').textContent = info.operator;
+    document.getElementById('currentCycleTime').textContent = info.cycleTime;
+}
+
+function renderTable() {
+    const tbody = document.getElementById('fmeaBody');
+    tbody.innerHTML = '';
+
+    tableData.forEach((row, index) => {
+        const rpn = row.severity * row.occurrence * row.detection;
+        const rpnClass = rpn > 100 ? 'rpn-high' : rpn > 50 ? 'rpn-medium' : 'rpn-low';
+
+        tbody.innerHTML += `
+            <tr>
+                <td>${index + 1}</td>
+                <td>${row.step}</td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'failureMode', this.value)">${row.failureMode}</textarea></td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'effects', this.value)">${row.effects}</textarea></td>
+                <td><input type="number" class="rating-input" value="${row.severity}" min="1" max="10" onchange="updateRow(${index}, 'severity', parseInt(this.value))"></td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'causes', this.value)">${row.causes}</textarea></td>
+                <td><input type="number" class="rating-input" value="${row.occurrence}" min="1" max="10" onchange="updateRow(${index}, 'occurrence', parseInt(this.value))"></td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'preventionControls', this.value)">${row.preventionControls}</textarea></td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'detectionControls', this.value)">${row.detectionControls}</textarea></td>
+                <td><input type="number" class="rating-input" value="${row.detection}" min="1" max="10" onchange="updateRow(${index}, 'detection', parseInt(this.value))"></td>
+                <td class="rpn-cell ${rpnClass}">${rpn}</td>
+                <td><textarea class="text-input" onchange="updateRow(${index}, 'actions', this.value)">${row.actions}</textarea></td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="btn-icon" onclick="deleteRow(${index})" title="Delete">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+
+    updateSummary();
+}
+
+function updateRow(index, field, value) {
+    tableData[index][field] = value;
+    renderTable();
+}
+
+function addRow() {
+    tableData.push({
+        step: stepInfo[currentStep].name,
+        failureMode: "",
+        effects: "",
+        severity: 5,
+        causes: "",
+        occurrence: 5,
+        preventionControls: "",
+        detectionControls: "",
+        detection: 5,
+        actions: ""
+    });
+    renderTable();
+}
+
+function deleteRow(index) {
+    if (confirm('Delete this failure mode?')) {
+        tableData.splice(index, 1);
+        renderTable();
+    }
+}
+
+function updateSummary() {
+    const rpns = tableData.map(r => r.severity * r.occurrence * r.detection);
+    document.getElementById('totalModes').textContent = tableData.length;
+    document.getElementById('highRPN').textContent = rpns.filter(r => r > 100).length;
+    document.getElementById('avgRPN').textContent = rpns.length ? Math.round(rpns.reduce((a, b) => a + b, 0) / rpns.length) : 0;
+}
+
+function savePFMEA() {
+    fetch('/api/v6/quality/pfmea/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: tableData })
+    }).then(() => alert('PFMEA saved!'));
+}
+
+function generateReport() {
+    window.open('/api/v6/quality/pfmea/report', '_blank');
+}
+
+function linkToControlPlan() {
+    window.location.href = '/quality/control-plan?from=pfmea';
+}
+
+function runAIAnalysis() {
+    fetch('/api/v6/quality/pfmea/ai-analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: tableData })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.suggestions) {
+            alert('AI Suggestions:\n\n' + data.suggestions.join('\n'));
+        }
+    });
+}
+
+// Initialize
+renderTable();
+</script>
+{% endblock %}

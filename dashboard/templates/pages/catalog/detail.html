@@ -1,0 +1,486 @@
+{% extends "base.html" %}
+
+{% block title %}{{ brick.name }} - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('catalog.list_bricks') }}" class="back-link">← Back to Catalog</a>
+</div>
+
+<div class="brick-detail">
+    <div class="brick-detail-layout">
+        <!-- 3D Preview -->
+        <div class="brick-detail-preview">
+            <div class="stl-viewer" id="stlViewer">
+                <div class="viewer-placeholder">
+                    <div class="brick-3d-placeholder">
+                        <span>{{ brick.studs_x }}×{{ brick.studs_y }}</span>
+                    </div>
+                    <p>3D Preview</p>
+                </div>
+            </div>
+            <div class="viewer-controls">
+                <button class="viewer-btn" data-view="front">Front</button>
+                <button class="viewer-btn" data-view="top">Top</button>
+                <button class="viewer-btn active" data-view="iso">Isometric</button>
+                <button class="viewer-btn" data-view="free">Free</button>
+                <span class="divider">|</span>
+                <button class="viewer-btn" id="wireframeToggle">Wireframe</button>
+            </div>
+        </div>
+        
+        <!-- Info Panel -->
+        <div class="brick-detail-info">
+            <h1>{{ brick.name }}</h1>
+            {% if brick.part_number %}
+            <p class="part-number">Part #{{ brick.part_number }}</p>
+            {% endif %}
+            
+            <div class="brick-meta">
+                <span class="category-badge">{{ brick.category }}</span>
+                {% for tag in brick.tags %}
+                <span class="tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+            
+            <div class="info-section">
+                <h3>Dimensions</h3>
+                <table class="specs-table">
+                    <tr>
+                        <td>Studs</td>
+                        <td>{{ brick.studs_x }} × {{ brick.studs_y }}</td>
+                    </tr>
+                    <tr>
+                        <td>Width</td>
+                        <td>{{ brick.width_mm }} mm</td>
+                    </tr>
+                    <tr>
+                        <td>Depth</td>
+                        <td>{{ brick.depth_mm }} mm</td>
+                    </tr>
+                    <tr>
+                        <td>Height</td>
+                        <td>{{ brick.height_mm }} mm</td>
+                    </tr>
+                    <tr>
+                        <td>Plates</td>
+                        <td>{{ brick.height_plates }}</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <div class="info-section">
+                <h3>Features</h3>
+                <ul class="feature-list">
+                    {% if brick.features.get('studs', True) %}
+                    <li class="feature enabled">✓ Studs</li>
+                    {% else %}
+                    <li class="feature disabled">✗ No studs (tile)</li>
+                    {% endif %}
+                    
+                    {% if brick.features.get('hollow', True) %}
+                    <li class="feature enabled">✓ Hollow interior</li>
+                    {% endif %}
+                    
+                    {% if brick.features.get('tubes', False) %}
+                    <li class="feature enabled">✓ Anti-stud tubes</li>
+                    {% endif %}
+                </ul>
+            </div>
+            
+            <div class="info-section actions">
+                <h3>Actions</h3>
+                <button class="btn btn-primary btn-large" id="createBtn">
+                    🔨 Create in Fusion 360
+                </button>
+                
+                <div class="action-row">
+                    <button class="btn btn-secondary" id="exportStlBtn">Export STL</button>
+                    <button class="btn btn-secondary" id="exportStepBtn">Export STEP</button>
+                </div>
+                
+                <button class="btn btn-secondary btn-large" id="generateGcodeBtn">
+                    🖨️ Generate G-code
+                </button>
+                
+                <a href="{{ url_for('builder.builder', from_catalog=brick.id) }}" class="btn btn-outline">
+                    Customize in Builder →
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Similar Bricks -->
+    {% if similar_bricks %}
+    <div class="similar-section">
+        <h3>Similar Bricks</h3>
+        <div class="brick-grid brick-grid-small">
+            {% for similar in similar_bricks %}
+            <a href="{{ url_for('catalog.brick_detail', brick_id=similar.id) }}" class="brick-card">
+                <div class="brick-preview">
+                    <div class="brick-placeholder">{{ similar.studs_x }}×{{ similar.studs_y }}</div>
+                </div>
+                <div class="brick-info">
+                    <h4>{{ similar.name }}</h4>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- JSON Definition -->
+    <div class="json-section">
+        <div class="json-header">
+            <h3>JSON Definition</h3>
+            <button class="btn btn-small" id="copyJsonBtn">Copy</button>
+        </div>
+        <pre class="json-viewer" id="jsonViewer">{{ brick | tojson(indent=2) }}</pre>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Three.js for 3D preview -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+const brick = {{ brick | tojson }};
+
+// === 3D PREVIEW ===
+function init3DPreview() {
+    const container = document.getElementById('stlViewer');
+    const width = container.clientWidth;
+    const height = container.clientHeight || 300;
+
+    // Clear placeholder
+    container.innerHTML = '';
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1a1a2e);
+
+    // Camera
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    // Lights
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(10, 20, 10);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+
+    const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+    fillLight.position.set(-10, 5, -10);
+    scene.add(fillLight);
+
+    // LEGO dimensions (in cm for Three.js)
+    const STUD_PITCH = 0.8;
+    const STUD_DIAMETER = 0.48;
+    const STUD_HEIGHT = 0.17;
+    const BRICK_HEIGHT = 0.96;
+    const PLATE_HEIGHT = 0.32;
+
+    const brickWidth = brick.studs_x * STUD_PITCH;
+    const brickDepth = brick.studs_y * STUD_PITCH;
+    const brickHeight = (brick.height_plates / 3) * BRICK_HEIGHT;
+
+    // Create brick group
+    const brickGroup = new THREE.Group();
+
+    // LEGO colors
+    const brickColor = 0xDA291C; // Classic red
+    const brickMaterial = new THREE.MeshPhongMaterial({
+        color: brickColor,
+        shininess: 30
+    });
+
+    // Main body
+    const bodyGeometry = new THREE.BoxGeometry(brickWidth, brickHeight, brickDepth);
+    const bodyMesh = new THREE.Mesh(bodyGeometry, brickMaterial);
+    bodyMesh.position.y = brickHeight / 2;
+    bodyMesh.castShadow = true;
+    bodyMesh.receiveShadow = true;
+    brickGroup.add(bodyMesh);
+
+    // Add studs if not a tile
+    if (brick.features && brick.features.studs !== false) {
+        const studGeometry = new THREE.CylinderGeometry(
+            STUD_DIAMETER / 2, STUD_DIAMETER / 2, STUD_HEIGHT, 16
+        );
+
+        for (let x = 0; x < brick.studs_x; x++) {
+            for (let z = 0; z < brick.studs_y; z++) {
+                const stud = new THREE.Mesh(studGeometry, brickMaterial);
+                stud.position.set(
+                    (x + 0.5) * STUD_PITCH - brickWidth / 2,
+                    brickHeight + STUD_HEIGHT / 2,
+                    (z + 0.5) * STUD_PITCH - brickDepth / 2
+                );
+                stud.castShadow = true;
+                brickGroup.add(stud);
+            }
+        }
+    }
+
+    // Add hollow interior visualization (optional wire frame)
+    if (brick.features && brick.features.hollow) {
+        const innerWidth = brickWidth - 0.3;
+        const innerDepth = brickDepth - 0.3;
+        const innerHeight = brickHeight - 0.2;
+        if (innerWidth > 0 && innerDepth > 0 && innerHeight > 0) {
+            const hollowGeometry = new THREE.BoxGeometry(innerWidth, innerHeight, innerDepth);
+            const hollowEdges = new THREE.EdgesGeometry(hollowGeometry);
+            const hollowLine = new THREE.LineSegments(
+                hollowEdges,
+                new THREE.LineBasicMaterial({ color: 0x333333, opacity: 0.3, transparent: true })
+            );
+            hollowLine.position.y = innerHeight / 2 + 0.1;
+            // brickGroup.add(hollowLine); // Uncomment to show hollow
+        }
+    }
+
+    scene.add(brickGroup);
+
+    // Grid helper
+    const gridHelper = new THREE.GridHelper(10, 20, 0x444444, 0x333333);
+    scene.add(gridHelper);
+
+    // Controls
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // Camera position based on brick size
+    const maxDim = Math.max(brickWidth, brickDepth, brickHeight);
+    camera.position.set(maxDim * 2, maxDim * 1.5, maxDim * 2);
+    controls.target.set(0, brickHeight / 2, 0);
+    controls.update();
+
+    // View buttons
+    document.querySelectorAll('.viewer-btn[data-view]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.viewer-btn').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+
+            const view = this.dataset.view;
+            const dist = maxDim * 2.5;
+
+            switch(view) {
+                case 'front':
+                    camera.position.set(0, brickHeight / 2, dist);
+                    break;
+                case 'top':
+                    camera.position.set(0, dist, 0.01);
+                    break;
+                case 'iso':
+                    camera.position.set(dist * 0.7, dist * 0.5, dist * 0.7);
+                    break;
+                case 'free':
+                    // Just enable free rotation
+                    break;
+            }
+            controls.target.set(0, brickHeight / 2, 0);
+            controls.update();
+        });
+    });
+
+    // Wireframe toggle
+    let wireframe = false;
+    document.getElementById('wireframeToggle').addEventListener('click', function() {
+        wireframe = !wireframe;
+        this.classList.toggle('active', wireframe);
+        brickGroup.traverse(child => {
+            if (child.isMesh) {
+                child.material.wireframe = wireframe;
+            }
+        });
+    });
+
+    // Animation loop
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    // Handle resize
+    window.addEventListener('resize', () => {
+        const newWidth = container.clientWidth;
+        const newHeight = container.clientHeight || 300;
+        camera.aspect = newWidth / newHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(newWidth, newHeight);
+    });
+}
+
+// Initialize 3D preview
+if (typeof THREE !== 'undefined') {
+    init3DPreview();
+}
+
+// === CREATE BUTTON ===
+document.getElementById('createBtn').addEventListener('click', function() {
+    this.disabled = true;
+    this.textContent = 'Creating...';
+
+    // Determine the right tool based on brick category
+    let tool = 'create_brick';
+    if (brick.category === 'plate') tool = 'create_plate';
+    else if (brick.category === 'tile') tool = 'create_tile';
+    else if (brick.category === 'slope') tool = 'create_slope';
+    else if (brick.category === 'technic') tool = 'create_technic';
+    else if (brick.category === 'round') tool = 'create_round';
+    else if (brick.category === 'arch') tool = 'create_arch';
+
+    fetch('/api/tools/execute', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            tool: tool,
+            params: {
+                studs_x: brick.studs_x,
+                studs_y: brick.studs_y,
+                height_units: brick.height_plates / 3,
+                name: brick.name
+            }
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            App.toast('Brick created successfully!', 'success');
+        } else {
+            App.toast('Failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    })
+    .catch(e => {
+        App.toast('Error: ' + e.message, 'error');
+    })
+    .finally(() => {
+        this.disabled = false;
+        this.textContent = '🔨 Create in Fusion 360';
+    });
+});
+
+// Export STL
+document.getElementById('exportStlBtn').addEventListener('click', function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Exporting...';
+
+    fetch('/api/tools/execute', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            tool: 'export_stl',
+            params: {
+                component_name: brick.name,
+                output_path: `/output/stl/${brick.id}.stl`,
+                resolution: 'high'
+            }
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.result && data.result.path) {
+            App.toast(`STL exported: ${data.result.path}`, 'success');
+        } else {
+            App.toast('Export failed: ' + (data.error || data.result?.error || 'Create brick first'), 'error');
+        }
+    })
+    .catch(e => App.toast('Error: ' + e.message, 'error'))
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Export STL';
+    });
+});
+
+// Export STEP
+document.getElementById('exportStepBtn').addEventListener('click', function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Exporting...';
+
+    fetch('/api/tools/execute', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            tool: 'export_step',
+            params: {
+                component_name: brick.name,
+                output_path: `/output/step/${brick.id}.step`
+            }
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.result && data.result.path) {
+            App.toast(`STEP exported: ${data.result.path}`, 'success');
+        } else {
+            App.toast('Export failed: ' + (data.error || data.result?.error || 'Create brick first'), 'error');
+        }
+    })
+    .catch(e => App.toast('Error: ' + e.message, 'error'))
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = 'Export STEP';
+    });
+});
+
+// Generate G-code
+document.getElementById('generateGcodeBtn').addEventListener('click', function() {
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = 'Generating G-code...';
+
+    fetch('/api/tools/execute', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            tool: 'generate_gcode',
+            params: {
+                component_name: brick.name,
+                material: 'abs',
+                machine: 'grbl',
+                output_path: `/output/gcode/milling/${brick.id}.nc`
+            }
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.result) {
+            const result = data.result;
+            if (result.path) {
+                App.toast(`G-code generated: ${result.path}`, 'success');
+            } else if (result.error) {
+                App.toast('G-code failed: ' + result.error, 'error');
+            }
+        } else {
+            App.toast('G-code failed: ' + (data.error || 'Create brick first'), 'error');
+        }
+    })
+    .catch(e => App.toast('Error: ' + e.message, 'error'))
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = '🖨️ Generate G-code';
+    });
+});
+
+// Copy JSON
+document.getElementById('copyJsonBtn').addEventListener('click', function() {
+    navigator.clipboard.writeText(JSON.stringify(brick, null, 2));
+    App.toast('Copied to clipboard', 'success');
+});
+</script>
+{% endblock %}

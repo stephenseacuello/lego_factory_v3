@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+
+{% block title %}Supervision Tree - LEGO MCP{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Supervision Tree</h1>
+    <p class="page-subtitle">OTP-style fault-tolerant node supervision - ISA-95 Compliant</p>
+    <div class="page-actions">
+        <button class="btn btn-secondary" id="refreshTreeBtn">Refresh</button>
+        <button class="btn btn-primary" id="showStrategiesBtn">Strategies</button>
+    </div>
+</div>
+
+<!-- Supervision Metrics -->
+<section class="section">
+    <h2 class="section-title">System Metrics</h2>
+    <div class="card-grid card-grid-4" id="metricsGrid">
+        <div class="card stat-card">
+            <div class="stat-value" id="totalNodes">--</div>
+            <div class="stat-label">Total Nodes</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-value" id="activeNodes">--</div>
+            <div class="stat-label">Active Nodes</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-value" id="supervisorCount">--</div>
+            <div class="stat-label">Supervisors</div>
+        </div>
+        <div class="card stat-card">
+            <div class="stat-value" id="totalRestarts">--</div>
+            <div class="stat-label">Total Restarts</div>
+        </div>
+    </div>
+</section>
+
+<!-- Supervision Tree Visualization -->
+<section class="section">
+    <h2 class="section-title">Supervision Hierarchy</h2>
+    <div class="card">
+        <div class="supervision-tree" id="supervisionTree">
+            <!-- Tree rendered by JavaScript -->
+        </div>
+    </div>
+</section>
+
+<!-- Node Heartbeats -->
+<section class="section">
+    <h2 class="section-title">Node Heartbeats</h2>
+    <div class="card">
+        <table class="data-table" id="heartbeatTable">
+            <thead>
+                <tr>
+                    <th>Node</th>
+                    <th>State</th>
+                    <th>Last Heartbeat</th>
+                    <th>CPU %</th>
+                    <th>Memory (MB)</th>
+                    <th>Errors</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Checkpoints -->
+<section class="section">
+    <h2 class="section-title">State Checkpoints</h2>
+    <div class="card">
+        <table class="data-table" id="checkpointTable">
+            <thead>
+                <tr>
+                    <th>Checkpoint ID</th>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Node</th>
+                    <th>Timestamp</th>
+                    <th>Size</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Populated by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- Strategy Legend -->
+<div class="modal" id="strategiesModal" style="display:none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Supervision Strategies</h3>
+            <button class="modal-close" onclick="closeStrategiesModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="strategy-card" style="border-left: 4px solid #4CAF50; padding: 1rem; margin-bottom: 1rem;">
+                <h4>One for One</h4>
+                <p>Restart only the failed child node. Used for independent equipment nodes.</p>
+            </div>
+            <div class="strategy-card" style="border-left: 4px solid #F44336; padding: 1rem; margin-bottom: 1rem;">
+                <h4>One for All</h4>
+                <p>Restart ALL children when ANY fails. Used for tightly coupled safety systems.</p>
+            </div>
+            <div class="strategy-card" style="border-left: 4px solid #FF9800; padding: 1rem; margin-bottom: 1rem;">
+                <h4>Rest for One</h4>
+                <p>Restart failed child and all children started after it. Used for ordered dependencies.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.supervision-tree {
+    font-family: monospace;
+    padding: 1rem;
+    background: var(--bg-secondary, #1a1a2e);
+    border-radius: 8px;
+    overflow-x: auto;
+}
+
+.tree-node {
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+}
+
+.tree-supervisor {
+    background: var(--bg-tertiary, #16213e);
+    border-radius: 4px;
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+}
+
+.tree-supervisor-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.tree-children {
+    margin-left: 2rem;
+    border-left: 2px solid var(--border-color, #333);
+    padding-left: 1rem;
+}
+
+.node-leaf {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    background: var(--bg-quaternary, #1f2937);
+    border-radius: 4px;
+    margin: 0.25rem 0;
+}
+
+.state-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.state-dot.active, .state-dot.running {
+    background: #4CAF50;
+}
+
+.state-dot.inactive {
+    background: #9E9E9E;
+}
+
+.state-dot.error {
+    background: #F44336;
+}
+
+.strategy-badge {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 4px;
+    font-weight: normal;
+}
+
+.strategy-badge.one_for_one {
+    background: rgba(76, 175, 80, 0.2);
+    color: #4CAF50;
+}
+
+.strategy-badge.one_for_all {
+    background: rgba(244, 67, 54, 0.2);
+    color: #F44336;
+}
+
+.strategy-badge.rest_for_one {
+    background: rgba(255, 152, 0, 0.2);
+    color: #FF9800;
+}
+
+.type-badge {
+    font-size: 0.7rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 3px;
+    background: rgba(100, 100, 255, 0.2);
+    color: #8080ff;
+}
+
+.restart-count {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #888);
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: var(--bg-primary, #0f0f23);
+    border-radius: 8px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color, #333);
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-primary, #fff);
+}
+
+.modal-body {
+    padding: 1rem;
+}
+
+.card-grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .card-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load supervision data
+async function loadSupervisionData() {
+    try {
+        const [treeRes, metricsRes, heartbeatsRes, checkpointsRes] = await Promise.all([
+            fetch('/supervision/api/tree'),
+            fetch('/supervision/api/metrics'),
+            fetch('/supervision/api/heartbeats'),
+            fetch('/supervision/api/checkpoints')
+        ]);
+
+        const tree = await treeRes.json();
+        const metrics = await metricsRes.json();
+        const heartbeats = await heartbeatsRes.json();
+        const checkpoints = await checkpointsRes.json();
+
+        renderMetrics(metrics.metrics);
+        renderTree(tree.tree.root_supervisor);
+        renderHeartbeats(heartbeats.heartbeats);
+        renderCheckpoints(checkpoints.checkpoints);
+    } catch (error) {
+        console.error('Failed to load supervision data:', error);
+    }
+}
+
+function renderMetrics(metrics) {
+    document.getElementById('totalNodes').textContent = metrics.total_nodes;
+    document.getElementById('activeNodes').textContent = metrics.active_nodes;
+    document.getElementById('supervisorCount').textContent = metrics.supervisors;
+    document.getElementById('totalRestarts').textContent = metrics.total_restarts;
+}
+
+function renderTree(node, container) {
+    if (!container) {
+        container = document.getElementById('supervisionTree');
+        container.innerHTML = '';
+    }
+
+    const isSupervisor = 'strategy' in node;
+
+    if (isSupervisor) {
+        const supervisorDiv = document.createElement('div');
+        supervisorDiv.className = 'tree-supervisor';
+        supervisorDiv.innerHTML = `
+            <div class="tree-supervisor-header">
+                <span class="state-dot ${node.state}"></span>
+                <span>${node.name}</span>
+                <span class="strategy-badge ${node.strategy}">${node.strategy.replace(/_/g, ' ')}</span>
+                ${node.restarts > 0 ? `<span class="restart-count">(${node.restarts} restarts)</span>` : ''}
+            </div>
+        `;
+
+        if (node.children && node.children.length > 0) {
+            const childrenDiv = document.createElement('div');
+            childrenDiv.className = 'tree-children';
+            node.children.forEach(child => renderTree(child, childrenDiv));
+            supervisorDiv.appendChild(childrenDiv);
+        }
+
+        container.appendChild(supervisorDiv);
+    } else {
+        const leafDiv = document.createElement('div');
+        leafDiv.className = 'node-leaf';
+        leafDiv.innerHTML = `
+            <span class="state-dot ${node.state}"></span>
+            <span>${node.name}</span>
+            ${node.type ? `<span class="type-badge">${node.type}</span>` : ''}
+            ${node.restarts > 0 ? `<span class="restart-count">(${node.restarts} restarts)</span>` : ''}
+        `;
+        leafDiv.onclick = () => showNodeDetails(node);
+        container.appendChild(leafDiv);
+    }
+}
+
+function renderHeartbeats(heartbeats) {
+    const tbody = document.querySelector('#heartbeatTable tbody');
+    tbody.innerHTML = '';
+
+    heartbeats.forEach(hb => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${hb.name}</td>
+            <td><span class="state-dot ${hb.state}"></span> ${hb.state}</td>
+            <td>${new Date(hb.last_heartbeat).toLocaleTimeString()}</td>
+            <td>${hb.health.cpu || 0}%</td>
+            <td>${hb.health.memory_mb || 0}</td>
+            <td>${hb.health.errors || 0}</td>
+            <td>
+                <button class="btn btn-small" onclick="restartNode('${hb.node_id}')">Restart</button>
+                <button class="btn btn-small btn-secondary" onclick="lifecycleAction('${hb.node_id}', 'deactivate')">Deactivate</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+function renderCheckpoints(checkpoints) {
+    const tbody = document.querySelector('#checkpointTable tbody');
+    tbody.innerHTML = '';
+
+    checkpoints.forEach(cp => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><code>${cp.id}</code></td>
+            <td>${cp.name}</td>
+            <td>${cp.type}</td>
+            <td>${cp.node_id}</td>
+            <td>${new Date(cp.timestamp).toLocaleString()}</td>
+            <td>${(cp.size_bytes / 1024).toFixed(1)} KB</td>
+            <td>
+                <button class="btn btn-small btn-primary" onclick="restoreCheckpoint('${cp.id}')">Restore</button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+async function restartNode(nodeId) {
+    if (!confirm(`Restart node ${nodeId}?`)) return;
+
+    try {
+        const res = await fetch(`/supervision/api/node/${nodeId}/restart`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            alert('Restart requested');
+            loadSupervisionData();
+        } else {
+            alert('Failed: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function lifecycleAction(nodeId, action) {
+    if (!confirm(`${action} node ${nodeId}?`)) return;
+
+    try {
+        const res = await fetch(`/supervision/api/node/${nodeId}/lifecycle/${action}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            alert(`${action} requested`);
+            loadSupervisionData();
+        } else {
+            alert('Failed: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+async function restoreCheckpoint(checkpointId) {
+    if (!confirm(`Restore checkpoint ${checkpointId}?`)) return;
+
+    try {
+        const res = await fetch(`/supervision/api/checkpoints/${checkpointId}/restore`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            alert('Checkpoint restored');
+            loadSupervisionData();
+        } else {
+            alert('Failed: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+function showNodeDetails(node) {
+    alert(`Node: ${node.name}\nState: ${node.state}\nType: ${node.type || 'N/A'}\nRestarts: ${node.restarts}`);
+}
+
+function closeStrategiesModal() {
+    document.getElementById('strategiesModal').style.display = 'none';
+}
+
+// Event listeners
+document.getElementById('refreshTreeBtn').addEventListener('click', loadSupervisionData);
+document.getElementById('showStrategiesBtn').addEventListener('click', () => {
+    document.getElementById('strategiesModal').style.display = 'flex';
+});
+
+// Initial load
+loadSupervisionData();
+
+// Auto-refresh every 10 seconds
+setInterval(loadSupervisionData, 10000);
+</script>
+{% endblock %}

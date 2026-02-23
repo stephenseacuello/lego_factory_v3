@@ -1,0 +1,619 @@
+name: CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      skip_tests:
+        description: 'Skip tests (emergency only)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  HELM_VERSION: v3.14.0
+  ARGOCD_VERSION: v2.10.0
+
+jobs:
+  # ============================================
+  # Determine Deployment Target
+  # ============================================
+  prepare:
+    name: Prepare Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      version: ${{ steps.version.outputs.version }}
+      is_release: ${{ steps.version.outputs.is_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${{ github.ref_name }}"
+            echo "is_release=true" >> $GITHUB_OUTPUT
+          else
+            VERSION="${{ github.sha }}"
+            echo "is_release=false" >> $GITHUB_OUTPUT
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+  # ============================================
+  # Run CI if Not Skipped
+  # ============================================
+  ci:
+    name: Run CI
+    needs: [prepare]
+    if: github.event.inputs.skip_tests != 'true'
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  # ============================================
+  # Build and Push Production Images
+  # ============================================
+  build:
+    name: Build Production Images
+    runs-on: ubuntu-latest
+    needs: [prepare, ci]
+    if: always() && (needs.ci.result == 'success' || github.event.inputs.skip_tests == 'true')
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [dashboard, slicer-service, mcp-server, worker]
+    outputs:
+      image_digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=
+            type=raw,value=${{ needs.prepare.outputs.version }}
+            type=raw,value=latest,enable=${{ needs.prepare.outputs.environment == 'prod' }}
+
+      - name: Determine build context
+        id: context
+        run: |
+          case "${{ matrix.service }}" in
+            dashboard)
+              echo "path=dashboard/Dockerfile" >> $GITHUB_OUTPUT
+              echo "context=." >> $GITHUB_OUTPUT
+              ;;
+            slicer-service)
+              echo "path=slicer-service/Dockerfile" >> $GITHUB_OUTPUT
+              echo "context=slicer-service" >> $GITHUB_OUTPUT
+              ;;
+            worker)
+              echo "path=dashboard/Dockerfile.worker" >> $GITHUB_OUTPUT
+              echo "context=." >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "path=${{ matrix.service }}/Dockerfile" >> $GITHUB_OUTPUT
+              echo "context=${{ matrix.service }}" >> $GITHUB_OUTPUT
+              ;;
+          esac
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ steps.context.outputs.context }}
+          file: ${{ steps.context.outputs.path }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ needs.prepare.outputs.version }}
+            ENVIRONMENT=${{ needs.prepare.outputs.environment }}
+
+      - name: Sign the container image
+        if: needs.prepare.outputs.is_release == 'true'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          echo "Container signing would happen here with cosign"
+          # cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
+
+  # ============================================
+  # Security Scan Production Images
+  # ============================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: [prepare, build]
+    permissions:
+      security-events: write
+    strategy:
+      matrix:
+        service: [dashboard, slicer-service]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ needs.prepare.outputs.version }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Fail on critical vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}:${{ needs.prepare.outputs.version }}'
+          format: 'table'
+          severity: 'CRITICAL'
+          exit-code: '1'
+          ignore-unfixed: true
+        continue-on-error: ${{ needs.prepare.outputs.environment != 'prod' }}
+
+  # ============================================
+  # Deploy to Development
+  # ============================================
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: [prepare, build]
+    if: needs.prepare.outputs.environment == 'dev'
+    environment:
+      name: development
+      url: https://legomcp-dev.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_DEV }}
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install legomcp-dev helm/legomcp/ \
+            -f helm/legomcp/values.yaml \
+            -f helm/legomcp/values-dev.yaml \
+            --set image.tag=${{ needs.prepare.outputs.version }} \
+            --set environment=development \
+            --namespace legomcp-dev \
+            --create-namespace \
+            --atomic \
+            --timeout 10m \
+            --wait
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/legomcp-dashboard -n legomcp-dev --timeout=300s
+
+      - name: Run smoke tests
+        run: |
+          kubectl run smoke-test --rm -i --restart=Never \
+            --image=curlimages/curl:latest \
+            -n legomcp-dev \
+            -- curl -f http://legomcp-dashboard:5000/health || true
+
+  # ============================================
+  # Deploy to Staging
+  # ============================================
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [prepare, build, security-scan]
+    if: needs.prepare.outputs.environment == 'staging' || needs.prepare.outputs.environment == 'prod'
+    environment:
+      name: staging
+      url: https://legomcp-staging.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_STAGING }}
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install legomcp-staging helm/legomcp/ \
+            -f helm/legomcp/values.yaml \
+            -f helm/legomcp/values-staging.yaml \
+            --set image.tag=${{ needs.prepare.outputs.version }} \
+            --set environment=staging \
+            --namespace legomcp-staging \
+            --create-namespace \
+            --atomic \
+            --timeout 15m \
+            --wait
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/legomcp-dashboard -n legomcp-staging --timeout=300s
+          kubectl rollout status deployment/legomcp-worker -n legomcp-staging --timeout=300s
+
+      - name: Run integration tests
+        run: |
+          kubectl run integration-test --rm -i --restart=Never \
+            --image=python:3.11-slim \
+            -n legomcp-staging \
+            -- python -c "import urllib.request; urllib.request.urlopen('http://legomcp-dashboard:5000/health')" || true
+
+      - name: Run load test
+        run: |
+          kubectl run load-test --rm -i --restart=Never \
+            --image=grafana/k6:latest \
+            -n legomcp-staging \
+            -- run - <<EOF || true
+          import http from 'k6/http';
+          import { check, sleep } from 'k6';
+          export default function () {
+            let res = http.get('http://legomcp-dashboard:5000/health');
+            check(res, { 'status was 200': (r) => r.status == 200 });
+            sleep(1);
+          }
+          EOF
+
+  # ============================================
+  # Deploy to Production
+  # ============================================
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [prepare, build, security-scan, deploy-staging]
+    if: needs.prepare.outputs.environment == 'prod'
+    environment:
+      name: production
+      url: https://legomcp.example.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
+
+      - name: Create backup before deployment
+        run: |
+          kubectl create job --from=cronjob/legomcp-backup legomcp-backup-pre-deploy-$(date +%s) \
+            -n legomcp-prod || true
+
+      - name: Deploy with Helm (Canary)
+        id: canary
+        run: |
+          # Deploy canary (10% traffic)
+          helm upgrade --install legomcp-prod-canary helm/legomcp/ \
+            -f helm/legomcp/values.yaml \
+            -f helm/legomcp/values-prod.yaml \
+            --set image.tag=${{ needs.prepare.outputs.version }} \
+            --set environment=production \
+            --set replicaCount=1 \
+            --set canary.enabled=true \
+            --set canary.weight=10 \
+            --namespace legomcp-prod \
+            --atomic \
+            --timeout 10m \
+            --wait
+
+      - name: Verify canary health
+        run: |
+          sleep 60
+          kubectl rollout status deployment/legomcp-dashboard-canary -n legomcp-prod --timeout=300s
+
+          # Check error rate
+          echo "Checking canary metrics..."
+          # In production, you'd query Prometheus for error rates
+
+      - name: Promote canary to full deployment
+        run: |
+          helm upgrade --install legomcp-prod helm/legomcp/ \
+            -f helm/legomcp/values.yaml \
+            -f helm/legomcp/values-prod.yaml \
+            --set image.tag=${{ needs.prepare.outputs.version }} \
+            --set environment=production \
+            --namespace legomcp-prod \
+            --atomic \
+            --timeout 20m \
+            --wait
+
+          # Remove canary
+          helm uninstall legomcp-prod-canary -n legomcp-prod || true
+
+      - name: Verify production deployment
+        run: |
+          kubectl rollout status deployment/legomcp-dashboard -n legomcp-prod --timeout=600s
+          kubectl rollout status deployment/legomcp-worker -n legomcp-prod --timeout=600s
+
+      - name: Run production smoke tests
+        run: |
+          # External health check
+          curl -f https://legomcp.example.com/health || true
+
+      - name: Update deployment annotations
+        run: |
+          kubectl annotate deployment legomcp-dashboard \
+            kubernetes.io/change-cause="Deployed version ${{ needs.prepare.outputs.version }}" \
+            -n legomcp-prod --overwrite
+
+  # ============================================
+  # ArgoCD Sync (Alternative to Helm)
+  # ============================================
+  argocd-sync:
+    name: Sync ArgoCD Application
+    runs-on: ubuntu-latest
+    needs: [prepare, build, security-scan]
+    if: false  # Set to true to use ArgoCD instead of Helm
+    steps:
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/download/${{ env.ARGOCD_VERSION }}/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login ${{ secrets.ARGOCD_SERVER }} \
+            --username admin \
+            --password ${{ secrets.ARGOCD_PASSWORD }} \
+            --grpc-web
+
+      - name: Update image tag
+        run: |
+          argocd app set legomcp-${{ needs.prepare.outputs.environment }} \
+            --helm-set image.tag=${{ needs.prepare.outputs.version }}
+
+      - name: Sync application
+        run: |
+          argocd app sync legomcp-${{ needs.prepare.outputs.environment }} \
+            --prune \
+            --timeout 600
+
+      - name: Wait for healthy status
+        run: |
+          argocd app wait legomcp-${{ needs.prepare.outputs.environment }} \
+            --health \
+            --timeout 600
+
+  # ============================================
+  # Database Migrations
+  # ============================================
+  migrations:
+    name: Run Database Migrations
+    runs-on: ubuntu-latest
+    needs: [prepare, build]
+    if: needs.prepare.outputs.environment == 'staging' || needs.prepare.outputs.environment == 'prod'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets[format('KUBE_CONFIG_{0}', needs.prepare.outputs.environment)] }}
+
+      - name: Run migrations
+        run: |
+          kubectl run migrations --rm -i --restart=Never \
+            --image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/dashboard:${{ needs.prepare.outputs.version }} \
+            -n legomcp-${{ needs.prepare.outputs.environment }} \
+            --env="DATABASE_URL=${{ secrets[format('DATABASE_URL_{0}', needs.prepare.outputs.environment)] }}" \
+            -- alembic upgrade head
+
+  # ============================================
+  # Rollback (Manual Trigger)
+  # ============================================
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && failure()
+    needs: [deploy-prod]
+    environment:
+      name: production
+    steps:
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v4
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PROD }}
+
+      - name: Rollback deployment
+        run: |
+          kubectl rollout undo deployment/legomcp-dashboard -n legomcp-prod
+          kubectl rollout undo deployment/legomcp-worker -n legomcp-prod
+
+      - name: Verify rollback
+        run: |
+          kubectl rollout status deployment/legomcp-dashboard -n legomcp-prod
+
+  # ============================================
+  # Create Release
+  # ============================================
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [prepare, deploy-prod]
+    if: needs.prepare.outputs.is_release == 'true'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" -20)
+          fi
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.prepare.outputs.version }}
+          name: Release ${{ needs.prepare.outputs.version }}
+          body: |
+            ## What's Changed
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Docker Images
+
+            - `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/dashboard:${{ needs.prepare.outputs.version }}`
+            - `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/slicer-service:${{ needs.prepare.outputs.version }}`
+            - `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/worker:${{ needs.prepare.outputs.version }}`
+
+            ## Deployment
+
+            This release has been deployed to production.
+          draft: false
+          prerelease: ${{ contains(needs.prepare.outputs.version, '-') }}
+
+  # ============================================
+  # Notifications
+  # ============================================
+  notify-success:
+    name: Notify Success
+    runs-on: ubuntu-latest
+    needs: [prepare, deploy-dev, deploy-staging, deploy-prod]
+    if: always() && !failure() && !cancelled()
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Deployment Successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Deployment Successful* :white_check_mark:\n*Environment:* ${{ needs.prepare.outputs.environment }}\n*Version:* ${{ needs.prepare.outputs.version }}\n*Repository:* ${{ github.repository }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+  notify-failure:
+    name: Notify Failure
+    runs-on: ubuntu-latest
+    needs: [prepare, deploy-dev, deploy-staging, deploy-prod]
+    if: failure()
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Deployment Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Deployment Failed* :x:\n*Environment:* ${{ needs.prepare.outputs.environment }}\n*Version:* ${{ needs.prepare.outputs.version }}\n*Repository:* ${{ github.repository }}\n*Run:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
+
+      - name: Create incident
+        run: |
+          echo "Would create PagerDuty/OpsGenie incident here"

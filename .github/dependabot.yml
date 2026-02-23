@@ -1,0 +1,155 @@
+version: 2
+
+registries:
+  ghcr:
+    type: docker-registry
+    url: ghcr.io
+    username: ${{ github.actor }}
+    password: ${{ secrets.GITHUB_TOKEN }}
+
+updates:
+  # Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "legomcp-team"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "deps(python):"
+    groups:
+      ml-libraries:
+        patterns:
+          - "torch*"
+          - "tensorflow*"
+          - "numpy"
+          - "scipy"
+          - "scikit-learn"
+          - "pandas"
+          - "ultralytics"
+        update-types:
+          - "minor"
+          - "patch"
+      testing:
+        patterns:
+          - "pytest*"
+          - "coverage"
+          - "hypothesis"
+      web-framework:
+        patterns:
+          - "flask*"
+          - "werkzeug"
+          - "jinja2"
+          - "gunicorn"
+          - "uvicorn"
+      database:
+        patterns:
+          - "sqlalchemy*"
+          - "alembic"
+          - "psycopg*"
+          - "redis"
+    ignore:
+      # Ignore major version updates for critical packages
+      - dependency-name: "torch"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tensorflow"
+        update-types: ["version-update:semver-major"]
+
+  # Dashboard dependencies
+  - package-ecosystem: "pip"
+    directory: "/dashboard"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "dashboard"
+    commit-message:
+      prefix: "deps(dashboard):"
+
+  # Slicer service dependencies
+  - package-ecosystem: "pip"
+    directory: "/slicer-service"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "slicer"
+    commit-message:
+      prefix: "deps(slicer):"
+
+  # Docker dependencies
+  - package-ecosystem: "docker"
+    directory: "/dashboard"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "deps(docker):"
+
+  - package-ecosystem: "docker"
+    directory: "/slicer-service"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "deps(docker):"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "deps(actions):"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # Terraform
+  - package-ecosystem: "terraform"
+    directory: "/terraform/aws"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "terraform"
+    commit-message:
+      prefix: "deps(terraform):"
+
+  # npm (if any JavaScript in dashboard)
+  - package-ecosystem: "npm"
+    directory: "/dashboard"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "npm"
+    commit-message:
+      prefix: "deps(npm):"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
