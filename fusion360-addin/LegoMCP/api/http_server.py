@@ -494,17 +494,18 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
         studs_x = int(dimensions.get('width_studs') or params.get('width_studs') or params.get('studs_x') or params.get('width', 4))
         studs_y = int(dimensions.get('depth_studs') or params.get('depth_studs') or params.get('studs_y') or params.get('depth', 1))
         arch_height = int(params.get('arch_height', 1))
+        color = params.get('color')
 
         _log(f"Creating arch brick: {studs_x}x{studs_y}, arch_height={arch_height}")
 
-        # Arch bricks need brick_modeler enhancement for arch cutouts
-        # For now, create standard brick of same size
-        result = _modeler.create_standard_brick(
+        result = _modeler.create_arch_brick(
             studs_x=studs_x,
             studs_y=studs_y,
-            height_units=arch_height + 1,  # Arch needs height for opening
+            height_units=arch_height + 1,
+            arch_height_studs=arch_height,
             hollow=True,
-            name=params.get('name') or f"Arch_{studs_x}x{studs_y}"
+            name=params.get('name') or f"Arch_{studs_x}x{studs_y}",
+            color=color
         )
 
         return {
@@ -513,8 +514,7 @@ class FusionAPIHandler(BaseHTTPRequestHandler):
             'component_name': result.component_name,
             'dimensions': result.dimensions,
             'volume_mm3': result.volume_mm3,
-            'error': result.error,
-            'note': 'Arch cutout not yet implemented - created as standard brick'
+            'error': result.error
         }
 
     def _handle_create_wedge(self, params: dict) -> dict:
